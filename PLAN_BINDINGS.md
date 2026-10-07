@@ -9,6 +9,10 @@ Expose the completed Rust framework to foreign languages without making the fore
 Requires A foundation.
 Capability-specific bindings start only after the corresponding D public contract is stable.
 
+## Execution decomposition
+
+Start with `PLAN_BINDINGS_CORE.md` (F1), which freezes and validates the foundational C ABI from A without waiting for capability crates. Add capability-specific headers only in later named slices after their D contracts are stable. C++ and Python remain optional and must not block the C ABI.
+
 ## Write scope
 
 - `bindings/c/**`
