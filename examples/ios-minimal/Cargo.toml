@@ -1,0 +1,25 @@
+[package]
+name = "ios-minimal"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+publish = false
+description = "Rust-owned UIKit application vertical slice"
+
+[dependencies]
+ios-runtime = { path = "../../platform/ios/ios-runtime" }
+
+[target.'cfg(target_os = "ios")'.dependencies]
+objc2 = { version = "0.6.5", default-features = false, features = ["std"] }
+objc2-foundation = { version = "0.3.2", default-features = false, features = ["NSString"] }
+objc2-ui-kit = { version = "0.3.2", default-features = false, features = ["std", "UIApplication", "UIButton", "UIControl", "UILabel", "UIScreen", "UIResponder", "UIView", "UIViewController", "UIWindow", "objc2-core-foundation"] }
+objc2-core-foundation = { version = "0.3.2", default-features = false, features = ["CFCGTypes"] }
+
+[[bin]]
+name = "ios-minimal"
+path = "src/main.rs"
+
+[lints]
+workspace = true
