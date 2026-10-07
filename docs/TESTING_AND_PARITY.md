@@ -213,6 +213,34 @@ For packed representations test:
 - alignment assumptions;
 - concurrent atomic updates if applicable.
 
+## Architecture-specific assembly testing
+
+Every handwritten ARM64/AArch64 or x86-64 hot path must be tested against a portable Rust reference implementation.
+
+Required coverage should include:
+- fixed edge-case vectors;
+- randomized/property-generated inputs;
+- boundary lengths and alignments;
+- zero/empty inputs where supported;
+- maximum/minimum numeric values;
+- overlapping/aliasing cases if the contract permits them;
+- CPU-feature gated paths;
+- fallback selection;
+- architecture-specific regression cases.
+
+For pure deterministic kernels, require byte/value-for-value equality unless the documented numeric contract permits tolerance.
+
+For floating-point/SIMD code, define the accepted precision/rounding/NaN contract before comparing implementations.
+
+Benchmarks must compare:
+1. portable optimized Rust;
+2. compiler intrinsic/SIMD implementation when applicable;
+3. handwritten assembly candidate.
+
+Handwritten assembly is accepted only if it produces a meaningful, repeatable win and does not sacrifice correctness, portability of the public API, or maintainability.
+
+CI should compile all supported architecture paths where runners/toolchains permit, while physical/device benchmarks determine performance claims.
+
 ## Replacement acceptance checklist
 
 Before changing an Apple backend to Rust-by-default:
