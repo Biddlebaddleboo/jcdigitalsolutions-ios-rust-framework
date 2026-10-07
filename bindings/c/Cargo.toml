@@ -12,6 +12,13 @@ crate-type = ["staticlib"]
 
 [dependencies]
 framework-abi = { path = "../../crates/framework-abi", version = "0.1.0", features = ["std"] }
+framework-core = { workspace = true, optional = true }
+framework-secure-storage = { path = "../../crates/framework-secure-storage", version = "0.1.0", optional = true }
+ios-secure-storage = { path = "../../platform/ios/ios-secure-storage", version = "0.1.0", optional = true }
+
+[features]
+default = []
+secure-storage = ["dep:framework-core", "dep:framework-secure-storage", "dep:ios-secure-storage"]
 
 [lints]
 workspace = true

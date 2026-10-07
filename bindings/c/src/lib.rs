@@ -8,6 +8,18 @@ pub use framework_abi::{
     framework_owned_buffer_destroy,
 };
 
+#[cfg(feature = "secure-storage")]
+extern crate alloc;
+
+#[cfg(feature = "secure-storage")]
+mod secure_storage;
+
+#[cfg(feature = "secure-storage")]
+pub use secure_storage::{
+    framework_ios_secure_storage_read, framework_ios_secure_storage_remove,
+    framework_ios_secure_storage_store,
+};
+
 use framework_abi::{ABI_VERSION_MAJOR, ABI_VERSION_MINOR};
 
 /// Returns the ABI version as major in the high 32 bits and minor in the low 32 bits.

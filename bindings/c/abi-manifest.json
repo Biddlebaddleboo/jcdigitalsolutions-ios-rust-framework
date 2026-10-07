@@ -33,11 +33,46 @@
     }
   },
   "c_symbols": ["framework_abi_version", "framework_owned_buffer_destroy"],
+  "optional_capabilities": {
+    "ios_secure_storage": {
+      "cargo_feature": "secure-storage",
+      "header": "framework_ios_secure_storage.h",
+      "symbols": [
+        "framework_ios_secure_storage_read",
+        "framework_ios_secure_storage_store",
+        "framework_ios_secure_storage_remove"
+      ],
+      "targets": {
+        "aarch64-apple-ios": "public Keychain generic-password backend",
+        "aarch64-apple-ios-sim": "public Keychain generic-password backend",
+        "non_ios": "validating UNSUPPORTED stubs; no Apple framework link"
+      },
+      "policy_bits": {
+        "DEVICE_UNLOCK_REQUIRED": 1,
+        "DEVICE_BOUND": 2,
+        "allowed_mask": 3
+      },
+      "outputs": {
+        "read_found": "uint8_t: 0 absent, 1 present; distinguishes a present empty secret",
+        "read_secret": "FrameworkOwnedBuffer initialized empty on entry; caller destroys a returned owned buffer with framework_owned_buffer_destroy",
+        "store_effective_policy_flags": "uint32_t policy bits; zero on failure",
+        "remove_removed": "uint8_t: 0 absent, 1 removed; zero on failure",
+        "native_os_status": "optional int32_t; zero before work and for non-platform errors; exact nonzero native status on platform errors"
+      },
+      "panic_boundary": "Each exported function catches Rust panics and returns FRAMEWORK_STATUS_PANIC; no panic unwinds across C.",
+      "threading": "Synchronous and potentially blocking; caller chooses the calling thread.",
+      "ownership": {
+        "inputs": "FrameworkStr and FrameworkSlice are borrowed through the call and are not retained",
+        "read_secret": "FrameworkOwnedBuffer must be released exactly once with framework_owned_buffer_destroy; out_secret must not contain a live owned allocation on entry"
+      }
+    }
+  },
   "ownership": {
     "FrameworkSlice": "borrowed bytes; source must outlive each foreign use",
     "FrameworkStr": "borrowed UTF-8 bytes; source must outlive each foreign use",
     "FrameworkOwnedBuffer": {
-      "creator_in_this_slice": false,
+      "creator_in_core_f1": false,
+      "optional_capability_creators": ["framework_ios_secure_storage_read"],
       "destroyer": "framework_owned_buffer_destroy",
       "rule": "destroy the original unchanged framework-created descriptor once; NULL is a no-op; copied or modified descriptors are invalid"
     },
@@ -50,6 +85,6 @@
     "reserved_must_be_zero": true,
     "future_sized_struct_check": "an accepting API must check struct_size and abi_version before reading fields; no options-accepting API is exported by this slice"
   },
-  "panic_boundary": "No panic may unwind across C ABI. Exported functions have no panic path; Rust C ABI unwind behavior aborts rather than crosses the boundary.",
+  "panic_boundary": "No panic may unwind across C ABI. F1 core exports are arithmetic-only/destructor-only and have no recoverable panic path; optional ios_secure_storage exports catch Rust panics and return FRAMEWORK_STATUS_PANIC.",
   "static_library_runtime": "framework-abi/std is enabled in this opt-in static library to provide the allocator and panic runtime needed by its owned-buffer destructor; framework-abi remains no_std by default for Rust consumers."
 }
