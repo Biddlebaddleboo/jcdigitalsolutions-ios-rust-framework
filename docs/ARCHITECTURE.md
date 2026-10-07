@@ -81,6 +81,39 @@ platform backend implements contract
 
 Portable crates must not depend on iOS, Android, Windows, Linux, Web, or any other concrete backend.
 
+## Dependency substitution boundary
+
+External dependencies must sit below framework-owned contracts.
+
+A normal dependency path should look like:
+
+```text
+portable/high-level API
+  -> framework-owned semantic/internal layer
+  -> narrow dependency adapter
+  -> external crate or generated binding
+```
+
+The framework must be able to replace the final adapter/implementation without changing the developer-facing API.
+
+This is especially important for dependencies that may later be replaced for:
+- lower runtime overhead;
+- smaller binary size;
+- better `no_std` compatibility;
+- reduced transitive dependencies;
+- tighter cache/memory behavior;
+- platform coverage;
+- ABI control;
+- long-term maintenance.
+
+Do not achieve replaceability by imposing universal runtime polymorphism. Dependency selection should normally remain compile-time/static.
+
+Framework-owned interfaces should be as small as possible and reflect the semantics the framework actually needs, not mirror an entire dependency API.
+
+Avoid "wrapper around the whole crate" abstractions. Wrap only the surfaces required to keep architecture independent.
+
+Platform ABI dependencies are a special case: the OS ABI itself cannot be substituted, but the Rust library used to reach it should still be replaceable where practical.
+
 ## Platform selection
 
 Prefer compile-time backend selection.
