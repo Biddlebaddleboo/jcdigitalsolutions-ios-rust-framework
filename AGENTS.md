@@ -208,6 +208,37 @@ Examples of dependencies that must remain replaceable in principle include:
 
 This does not mean reimplementing mature dependencies prematurely. Use the best current dependency, but architect so replacing it later is a bounded internal change.
 
+### Minimize dependencies without making the framework fragile
+
+Use as few third-party dependencies as practical.
+
+Dependency count, transitive dependency count, feature surface, build complexity, binary/linkage cost, initialization cost, and long-term maintenance risk are architectural concerns.
+
+Default rules:
+
+- Prefer `core`, `alloc`, the Rust language, and direct public platform APIs over adding a crate for small/simple functionality.
+- Do not add a dependency merely to avoid writing a small, well-specified, easily tested helper.
+- Prefer one focused dependency over several overlapping convenience crates.
+- Disable unused default features and optional integrations.
+- Avoid dependencies that pull in large runtimes, executors, logging stacks, serialization stacks, proc-macro ecosystems, or platform bindings unrelated to the capability being implemented.
+- Avoid duplicate crates that solve the same problem at different layers unless a concrete compatibility requirement justifies both.
+- Treat a dependency with a very large or unstable transitive graph as a higher-cost architectural choice.
+- Keep build-time/proc-macro dependencies as narrow as practical because they affect compile time, reproducibility, and tooling complexity.
+- Prefer mature, audited, well-maintained dependencies for cryptography, complex ABI/runtime interop, standards-heavy parsers, and other areas where a minimal homegrown implementation would be fragile or unsafe.
+- Do not rewrite a mature dependency solely to reduce dependency count if the replacement would increase correctness, security, compatibility, or maintenance risk.
+- A small internal implementation is preferred only when its semantics are bounded, testable, and materially simpler than the dependency it replaces.
+
+Before adding a significant dependency, document:
+1. the exact functionality required;
+2. why existing framework/core/platform primitives are insufficient;
+3. transitive/runtime/build cost;
+4. `no_std` implications;
+5. public type leakage, which should normally be none;
+6. replacement seam;
+7. why an internal implementation would be less appropriate.
+
+The goal is not "zero dependencies." The goal is the smallest dependable dependency set.
+
 ### Fine-grained modularity
 
 A consumer that needs one small capability must not have to import or link a large unrelated framework.
