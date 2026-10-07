@@ -761,6 +761,22 @@ Requirements:
 - If exact parity is impossible or intentionally not provided, document the difference and expose it as a distinct semantic contract rather than silently substituting behavior.
 - Performance replacement requires **both** parity/correctness evidence and benchmark evidence. A faster implementation that behaves differently is not a valid replacement.
 
+## Workstream subagent execution
+
+Every named implementation workstream in an approved planning set must be executed by its own bounded subagent/executor.
+
+This is a required orchestration rule, not an optional optimization.
+
+- Assign each `PLAN_*.md` workstream to a dedicated subagent with that file as its primary execution contract.
+- Do not have one agent serially implement multiple independent workstreams merely for convenience.
+- Run parallel-safe workstreams concurrently in isolated branches/worktrees after their prerequisites are integrated.
+- Respect the dependency and integration order in `PLAN.md`; dependent workstreams start only when their required shared interfaces are available.
+- Shared files/symbols remain owned exactly as declared in `PLAN.md`; subagents consume those interfaces rather than competing to redesign them.
+- If a workstream is too large for one bounded executor, decompose it further into additional named subplans before implementation rather than silently expanding one agent's scope.
+- Each subagent must report changed files, commit SHA, tests/benchmarks run, deviations, and unresolved assumptions.
+- Integration and contradiction resolution remain centralized with the orchestrator.
+- This rule exists to accelerate implementation while reducing context size, duplicate exploration, and merge conflicts.
+
 ## Repository/planning workflow
 
 Before implementation:
