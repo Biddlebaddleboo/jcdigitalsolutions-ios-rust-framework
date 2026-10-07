@@ -88,6 +88,27 @@ A convenience API should document when it:
 
 Prefer operations that inline to the direct backend call on the Rust path.
 
+## Compact representations
+
+Developer-facing ergonomics must not force bloated internal representations.
+
+For framework-owned values and repeated state:
+
+- choose narrow integer widths when domain bounds are known;
+- prefer compact enums/discriminants;
+- use bitsets/packed flags for dense boolean/state information;
+- prefer contiguous storage and compact IDs where indirection is required;
+- split hot and cold fields when it materially improves locality;
+- choose AoS/SoA/hybrid layout based on dominant access patterns.
+
+Do not expose needless machine-word-sized fields merely because the host architecture is 64-bit.
+
+Public APIs should preserve semantic clarity even when the internal representation is packed. The Rust API may expose typed newtypes/enums while storing them compactly underneath.
+
+Stable C ABI structs should remain explicit and versionable; internal packed representations may be converted at the ABI boundary instead of freezing a fragile packed layout into the public contract.
+
+Bit packing is first-class, but not mandatory everywhere. Avoid pathological decode cost, unsafe unaligned layout, or obscure representations when a slightly larger layout is faster or substantially safer.
+
 ## Stable C ABI design
 
 The ABI should remain intentionally simple:
