@@ -226,6 +226,41 @@ Measure where relevant:
 - binary size;
 - linked library/framework set.
 
+## Architecture-specific hot paths
+
+ARM64/AArch64 and x86-64 handwritten assembly are valid optimization tools for genuinely hot code, but only after the optimized Rust path has been measured.
+
+Selection order:
+
+```text
+idiomatic Rust
+  -> optimized compiler output
+  -> intrinsics / portable SIMD if sufficient
+  -> architecture-specific assembly only when measurably superior
+```
+
+Assembly is a good candidate when:
+- a tiny loop/kernel dominates measured runtime;
+- instruction scheduling, register allocation, vectorization, bit manipulation, or ABI setup is consistently inferior in generated code;
+- a compact specialized kernel avoids branches/loads/shuffles the compiler retains;
+- exact instruction selection matters across repeated high-volume operations.
+
+Do not introduce assembly when the gain is within benchmark noise or too small to justify maintenance.
+
+For each assembly fast path record:
+- baseline Rust implementation and compiler output;
+- target architecture and minimum CPU feature assumptions;
+- representative input sizes;
+- median/tail throughput or latency improvement;
+- code-size impact;
+- safety/ABI assumptions;
+- fallback path;
+- parity/correctness test coverage.
+
+On Apple ARM64, physical-device Release results are authoritative. On x86-64, benchmark representative supported CPUs rather than assuming one microarchitecture.
+
+If compiler improvements later eliminate the advantage, prefer deleting the assembly and returning to simpler Rust.
+
 ## Generated-code inspection
 
 For important Rust hot paths, inspect optimized assembly or LLVM IR.
