@@ -8,6 +8,10 @@ Implement the native iOS runtime substrate and capability-scoped Apple C/CoreFou
 
 Requires integrated `PLAN_FOUNDATION.md`.
 
+## Execution decomposition
+
+The native backend matrix is too broad for one executor. B1 is `PLAN_IOS_APP_DATA.md`: it implements the iOS files and preferences backends only after their D1 portable contracts are integrated. Other capability backend families require separate named subplans and must not overlap B1-owned paths.
+
 Read first:
 - `docs/IOS_BUILD.md`
 - `docs/OBJC_INTEROP.md`
