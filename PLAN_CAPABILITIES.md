@@ -11,6 +11,10 @@ The portable API models semantic capabilities, not Apple class names.
 Requires Foundation contracts from A.
 Consumes iOS native implementations from B, Swift residual implementations from C, and benchmark-selected replacements from E.
 
+## Execution decomposition
+
+Workstream D is too broad for one bounded executor. Start with `PLAN_CAPABILITIES_APP_DATA.md` (D1), which owns the application lifecycle, files, preferences, foreground HTTP facades, and the first complete support manifest. Further capability groups require separate named subplans and executors; they must not overlap D1-owned crates or manifest edits.
+
 ## Write scope
 
 - `crates/framework-app/**`
