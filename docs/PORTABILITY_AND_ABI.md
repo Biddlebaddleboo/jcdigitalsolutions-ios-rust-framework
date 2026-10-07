@@ -222,7 +222,69 @@ bindings/
 
 Exact crate names may change, but the dependency direction must remain.
 
-## 9. No mandatory umbrella runtime
+## 9. Replaceable dependency architecture
+
+The framework must retain ownership of its semantics even when implementation uses third-party crates.
+
+Important dependencies must be replaceable by internal implementations or alternate libraries without changing application-facing APIs.
+
+Preferred structure:
+
+```text
+framework semantic API
+  -> framework-owned narrow contract
+  -> compile-time adapter
+  -> dependency implementation
+```
+
+### Do not leak dependency identity upward
+
+Avoid making portable/cross-capability code depend directly on:
+
+- dependency-specific error types;
+- dependency-specific ownership wrappers;
+- dependency-specific async runtime handles;
+- dependency-specific collection/storage types;
+- dependency-specific parser/serializer values;
+- dependency-specific macros across broad portions of the tree.
+
+Keep conversions at adapter boundaries.
+
+### Static substitution, not runtime indirection
+
+Replaceability should normally use:
+- Cargo features;
+- `cfg`;
+- generics;
+- sealed/internal traits;
+- module aliases;
+- compile-time backend selection.
+
+Do not add a runtime plugin registry or trait-object layer merely so an implementation might be replaced later.
+
+### Replacement criteria
+
+A dependency should be considered replaceable if a future implementation can be swapped by changing a bounded adapter/module plus tests, while preserving:
+- public API;
+- ownership semantics;
+- errors;
+- cancellation;
+- performance invariants;
+- ABI behavior where applicable.
+
+### Dependency inventory
+
+Architecture/planning should identify major dependencies and record:
+- why each is used;
+- public semantics relied upon;
+- whether its types cross any framework boundary;
+- expected replacement seam;
+- transitive/runtime cost;
+- `no_std` implications.
+
+Current dependencies such as `objc2` are preferred implementations, not irrevocable architecture.
+
+## 10. No mandatory umbrella runtime
 
 Do not require:
 
@@ -238,7 +300,7 @@ Most capabilities should be independently usable.
 
 An optional umbrella crate may re-export capabilities, but it must not make them interdependent.
 
-## 10. Linkage discipline
+## 11. Linkage discipline
 
 A small capability must not drag in unrelated frameworks.
 
@@ -268,7 +330,7 @@ Add minimal example binaries and inspect:
 
 Treat accidental linkage as a regression.
 
-## 11. no_std migration
+## 12. no_std migration
 
 Portable foundations should be written `no_std`-first even while the project initially builds with `std`.
 
@@ -300,7 +362,7 @@ std
 
 The long-term target for most portable code is `no_std + alloc`, not allocator-free code everywhere.
 
-## 12. Async model
+## 13. Async model
 
 Do not make Tokio, async-std, Swift concurrency, Kotlin coroutines, Python asyncio, or any other runtime the universal internal model.
 
@@ -323,7 +385,7 @@ Bindings adapt:
 - C -> callback;
 - C++ -> callback/future wrapper.
 
-## 13. Ownership
+## 14. Ownership
 
 Rust owns Rust state.
 
@@ -338,7 +400,7 @@ Avoid:
 
 Opaque pointers can often directly point to Rust-owned state. Use generation/registry mechanisms only when semantics require stale-handle detection or indirect identity.
 
-## 14. Error model
+## 15. Error model
 
 Portable errors must not require `std::error::Error`.
 
@@ -356,7 +418,7 @@ Python:
 
 Preserve native detail without making platform error types part of portable contracts.
 
-## 15. Strings and bytes
+## 16. Strings and bytes
 
 Portable Rust APIs may use idiomatic Rust strings/slices.
 
@@ -368,7 +430,7 @@ Avoid repeated transcoding and copies.
 
 Borrow where safe; own where lifetime requires it.
 
-## 16. UI policy
+## 17. UI policy
 
 The common UI API may be high-level, but must not become a framework runtime or virtual DOM by default.
 
@@ -386,7 +448,7 @@ Do not require one rendering model to emulate all platforms.
 
 Portable UI concepts should stay semantic and allow platform extensions.
 
-## 17. Compact data and CPU-cache policy
+## 18. Compact data and CPU-cache policy
 
 The framework's own data model should be designed for small working sets and predictable memory access.
 
@@ -502,7 +564,7 @@ Packing multiple small values into one machine word is encouraged where it impro
 
 Internal packing layouts are free to evolve independently from the public semantic API. Only explicitly versioned C ABI or serialized formats may freeze an external representation.
 
-## 18. Performance invariants
+## 19. Performance invariants
 
 ### Rust
 
@@ -532,7 +594,7 @@ Expected:
 
 Framework implementation should avoid multiplying crossings.
 
-## 19. Swift ABI modularity
+## 20. Swift ABI modularity
 
 Swift ABI support belongs only to iOS/macOS capabilities that need it.
 
@@ -543,7 +605,7 @@ Split it finely enough that:
 - Translation does not pull protocol/type-definition machinery it does not need;
 - native-only apps link none of the project's Swift ABI subsystem.
 
-## 20. Platform backend dependency rule
+## 21. Platform backend dependency rule
 
 Dependency direction:
 
@@ -564,7 +626,7 @@ portable core -> Windows backend
 
 The portable layer must compile without any specific platform backend.
 
-## 21. Cross-platform semantic compatibility
+## 22. Cross-platform semantic compatibility
 
 The developer-facing portable API should remain source-compatible across platforms where semantics match.
 
@@ -578,7 +640,7 @@ Document:
 
 Semantic portability is more important than pretending implementation details are identical.
 
-## 22. Build/CI invariants
+## 23. Build/CI invariants
 
 Future CI should include:
 
@@ -595,7 +657,7 @@ Future CI should include:
 - binary-size tracking;
 - assembly/codegen checks for critical zero-cost wrappers.
 
-## 23. Design review questions
+## 24. Design review questions
 
 Before adding a capability, ask:
 
