@@ -52,7 +52,7 @@ Portable contracts do not expose UIKit, JNI, Win32, DOM, or other platform-nativ
 ## Hard guarantees
 
 - Rust-native path first; C ABI is for foreign-language compatibility.
-- Portable code is designed `no_std`-first, aiming at `no_std + alloc` for most core/capability layers.
+- Portable core and portable capability crates start as genuine `#![no_std]`, using `alloc` only where required.
 - Capabilities are fine-grained and independently importable.
 - A small API must not pull large unrelated modules/frameworks.
 - No mandatory framework runtime, global service registry, or universal async executor.
@@ -91,4 +91,6 @@ The repository is currently in architecture/planning bootstrap. Read `AGENTS.md`
 - `docs/OBJC_INTEROP.md` — objc2, delegates, Blocks, callbacks.
 - `docs/SWIFT_ABI.md` — zero-Swift-source policy and Swift-ABI work.
 - `docs/API_DESIGN.md` — portable/high-level API design rules.
+- `docs/TESTING_AND_PARITY.md` — differential Apple parity, ABI, linkage, no_std, and performance validation policy.
+- `docs/DOCUMENTATION.md` — continuous developer/maintainer documentation requirements.
 - `docs/research/` — Apple API and Swift ABI research corpus.
