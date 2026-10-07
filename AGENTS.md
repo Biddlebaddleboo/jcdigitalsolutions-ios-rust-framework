@@ -115,6 +115,43 @@ Do not require:
 
 Use dynamic dispatch only where the application genuinely needs runtime-selected implementations.
 
+### Reimplement Apple/library functionality only for a performance win
+
+The project must not reimplement an Apple framework, OS-facing library surface, or mature dependency merely because doing so is technically possible or increases the amount of Rust code.
+
+A replacement is justified only when there is credible evidence that the Rust implementation can improve at least one important performance dimension without unacceptable regressions:
+
+- lower CPU time or latency;
+- fewer allocations;
+- fewer copies/transcodes;
+- smaller hot working set;
+- better cache locality;
+- less pointer chasing;
+- lower launch/runtime initialization cost;
+- lower binary/linkage cost;
+- better batching/SIMD/vectorization;
+- lower energy use;
+- materially better cross-platform reuse that also removes duplicate work.
+
+Prefer the Apple implementation when it is equal or faster, especially when Apple can exploit:
+- hardware accelerators;
+- GPU/Neural Engine/media engines;
+- architecture-specific kernels;
+- kernel/daemon integration;
+- system scheduling/background execution;
+- private internal optimizations behind a public API.
+
+Do not replace system-owned capabilities such as protected stores, hardware access, system UI, account services, background execution, or entitlement-gated services merely to avoid a framework dependency. Keep Rust logic around the smallest supported public Apple boundary.
+
+For candidate replacements:
+1. identify the exact Apple work being replaced;
+2. define an apples-to-apples benchmark and correctness contract;
+3. prototype the Rust implementation;
+4. measure Release builds on representative physical hardware;
+5. keep the Rust replacement only if it wins the intended metric(s) enough to justify maintenance and portability cost.
+
+If performance is uncertain, keep the Apple path as the default until benchmarks prove otherwise. A pluggable/replacement seam is not permission to replace a faster native implementation.
+
 ### Underlying dependencies must be replaceable
 
 Third-party crates, generated bindings, helper libraries, allocators, parsers, executors, and other implementation dependencies are implementation choices, not permanent public architecture.
