@@ -349,7 +349,29 @@ fn collect_swift_files(root: &Path, path: &Path, files: &mut Vec<String>) -> Res
 }
 
 fn ios_build(args: &[String]) -> Result<(), String> {
-    run_example_script("build.sh", args, "iOS build")
+    let target = parse_ios_build_args(args)?;
+    run_example_script("build.sh", &[target.to_owned()], "iOS build")
+}
+
+fn parse_ios_build_args(args: &[String]) -> Result<&'static str, String> {
+    const USAGE: &str = "usage: cargo xtask ios-build (--simulator | --device) --release";
+    let mut target = None;
+    let mut release = false;
+    for arg in args {
+        match arg.as_str() {
+            "--simulator" if target.is_none() => target = Some("simulator"),
+            "--device" if target.is_none() => target = Some("device"),
+            "--release" if !release => release = true,
+            "--simulator" | "--device" => return Err(USAGE.into()),
+            "--release" => return Err("`--release` may be passed only once".into()),
+            other => return Err(format!("unknown iOS build argument `{other}`; {USAGE}")),
+        }
+    }
+    let target = target.ok_or(USAGE)?;
+    if !release {
+        return Err(format!("`--release` is required; {USAGE}"));
+    }
+    Ok(target)
 }
 
 fn run_example_script(script_name: &str, args: &[String], label: &str) -> Result<(), String> {
@@ -394,7 +416,7 @@ fn docs_check() -> Result<(), String> {
 
 #[cfg(test)]
 mod tests {
-    use super::{collect_swift_files, json_string};
+    use super::{collect_swift_files, json_string, parse_ios_build_args};
     use std::fs;
     use std::path::PathBuf;
     use std::time::{SystemTime, UNIX_EPOCH};
@@ -436,5 +458,32 @@ mod tests {
             ["Sources/Auth.swift", "tools/swift-oracle/Input.swift"].map(str::to_owned)
         );
         fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn ios_build_flags_map_to_the_example_script_target() {
+        assert_eq!(
+            parse_ios_build_args(&["--simulator".into(), "--release".into()]).unwrap(),
+            "simulator"
+        );
+        assert_eq!(
+            parse_ios_build_args(&["--device".into(), "--release".into()]).unwrap(),
+            "device"
+        );
+    }
+
+    #[test]
+    fn ios_build_rejects_missing_both_duplicate_and_unknown_flags() {
+        assert!(parse_ios_build_args(&[]).is_err());
+        assert!(parse_ios_build_args(&["--release".into()]).is_err());
+        assert!(
+            parse_ios_build_args(&["--simulator".into(), "--device".into(), "--release".into()])
+                .is_err()
+        );
+        assert!(
+            parse_ios_build_args(&["--simulator".into(), "--release".into(), "--debug".into()])
+                .is_err()
+        );
+        assert!(parse_ios_build_args(&["--simulator".into()]).is_err());
     }
 }

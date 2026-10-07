@@ -2,7 +2,7 @@
 
 ## Current build status
 
-The architecture plan names Xcode 27.x as its execution-host baseline. The current recorded host has Xcode 26.6 (build 17F113) and SDK 26.5, so it is below that baseline. The repository also has no Xcode project/workspace or iOS framework crate yet. No iOS simulator/device build, signing, or archive result is claimed. Use `cargo xtask toolchain-manifest` to record the active environment; see [Validation and Tooling](VALIDATION.md) for the shared checks and their scope.
+The architecture plan names Xcode 27.x as its execution-host baseline. The current recorded host has Xcode 26.6 (build 17F113) and SDK 26.5, so it is below that baseline. The repository has a Cargo-based minimal iOS example, but no full framework Xcode project/workspace or iOS framework crate. Build the example with `cargo xtask ios-build --simulator --release` or `cargo xtask ios-build --device --release`; these commands route to `examples/ios-minimal/build.sh`. No build, signing, or archive result is claimed here. Use `cargo xtask toolchain-manifest` to record the active environment; see [Validation and Tooling](VALIDATION.md) for shared checks and their scope.
 
 ## Goal
 
