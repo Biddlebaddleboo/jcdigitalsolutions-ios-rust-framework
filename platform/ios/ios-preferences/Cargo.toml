@@ -1,0 +1,19 @@
+[package]
+name = "ios-preferences"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "NSUserDefaults-backed iOS preference adapter"
+
+[dependencies]
+framework-core = { workspace = true }
+framework-preferences = { path = "../../../crates/framework-preferences", version = "0.1.0" }
+
+[target.'cfg(target_os = "ios")'.dependencies]
+objc2 = { version = "0.6.5", default-features = false, features = ["std"] }
+objc2-foundation = { version = "0.3.2", default-features = false, features = ["std", "NSData", "NSString", "NSUserDefaults"] }
+
+[lints]
+workspace = true
