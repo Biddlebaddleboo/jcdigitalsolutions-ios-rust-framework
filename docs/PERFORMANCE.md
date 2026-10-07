@@ -108,6 +108,22 @@ A Rust implementation may still win for:
 
 Do not compare a reduced-function Rust prototype against a feature-complete Apple implementation. Benchmark equivalent semantics.
 
+## Shared benchmark harness
+
+The dependency-free `bench-harness` package under `tools/bench-harness` can time a supplied closure
+and emit a JSON record. The caller supplies the target triple, optimization mode, workload ID, input
+shape, warmup count, and measurement context. `sample_workload` records raw nanosecond values and
+requires at least 100 timed samples; reports include the integer-truncated median and nearest-rank
+p95/p99. Each timed sample includes `Instant`/`black_box` overhead, so batch tiny operations when
+that overhead would dominate.
+
+Optional allocation, copy, copied-byte, and energy counters are supplied explicitly by workload
+instrumentation. Unmeasured counters serialize as `null`; the harness does not infer or fabricate
+them. Host microbenchmarks are marked advisory. A caller may label a run as a representative Apple
+device Release measurement, but the label is not independently verified and does not by itself
+establish a representative methodology or justify selecting a Rust default. No framework benchmark
+workload is registered and no performance evidence is currently produced by the harness unit tests.
+
 ## Binary and dependency size
 
 Fine-grained modularity is a performance requirement.

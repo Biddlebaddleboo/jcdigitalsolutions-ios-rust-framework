@@ -26,6 +26,9 @@ jobs:
         run: cargo clippy --locked --workspace --all-targets --all-features -- -D warnings
       - name: Unit tests
         run: cargo test --locked --workspace
+      - name: C API header, layout, symbol, and consumer check
+        if: runner.os == 'macOS'
+        run: sh bindings/c/check.sh
       - name: Portable no_std checks
         run: cargo xtask no-std-check
       - name: Dependency inventory

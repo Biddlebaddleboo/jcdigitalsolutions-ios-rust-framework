@@ -1,0 +1,11 @@
+[package]
+name = "bench-harness"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish = false
+description = "Dependency-free benchmark sample and report harness"
+
+[lints]
+workspace = true

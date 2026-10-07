@@ -10,6 +10,25 @@ For a Rust implementation intended to replace an Apple library-layer implementat
 
 Performance alone is insufficient.
 
+## Shared parity harness
+
+The dependency-free `parity-harness` package under `tools/parity-harness` provides fixed `Case`
+inputs, typed `Outcome::Success` and `Outcome::Error` results, and a generic `Adapter` interface.
+`compare_suite` uses static generic dispatch for the reference/candidate pair; it does not contain
+Apple frameworks or register any real suite.
+
+`Normalization::ignore_top_level_fields` is explicit per suite and ignores only the named
+top-level fields in successful object results. Error categories and optional native codes are never
+normalized. Reports list every normalized field. Each mismatch preserves the case ID and input, raw
+reference/candidate results, normalized reference/candidate results, and caller-supplied OS/SDK
+labels. Its deterministic JSON serializer rejects non-finite floats rather than emitting invalid
+JSON.
+
+The crate's unit fixtures use deterministic fake adapters to cover equal values, unequal values,
+unequal error categories/native codes, and explicit normalization. These fixtures validate the
+comparator only; they are not Apple parity evidence. `cargo xtask parity` remains unavailable until
+a real Apple reference adapter and Rust candidate suite are registered.
+
 ## Test layers
 
 ### 1. Pure portable unit tests

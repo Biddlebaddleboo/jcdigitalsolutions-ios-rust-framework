@@ -14,6 +14,8 @@ cargo xtask abi-audit --output target/xtask/abi-audit.json
 cargo xtask linkage-audit --binary path/to/consumer
 cargo xtask zero-swift-source
 cargo xtask docs-check
+cargo test -p parity-harness
+cargo test -p bench-harness
 ```
 
 ## What the checks prove
@@ -24,9 +26,10 @@ cargo xtask docs-check
 - `sdk-inventory` records public framework header, module-map, and `.swiftinterface` paths plus declaration counts and heuristic flags for availability, Objective-C exposure, async/throws, generics, actor isolation, and protocol conformance. It is useful for drift triage, not a complete parser or public API/compliance review.
 - `abi-audit` records Rust source declarations and the ABI version constants. It does not verify compiled C layouts, the final symbol table, the linked calling convention, Swift runtime provenance, or panic containment in a linked consumer.
 - `linkage-audit` uses `otool -L` on a supplied Mach-O binary. The minimal example results below are scoped to those two artifacts; no general expected-import policy or unrelated-capability absence gate is claimed.
+- `sh bindings/c/check.sh` compiles public headers as C11 and C++17, checks the recorded C layouts and static-library symbol set, then links and runs a C consumer. CI runs this check on macOS.
 - `zero-swift-source` rejects every committed `.swift` file, including under `tools/swift-oracle/`; Swift oracle input must be generated transiently outside the checkout.
 
-Parity, physical-device performance, and optimized codegen checks remain unavailable until reference adapters and benchmark cases exist. `parity` has no Apple reference adapter or Rust candidate. `archive-smoke` runs the shared `ios-minimal` Xcode scheme with the standard `xcodebuild archive` action, disables code signing, and verifies the resulting app bundle, plist, imports, and absence of `.swift` files in the archive. It is an unsigned packaging check, not a signing, provisioning, export, installation, or runtime check.
+The parity and benchmark packages provide harness unit fixtures only; they do not register real Apple/reference suites or framework workloads and produce no parity/performance evidence. `cargo xtask parity` remains unavailable until an Apple reference adapter and Rust candidate suite are registered. Physical-device performance and optimized codegen checks also remain unavailable. `archive-smoke` runs the shared `ios-minimal` Xcode scheme with the standard `xcodebuild archive` action, disables code signing, and verifies the resulting app bundle, plist, imports, and absence of `.swift` files in the archive. It is an unsigned packaging check, not a signing, provisioning, export, installation, or runtime check.
 
 ## Current host baseline
 
@@ -44,4 +47,4 @@ The archive emitted Xcode warnings that all interface orientations must be suppo
 
 ## CI checks
 
-The shared workflow runs formatting, Clippy, workspace tests, portable `no_std` checks, dependency and ABI inventories, rustdoc, the docs index check, and the zero-Swift-source gate on macOS and Linux. macOS installs the iOS simulator Rust target, runs the minimal example's simulator Release build, audits that binary's imports, lints its `Info.plist`, and records the Xcode/SDK environment. The archive smoke is a documented manual macOS command rather than a CI gate. The Xcode 27.x mismatch is a warning until a runner with the planned toolchain is available; simulator launch, device execution, parity, benchmark, signing, archive export, and physical-device gates are not marked passed.
+The shared workflow runs formatting, Clippy, workspace tests (including harness fixtures), portable `no_std` checks, dependency and ABI inventories, rustdoc, the docs index check, and the zero-Swift-source gate on macOS and Linux. macOS also runs `sh bindings/c/check.sh`, installs the iOS simulator Rust target, builds the minimal example in Release mode, audits that binary's imports, lints its `Info.plist`, and records the Xcode/SDK environment. The archive smoke is a documented manual macOS command rather than a CI gate. The Xcode 27.x mismatch is a warning until a runner with the planned toolchain is available; simulator launch, device execution, real parity suites, benchmark evidence, signing, archive export, and physical-device gates are not marked passed.
