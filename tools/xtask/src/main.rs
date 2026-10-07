@@ -70,7 +70,7 @@ Commands:\n\
   linkage-audit --binary PATH              Inspect a Mach-O binary with otool\n\
   zero-swift-source                       Reject every committed .swift source file\n\
   docs-check                              Check shared docs index and zero-Swift-source policy\n\
-  archive-smoke [ARGS...]                  Run examples/ios-minimal/archive.sh when present\n\
+  archive-smoke                            Build and inspect an unsigned Xcode archive\n\
   parity                                  Unavailable until Apple and Rust reference inputs exist\n\
 \n\
 Xcode 27.x is the plan baseline. A toolchain manifest warns when the host does not meet it\n"
@@ -518,6 +518,7 @@ mod tests {
         ] {
             assert!(help.contains(command), "help is missing {command}");
         }
+        assert!(help.contains("Build and inspect an unsigned Xcode archive"));
         assert!(help.contains("Unavailable until Apple and Rust reference inputs exist"));
     }
 }

@@ -1,6 +1,6 @@
 # Rust-owned UIKit app slice
 
-This example enters UIKit from Rust, registers a Rust-defined `UIApplicationDelegate`, creates a `UIWindow` and native `UIViewController`, `UIView`, `UILabel`, and `UIButton`, then routes `UIControl` target/action back to a Rust method. It uses no Swift source, generated Swift, Xcode project, permission prompt, entitlement, or private API.
+This example enters UIKit from Rust, registers a Rust-defined `UIApplicationDelegate`, creates a `UIWindow` and native `UIViewController`, `UIView`, `UILabel`, and `UIButton`, then routes `UIControl` target/action back to a Rust method. The app runtime uses no Swift source or generated Swift. A minimal Xcode project is used only for unsigned archive packaging; the example uses no permission prompt, entitlement, or private API.
 
 ## Build
 
@@ -19,6 +19,16 @@ The script builds an arm64 iOS Simulator Release executable with Cargo and packa
 The device command only builds and bundles an unsigned app. Device installation, signing, provisioning, and physical-device validation are not verified here. The simulator command is a build/package path; no simulator launch is claimed because this x86_64 host cannot run the arm64 simulator executable produced by the required `aarch64-apple-ios-sim` target.
 
 The Rust target components are `aarch64-apple-ios-sim` and `aarch64-apple-ios`. The current execution host recorded by the backend guide is macOS 26.6.2, Xcode 26.6 (17F113), iOS and Simulator SDK 26.5. The planning baseline assumes Xcode 27.x; that toolchain is not present on this host.
+
+## Unsigned Xcode archive
+
+Run from the repository root on macOS with the iPhoneOS SDK installed:
+
+```sh
+cargo xtask archive-smoke
+```
+
+This builds the Release device executable and creates `target/ios-minimal/archive/ios-minimal.xcarchive` with Xcode's archive action. It disables signing and does not validate provisioning, archive export, installation, launch, or physical-device behavior. See [iOS Build and Packaging Direction](../../docs/IOS_BUILD.md) for the exact `xcodebuild` command and host result.
 
 ## Ownership and thread rules
 

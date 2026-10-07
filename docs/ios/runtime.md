@@ -29,7 +29,7 @@ Build and bundle for iOS device (arm64), unsigned:
 ./examples/ios-minimal/build.sh device
 ```
 
-The device command proves only compile/link/package on the selected SDK. It does not sign, provision, install, or launch on a device. No simulator launch is claimed: this x86_64 host cannot run the arm64 simulator executable produced by the required `aarch64-apple-ios-sim` target. Xcode archive validation is also not claimed. The bundle contains no `.swift` file; the application executable is Rust.
+The device command proves only compile/link/package on the selected SDK. It does not sign, provision, install, or launch on a device. `cargo xtask archive-smoke` separately creates an unsigned Xcode archive for the minimal app; it does not validate signing, provisioning, archive export, installation, or runtime behavior. No simulator launch is claimed: this x86_64 host cannot run the arm64 simulator executable produced by the required `aarch64-apple-ios-sim` target. The bundle contains no `.swift` file; the application executable is Rust.
 
 ## Ownership and callback contract
 

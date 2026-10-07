@@ -6,6 +6,7 @@ Run shared checks from the repository root with the `cargo xtask` alias. Reports
 cargo xtask toolchain-manifest --output target/xtask/toolchain-manifest.json
 cargo xtask ios-build --simulator --release
 cargo xtask ios-build --device --release
+cargo xtask archive-smoke
 cargo xtask no-std-check
 cargo xtask sdk-inventory --sdk all --output target/xtask/sdk-inventory-all.json
 cargo xtask dependency-audit
@@ -25,7 +26,7 @@ cargo xtask docs-check
 - `linkage-audit` uses `otool -L` on a supplied Mach-O binary. The minimal example results below are scoped to those two artifacts; no general expected-import policy or unrelated-capability absence gate is claimed.
 - `zero-swift-source` rejects every committed `.swift` file, including under `tools/swift-oracle/`; Swift oracle input must be generated transiently outside the checkout.
 
-Parity, physical-device performance, optimized codegen, and Xcode archive checks remain unavailable until reference adapters, benchmark cases, and an archive scheme exist. `parity` has no Apple reference adapter or Rust candidate; `archive-smoke` has no archive script or scheme. These commands fail with an explicit reason and emit no placeholder evidence.
+Parity, physical-device performance, and optimized codegen checks remain unavailable until reference adapters and benchmark cases exist. `parity` has no Apple reference adapter or Rust candidate. `archive-smoke` runs the shared `ios-minimal` Xcode scheme with the standard `xcodebuild archive` action, disables code signing, and verifies the resulting app bundle, plist, imports, and absence of `.swift` files in the archive. It is an unsigned packaging check, not a signing, provisioning, export, installation, or runtime check.
 
 ## Current host baseline
 
@@ -35,10 +36,12 @@ Rust 1.94.1 has these targets installed on this host: `aarch64-apple-ios`, `aarc
 
 ## iOS minimal example results (2026-10-07)
 
-On the recorded Xcode 26.6 host, both `cargo xtask ios-build --simulator --release` and `cargo xtask ios-build --device --release` passed. They produced unsigned bundles at `target/ios-minimal/simulator/ios-minimal.app` and `target/ios-minimal/device/ios-minimal.app`. Both bundle executables imported UIKit, Foundation, CoreFoundation, `libobjc.A`, and `libSystem`; neither imported the Swift or Python runtime. `plutil -lint` passed for `target/ios-minimal/simulator/ios-minimal.app/Info.plist` and `target/ios-minimal/device/ios-minimal.app/Info.plist`.
+On the recorded Xcode 26.6 host, `cargo xtask archive-smoke` passed on 2026-10-07. It built the Release device executable with Cargo, then ran the standard Xcode archive action using the `ios-minimal` shared scheme, `-destination 'generic/platform=iOS'`, and `CODE_SIGNING_ALLOWED=NO`. The archive is at `target/ios-minimal/archive/ios-minimal.xcarchive`; its app is `target/ios-minimal/archive/ios-minimal.xcarchive/Products/Applications/ios-minimal.app`. `plutil -lint` passed for the archive and app `Info.plist` files; `codesign -dv` reported `code object is not signed at all`. The archived executable imported UIKit, Foundation, CoreFoundation, `libobjc.A`, and `libSystem`, with no Swift or Python runtime imports. The archive contains no `.swift` source.
 
-These results do not meet the plan's Xcode 27.x baseline. No simulator launch, signing, archive, or physical-device validation was performed. They show successful unsigned example cross-builds on this Xcode 26.6 host only.
+On the same host, both `cargo xtask ios-build --simulator --release` and `cargo xtask ios-build --device --release` passed. They produced unsigned bundles at `target/ios-minimal/simulator/ios-minimal.app` and `target/ios-minimal/device/ios-minimal.app`. Both bundle executables imported UIKit, Foundation, CoreFoundation, `libobjc.A`, and `libSystem`; neither imported the Swift or Python runtime. `plutil -lint` passed for `target/ios-minimal/simulator/ios-minimal.app/Info.plist` and `target/ios-minimal/device/ios-minimal.app/Info.plist`.
+
+The archive emitted Xcode warnings that all interface orientations must be supported unless full-screen is required, and that a launch configuration/storyboard must be provided unless full-screen is required. These results do not meet the plan's Xcode 27.x baseline. No signing/provisioning, archive export, simulator launch, installation, or physical-device validation was performed. The archive result is unsigned packaging evidence from this Xcode 26.6 host only.
 
 ## CI checks
 
-The shared workflow runs formatting, Clippy, workspace tests, portable `no_std` checks, dependency and ABI inventories, rustdoc, the docs index check, and the zero-Swift-source gate on macOS and Linux. macOS installs the iOS simulator Rust target, runs the minimal example's simulator Release build, audits that binary's imports, lints its `Info.plist`, and records the Xcode/SDK environment. The Xcode 27.x mismatch is a warning until a runner with the planned toolchain is available; simulator launch, device execution, parity, benchmark, signing, and archive gates are not marked passed.
+The shared workflow runs formatting, Clippy, workspace tests, portable `no_std` checks, dependency and ABI inventories, rustdoc, the docs index check, and the zero-Swift-source gate on macOS and Linux. macOS installs the iOS simulator Rust target, runs the minimal example's simulator Release build, audits that binary's imports, lints its `Info.plist`, and records the Xcode/SDK environment. The archive smoke is a documented manual macOS command rather than a CI gate. The Xcode 27.x mismatch is a warning until a runner with the planned toolchain is available; simulator launch, device execution, parity, benchmark, signing, archive export, and physical-device gates are not marked passed.
