@@ -242,6 +242,40 @@ Keep application/framework-owned computation in ordinary Rust representations wh
 
 Do not turn ordinary application state into `NSObject`, Java objects, COM objects, DOM objects, or other foreign runtime objects.
 
+### Cache locality, compact data, and bit packing are first-class requirements
+
+The portable core, capability state, callback state, registries, queues, and other framework-owned data must be designed with CPU cache behavior and memory density in mind.
+
+Default rules:
+
+- Prefer the smallest integer width that safely represents the required domain and realistic future scale.
+- Prefer compact enums and flags over machine-word-sized values when the domain is bounded.
+- Treat structure padding, alignment, cache-line footprint, and element stride as design inputs.
+- Prefer contiguous storage and cache-friendly iteration over pointer-heavy object graphs.
+- Prefer compact/generational IDs over pointer-sized handles when indirect identity is required and the capacity bound permits it.
+- Use structure-of-arrays, array-of-structs, or hybrid layouts according to the dominant access pattern rather than by habit.
+- Avoid storing redundant derived state when it materially increases working-set size.
+- Separate cold/rarely used fields from hot frequently accessed state when doing so reduces hot-structure footprint.
+- Avoid per-element heap allocation in dense collections unless ownership or semantics require it.
+
+Bit packing is a first-class tool, not a forbidden micro-optimization.
+
+Use bitsets, packed flags, tagged integers, narrow discriminants, compact indexes, and packed state fields when they materially reduce footprint or improve locality without violating correctness.
+
+However:
+
+- Do not use packed/unaligned representations blindly.
+- Avoid `repr(packed)` when ordinary explicit bit fields/masks or field reordering achieve the same result safely.
+- Account for architectures where unaligned loads are slower or constrained.
+- Do not compress values so aggressively that every access requires expensive decode work unless measurements justify the tradeoff.
+- Public/stable C ABI structs must prioritize ABI clarity and compatibility over internal packing tricks; keep packed internal representations behind conversion boundaries when necessary.
+- Document numeric capacity/range invariants for narrow IDs/counters.
+- Overflow, sentinel values, generation wraparound, and invalid bit patterns must have explicit behavior.
+
+For hot or repeated structures, inspect `size_of`, alignment, padding, stride, and cache-line occupancy. Benchmark representative traversal/mutation patterns when alternative layouts have meaningful tradeoffs.
+
+The objective is not "smallest possible struct at any cost." The objective is the smallest representation that preserves correctness, portability, predictable access, and good CPU behavior.
+
 ### Abstraction must justify itself
 
 A framework abstraction should exist when it:
