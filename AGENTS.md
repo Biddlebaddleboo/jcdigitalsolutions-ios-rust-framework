@@ -276,6 +276,15 @@ For hot or repeated structures, inspect `size_of`, alignment, padding, stride, a
 
 The objective is not "smallest possible struct at any cost." The objective is the smallest representation that preserves correctness, portability, predictable access, and good CPU behavior.
 
+Developer-facing ergonomics must be independent from internal packing.
+
+- Public Rust, C++, Python, and other high-level bindings should expose descriptive fields, typed enums/newtypes, methods, builders, and capability-oriented APIs even when the internal storage is a packed integer or bitset.
+- Never require application developers to manually shift/mask bits, manage sentinel encodings, decode packed IDs, or understand cache-layout choices for ordinary use.
+- It is encouraged to pack multiple small flags, bounded counters, discriminants, indexes, generations, and other compact state into one or a few `u32`/`u64` words when that improves locality and remains cheap to access.
+- Internal encode/decode helpers should be small, typed, inlineable, and centralized so packing does not spread representation knowledge through the codebase.
+- The public semantic API is stable; internal bit allocation/layout may change without breaking users unless it crosses an explicitly versioned external ABI or serialized format.
+- Prefer typed getters/setters and newtypes that compile down to masks/shifts over exposing the packed storage word itself.
+
 ### Abstraction must justify itself
 
 A framework abstraction should exist when it:
