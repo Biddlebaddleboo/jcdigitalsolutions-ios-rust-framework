@@ -518,17 +518,33 @@ Unsafe is not a performance feature by itself.
 
 ## Assembly
 
-Assembly is allowed for:
+Architecture-specific assembly is allowed for:
 - ABI thunks;
 - measured hot paths;
 - operations where compiler output is demonstrably inferior.
 
+Hot-path assembly may target ARM64/AArch64 and x86-64 when all of the following are true:
+
+1. profiling or codegen inspection identifies a real bottleneck/opportunity;
+2. the assembly implementation is measurably faster than the optimized Rust/compiler-generated path for representative workloads;
+3. the implementation can be made reliable across the supported ABI/OS/CPU range;
+4. the complexity remains small and reviewable;
+5. correctness is proven against a portable Rust reference implementation;
+6. a portable fallback remains available for unsupported architectures/configurations.
+
+Prefer compiler intrinsics/portable SIMD when they produce equivalent code and keep the implementation simpler. Use handwritten assembly when it provides a proven advantage that the compiler does not reliably achieve.
+
 Before adding assembly:
 1. inspect optimized compiler output;
 2. benchmark the existing implementation;
-3. prove the assembly changes the relevant cost;
-4. document ABI/clobber assumptions;
-5. provide a safe/correct fallback where needed.
+3. prototype the architecture-specific path;
+4. run differential correctness/parity tests against the portable Rust implementation;
+5. prove the assembly changes the relevant performance metric;
+6. document ABI, register/clobber, alignment, CPU-feature, and memory-ordering assumptions;
+7. keep the assembly isolated behind a narrow safe wrapper and target/feature gating;
+8. retain a correct Rust fallback.
+
+Assembly must not become part of the developer-facing API or alter semantics.
 
 Do not use assembly merely to appear lower level.
 
