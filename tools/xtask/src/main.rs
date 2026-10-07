@@ -49,19 +49,27 @@ fn run() -> Result<(), String> {
 }
 
 fn print_help() {
-    println!(
-        "cargo xtask <command>\n\
-         Commands:\n\
-           toolchain-manifest [--output PATH]  Record host, Xcode, SDK, Swift, Clang, and Rust versions\n\
-           no-std-check                       Check portable crates with default and no default features\n\
-           sdk-inventory [--sdk NAME] [--output PATH]  Inventory installed public Apple SDK files\n\
-           dependency-audit [--output-dir PATH]  Record Cargo dependency graphs and duplicate versions\n\
-           abi-audit [--output PATH]           Inventory the current C ABI declarations\n\
-           linkage-audit --binary PATH         Inspect a linked Mach-O binary with otool\n\
-           zero-swift-source                  Reject every committed .swift source file\n\
-           docs-check                         Check shared validation docs and zero-Swift-source policy\n\
-         Xcode 27.x is the plan baseline. A toolchain manifest records, but does not disguise, a mismatch."
-    );
+    print!("{}", help_text());
+}
+
+fn help_text() -> &'static str {
+    "cargo xtask <command>\n\
+\n\
+Commands:\n\
+  help | --help | -h\n\
+  toolchain-manifest [--output PATH]       Record host, Xcode, SDK, Swift, Clang, and Rust versions\n\
+  ios-build (--simulator | --device) --release  Build the minimal iOS example\n\
+  no-std-check                            Check portable crates with default and no default features\n\
+  sdk-inventory [--sdk NAME] [--output PATH]  Inventory installed public Apple SDK files\n\
+  dependency-audit [--output-dir PATH]     Record Cargo graphs and duplicate versions\n\
+  abi-audit [--output PATH]                Inventory current C ABI source declarations\n\
+  linkage-audit --binary PATH              Inspect a Mach-O binary with otool\n\
+  zero-swift-source                       Reject every committed .swift source file\n\
+  docs-check                              Check shared docs index and zero-Swift-source policy\n\
+  archive-smoke [ARGS...]                  Run examples/ios-minimal/archive.sh when present\n\
+  parity                                  Unavailable until Apple and Rust reference inputs exist\n\
+\n\
+Xcode 27.x is the plan baseline. A toolchain manifest warns when the host does not meet it\n"
 }
 
 pub(crate) fn root() -> PathBuf {
@@ -416,7 +424,7 @@ fn docs_check() -> Result<(), String> {
 
 #[cfg(test)]
 mod tests {
-    use super::{collect_swift_files, json_string, parse_ios_build_args};
+    use super::{collect_swift_files, help_text, json_string, parse_ios_build_args};
     use std::fs;
     use std::path::PathBuf;
     use std::time::{SystemTime, UNIX_EPOCH};
@@ -485,5 +493,27 @@ mod tests {
                 .is_err()
         );
         assert!(parse_ios_build_args(&["--simulator".into()]).is_err());
+    }
+
+    #[test]
+    fn help_lists_each_supported_command() {
+        let help = help_text();
+        for command in [
+            "help | --help | -h",
+            "toolchain-manifest",
+            "ios-build (--simulator | --device) --release",
+            "no-std-check",
+            "sdk-inventory",
+            "dependency-audit",
+            "abi-audit",
+            "linkage-audit",
+            "zero-swift-source",
+            "docs-check",
+            "archive-smoke",
+            "parity",
+        ] {
+            assert!(help.contains(command), "help is missing {command}");
+        }
+        assert!(help.contains("Unavailable until Apple and Rust reference inputs exist"));
     }
 }
