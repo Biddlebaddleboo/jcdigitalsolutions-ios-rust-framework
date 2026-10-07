@@ -256,6 +256,34 @@ Cargo feature flags are useful, but do not rely on one giant crate with deeply e
 
 Add CI/linkage tests that detect unexpected platform frameworks, large dependency growth, or binary-size regressions in minimal examples.
 
+### Preserve a future 32-bit-pointer / caged-address-space option
+
+V1 does not need to implement 32-bit pointers or a pointer cage.
+
+However, the architecture must avoid choices that would make a future 32-bit-pointer mode require redesigning the public API or portable core.
+
+Rules:
+
+- Do not assume host pointers are always 64-bit in portable code.
+- Do not use `usize`/`isize` as semantic IDs, counters, generations, serialized fields, ABI-stable values, or persistent indexes unless the value is genuinely address-space-sized.
+- Prefer explicit fixed-width integer types for semantic values.
+- Keep raw pointers, native handles, and address-space-sized quantities confined to narrow backend/unsafe boundaries.
+- Do not expose raw-address arithmetic or pointer width through normal developer-facing APIs.
+- Serialized/persistent formats must define widths explicitly and remain independent from host pointer width.
+- Stable C ABI structs should use fixed-width fields except where an actual pointer is required.
+- Avoid object models where identity is inherently a full native pointer if a compact ID/handle can represent it.
+- Keep allocation/arena/handle layers replaceable so a future implementation can use 32-bit offsets, compressed pointers, or cage-relative references internally.
+- Distinguish pointer **width** from pointer **range**: a future mode may use 32-bit offsets into a bounded 64-bit process address space rather than require a 32-bit process ABI.
+- Do not contort V1 or add runtime overhead solely for this future option. Preserve the seam; implement the mode only in a later version when justified.
+
+Future candidate representations may include:
+- 32-bit cage-relative offsets;
+- 32-bit slab/arena indexes;
+- compressed generational handles;
+- platform-specific pointer compression behind typed wrappers.
+
+Any future 32-bit-pointer mode must preserve memory safety, provenance/lifetime rules, alignment, FFI correctness, and platform ABI requirements.
+
 ### Portable core is no_std + alloc from day one
 
 The portable core and portable capability contracts must start as genuine `#![no_std]` crates, using `alloc` only where allocation is required.
