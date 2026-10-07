@@ -14,19 +14,20 @@ performance status, and native-escape status.
 | `C` | Compiler/build/discovery contract |
 | `X` | No supported implementation in this workstream; reason is in the row |
 
-Current counts: seven rows have `B` support, including four partial rows for the UIKit app example;
-106 rows are `X` for iOS runtime support. The four D1 portable contracts cover application
+Current counts: eight rows have `B` support, including four partial rows for the UIKit app example;
+105 rows are `X` for iOS runtime support. The four D1 portable contracts cover application
 lifecycle, sandbox files/directories, preferences, and foreground HTTP values. B1 adds iOS sandbox
-file and `NSUserDefaults` backends for three rows. The D2 secure-storage contract covers opaque
-bytes and explicit protection requirements, but does not provide a Keychain backend. The UIKit
-slice remains partial: a Rust-owned app delegate, one window, basic views, and one target/action
-callback only. The manifest counts seven portable contracts as implemented and one as partial.
+file and `NSUserDefaults` backends for three rows. B2 adds a public Keychain generic-password
+backend for opaque bytes with explicit protection requirements; no live Keychain test is claimed.
+The UIKit slice remains partial: a Rust-owned app delegate, one window, basic views, and one
+target/action callback only. The manifest counts seven portable contracts as implemented and one
+as partial.
 
 | Family | Rows | iOS class count |
 | --- | ---: | --- |
 | Core app/UI | 9 | `B`: 4 partial; `X`: 5 |
 | Files/data/preferences | 7 | `B`: 3; `X`: 4 |
-| Security/auth | 7 | `X`: 7 |
+| Security/auth | 7 | `B`: 1; `X`: 6 |
 | Networking/web | 7 | `X`: 7 |
 | Notifications/background | 6 | `X`: 6 |
 | Sensors/connectivity | 9 | `X`: 9 |
