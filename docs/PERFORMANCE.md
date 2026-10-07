@@ -122,6 +122,26 @@ Measure:
 
 A secure-storage-only example must not silently pull camera/media/UI/Swift ABI/Python dependencies.
 
+## Dependency graph budget
+
+Dependency footprint is part of performance and maintainability.
+
+Track where practical:
+- direct dependency count;
+- transitive dependency count;
+- enabled feature count for major crates;
+- duplicate-version crates;
+- proc-macro/build-dependency count;
+- contribution to final binary size;
+- additional linked system libraries/frameworks;
+- startup/initialization effects.
+
+A new dependency should not be accepted solely because it saves implementation effort if it materially expands runtime, linkage, or transitive cost for a narrow feature.
+
+Conversely, do not replace a mature dependency with fragile custom code merely to make the graph numerically smaller.
+
+Prefer capability-local optional dependencies and minimal feature sets so unused functionality dead-strips cleanly.
+
 ## Cache locality and data-layout policy
 
 Memory footprint is a runtime performance concern, not merely a binary-size concern.
