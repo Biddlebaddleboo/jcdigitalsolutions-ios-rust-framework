@@ -1,0 +1,55 @@
+{
+  "schema_version": 1,
+  "abi_version": {
+    "major": 1,
+    "minor": 0,
+    "encoding": "uint64_t: major in bits 63..32, minor in bits 31..0"
+  },
+  "status_codes": {
+    "OK": 0,
+    "INVALID_ARGUMENT": 1,
+    "UNSUPPORTED": 2,
+    "UNAVAILABLE": 3,
+    "PERMISSION_DENIED": 4,
+    "CANCELLED": 5,
+    "TIMEOUT": 6,
+    "NOT_FOUND": 7,
+    "ALREADY_EXISTS": 8,
+    "RESOURCE_EXHAUSTED": 9,
+    "PLATFORM_ERROR": 10,
+    "INTERNAL_ERROR": 11,
+    "PANIC": 12
+  },
+  "targets": {
+    "64-bit-pointer-and-u64-alignment-8": {
+      "FrameworkStatus": {"size": 4, "align": 4},
+      "FrameworkSlice": {"size": 16, "align": 8, "fields": {"data": 0, "length": 8}},
+      "FrameworkStr": {"size": 16, "align": 8, "fields": {"data": 0, "length": 8}},
+      "FrameworkOwnedBuffer": {"size": 24, "align": 8, "fields": {"data": 0, "length": 8, "capacity": 16}},
+      "FrameworkOperationHandle": {"size": 8, "align": 8},
+      "FrameworkErrorHandle": {"size": 8, "align": 8},
+      "FrameworkCompletionCallback": {"size": 8, "align": 8},
+      "FrameworkOptionsV1": {"size": 16, "align": 4, "fields": {"struct_size": 0, "abi_version": 4, "flags": 8, "reserved": 12}}
+    }
+  },
+  "c_symbols": ["framework_abi_version", "framework_owned_buffer_destroy"],
+  "ownership": {
+    "FrameworkSlice": "borrowed bytes; source must outlive each foreign use",
+    "FrameworkStr": "borrowed UTF-8 bytes; source must outlive each foreign use",
+    "FrameworkOwnedBuffer": {
+      "creator_in_this_slice": false,
+      "destroyer": "framework_owned_buffer_destroy",
+      "rule": "destroy the original unchanged framework-created descriptor once; NULL is a no-op; copied or modified descriptors are invalid"
+    },
+    "FrameworkOperationHandle": "opaque fixed-width value; zero means absent",
+    "FrameworkErrorHandle": "opaque fixed-width value; zero means no detail"
+  },
+  "options_v1": {
+    "minimum_struct_size": 16,
+    "abi_version": 1,
+    "reserved_must_be_zero": true,
+    "future_sized_struct_check": "an accepting API must check struct_size and abi_version before reading fields; no options-accepting API is exported by this slice"
+  },
+  "panic_boundary": "No panic may unwind across C ABI. Exported functions have no panic path; Rust C ABI unwind behavior aborts rather than crosses the boundary.",
+  "static_library_runtime": "framework-abi/std is enabled in this opt-in static library to provide the allocator and panic runtime needed by its owned-buffer destructor; framework-abi remains no_std by default for Rust consumers."
+}
