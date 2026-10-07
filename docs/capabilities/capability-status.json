@@ -5,7 +5,7 @@
   "summary": {
     "capability_family_count": 15,
     "capability_count": 113,
-    "portable_contract_implemented_count": 6,
+    "portable_contract_implemented_count": 7,
     "portable_contract_partial_count": 1,
     "partial_implementation_count": 4,
     "ios_class_counts": {
@@ -481,13 +481,13 @@
       "crate_module": [
         "framework-secure-storage"
       ],
-      "crate_module_status": "planned_not_present",
+      "crate_module_status": "portable_contract_present",
       "portability_class": "portable_with_platform_extensions",
-      "portable_contract_status": "not_implemented",
-      "portable_contract_note": "No portable facade for this capability is included in D1.",
+      "portable_contract_status": "implemented",
+      "portable_contract_note": "framework-secure-storage defines opaque-byte storage, static backend selection, and explicit unlock/device-bound policy requirements; no iOS backend exists.",
       "ios_implementation_class": "X",
       "implementation_status": "unsupported",
-      "status_reason": "No D1 capability facade or supported iOS backend exists for this row; a separate capability workstream must establish a public implementation path.",
+      "status_reason": "The D2 portable contract exists, but no supported iOS Keychain backend is included; iOS runtime support is not claimed.",
       "minimum_ios_version": null,
       "required_frameworks": null,
       "required_permissions": null,

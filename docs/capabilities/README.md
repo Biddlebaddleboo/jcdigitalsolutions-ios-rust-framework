@@ -16,10 +16,11 @@ performance status, and native-escape status.
 
 Current counts: four rows have partial `B` support for the UIKit app example; 109 rows are `X` for
 iOS runtime support. No row claims a complete capability backend. The four D1 portable contracts
-cover application lifecycle, sandbox files/directories, preferences, and foreground HTTP values;
-they do not imply a native backend. The UIKit slice remains partial: a Rust-owned app delegate,
-one window, basic views, and one target/action callback only. The manifest counts six portable
-contracts as implemented and one as partial; all lack a native D1 adapter.
+cover application lifecycle, sandbox files/directories, preferences, and foreground HTTP values.
+The D2 secure-storage contract covers opaque bytes and explicit protection requirements, but does
+not provide a Keychain backend. The UIKit slice remains partial: a Rust-owned app delegate, one
+window, basic views, and one target/action callback only. The manifest counts seven portable
+contracts as implemented and one as partial; none is a complete iOS capability backend.
 
 | Family | Rows | iOS class count |
 | --- | ---: | --- |
@@ -47,6 +48,7 @@ framework requirement is inferred for an `X` row. A `true` native-escape value o
 means the example uses direct UIKit handles; it does not mean a reusable capability-level `ios`
 escape facade exists.
 
-See [the D1 API guide](app-data.md) for the four portable crate contracts, ownership, copy,
-atomicity, async/cancellation, error, and current runtime limits. Later D capability groups need
-separate named subplans and executors; D1 does not claim Workstream D complete.
+See [the D1 API guide](app-data.md) for the four portable crate contracts and
+[the secure-storage guide](secure-storage.md) for D2's opaque-byte contract. These guides detail
+ownership, copy, atomicity, async/cancellation, errors, and runtime limits. Later D capability
+groups need separate named subplans and executors; D1 and D2 do not claim Workstream D complete.
