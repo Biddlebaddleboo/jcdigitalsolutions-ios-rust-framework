@@ -242,6 +242,40 @@ An umbrella crate may exist for convenience, but independent capability crates/m
 
 Minimal example binaries should validate expected dependencies and binary size.
 
+## Future pointer-width portability
+
+V1 targets normal contemporary 64-bit environments, but portable architecture must remain compatible with a future compact-pointer mode.
+
+The long-term architecture should permit:
+
+```text
+public semantic handle/reference
+        |
+        +--> native pointer backend today
+        |
+        '--> future 32-bit offset/index/compressed-pointer backend
+```
+
+Portable contracts must therefore avoid embedding native pointer width into semantics.
+
+Use:
+- fixed-width IDs;
+- compact indexes;
+- explicit lengths;
+- opaque typed handles;
+- backend-owned pointer translation.
+
+Avoid:
+- pointer-derived public IDs;
+- persistent `usize` fields;
+- serialized raw addresses;
+- assuming `size_of::<usize>() == 8`;
+- making every internal relationship a native pointer when an index/offset is sufficient.
+
+A future compact mode may use a bounded arena/cage inside a 64-bit process rather than a 32-bit OS process. This is intentionally deferred beyond V1.
+
+V1 should incur no additional dynamic-dispatch or translation layer merely to anticipate the feature; the requirement is structural compatibility, not premature implementation.
+
 ## no_std core requirement
 
 The portable core starts as `#![no_std]`, not as a `std` implementation intended to be migrated later.
