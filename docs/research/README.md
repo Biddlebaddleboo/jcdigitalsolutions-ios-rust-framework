@@ -84,3 +84,7 @@ The repository research is broad but not symbol-exhaustive. Remaining work inclu
 - App Store archive/link validation once implementation planning is approved.
 
 Do not begin implementation solely because these research documents exist. The implementation plan remains subject to explicit approval.
+
+## Framework elimination / Rust replacement
+
+- `FRAMEWORK_ELIMINATION_AUDIT.md` — framework-by-framework audit of what should stay Apple-native, what can move to Rust, and where replacement is justified only by measured performance.
