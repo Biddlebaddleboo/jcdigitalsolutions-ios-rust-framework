@@ -386,7 +386,102 @@ Do not require one rendering model to emulate all platforms.
 
 Portable UI concepts should stay semantic and allow platform extensions.
 
-## 17. Performance invariants
+## 17. Compact data and CPU-cache policy
+
+The framework's own data model should be designed for small working sets and predictable memory access.
+
+This is especially important for:
+- callback registries;
+- operation tables;
+- event queues;
+- capability state;
+- handle metadata;
+- permission/status flags;
+- frequently traversed collections;
+- portable value arrays.
+
+### Small data types
+
+Use the narrowest representation that safely covers the domain.
+
+Examples:
+- `u8` for a bounded state with fewer than 256 values;
+- `u16` or `u32` for compact indexes/IDs when realistic capacity permits;
+- explicit `u32` generation/index halves rather than pointer-sized words where appropriate;
+- compact flags instead of multiple `bool` fields when dense storage matters.
+
+Do not automatically use `usize` for every count/ID merely because it is convenient. Use `usize` where it represents an address-space-sized quantity or indexing requirement; otherwise choose a semantic fixed width.
+
+Every narrow type must document its capacity and overflow behavior.
+
+### Bit packing
+
+Bit packing is a first-class representation strategy.
+
+Use:
+- bit masks;
+- bitsets;
+- packed status words;
+- tagged IDs;
+- occupancy bitmaps;
+- narrow discriminants;
+
+when they improve memory density/locality and remain cheap to access.
+
+Do not make packed layout part of the stable C ABI unless the external representation is explicitly specified and versioned. Internal packed formats may be converted to clearer ABI structs at the foreign-language boundary.
+
+Prefer safe bit-manipulation helpers/newtypes over `repr(packed)`.
+
+### Layout selection
+
+Choose AoS vs SoA based on actual access:
+
+- **AoS** when operations typically consume complete records.
+- **SoA** when hot loops scan only one/few fields across many records.
+- **Hybrid** when a compact hot header and separate cold payload gives better locality.
+
+Split cold fields such as:
+- diagnostic strings;
+- rare platform details;
+- verbose errors;
+- uncommon extension state;
+
+away from hot records when practical.
+
+### Pointer chasing
+
+Avoid linked/per-object heap structures for dense framework-owned state when arrays, slabs, arenas, or compact tables provide equivalent semantics.
+
+This rule does not forbid pointers/objects required by platform APIs. It applies to framework-owned data structures.
+
+### Alignment and portability
+
+Compactness must not create pathological unaligned access.
+
+The same portable representation should behave correctly on:
+- ARM64;
+- x86_64;
+- WebAssembly;
+- future supported architectures.
+
+Where platform-specific fast layouts are beneficial, keep them behind backend/internal boundaries.
+
+### Validation
+
+For repeated/hot structures, record:
+- size;
+- alignment;
+- stride;
+- padding;
+- capacity limits;
+- cache-line occupancy;
+- common traversal pattern.
+
+Use benchmarks where tradeoffs are not obvious.
+
+The objective is cache-efficient and compact, not maximally compressed at the expense of correctness or CPU cycles.
+
+## 18. Performance invariants
 
 ### Rust
 
