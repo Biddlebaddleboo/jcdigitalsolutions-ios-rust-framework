@@ -9,6 +9,10 @@ Build the shared machinery that makes the architectural rules enforceable: toolc
 Foundation must establish workspace/crate names first.
 Thereafter this workstream runs continuously and does not own capability implementation.
 
+## Execution decomposition
+
+G1 established host audits, SDK inventory, CI, and the minimal example build/link checks. Continue with separately bounded slices for parity/benchmark tooling and Xcode archive validation. `PLAN_VALIDATION_ARCHIVE.md` owns the archive path and may consume the B minimal example without changing its Rust runtime or native API.
+
 ## Write scope
 
 - `tools/xtask/**`
