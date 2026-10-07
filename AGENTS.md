@@ -115,6 +115,62 @@ Do not require:
 
 Use dynamic dispatch only where the application genuinely needs runtime-selected implementations.
 
+### Underlying dependencies must be replaceable
+
+Third-party crates, generated bindings, helper libraries, allocators, parsers, executors, and other implementation dependencies are implementation choices, not permanent public architecture.
+
+Design every important external dependency so it can be replaced later by an in-house implementation without forcing application-level API changes.
+
+Rules:
+
+- Do not leak third-party dependency types into the portable public API unless that type is itself an unavoidable platform ABI type.
+- Keep dependency-specific types and behavior behind narrow internal modules/adapters.
+- Prefer framework-owned semantic types at public and cross-capability boundaries.
+- Keep conversion to/from dependency-native types at the smallest practical boundary.
+- Do not let a dependency define framework ownership, error, async, allocation, serialization, or lifecycle semantics globally unless that dependency is itself the platform ABI being wrapped.
+- Avoid dependency-specific macros/code generation becoming required throughout unrelated framework code.
+- Centralize dependency-specific unsafe assumptions and feature flags.
+- Make dependency removal/replacement testable through focused adapter/backend tests.
+- Record which behavior is relied upon so a replacement implementation can preserve semantics.
+
+Replaceability must not introduce a runtime abstraction tax.
+
+Prefer:
+
+```text
+public API
+  -> framework-owned internal contract
+  -> compile-time-selected implementation adapter
+  -> current dependency
+```
+
+over:
+
+```text
+public API
+  -> boxed dynamic dependency interface
+  -> runtime registry
+  -> dependency
+```
+
+Use generics, sealed/internal traits, module substitution, Cargo features, cfg selection, or build-time backend choice where they preserve static dispatch and inlining.
+
+Examples of dependencies that must remain replaceable in principle include:
+
+- `objc2` / `block2`;
+- generated Apple bindings;
+- Swift ABI thunk implementation;
+- allocators/arenas;
+- async helpers;
+- parsing/encoding libraries;
+- networking helper layers;
+- cryptographic/helper crates where API semantics permit;
+- Python binding machinery;
+- C header/binding generators;
+- platform-specific utility crates.
+
+This does not mean reimplementing mature dependencies prematurely. Use the best current dependency, but architect so replacing it later is a bounded internal change.
+
 ### Fine-grained modularity
 
 A consumer that needs one small capability must not have to import or link a large unrelated framework.
