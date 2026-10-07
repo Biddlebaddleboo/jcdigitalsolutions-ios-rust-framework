@@ -1,5 +1,5 @@
 [workspace]
-members = ["crates/*", "platform/ios/*", "interop/*", "examples/*"]
+members = ["crates/*", "platform/ios/*", "interop/*", "examples/*", "tools/*"]
 resolver = "3"
 
 [workspace.package]
