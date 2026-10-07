@@ -197,6 +197,35 @@ Python concepts must not leak into the core:
 
 Convert at the binding edge and keep meaningful work native.
 
+## Dependency budget
+
+The framework should minimize external dependencies as an explicit architectural objective.
+
+Preferred order when implementing functionality:
+
+```text
+core/alloc/language primitive
+  -> existing framework-owned primitive
+  -> direct public OS/platform API
+  -> small internal implementation
+  -> focused external dependency
+```
+
+This order is guidance, not permission to reimplement fragile code. Security-sensitive, standards-heavy, ABI-sensitive, or highly complex functionality may justify a mature dependency immediately.
+
+A dependency is justified when it provides enough correctness, security, portability, tooling, or performance value to outweigh:
+- transitive graph growth;
+- binary/linkage cost;
+- compile time;
+- feature complexity;
+- `std` requirements;
+- initialization/runtime overhead;
+- maintenance and supply-chain surface.
+
+Keep dependency choice capability-scoped. A dependency needed by one backend or feature must not become a portable-core dependency merely for convenience.
+
+Prefer disabling default features and enabling only the exact dependency features required.
+
 ## Modularity
 
 Capabilities must be independently usable.
