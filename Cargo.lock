@@ -115,3 +115,14 @@ dependencies = [
  "objc2-core-foundation",
  "objc2-foundation",
 ]
+
+[[package]]
+name = "swift-abi-core"
+version = "0.1.0"
+dependencies = [
+ "swift-abi-generated",
+]
+
+[[package]]
+name = "swift-abi-generated"
+version = "0.1.0"
