@@ -40,6 +40,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "framework-c-api"
+version = "0.1.0"
+dependencies = [
+ "framework-abi",
+]
+
+[[package]]
 name = "framework-core"
 version = "0.1.0"
 
