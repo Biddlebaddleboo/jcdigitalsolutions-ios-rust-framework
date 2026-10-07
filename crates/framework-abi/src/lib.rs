@@ -49,7 +49,7 @@ impl FrameworkStatus {
     pub const PLATFORM_ERROR: Self = Self(10);
     /// An internal framework operation failed.
     pub const INTERNAL_ERROR: Self = Self(11);
-    /// A host-side panic was caught by the optional `std` boundary helper.
+    /// A panic caught by the optional `std` C ABI boundary helper.
     pub const PANIC: Self = Self(12);
 
     /// Creates a status from its fixed-width numeric code.
@@ -425,7 +425,7 @@ impl FrameworkOptionsV1 {
     }
 }
 
-/// Runs a host-side callback under `std` panic containment when the optional `std` feature is enabled.
+/// Runs a callback under `std` panic containment when the optional `std` feature is enabled.
 #[cfg(feature = "std")]
 pub fn catch_unwind_status<F>(callback: F) -> FrameworkStatus
 where
