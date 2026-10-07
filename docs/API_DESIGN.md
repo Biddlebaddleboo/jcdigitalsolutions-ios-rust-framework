@@ -180,6 +180,22 @@ But Python-specific types/semantics stop at the binding layer.
 
 Avoid chatty native/Python APIs. Prefer one coarse meaningful native operation over repeated per-element crossings.
 
+## Pointer-width-independent semantics
+
+Developer-facing APIs must not expose assumptions that internal references are 64-bit native pointers.
+
+Prefer:
+- typed fixed-width IDs;
+- semantic handles;
+- slices/borrowed references where appropriate;
+- explicit bounded counts.
+
+Avoid using `usize` as a public semantic identifier merely because the implementation currently runs on a 64-bit target.
+
+This keeps the API compatible with a future internal implementation using 32-bit cage-relative offsets, compact arena indexes, or compressed handles without changing developer code.
+
+V1 does not need to implement pointer compression.
+
 ## no_std-friendly public types
 
 Portable public contracts should prefer `core`/`alloc` compatible concepts.
