@@ -511,7 +511,7 @@ Expected:
 
 Framework implementation should avoid multiplying crossings.
 
-## 18. Swift ABI modularity
+## 19. Swift ABI modularity
 
 Swift ABI support belongs only to iOS/macOS capabilities that need it.
 
@@ -522,7 +522,7 @@ Split it finely enough that:
 - Translation does not pull protocol/type-definition machinery it does not need;
 - native-only apps link none of the project's Swift ABI subsystem.
 
-## 19. Platform backend dependency rule
+## 20. Platform backend dependency rule
 
 Dependency direction:
 
@@ -543,7 +543,7 @@ portable core -> Windows backend
 
 The portable layer must compile without any specific platform backend.
 
-## 20. Cross-platform semantic compatibility
+## 21. Cross-platform semantic compatibility
 
 The developer-facing portable API should remain source-compatible across platforms where semantics match.
 
@@ -557,7 +557,7 @@ Document:
 
 Semantic portability is more important than pretending implementation details are identical.
 
-## 21. Build/CI invariants
+## 22. Build/CI invariants
 
 Future CI should include:
 
@@ -574,7 +574,7 @@ Future CI should include:
 - binary-size tracking;
 - assembly/codegen checks for critical zero-cost wrappers.
 
-## 22. Design review questions
+## 23. Design review questions
 
 Before adding a capability, ask:
 
