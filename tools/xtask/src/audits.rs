@@ -185,15 +185,15 @@ pub(crate) fn abi_audit(args: &[String]) -> Result<(), String> {
             }
             if trimmed.contains("fn framework_")
                 && (trimmed.contains("_create") || trimmed.contains("_new"))
+                && let Some(name) = fn_name(trimmed)
             {
-                if let Some(name) = fn_name(trimmed) {
-                    creators.push(name);
-                }
+                creators.push(name);
             }
-            if trimmed.contains("fn framework_") && trimmed.contains("_destroy") {
-                if let Some(name) = fn_name(trimmed) {
-                    destroyers.push(name);
-                }
+            if trimmed.contains("fn framework_")
+                && trimmed.contains("_destroy")
+                && let Some(name) = fn_name(trimmed)
+            {
+                destroyers.push(name);
             }
         }
     }

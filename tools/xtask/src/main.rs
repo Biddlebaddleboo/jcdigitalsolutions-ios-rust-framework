@@ -12,6 +12,10 @@ const PORTABLE_CRATES: &[&str] = &[
     "framework-async",
     "framework-abi",
     "framework-platform",
+    "framework-app",
+    "framework-files",
+    "framework-preferences",
+    "framework-network",
 ];
 
 fn main() {

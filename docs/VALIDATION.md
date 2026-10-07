@@ -17,7 +17,7 @@ cargo xtask docs-check
 
 ## What the checks prove
 
-- `no-std-check` checks each portable crate with its default features and with `--no-default-features`, and verifies `#![no_std]` in each crate root. The initial package list is maintained in `tools/xtask/src/main.rs`; add each new portable crate there.
+- `no-std-check` checks each portable crate with its default features and with `--no-default-features`, and verifies `#![no_std]` in each crate root. The package list is maintained in `tools/xtask/src/main.rs`; add each new portable crate there.
 - `ios-build` requires exactly one of `--simulator` or `--device` plus `--release`. It maps the flag to the `simulator` or `device` positional argument accepted by `examples/ios-minimal/build.sh`, which builds and bundles that minimal example in Release mode. This is an example build path, not proof of full-framework V1 support.
 - `dependency-audit` saves Cargo feature, duplicate-version, and build-dependency graphs, with direct/transitive package-node counts and a count of enabled features named `std`. It is an inventory only: there is no dependency-growth baseline, Cargo metadata does not prove that every transitive dependency avoids `std`, and proc-macro target kinds are not classified.
 - `sdk-inventory` records public framework header, module-map, and `.swiftinterface` paths plus declaration counts and heuristic flags for availability, Objective-C exposure, async/throws, generics, actor isolation, and protocol conformance. It is useful for drift triage, not a complete parser or public API/compliance review.
