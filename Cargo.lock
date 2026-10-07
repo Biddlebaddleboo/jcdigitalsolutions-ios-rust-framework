@@ -3,6 +3,10 @@
 version = 4
 
 [[package]]
+name = "bench-harness"
+version = "0.1.0"
+
+[[package]]
 name = "bitflags"
 version = "2.13.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -86,6 +90,24 @@ dependencies = [
 ]
 
 [[package]]
+name = "framework-secure-storage"
+version = "0.1.0"
+dependencies = [
+ "framework-core",
+]
+
+[[package]]
+name = "ios-files"
+version = "0.1.0"
+dependencies = [
+ "framework-core",
+ "framework-files",
+ "libc",
+ "objc2",
+ "objc2-foundation",
+]
+
+[[package]]
 name = "ios-minimal"
 version = "0.1.0"
 dependencies = [
@@ -97,11 +119,27 @@ dependencies = [
 ]
 
 [[package]]
+name = "ios-preferences"
+version = "0.1.0"
+dependencies = [
+ "framework-core",
+ "framework-preferences",
+ "objc2",
+ "objc2-foundation",
+]
+
+[[package]]
 name = "ios-runtime"
 version = "0.1.0"
 dependencies = [
  "objc2",
 ]
+
+[[package]]
+name = "libc"
+version = "0.2.190"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ce5d3ddc6d3fa000eb1536d85e147bfe31aacaba692ed6a876f95cb7c855be78"
 
 [[package]]
 name = "objc2"
@@ -150,6 +188,10 @@ dependencies = [
  "objc2-core-foundation",
  "objc2-foundation",
 ]
+
+[[package]]
+name = "parity-harness"
+version = "0.1.0"
 
 [[package]]
 name = "swift-abi-core"

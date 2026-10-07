@@ -12,9 +12,9 @@ framework-core = { workspace = true }
 framework-files = { path = "../../../crates/framework-files", version = "0.1.0" }
 
 [target.'cfg(target_os = "ios")'.dependencies]
-libc = { version = "0.2.189", default-features = false }
-objc2 = { version = "0.6.5", default-features = false, features = ["std"] }
-objc2-foundation = { version = "0.3.2", default-features = false, features = ["std", "NSError", "NSFileManager", "NSPathUtilities", "NSString", "NSURL", "NSValue"] }
+libc = { workspace = true }
+objc2 = { workspace = true, features = ["std"] }
+objc2-foundation = { workspace = true, features = ["std", "NSError", "NSFileManager", "NSPathUtilities", "NSString", "NSURL", "NSValue"] }
 
 [lints]
 workspace = true

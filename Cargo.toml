@@ -12,6 +12,11 @@ repository = "https://github.com/Biddlebaddleboo/jcdigitalsolutions-ios-rust-fra
 
 [workspace.dependencies]
 framework-core = { path = "crates/framework-core", version = "0.1.0" }
+libc = { version = "0.2.189", default-features = false }
+objc2 = { version = "0.6.5", default-features = false }
+objc2-core-foundation = { version = "0.3.2", default-features = false }
+objc2-foundation = { version = "0.3.2", default-features = false }
+objc2-ui-kit = { version = "0.3.2", default-features = false }
 
 [workspace.lints.rust]
 unsafe_op_in_unsafe_fn = "deny"

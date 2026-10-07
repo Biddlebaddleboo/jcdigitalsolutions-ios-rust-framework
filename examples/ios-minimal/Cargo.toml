@@ -12,10 +12,10 @@ description = "Rust-owned UIKit application vertical slice"
 ios-runtime = { path = "../../platform/ios/ios-runtime" }
 
 [target.'cfg(target_os = "ios")'.dependencies]
-objc2 = { version = "0.6.5", default-features = false, features = ["std"] }
-objc2-foundation = { version = "0.3.2", default-features = false, features = ["NSString"] }
-objc2-ui-kit = { version = "0.3.2", default-features = false, features = ["std", "UIApplication", "UIButton", "UIControl", "UILabel", "UIScreen", "UIResponder", "UIView", "UIViewController", "UIWindow", "objc2-core-foundation"] }
-objc2-core-foundation = { version = "0.3.2", default-features = false, features = ["CFCGTypes"] }
+objc2 = { workspace = true, features = ["std"] }
+objc2-foundation = { workspace = true, features = ["NSString"] }
+objc2-ui-kit = { workspace = true, features = ["std", "UIApplication", "UIButton", "UIControl", "UILabel", "UIScreen", "UIResponder", "UIView", "UIViewController", "UIWindow", "objc2-core-foundation"] }
+objc2-core-foundation = { workspace = true, features = ["CFCGTypes"] }
 
 [[bin]]
 name = "ios-minimal"
