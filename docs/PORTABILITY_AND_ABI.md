@@ -364,7 +364,26 @@ Portable crates should not have a hidden default `std` dependency. CI must prove
 
 Test harnesses may use `std`; production portable code may not rely on that fact.
 
-## 13. Async model
+## 13. Future compact-pointer compatibility
+
+V1 does not implement 32-bit pointers.
+
+Portable representations and ABI contracts must nevertheless avoid assuming that all future internal references are native 64-bit pointers.
+
+Rules:
+
+- use fixed-width integer fields for semantic IDs, indexes, counters, lengths with bounded domains, and serialized values;
+- reserve `usize`/`isize` for actual address-space-sized quantities and Rust indexing requirements;
+- keep raw/native pointers at FFI/backend boundaries;
+- keep persistent and wire formats pointer-width independent;
+- permit future internal storage backends based on 32-bit offsets, arena indexes, or compressed generational handles;
+- never require foreign callers to know the internal pointer-compression scheme.
+
+A future implementation may use a 32-bit offset into a bounded cage/arena within a 64-bit process. That remains an internal optimization and must not change the high-level API.
+
+Do not add V1 runtime overhead solely to simulate this future mode.
+
+## 14. Async model
 
 Do not make Tokio, async-std, Swift concurrency, Kotlin coroutines, Python asyncio, or any other runtime the universal internal model.
 
@@ -387,7 +406,7 @@ Bindings adapt:
 - C -> callback;
 - C++ -> callback/future wrapper.
 
-## 14. Ownership
+## 15. Ownership
 
 Rust owns Rust state.
 
@@ -402,7 +421,7 @@ Avoid:
 
 Opaque pointers can often directly point to Rust-owned state. Use generation/registry mechanisms only when semantics require stale-handle detection or indirect identity.
 
-## 15. Error model
+## 16. Error model
 
 Portable errors must not require `std::error::Error`.
 
@@ -420,7 +439,7 @@ Python:
 
 Preserve native detail without making platform error types part of portable contracts.
 
-## 16. Strings and bytes
+## 17. Strings and bytes
 
 Portable Rust APIs may use idiomatic Rust strings/slices.
 
@@ -432,7 +451,7 @@ Avoid repeated transcoding and copies.
 
 Borrow where safe; own where lifetime requires it.
 
-## 17. UI policy
+## 18. UI policy
 
 The common UI API may be high-level, but must not become a framework runtime or virtual DOM by default.
 
@@ -450,7 +469,7 @@ Do not require one rendering model to emulate all platforms.
 
 Portable UI concepts should stay semantic and allow platform extensions.
 
-## 18. Compact data and CPU-cache policy
+## 19. Compact data and CPU-cache policy
 
 The framework's own data model should be designed for small working sets and predictable memory access.
 
@@ -566,7 +585,7 @@ Packing multiple small values into one machine word is encouraged where it impro
 
 Internal packing layouts are free to evolve independently from the public semantic API. Only explicitly versioned C ABI or serialized formats may freeze an external representation.
 
-## 19. Performance invariants
+## 20. Performance invariants
 
 ### Rust
 
@@ -596,7 +615,7 @@ Expected:
 
 Framework implementation should avoid multiplying crossings.
 
-## 20. Swift ABI modularity
+## 21. Swift ABI modularity
 
 Swift ABI support belongs only to iOS/macOS capabilities that need it.
 
@@ -607,7 +626,7 @@ Split it finely enough that:
 - Translation does not pull protocol/type-definition machinery it does not need;
 - native-only apps link none of the project's Swift ABI subsystem.
 
-## 21. Platform backend dependency rule
+## 22. Platform backend dependency rule
 
 Dependency direction:
 
@@ -628,7 +647,7 @@ portable core -> Windows backend
 
 The portable layer must compile without any specific platform backend.
 
-## 22. Cross-platform semantic compatibility
+## 23. Cross-platform semantic compatibility
 
 The developer-facing portable API should remain source-compatible across platforms where semantics match.
 
@@ -642,7 +661,7 @@ Document:
 
 Semantic portability is more important than pretending implementation details are identical.
 
-## 23. Documentation and parity invariants
+## 24. Documentation and parity invariants
 
 Documentation must be written as capabilities are implemented.
 
@@ -670,7 +689,7 @@ The parity suite should:
 
 Performance benchmarks are separate from parity tests. Both must pass before Rust replaces Apple as the default implementation.
 
-## 24. Build/CI invariants
+## 25. Build/CI invariants
 
 Future CI should include:
 
@@ -687,7 +706,7 @@ Future CI should include:
 - binary-size tracking;
 - assembly/codegen checks for critical zero-cost wrappers.
 
-## 25. Design review questions
+## 26. Design review questions
 
 Before adding a capability, ask:
 
