@@ -304,22 +304,32 @@ The governing decision is performance-gated:
 
 See `FRAMEWORK_ELIMINATION_AUDIT.md`.
 
-## Remaining research before implementation planning
+## Pre-plan research status
 
-The research is broad enough to define architecture, but not yet symbol-exhaustive.
+Architecture-level pre-plan research is now considered complete.
 
-Remaining useful work:
+See `PREPLAN_RESEARCH_CLOSURE.md` for the closing analysis.
 
-- inspect installed current Xcode SDK `.swiftinterface` files directly;
-- produce a machine-readable symbol/capability inventory from SDK interfaces;
-- verify exact StoreKit 2 public ABI declarations/manglings;
-- use compiler output as an ABI oracle for representative call shapes;
-- map Swift standard-library construction/destruction primitives needed by Layer 1;
-- investigate Apple Swift async entry/resume ABI in enough detail for a prototype;
-- verify symbol-level Objective-C exposure for important hybrid frameworks;
-- continue low-frequency framework census as new Apple SDKs add frameworks;
-- verify App Intents build metadata contract versus Xcode implementation detail;
-- evaluate App Store archive/link behavior for a zero-Swift-source swiftcall proof.
+Key resolved conclusions:
+
+- Clang exposes both `swiftcall` and `swiftasynccall`, making microscopic compiler-generated C/Clang thunks the conservative V1 Swift ABI backend.
+- rustc now contains experimental Swift ABI support, but it remains unstable and lacks a stable `repr(Swift)` story; V1 must not depend on it.
+- Translation single-string is the preferred first real Apple Swift-ABI framework proof.
+- StoreKit 2 remains the stronger complex proof after the reusable primitives work.
+- App Intents is primarily a compiler/build-metadata subsystem and must remain separate from ordinary Swift runtime interop.
+- hybrid frameworks continue to require symbol-level rather than framework-level classification.
+- exact manglings and concrete lowering are SDK/toolchain-generated facts and should be mechanically captured from the installed Xcode SDK/compiler instead of manually frozen in architecture documents.
+
+The remaining work is implementation-time/toolchain validation, not architecture research:
+
+- record the selected Xcode/Swift/SDK manifest;
+- inspect installed `.swiftinterface` declarations for the concrete capability being implemented;
+- compile tiny external Swift oracle sources and inspect SIL/LLVM/object symbols;
+- generate/update the machine-readable SDK capability inventory;
+- verify archive/link/device behavior;
+- measure physical-device performance.
+
+These checks belong at the beginning of the affected implementation workstream and must not be skipped, but they no longer block writing the implementation planning set.
 
 ## What should not happen yet
 
