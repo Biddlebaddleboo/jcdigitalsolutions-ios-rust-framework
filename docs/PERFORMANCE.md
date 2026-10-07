@@ -77,6 +77,37 @@ Treat these as optimization bugs unless justified:
 - C ABI round-trip on the Rust-native path;
 - linking unrelated capability modules.
 
+## Performance-gated reimplementation policy
+
+Replacing an Apple framework implementation is not automatically an optimization.
+
+The default decision rule is:
+
+```text
+Apple path faster/equal or uniquely system-integrated
+    -> keep Apple path
+
+Rust path measurably faster/lighter for the same semantics
+    -> prefer Rust path
+
+uncertain
+    -> keep Apple path and benchmark before replacement
+```
+
+A replacement benchmark should include the dimensions that matter for that capability, including CPU time, latency, allocations, copies, RSS/working set, cache behavior, energy, binary/linkage cost, and startup cost.
+
+Hardware-accelerated Apple paths deserve a strong presumption of retention. Examples include Accelerate/BLAS, Metal Performance Shaders, Core ML compute-unit scheduling, VideoToolbox hardware codecs, and similar APIs that can exploit hardware or OS-private tuning unavailable to ordinary application code.
+
+A Rust implementation may still win for:
+- small-data operations where foreign-object setup dominates;
+- fused operations that avoid intermediate allocations/copies;
+- compact state machines/algorithms;
+- parsing/serialization with better memory layout;
+- application-specific hot paths that avoid generic framework overhead;
+- cross-platform code where one optimized implementation replaces several higher-overhead wrappers.
+
+Do not compare a reduced-function Rust prototype against a feature-complete Apple implementation. Benchmark equivalent semantics.
+
 ## Binary and dependency size
 
 Fine-grained modularity is a performance requirement.
