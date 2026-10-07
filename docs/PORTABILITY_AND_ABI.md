@@ -481,6 +481,27 @@ Use benchmarks where tradeoffs are not obvious.
 
 The objective is cache-efficient and compact, not maximally compressed at the expense of correctness or CPU cycles.
 
+### Public facade versus internal representation
+
+Packing is an implementation detail.
+
+Normal developers should work with descriptive typed APIs while the framework is free to store the same state in compact words internally.
+
+Preferred pattern:
+
+```text
+developer API
+  -> typed getter/setter/newtype
+  -> inline mask/shift/encode/decode
+  -> packed u32/u64 internal storage
+```
+
+Do not expose bit positions, shift counts, sentinel encodings, or packed generation/index layouts through normal high-level APIs.
+
+Packing multiple small values into one machine word is encouraged where it improves working-set size and cache locality. A single `u64` may legitimately hold several flags, a small discriminant, bounded counters, and compact indexes when the range/invariants are explicit.
+
+Internal packing layouts are free to evolve independently from the public semantic API. Only explicitly versioned C ABI or serialized formats may freeze an external representation.
+
 ## 18. Performance invariants
 
 ### Rust
