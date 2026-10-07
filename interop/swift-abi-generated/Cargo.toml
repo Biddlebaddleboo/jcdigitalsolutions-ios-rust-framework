@@ -1,0 +1,14 @@
+[package]
+name = "swift-abi-generated"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.85"
+license = "MIT OR Apache-2.0"
+description = "Compiler-derived raw Swift runtime ABI bindings"
+
+[features]
+default = []
+apple-runtime = []
+
+[lints.rust]
+unsafe_op_in_unsafe_fn = "deny"

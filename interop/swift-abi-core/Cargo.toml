@@ -1,0 +1,18 @@
+[package]
+name = "swift-abi-core"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.85"
+license = "MIT OR Apache-2.0"
+description = "Opt-in ownership wrappers for Apple Swift class references"
+
+[features]
+default = []
+apple-runtime = ["dep:swift-abi-generated", "swift-abi-generated/apple-runtime"]
+
+[dependencies]
+swift-abi-generated = { path = "../swift-abi-generated", optional = true, default-features = false }
+
+[lints.rust]
+unsafe_op_in_unsafe_fn = "deny"
+missing_docs = "deny"
