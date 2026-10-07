@@ -53,3 +53,7 @@ See [the D1 API guide](app-data.md) for the four portable crate contracts and
 [the secure-storage guide](secure-storage.md) for D2's opaque-byte contract. These guides detail
 ownership, copy, atomicity, async/cancellation, errors, and runtime limits. Later D capability
 groups need separate named subplans and executors; D1 and D2 do not claim Workstream D complete.
+
+The optional foreign-language Keychain surface is documented in the
+[secure-storage C ABI guide](../bindings/secure-storage.md); it does not change the Rust-native
+call path or the iOS capability classification.

@@ -17,9 +17,9 @@ jobs:
       - uses: actions/checkout@v4
       - name: Install Rust components
         run: rustup component add rustfmt clippy --toolchain 1.94.1
-      - name: Install iOS simulator target
+      - name: Install iOS device and simulator targets
         if: runner.os == 'macOS'
-        run: rustup target add aarch64-apple-ios-sim --toolchain 1.94.1
+        run: rustup target add aarch64-apple-ios aarch64-apple-ios-sim --toolchain 1.94.1
       - name: Format
         run: cargo fmt --all -- --check
       - name: Clippy
@@ -29,6 +29,9 @@ jobs:
       - name: C API header, layout, symbol, and consumer check
         if: runner.os == 'macOS'
         run: sh bindings/c/check.sh
+      - name: Optional secure-storage C ABI check
+        if: runner.os == 'macOS'
+        run: sh bindings/c/check-secure-storage.sh
       - name: Portable no_std checks
         run: cargo xtask no-std-check
       - name: Dependency inventory

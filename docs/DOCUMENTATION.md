@@ -2,6 +2,9 @@
 
 Shared validation commands, report scope, CI coverage, and environment limits live in [Validation and Tooling](VALIDATION.md).
 
+The capability support matrix lives in [`capabilities/README.md`](capabilities/README.md); the
+opt-in Keychain C binding has a separate [developer guide](bindings/secure-storage.md).
+
 ## Purpose
 
 Documentation is part of the framework implementation.

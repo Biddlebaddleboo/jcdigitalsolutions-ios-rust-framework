@@ -30,6 +30,7 @@ clang -std=c11 -Wall -Wextra -Werror -pedantic -I bindings/c/include bindings/c/
 target/framework-c-secure-storage-stub
 
 for target in aarch64-apple-ios aarch64-apple-ios-sim; do
+    cargo clippy -p framework-c-api --all-targets --features secure-storage --target "$target" -- -D warnings
     cargo build --release -p framework-c-api --features secure-storage --target "$target"
     target_archive="target/$target/release/libframework_c_api.a"
     nm -u "$target_archive" > "target/framework-c-secure-storage-imports-$target.txt"

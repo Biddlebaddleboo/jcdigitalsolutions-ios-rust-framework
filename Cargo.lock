@@ -55,6 +55,9 @@ name = "framework-c-api"
 version = "0.1.0"
 dependencies = [
  "framework-abi",
+ "framework-core",
+ "framework-secure-storage",
+ "ios-secure-storage",
 ]
 
 [[package]]
