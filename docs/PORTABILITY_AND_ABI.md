@@ -330,13 +330,13 @@ Add minimal example binaries and inspect:
 
 Treat accidental linkage as a regression.
 
-## 12. no_std migration
+## 12. no_std from the first implementation
 
-Portable foundations should be written `no_std`-first even while the project initially builds with `std`.
+Portable foundational crates must start as `#![no_std]`.
 
 Prefer:
 - `core`;
-- `alloc`;
+- `alloc` only where allocation is required;
 - framework-owned abstractions.
 
 Avoid public dependence on:
@@ -347,20 +347,22 @@ Avoid public dependence on:
 - concrete `std::io` types;
 - `Box<dyn std::error::Error>`.
 
-Long-term tiers:
+Required tiers:
 
 ```text
 core-only
   -> ABI primitives / tiny value types
 
 no_std + alloc
-  -> most portable capability models
+  -> most portable capability models and shared implementations
 
 std
-  -> optional platform/backend conveniences
+  -> optional platform/backend/tooling/binding conveniences
 ```
 
-The long-term target for most portable code is `no_std + alloc`, not allocator-free code everywhere.
+Portable crates should not have a hidden default `std` dependency. CI must prove this continuously with `--no-default-features`/targeted no_std checks.
+
+Test harnesses may use `std`; production portable code may not rely on that fact.
 
 ## 13. Async model
 
@@ -640,7 +642,35 @@ Document:
 
 Semantic portability is more important than pretending implementation details are identical.
 
-## 23. Build/CI invariants
+## 23. Documentation and parity invariants
+
+Documentation must be written as capabilities are implemented.
+
+For each capability/backend, document:
+- public API examples;
+- platform availability;
+- semantic contract;
+- ownership and threading;
+- async/cancellation;
+- errors;
+- native escape behavior;
+- dependency substitution seam;
+- performance characteristics;
+- parity scope against the corresponding Apple API when a Rust replacement exists.
+
+For every Rust replacement of an Apple library-layer implementation, maintain a differential parity suite.
+
+The parity suite should:
+- execute the same fixed/generated corpus against Apple and Rust;
+- compare values and error behavior;
+- normalize only documented nondeterminism;
+- include edge/boundary inputs;
+- retain regression vectors for prior mismatches;
+- run on an Apple target representative of the supported deployment range.
+
+Performance benchmarks are separate from parity tests. Both must pass before Rust replaces Apple as the default implementation.
+
+## 24. Build/CI invariants
 
 Future CI should include:
 
@@ -657,7 +687,7 @@ Future CI should include:
 - binary-size tracking;
 - assembly/codegen checks for critical zero-cost wrappers.
 
-## 24. Design review questions
+## 25. Design review questions
 
 Before adding a capability, ask:
 
