@@ -88,3 +88,7 @@ Do not begin implementation solely because these research documents exist. The i
 ## Framework elimination / Rust replacement
 
 - `FRAMEWORK_ELIMINATION_AUDIT.md` — framework-by-framework audit of what should stay Apple-native, what can move to Rust, and where replacement is justified only by measured performance.
+
+## Pre-plan closure
+
+- `PREPLAN_RESEARCH_CLOSURE.md` — closes architecture-level research before V1 planning; records current Xcode/Swift ABI findings and separates permanent design conclusions from SDK-specific execution-host probes.
