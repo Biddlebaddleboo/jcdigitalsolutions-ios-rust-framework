@@ -225,19 +225,23 @@ Cargo feature flags are useful, but do not rely on one giant crate with deeply e
 
 Add CI/linkage tests that detect unexpected platform frameworks, large dependency growth, or binary-size regressions in minimal examples.
 
-### Future no_std migration is a first-class constraint
+### Portable core is no_std + alloc from day one
 
-Design the portable core and public capability contracts so migration to `no_std` is straightforward.
+The portable core and portable capability contracts must start as genuine `#![no_std]` crates, using `alloc` only where allocation is required.
 
-- Prefer `core` and `alloc` types in portable code where practical.
-- Treat `std` as an optional implementation convenience, not an architectural requirement.
-- Aim for `no_std + alloc` as the default long-term portability target for most portable layers.
-- Very small foundational crates should be able to become true `core`-only where practical.
+This is not merely a future migration goal.
+
+- Foundational portable crates should compile with `#![no_std]` from their first implementation.
+- Use `extern crate alloc` only in crates that actually need allocation.
+- Prefer `core` and `alloc` types throughout portable code.
+- Treat `std` as a platform/backend/tooling convenience, not a portable-core dependency.
+- Very small foundational crates should remain allocator-free/`core`-only where practical.
 - Do not bake `std::thread`, `std::sync::Mutex`, `std::fs::File`, `std::net`, concrete `std::io` types, or `std::error::Error` ownership into portable public APIs.
 - Rust `Future` is allowed because it is a core language abstraction; no global executor may be required.
-- Build core crates with `--no-default-features` in CI as soon as corresponding crate structure exists.
+- CI must continuously build portable/core crates with `--no-default-features` and must fail if `std` leaks into them.
+- Unit/integration test harnesses may use `std`; that does not permit production portable crates to depend on it.
 
-Platform backends may use `std` initially where needed, but `std` dependencies must stay out of portable contracts.
+Platform backends, developer tooling, Python bindings, benchmarks, examples, and test harnesses may use `std` initially where appropriate, but `std` types must not leak into portable contracts.
 
 ### No mandatory framework runtime
 
@@ -620,6 +624,67 @@ Language bindings may adapt the same operation to:
 - future Android-language bindings.
 
 Preserve cancellation, error detail, exactly-once completion, and data ownership.
+
+## Documentation is part of implementation
+
+Documentation must evolve with the code in the same change, not be deferred until the framework is "finished."
+
+For every public capability, backend, ABI surface, unsafe subsystem, or Rust replacement of Apple functionality, update documentation that explains:
+
+- developer-facing usage and examples;
+- supported platforms and availability;
+- semantic contract and non-goals;
+- ownership/lifetime rules;
+- threading/async/cancellation behavior;
+- error behavior;
+- performance characteristics and known costs;
+- internal representation invariants when relevant;
+- dependency/backend substitution points;
+- Apple parity scope and intentional differences;
+- safety/unsafe assumptions;
+- testing and benchmark evidence for performance-sensitive replacements.
+
+Public Rust items should receive useful rustdoc as they are introduced. Important modules should include executable or compile-checked examples where practical.
+
+A code change that materially changes architecture, semantics, ABI, performance behavior, or platform support is incomplete until the corresponding documentation is updated.
+
+## Apple parity testing is mandatory for Rust replacements
+
+Any Rust implementation intended to replace an Apple library-layer API must prove behavioral parity for the supported contract before becoming the default Apple backend.
+
+Parity means equivalent externally observable behavior for the subset the framework claims to implement, including where relevant:
+
+- accepted inputs and normalization;
+- outputs;
+- edge cases;
+- error classification;
+- overflow/range behavior;
+- encoding/Unicode behavior;
+- ordering/stability guarantees;
+- cancellation;
+- concurrency/thread behavior;
+- persistence/serialization format when compatibility is claimed;
+- platform-version differences that affect semantics.
+
+Use differential tests whenever the Apple implementation can act as an oracle:
+
+```text
+same generated/fixed input
+  -> Apple reference implementation
+  -> Rust candidate implementation
+  -> normalize only documented nondeterminism
+  -> compare results/errors/side effects
+```
+
+Requirements:
+
+- Include regression cases for every discovered mismatch.
+- Use property-based/generated inputs where the state space is broad.
+- Use deterministic fixtures and fake clocks/dependencies instead of sleeps/external services where possible.
+- Run parity tests on Apple platforms/device/simulator as required by the API.
+- Do not weaken semantics merely to make the Rust implementation benchmark faster.
+- If exact parity is impossible or intentionally not provided, document the difference and expose it as a distinct semantic contract rather than silently substituting behavior.
+- Performance replacement requires **both** parity/correctness evidence and benchmark evidence. A faster implementation that behaves differently is not a valid replacement.
 
 ## Repository/planning workflow
 
