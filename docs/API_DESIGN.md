@@ -109,6 +109,33 @@ Stable C ABI structs should remain explicit and versionable; internal packed rep
 
 Bit packing is first-class, but not mandatory everywhere. Avoid pathological decode cost, unsafe unaligned layout, or obscure representations when a slightly larger layout is faster or substantially safer.
 
+## Ergonomic facade over packed internals
+
+Internal representation must be invisible to normal developers.
+
+For example, an internal capability state may be stored as one packed `u64`, while the Rust API exposes meaningful operations such as:
+
+```rust
+state.is_authorized()
+state.is_background_allowed()
+state.retry_count()
+```
+
+rather than making callers manipulate bit positions.
+
+The same principle applies to Python/C++ bindings: expose semantic properties and methods, not implementation masks.
+
+Internally, aggressively consider packing small bounded values into `u32`/`u64` words when it improves cache locality, including:
+- multiple booleans/flags;
+- small enums;
+- bounded counters;
+- slot indexes;
+- generation counters;
+- state-machine phases;
+- feature/capability masks.
+
+Keep packing logic centralized in typed helper/newtype implementations. Public APIs should remain readable and stable even if internal bit allocation changes later.
+
 ## Stable C ABI design
 
 The ABI should remain intentionally simple:
