@@ -293,6 +293,17 @@ Read in this order:
 10. `HIGH_VALUE_RESIDUAL_AUDIT_PASS2.md`
 11. `SPECIALIZED_RESIDUAL_AUDIT_PASS3.md`
 
+## Framework elimination audit
+
+A dedicated framework-by-framework audit now classifies Apple dependencies by whether they are library-like, hybrid, system-owned, hardware-accelerated, or compiler/discovery contracts.
+
+The governing decision is performance-gated:
+- keep Apple when its implementation is equal/faster or uniquely system-integrated;
+- prefer Rust only when equivalent semantics benchmark better in the important metric(s);
+- keep the portable API independent so either backend can be selected without developer-facing API changes.
+
+See `FRAMEWORK_ELIMINATION_AUDIT.md`.
+
 ## Remaining research before implementation planning
 
 The research is broad enough to define architecture, but not yet symbol-exhaustive.
