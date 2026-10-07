@@ -1,0 +1,47 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  rust:
+    name: Rust checks (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-15, ubuntu-24.04]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Rust components
+        run: rustup component add rustfmt clippy --toolchain 1.94.1
+      - name: Format
+        run: cargo fmt --all -- --check
+      - name: Clippy
+        run: cargo clippy --locked --workspace --all-targets --all-features -- -D warnings
+      - name: Unit tests
+        run: cargo test --locked --workspace
+      - name: Portable no_std checks
+        run: cargo xtask no-std-check
+      - name: Dependency inventory
+        run: cargo xtask dependency-audit
+      - name: ABI source inventory
+        run: cargo xtask abi-audit --output target/xtask/abi-audit.json
+      - name: Rust documentation
+        run: cargo doc --locked --workspace --no-deps
+      - name: Documentation and zero-Swift-source checks
+        run: cargo xtask docs-check
+      - name: Record Apple toolchain and SDK inventory
+        if: runner.os == 'macOS'
+        run: |
+          cargo xtask toolchain-manifest --output target/xtask/toolchain-manifest.json
+          cargo xtask sdk-inventory --sdk all --output target/xtask/sdk-inventory-all.json
+      - name: Upload validation reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: validation-${{ matrix.os }}
+          path: target/xtask/
+          if-no-files-found: ignore

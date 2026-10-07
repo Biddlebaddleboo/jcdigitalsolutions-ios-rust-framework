@@ -6,6 +6,8 @@ iOS is the first backend. The architecture is intentionally designed for future 
 
 ## Core idea
 
+Shared build validation and audit commands are documented in [Validation and Tooling](docs/VALIDATION.md).
+
 Applications should be able to keep almost all application logic in portable Rust while using native platform capabilities directly underneath.
 
 The framework is not:

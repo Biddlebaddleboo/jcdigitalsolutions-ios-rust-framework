@@ -1,5 +1,7 @@
 # Documentation Policy
 
+Shared validation commands, report scope, CI coverage, and environment limits live in [Validation and Tooling](VALIDATION.md).
+
 ## Purpose
 
 Documentation is part of the framework implementation.
