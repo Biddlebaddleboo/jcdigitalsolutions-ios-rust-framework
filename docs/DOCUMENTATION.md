@@ -107,13 +107,16 @@ For packed words/tables include:
 For each major third-party dependency record:
 - why it is used;
 - exact surface relied upon;
+- why a small internal implementation is not preferable;
+- direct and meaningful transitive costs;
 - types that cross boundaries, ideally none;
-- optional features enabled/disabled;
+- optional/default features enabled/disabled;
 - no_std implications;
 - replacement seam;
-- runtime/binary cost where material.
+- runtime/binary/build cost where material;
+- security/ABI/standards reasons for preferring the dependency when applicable.
 
-The goal is that a future maintainer can replace the dependency without rediscovering the architecture.
+The goal is that a future maintainer can both replace the dependency without rediscovering the architecture and understand why the dependency was worth adding in the first place.
 
 ## Apple parity documentation
 
