@@ -1,0 +1,14 @@
+[package]
+name = "framework-platform"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "Compile-time platform markers for static backend selection"
+
+[dependencies]
+framework-core.workspace = true
+
+[lints]
+workspace = true

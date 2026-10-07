@@ -1,0 +1,18 @@
+[package]
+name = "framework-abi"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "Stable C-facing primitive values and explicit ownership helpers"
+
+[features]
+default = []
+std = []
+
+[dependencies]
+framework-core.workspace = true
+
+[lints]
+workspace = true

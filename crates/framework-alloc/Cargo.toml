@@ -1,0 +1,14 @@
+[package]
+name = "framework-alloc"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "Small allocator-backed portable collection primitives"
+
+[dependencies]
+framework-core.workspace = true
+
+[lints]
+workspace = true

@@ -77,7 +77,7 @@ Performance claims must be measured.
 
 ## Project status
 
-The repository is currently in architecture/planning bootstrap. Read `AGENTS.md` before making any implementation change. Temporary `PLAN*.md` files will define execution scope once the first implementation plan is approved.
+The Cargo workspace and portable foundation crates are in place. Read `AGENTS.md` before making any implementation change. Temporary `PLAN*.md` files define execution scope and are removed after the full implementation is independently validated.
 
 ## Documentation
 
@@ -93,4 +93,5 @@ The repository is currently in architecture/planning bootstrap. Read `AGENTS.md`
 - `docs/API_DESIGN.md` — portable/high-level API design rules.
 - `docs/TESTING_AND_PARITY.md` — differential Apple parity, ABI, linkage, no_std, and performance validation policy.
 - `docs/DOCUMENTATION.md` — continuous developer/maintainer documentation requirements.
+- `docs/core/FOUNDATION.md` — shared crate graph, semantic type layout facts, dependency policy, and validation commands.
 - `docs/research/` — Apple API and Swift ABI research corpus.

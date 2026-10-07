@@ -1,0 +1,11 @@
+[package]
+name = "framework-core"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "Allocator-free portable semantic primitives for the framework"
+
+[lints]
+workspace = true
