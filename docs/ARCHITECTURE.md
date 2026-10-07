@@ -213,26 +213,30 @@ An umbrella crate may exist for convenience, but independent capability crates/m
 
 Minimal example binaries should validate expected dependencies and binary size.
 
-## no_std direction
+## no_std core requirement
 
-The portable core should be designed `no_std`-first.
+The portable core starts as `#![no_std]`, not as a `std` implementation intended to be migrated later.
 
-Long-term tiers:
+Target tiers:
 
 ```text
 core only
   -> smallest ABI/value foundations
 
 no_std + alloc
-  -> most portable capability models
+  -> portable capability models and most shared implementation
 
 std
-  -> optional backend/convenience functionality
+  -> optional backend/tooling/binding conveniences
 ```
+
+Portable crates should use `core` and `alloc` from their first implementation commit. Only crates that genuinely need allocation should depend on `alloc`.
 
 Avoid exposing concrete `std` resources such as `std::fs::File`, `std::net` sockets, `std::thread`, or `std::sync::Mutex` in portable public contracts.
 
 Rust `Future` is acceptable because it is a core language abstraction; no executor is mandatory.
+
+Platform backends can use `std` where useful initially, provided `std` does not leak upward into portable contracts.
 
 ## UI architecture
 
@@ -296,6 +300,41 @@ Normal use must not require:
 - serialization between internal layers.
 
 High-level API design should come from compile-time structure and thin wrappers, not a heavyweight runtime.
+
+## Differential parity architecture
+
+When the framework replaces an Apple library-layer implementation with Rust, the Apple implementation remains the behavioral oracle until the Rust contract is proven.
+
+Preferred validation topology:
+
+```text
+shared input corpus
+   |                |
+   v                v
+Apple reference   Rust candidate
+   |                |
+   +------ compare -+
+```
+
+The comparison should cover both successful results and documented failure behavior.
+
+Parity infrastructure belongs outside the `no_std` core, normally in Apple-specific test/benchmark crates that may use `std`, XCTest-compatible runners, device harnesses, or host tooling as needed.
+
+The portable implementation should not contain test-only Apple dependencies.
+
+## Documentation architecture
+
+Architecture documentation, public API documentation, examples, parity notes, and benchmark evidence are maintained alongside implementation.
+
+The source tree should distinguish:
+- developer-facing API/rustdoc;
+- architecture/invariant documentation;
+- platform/backend documentation;
+- research/decision records;
+- test/parity methodology;
+- performance/benchmark methodology.
+
+Documentation is part of the implementation contract, not a post-release cleanup task.
 
 ## Further reference
 
