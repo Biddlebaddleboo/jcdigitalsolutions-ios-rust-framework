@@ -91,6 +91,75 @@ Measure:
 
 A secure-storage-only example must not silently pull camera/media/UI/Swift ABI/Python dependencies.
 
+## Cache locality and data-layout policy
+
+Memory footprint is a runtime performance concern, not merely a binary-size concern.
+
+Framework-owned hot data should be designed to minimize working-set size and unnecessary cache misses.
+
+Prefer, where appropriate:
+
+- narrow integer fields when the domain bound is known;
+- compact enum representations;
+- bitsets and packed flags for dense boolean/state data;
+- contiguous arrays/slabs over pointer-linked structures;
+- compact IDs instead of full pointers where indirection is already required;
+- hot/cold field splitting;
+- field ordering that reduces padding;
+- structure-of-arrays when only a subset of fields is traversed repeatedly;
+- array-of-structs when whole records are consumed together.
+
+Do not optimize solely for nominal struct byte count. Measure or reason about:
+
+- `size_of::<T>()`;
+- alignment;
+- padding;
+- element stride;
+- objects per cache line;
+- bytes touched per common operation;
+- pointer chasing;
+- decode/mask cost introduced by packing;
+- branch behavior;
+- vectorization opportunities.
+
+### Bit packing
+
+Bit packing is explicitly encouraged for bounded flags/state where it improves density and access locality.
+
+Good candidates include:
+
+- permission/capability flags;
+- state-machine flags;
+- callback-slot metadata;
+- compact generational-handle metadata;
+- small bounded enums;
+- occupancy/free-slot bitmaps;
+- feature masks.
+
+Prefer explicit masks/bitfield helper types over `repr(packed)` when possible. Internal packed representations may differ from stable C ABI representations.
+
+Every packed representation must define:
+
+- bit allocation;
+- valid/invalid values;
+- overflow behavior;
+- generation/counter wraparound;
+- endian assumptions if serialized or externally visible;
+- atomicity requirements if concurrently modified.
+
+### Cache-regression validation
+
+For performance-sensitive repeated types, track representative:
+
+- struct size/alignment;
+- collection footprint at realistic counts;
+- traversal throughput;
+- mutation throughput;
+- allocation count;
+- cache-miss-sensitive benchmarks where available.
+
+A change that makes an API syntactically cleaner but materially inflates hot working sets should be treated as a performance regression unless justified.
+
 ## Baselines
 
 For iOS UIKit work, compare:
