@@ -10,7 +10,7 @@ Requires integrated `PLAN_FOUNDATION.md`.
 
 ## Execution decomposition
 
-The native backend matrix is too broad for one executor. B1 is `PLAN_IOS_APP_DATA.md`: it implements the iOS files and preferences backends only after their D1 portable contracts are integrated. Other capability backend families require separate named subplans and must not overlap B1-owned paths.
+The native backend matrix is too broad for one executor. B1 is `PLAN_IOS_APP_DATA.md`: it implements the iOS files and preferences backends only after their D1 portable contracts are integrated. B2 is `PLAN_IOS_SECURE_STORAGE.md`: it implements the Keychain backend after D2. B3 is `PLAN_IOS_NETWORK.md`: it implements foreground HTTP after D1. Other capability backend families require separate named subplans and must not overlap these owned paths.
 
 Read first:
 - `docs/IOS_BUILD.md`
