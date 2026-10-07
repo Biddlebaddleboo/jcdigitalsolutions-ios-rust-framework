@@ -136,6 +136,24 @@ Internally, aggressively consider packing small bounded values into `u32`/`u64` 
 
 Keep packing logic centralized in typed helper/newtype implementations. Public APIs should remain readable and stable even if internal bit allocation changes later.
 
+## Dependency-independent public API
+
+Public APIs should describe framework semantics, not the currently chosen implementation crate.
+
+Do not expose third-party dependency types in normal portable/high-level signatures when a framework-owned type can represent the concept cleanly.
+
+Examples:
+
+- expose framework `HttpRequest`/results rather than a specific HTTP crate's request type;
+- expose framework-owned error categories rather than a dependency's error enum;
+- expose semantic callback/future APIs rather than an executor's task handle;
+- expose framework strings/bytes/value types rather than parser/serializer-specific wrappers;
+- keep `objc2`, Swift-ABI helper, JNI helper, Python binding, allocator, and generated-binding types behind implementation/platform extension boundaries.
+
+If developers need direct access to an underlying dependency for an advanced case, provide an explicit platform/internal/native escape hatch rather than making that dependency define the ordinary API.
+
+Dependency adapters should be narrow enough that replacing the implementation does not require widespread source changes.
+
 ## Stable C ABI design
 
 The ABI should remain intentionally simple:
