@@ -1,41 +1,79 @@
-# JC Digital Solutions iOS Rust Framework
+# JC Digital Solutions Native Rust Framework
 
-A reusable Rust-first native iOS framework focused on near-zero incremental runtime overhead, direct use of Apple's public APIs, and App Store-compatible deployment.
+A reusable, high-level, platform-agnostic native application framework implemented primarily in Rust.
+
+iOS is the first backend. The architecture is intentionally designed for future Android, macOS, Windows, Linux, and Web/WASM support with minimal application-code changes.
 
 ## Core idea
 
-Applications should be able to keep nearly all application logic in Rust while using native UIKit/Foundation/Core* objects directly. The framework is not a virtual DOM, not a custom renderer, not a JavaScript bridge, and not a Swift wrapper around a Rust core.
+Applications should be able to keep almost all application logic in portable Rust while using native platform capabilities directly underneath.
 
-The intended call path for ordinary Objective-C APIs is:
+The framework is not:
+- a virtual DOM;
+- a custom renderer/runtime;
+- a JavaScript bridge;
+- a Swift wrapper around a Rust core;
+- a VM or managed universal object system.
+
+The intended Rust call path is:
 
 ```text
-Rust application
-  -> thin Rust helper when useful
-  -> objc2
-  -> Objective-C ABI / objc_msgSend
-  -> UIKit / Foundation / other Apple framework
+high-level Rust application API
+  -> portable Rust capability layer
+  -> statically selected native backend
+  -> native platform API
 ```
 
-For public C APIs the path is direct Rust FFI.
+On iOS, native calls use direct C/CoreFoundation APIs, `objc2` for Objective-C APIs, and narrowly scoped Swift ABI support only for genuinely Swift-only public APIs.
+
+## Language compatibility
+
+Rust is the native fast path.
+
+The same shared Rust core will also expose:
+- a stable C ABI for C-compatible languages;
+- optional C++ ergonomic wrappers;
+- optional Python bindings;
+- future language bindings where useful.
+
+Rust callers are not routed through the C ABI.
+
+Python remains optional and does not affect non-Python runtime/dependency cost.
+
+## Portability model
+
+The framework distinguishes:
+1. portable capabilities;
+2. portable capabilities with platform extensions;
+3. platform-exclusive capabilities.
+
+Portable contracts do not expose UIKit, JNI, Win32, DOM, or other platform-native types.
 
 ## Hard guarantees
 
-- The framework repository contains no Swift source files.
-- Shipping features use only public, App-Store-compatible Apple interfaces.
-- `objc2` is the default Objective-C interoperability layer.
-- Framework abstractions must remain thin and must justify any allocation, copy, dynamic dispatch, locking, or duplicated state.
-- UIKit objects remain UIKit objects.
-- Ordinary framework/application computation should use normal optimized Rust data structures rather than Objective-C objects.
-- Swift-only public APIs may eventually be reached through narrowly scoped Swift-ABI interoperability implemented in Rust.
-- An application may temporarily own a microscopic Swift shim for an unsupported API, but this repository will not.
+- Rust-native path first; C ABI is for foreign-language compatibility.
+- Portable code is designed `no_std`-first, aiming at `no_std + alloc` for most core/capability layers.
+- Capabilities are fine-grained and independently importable.
+- A small API must not pull large unrelated modules/frameworks.
+- No mandatory framework runtime, global service registry, or universal async executor.
+- Platform backends are selected statically where practical.
+- The iOS backend contains no Swift source files.
+- Shipping features use only public, supported platform APIs.
+- `objc2` is the default Objective-C interoperability layer on Apple platforms.
+- Framework abstractions must justify any allocation, copy, dynamic dispatch, locking, runtime lookup, or duplicated state.
+- Platform-native escape hatches remain available.
 
 ## Performance objective
 
-At Apple API boundaries, Rust should approach equivalent Objective-C/C overhead as closely as practical.
+At native API boundaries, framework cost should approach the best equivalent native implementation as closely as practical.
 
-Outside the Apple object boundary, code should target ordinary optimized Rust/C++ performance and should not inherit Objective-C object/message overhead unnecessarily.
+For Rust, high-level portable wrappers should often optimize away entirely.
 
-Performance claims must be measured against native baselines.
+For C/C++, expected overhead should normally be limited to an ordinary C ABI call.
+
+For Python, the goal is minimal framework-added overhead beyond CPython itself.
+
+Performance claims must be measured.
 
 ## Project status
 
@@ -43,12 +81,14 @@ The repository is currently in architecture/planning bootstrap. Read `AGENTS.md`
 
 ## Documentation
 
-- `docs/ARCHITECTURE.md` — architecture and boundaries.
+- `docs/ARCHITECTURE.md` — architecture, portable/backend boundaries, and dependency direction.
+- `docs/PORTABILITY_AND_ABI.md` — cross-platform, C ABI, Python, modularity, no_std, and binding rules.
 - `docs/PERFORMANCE.md` — performance model and benchmark policy.
 - `docs/OWNERSHIP.md` — Rust/Objective-C lifetime rules.
 - `docs/UNSAFE.md` — unsafe/ABI policy.
 - `docs/APP_STORE_COMPLIANCE.md` — public-API and review requirements.
-- `docs/IOS_BUILD.md` — build/signing/packaging direction.
+- `docs/IOS_BUILD.md` — iOS build/signing/packaging direction.
 - `docs/OBJC_INTEROP.md` — objc2, delegates, Blocks, callbacks.
-- `docs/SWIFT_ABI.md` — zero-Swift-source policy and future Swift-ABI work.
-- `docs/API_DESIGN.md` — when an abstraction should or should not exist.
+- `docs/SWIFT_ABI.md` — zero-Swift-source policy and Swift-ABI work.
+- `docs/API_DESIGN.md` — portable/high-level API design rules.
+- `docs/research/` — Apple API and Swift ABI research corpus.
