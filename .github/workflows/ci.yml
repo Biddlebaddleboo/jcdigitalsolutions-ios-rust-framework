@@ -17,6 +17,9 @@ jobs:
       - uses: actions/checkout@v4
       - name: Install Rust components
         run: rustup component add rustfmt clippy --toolchain 1.94.1
+      - name: Install iOS simulator target
+        if: runner.os == 'macOS'
+        run: rustup target add aarch64-apple-ios-sim --toolchain 1.94.1
       - name: Format
         run: cargo fmt --all -- --check
       - name: Clippy
@@ -33,6 +36,14 @@ jobs:
         run: cargo doc --locked --workspace --no-deps
       - name: Documentation and zero-Swift-source checks
         run: cargo xtask docs-check
+      - name: iOS simulator Release example build
+        if: runner.os == 'macOS'
+        run: cargo xtask ios-build --simulator --release
+      - name: iOS simulator linkage and plist checks
+        if: runner.os == 'macOS'
+        run: |
+          cargo xtask linkage-audit --binary target/ios-minimal/simulator/ios-minimal.app/ios-minimal --output target/xtask/ios-simulator-linkage.json
+          plutil -lint target/ios-minimal/simulator/ios-minimal.app/Info.plist
       - name: Record Apple toolchain and SDK inventory
         if: runner.os == 'macOS'
         run: |
