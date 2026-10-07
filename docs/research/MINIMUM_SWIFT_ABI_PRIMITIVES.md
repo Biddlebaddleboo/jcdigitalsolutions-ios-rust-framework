@@ -409,16 +409,31 @@ The framework only tracks ownership state and invokes the native runtime correct
 
 # 18. Rust compiler status
 
-Rust currently tracks Swift function-call ABI support under `#![feature(abi_swift)]`, but as of this research date the tracking issue is marked unimplemented and requires an RFC.
+Rust now has an experimental Swift calling-convention implementation behind:
 
-Reference:
+```text
+#![feature(abi_swift)]
+```
+
+Current rustc internals expose a `Swift` ABI mapped to LLVM `swiftcc`, and rust-lang/rust#156481 records the initial implementation.
+
+However, the feature is not stable and still has unresolved design/stability questions, notably:
+- no stable `repr(Swift)` layout mechanism;
+- argument-classification questions;
+- ABI stability/tiering policy;
+- Darwin versus non-Darwin support policy.
+
+References:
 https://github.com/rust-lang/rust/issues/156481
+https://doc.rust-lang.org/nightly/nightly-rustc/rustc_abi/enum.ExternAbi.html
 
 ## Consequence
 
-Do not make initial implementation depend on unstable/unimplemented rustc Swift ABI support.
+Do not make V1 depend on nightly/experimental rustc Swift ABI support.
 
-Design the internal call boundary so a future Rust-native implementation can replace the thunk backend.
+Use the Clang `swiftcall`/`swiftasynccall` thunk backend first, behind an internal replacement seam.
+
+Design the semantic ABI layer so a future stable Rust-native `extern "Swift"` backend can replace the thunk implementation without changing framework APIs.
 
 # Minimum Layer-1 implementation order
 
