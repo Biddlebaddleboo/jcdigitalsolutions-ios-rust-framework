@@ -11,7 +11,7 @@ Thereafter this workstream runs continuously and does not own capability impleme
 
 ## Execution decomposition
 
-G1 established host audits, SDK inventory, CI, and the minimal example build/link checks. Continue with separately bounded slices for parity/benchmark tooling and Xcode archive validation. `PLAN_VALIDATION_ARCHIVE.md` owns the archive path and may consume the B minimal example without changing its Rust runtime or native API.
+G1 established host audits, SDK inventory, CI, and the minimal example build/link checks. G2 owns Xcode archive validation in `PLAN_VALIDATION_ARCHIVE.md`. Continue with `PLAN_VALIDATION_HARNESS.md` (G3) for shared parity/benchmark machinery and binding checks. These slices may consume the minimal app and C ABI without changing their runtime/API ownership.
 
 ## Write scope
 
