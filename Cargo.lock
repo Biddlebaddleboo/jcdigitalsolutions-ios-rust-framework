@@ -33,6 +33,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "framework-app"
+version = "0.1.0"
+dependencies = [
+ "framework-core",
+]
+
+[[package]]
 name = "framework-async"
 version = "0.1.0"
 dependencies = [
@@ -51,7 +58,28 @@ name = "framework-core"
 version = "0.1.0"
 
 [[package]]
+name = "framework-files"
+version = "0.1.0"
+dependencies = [
+ "framework-core",
+]
+
+[[package]]
+name = "framework-network"
+version = "0.1.0"
+dependencies = [
+ "framework-core",
+]
+
+[[package]]
 name = "framework-platform"
+version = "0.1.0"
+dependencies = [
+ "framework-core",
+]
+
+[[package]]
+name = "framework-preferences"
 version = "0.1.0"
 dependencies = [
  "framework-core",
