@@ -2,13 +2,190 @@
 
 ## Purpose
 
-This repository builds a reusable, Rust-first native iOS framework whose normal application code can be written almost entirely in Rust while still using Apple's native frameworks directly.
+This repository builds a reusable, high-level, platform-agnostic native application framework whose primary implementation language and primary fast-path API are Rust.
 
-The framework is intentionally not a Flutter/React-Native-style runtime, not a virtual DOM, not a custom renderer, and not a Swift wrapper around a Rust core. UIKit and other Apple objects remain native Apple objects. Rust should add as close to zero incremental runtime cost as practical.
+The framework must support iOS first while being architected from the beginning for Android, macOS, Windows, Linux, and Web/WASM backends. It must also expose a stable C ABI so C-compatible languages can consume the framework, and support an optional Python binding layer.
+
+The framework is intentionally not a Flutter/React-Native-style runtime, not a virtual DOM, not a custom renderer, not a Swift wrapper around a Rust core, and not a language VM. Platform-native objects remain native platform objects. The framework should add as close to zero incremental runtime cost as practical.
 
 These rules are architectural invariants. Do not weaken them for convenience.
 
 ## Hard rules
+
+### Rust-native fast path
+
+- Rust is the primary implementation language.
+- Rust applications must use a native Rust API that calls shared Rust implementation code directly.
+- Do not force Rust callers through the exported C ABI.
+- The C ABI is a foreign-language compatibility boundary, not the internal architecture.
+- Preserve opportunities for monomorphization, inlining, constant propagation, dead-code elimination, and LTO on the Rust path.
+- Prefer static dispatch and compile-time backend selection over trait-object dispatch or service lookup.
+
+C, C++, Objective-C, Objective-C++, or assembly may be used only when a concrete ABI, toolchain, or platform requirement makes that the smallest correct solution. Keep such code microscopic and document why Rust alone is insufficient.
+
+### Stable C ABI for foreign-language compatibility
+
+The framework must be consumable by languages that can call a C ABI.
+
+The stable ABI must use language-neutral primitives such as:
+- fixed-width integers;
+- pointers;
+- explicit lengths;
+- opaque handles/pointers;
+- explicit status/error values;
+- explicit ownership/destruction;
+- callbacks and completion functions;
+- ABI-versioned structs where needed.
+
+Do not expose these across the stable ABI:
+- Rust `Vec`, `String`, `Box`, `Arc`, references, trait objects, enums without a defined representation, or compiler-specific Rust layout;
+- Objective-C ownership wrappers such as `Retained<T>`;
+- Swift ABI implementation details;
+- platform-specific object types in portable contracts.
+
+C ABI wrappers should call the same Rust core used by the Rust-native API. They must not define a second implementation.
+
+### Optional Python binding
+
+Python support must be an optional top-level binding layer over the same shared core.
+
+- The portable core must not depend on CPython, the GIL, Python objects, Python allocation semantics, or Python packaging.
+- Python's interpreter/runtime cost is an opt-in cost paid only by Python applications.
+- Keep expensive/high-frequency work native; avoid repeated fine-grained Python/native crossings.
+- Python bindings should provide idiomatic Python objects/awaitables while translating to language-neutral native operations underneath.
+- Python support must not increase runtime cost, binary dependencies, or initialization requirements for Rust/C users who do not enable it.
+
+### Platform-agnostic portable core
+
+The portable layer must model application capabilities, not operating-system APIs.
+
+Portable public contracts must not contain:
+- `UIView`, `UIViewController`, `NSObject`, or other Apple types;
+- Android `Activity`, JNI objects, Binder implementation details, or Java/Kotlin types;
+- Windows `HWND`, COM/WinRT implementation types;
+- Wayland/X11 handles;
+- JavaScript/DOM/WebAssembly binding types.
+
+Expose concepts such as:
+- application/window/screen;
+- files/preferences/secure storage;
+- HTTP/networking;
+- notifications;
+- location;
+- camera/audio;
+- Bluetooth;
+- clipboard/share;
+- authentication;
+- permissions;
+- background work;
+- platform capabilities that can be described semantically.
+
+Do not force fake portability. Support three levels explicitly:
+1. fully portable capability;
+2. portable capability with platform-specific extensions;
+3. genuinely platform-exclusive capability.
+
+A platform-specific capability may live under an `ios::`, `android::`, `windows::`, `web::`, etc. namespace/module rather than being distorted into a lowest-common-denominator API.
+
+### Platform backends must be replaceable and statically selected
+
+Architect the framework so backends can be added for:
+- iOS;
+- Android;
+- macOS;
+- Windows;
+- Linux;
+- Web/WASM;
+- future platforms without redesigning the portable core.
+
+Prefer compile-time target selection:
+
+```text
+portable API
+  -> statically selected backend
+  -> native platform API
+```
+
+Do not require:
+- runtime backend discovery;
+- dependency injection containers;
+- global service registries;
+- string-based capability lookup;
+- boxed `dyn Backend` for ordinary platform selection.
+
+Use dynamic dispatch only where the application genuinely needs runtime-selected implementations.
+
+### Fine-grained modularity
+
+A consumer that needs one small capability must not have to import or link a large unrelated framework.
+
+- Split capabilities into independently usable crates/modules.
+- Keep platform implementations capability-scoped where practical.
+- Swift ABI support must be opt-in and linked only by capabilities that need it.
+- Python bindings must be opt-in.
+- UI must not be pulled in by storage/security/network-only users.
+- Camera/media must not be pulled in by simple preference or Keychain users.
+- Avoid a mandatory umbrella runtime library.
+- An umbrella convenience crate may re-export feature crates, but independent crates must remain usable directly.
+
+Cargo feature flags are useful, but do not rely on one giant crate with deeply entangled conditional compilation when separate crates provide clearer boundaries.
+
+Add CI/linkage tests that detect unexpected platform frameworks, large dependency growth, or binary-size regressions in minimal examples.
+
+### Future no_std migration is a first-class constraint
+
+Design the portable core and public capability contracts so migration to `no_std` is straightforward.
+
+- Prefer `core` and `alloc` types in portable code where practical.
+- Treat `std` as an optional implementation convenience, not an architectural requirement.
+- Aim for `no_std + alloc` as the default long-term portability target for most portable layers.
+- Very small foundational crates should be able to become true `core`-only where practical.
+- Do not bake `std::thread`, `std::sync::Mutex`, `std::fs::File`, `std::net`, concrete `std::io` types, or `std::error::Error` ownership into portable public APIs.
+- Rust `Future` is allowed because it is a core language abstraction; no global executor may be required.
+- Build core crates with `--no-default-features` in CI as soon as corresponding crate structure exists.
+
+Platform backends may use `std` initially where needed, but `std` dependencies must stay out of portable contracts.
+
+### No mandatory framework runtime
+
+Normal use must not require a process-wide framework initialization step.
+
+Do not introduce, unless a concrete requirement proves necessary:
+- a garbage collector;
+- a framework-wide `Arc`/`Rc` ownership model;
+- a global object registry for every object;
+- a dependency injection container;
+- a global service locator;
+- a framework-wide task scheduler;
+- a mandatory async runtime such as Tokio;
+- a global UI-state mutex;
+- JSON/serialization between framework layers;
+- IPC between framework layers;
+- a virtual UI tree;
+- a reconciliation engine;
+- a custom renderer for ordinary native views;
+- string-based method routing;
+- reflection for ordinary access;
+- boxed dynamic callbacks for every event;
+- duplicate platform object models.
+
+Opaque C handles should be direct opaque pointers/owned Rust objects when safe and practical. Use registries only where stale-handle protection, callback identity, cross-thread lifetime, or platform semantics require them.
+
+### High-level API, low-level implementation
+
+The developer-facing API should be high-level and ergonomic, roughly comparable to the convenience level a platform's preferred high-level language provides.
+
+High-level does not mean heavyweight.
+
+A convenience layer should compile down to:
+- pure Rust;
+- a direct C call;
+- a thin platform ABI call;
+- or a minimal native callback/async adapter.
+
+Common application code should not need to manipulate selectors, JNI details, Swift metadata, raw handles, ownership markers, or foreign callback trampolines.
+
+Preserve platform-native escape hatches for capabilities not yet wrapped.
 
 ### Zero Swift source in the framework
 
@@ -37,12 +214,6 @@ Technical feasibility does not override App Store compliance.
 
 For unusual low-level integrations, document the public API ultimately being used, availability, entitlement requirements, and App Store implications.
 
-### Rust is the primary implementation language
-
-Use Rust by default.
-
-C, C++, Objective-C, or Objective-C++ may be used only when a concrete ABI, toolchain, or platform requirement makes that the smallest correct solution. Keep such code microscopic and document why Rust alone is insufficient.
-
 ### objc2 is the default Objective-C interoperability layer
 
 Use `objc2` and its framework crates for public Objective-C APIs unless there is a measured or correctness-based reason not to.
@@ -56,9 +227,9 @@ Direct Objective-C ABI calls or narrowly scoped assembly are allowed only when a
 
 Any bypass must preserve Objective-C ownership, calling conventions, error semantics, and App Store compliance.
 
-### Optimize the Rust side as Rust, not as Objective-C
+### Optimize the portable and Rust sides as Rust, not as platform objects
 
-Only objects that must participate in Apple's object model should be Objective-C objects.
+Only objects that must participate in a platform object model should be native foreign objects.
 
 Keep application/framework-owned computation in ordinary Rust representations when possible:
 - structs and enums;
@@ -69,81 +240,66 @@ Keep application/framework-owned computation in ordinary Rust representations wh
 - cache-friendly layouts;
 - SIMD or architecture-specific code when measured.
 
-Do not turn ordinary application state into `NSObject` subclasses.
-
-### No unnecessary runtime layer
-
-Do not introduce, unless a concrete requirement proves necessary:
-- a garbage collector;
-- a framework-wide `Arc`/`Rc` ownership model;
-- a global UI-state mutex;
-- JSON/serialization between Rust and Apple APIs;
-- IPC between framework layers;
-- a virtual UI tree;
-- a reconciliation engine;
-- a custom renderer for ordinary UIKit views;
-- string-based method routing;
-- reflection for ordinary property/method access;
-- boxed dynamic callbacks for every event;
-- a mandatory async runtime such as Tokio;
-- duplicate native object models.
+Do not turn ordinary application state into `NSObject`, Java objects, COM objects, DOM objects, or other foreign runtime objects.
 
 ### Abstraction must justify itself
 
-Default rule: do not wrap an `objc2` or Apple API merely to hide it.
-
-A framework abstraction should exist only when it:
+A framework abstraction should exist when it:
 - removes recurring ABI/lifetime boilerplate;
 - enforces an important invariant;
-- materially improves Rust ergonomics;
+- materially improves developer ergonomics;
 - exposes a genuinely portable concept;
 - enables a measurable optimization.
 
-Prefer thin, inlineable wrappers. Preserve access to the underlying native object so uncommon Apple APIs do not have to wait for framework wrapper coverage.
+Prefer thin, inlineable wrappers. Preserve access to underlying native capabilities so uncommon platform features do not wait for framework wrapper coverage.
 
-### UIKit first
+Do not add abstraction solely to rename platform APIs.
 
-V1 is UIKit-native.
+### UIKit is the initial iOS backend UI
+
+The initial iOS backend is UIKit-native.
 
 Do not implement a SwiftUI clone, virtual DOM, custom text engine, custom scrolling system, custom accessibility tree, or custom renderer in the first architecture.
 
-A future Metal/custom-rendering backend is a separate decision and must not distort the UIKit-native core.
+This rule does not make the portable core iOS-specific. UIKit is one backend implementation of portable UI/window concepts and of iOS-specific extensions.
+
+A future Android/desktop/web UI backend must not require changing the portable core's fundamental ownership or capability model.
 
 ## Ownership and lifetime rules
 
-Use Objective-C ownership semantics directly:
+Use Objective-C ownership semantics directly in the iOS backend:
 - `Retained<T>` for owned strong Objective-C references;
 - borrowed references where ownership is unnecessary;
 - `Weak<T>` where weak semantics are required;
 - `Allocated<T>` during initialization where appropriate.
 
-Do not wrap `Retained<T>` in `Arc` or `Rc` by default. `Retained<T>` already represents Apple's native retain/release ownership.
+Do not wrap `Retained<T>` in `Arc` or `Rc` by default.
 
-UIKit owns its native view/controller hierarchy. Rust owns Rust application state and framework semantics.
+Portable API ownership must be expressible without Objective-C-specific types.
 
-Avoid unnecessary retain/release traffic. Treat native ownership operations as Apple costs only when they are required by correct semantics; extra framework-generated retains/releases are optimization bugs.
+C ABI ownership must be explicit: every created/owned object must have documented destruction or transfer semantics.
 
-## Main-thread rules
+Avoid unnecessary retain/release traffic. Extra framework-generated retain/release, clones, reference-count layers, or wrapper allocations are optimization bugs unless justified.
 
-Prefer encoding UI-thread correctness with `objc2::MainThreadMarker` or an equally zero-cost typed capability.
+## Main-thread and threading rules
 
-Do not replace compile-time/main-thread capability checking with repeated runtime boolean checks unless unavoidable.
+Platform-specific UI thread rules belong in platform backends.
 
-UI state should generally be main-thread owned. Do not default to `Arc<Mutex<...>>` for UI state.
+For iOS, prefer `objc2::MainThreadMarker` or an equally zero-cost typed capability.
 
-Handle UIKit reentrancy explicitly. Never fabricate permanent mutable references to global application state that can alias during synchronous callbacks.
+Do not make a global "main thread" abstraction that assumes every platform has identical UI-thread semantics.
+
+The portable API may encode "UI-thread-affine" or "platform-thread-affine" requirements semantically where necessary, with each backend enforcing the correct native rule.
+
+Do not default to `Arc<Mutex<...>>` for UI or portable application state.
+
+Handle reentrancy explicitly. Never fabricate permanent mutable references to global state that can alias during synchronous callbacks.
 
 ## Objective-C classes, delegates, and target/action
 
-Use Rust-defined Objective-C classes through `objc2::define_class!` where appropriate.
+Use Rust-defined Objective-C classes through `objc2::define_class!` where appropriate in the iOS backend.
 
-Create Objective-C bridge objects only where Apple APIs require an Objective-C object, for example:
-- application delegate;
-- control target;
-- table/list data source or delegate;
-- text-input delegate;
-- notification delegate;
-- navigation delegate.
+Create Objective-C bridge objects only where Apple APIs require an Objective-C object.
 
 Keep bridge objects narrow.
 
@@ -151,7 +307,7 @@ For common callbacks, prefer compact IDs, statically known functions, or similar
 
 Handle stale callback IDs, teardown, reentrancy, deallocation, and retain cycles.
 
-A Rust panic must never unwind through an Objective-C/C ABI boundary.
+A Rust panic must never unwind through any foreign ABI boundary.
 
 ## Blocks
 
@@ -163,9 +319,11 @@ Audit block capture graphs for retain cycles.
 
 ## Strings and bytes
 
-Do not eagerly convert every `NSString` into `String`, or every `NSData` into `Vec<u8>`.
+Portable APIs should distinguish borrowed and owned data where the language permits it.
 
-Distinguish:
+Do not eagerly convert every platform string/data value into a new Rust allocation.
+
+For iOS, distinguish:
 - borrowed native strings;
 - retained native strings;
 - temporary strings;
@@ -175,6 +333,10 @@ Distinguish:
 - retained `NSData`;
 - borrowed byte slices;
 - owned `Vec<u8>`.
+
+For C ABI bindings, use explicit pointer/length/encoding contracts and ownership rules.
+
+For Python, convert at the outer binding edge and avoid repeated boundary conversions.
 
 Measure conversion and copy costs before adding convenience conversions to hot APIs.
 
@@ -187,16 +349,16 @@ Escalation order:
 2. public C/CoreFoundation/Darwin interface via Rust FFI;
 3. add/generate a missing public binding;
 4. implement equivalent convenience behavior over documented lower-level public APIs;
-5. for a genuinely public Swift-only API, implement the minimum required Swift ABI interoperability in Rust;
+5. for a genuinely public Swift-only API, implement the minimum required Swift ABI interoperability;
 6. leave the API unsupported until a robust compliant path exists.
 
 Do not build a general Swift compiler/runtime clone speculatively.
 
-Any Rust Swift-ABI implementation must be driven by a concrete public Apple API and document the exact ABI assumptions it relies on.
+Swift ABI crates/modules must remain optional and capability-scoped. A user who does not use a Swift-only Apple feature must not pull in unrelated Swift-ABI machinery added by this project.
 
 ## Unsafe Rust
 
-Unsafe is acceptable and expected in a native platform framework.
+Unsafe is acceptable and expected in native platform backends and ABI layers.
 
 Prefer small unsafe cores with safe or narrowly unsafe callers.
 
@@ -212,14 +374,14 @@ Every unsafe block or subsystem must make clear:
 
 Prefer `#![deny(unsafe_op_in_unsafe_fn)]` where practical.
 
-Unsafe is not a performance feature by itself. Use it when it removes a proven abstraction constraint or implements required native semantics.
+Unsafe is not a performance feature by itself.
 
 ## Assembly
 
-ARM64 assembly is allowed for:
+Assembly is allowed for:
 - ABI thunks;
 - measured hot paths;
-- operations where LLVM output is demonstrably inferior.
+- operations where compiler output is demonstrably inferior.
 
 Before adding assembly:
 1. inspect optimized compiler output;
@@ -232,7 +394,17 @@ Do not use assembly merely to appear lower level.
 
 ## Performance standard
 
-There are two targets.
+### Portable abstraction
+
+For Rust callers, high-level portable wrappers and compile-time backend selection should add no measurable runtime dispatch or allocation in ordinary simple operations when they can be inlined/static-dispatched.
+
+### Foreign-language ABI
+
+For C/C++ callers, the additional cost should normally be limited to the ordinary C ABI call and any representation conversion inherently required by the language boundary.
+
+### Python
+
+Do not claim Python itself has zero runtime overhead. The target is minimal framework-added overhead beyond CPython and the native operation.
 
 ### Apple boundary
 
@@ -242,7 +414,7 @@ If an Objective-C call ultimately requires `objc_msgSend`, that dispatch is an A
 
 ### Framework/application computation
 
-Code not required to use Apple's object model should target ordinary optimized Rust/C++ performance and may outperform conventional object-heavy Objective-C implementations.
+Code not required to use a foreign platform object model should target ordinary optimized Rust/C++ performance.
 
 Measure:
 - launch time;
@@ -250,52 +422,66 @@ Measure:
 - allocations;
 - retain/release traffic;
 - callback dispatch;
-- UI property mutation;
-- navigation;
-- list/data-source behavior;
 - string/data conversion;
 - networking setup/completion/body copies;
-- binary size where relevant.
+- FFI crossings;
+- portable-wrapper overhead;
+- binary size;
+- linked dependency/framework set.
 
 Performance claims must be backed by reproducible measurements.
 
 ## Benchmark comparison
 
-For apples-to-apples UIKit work, compare at least:
+For iOS UIKit work, compare at least:
 - Objective-C/UIKit;
 - Swift/UIKit;
-- Rust/UIKit through this framework.
+- native Rust/iOS through this framework.
+
+Also compare:
+- Rust portable API vs direct Rust backend API;
+- Rust native path vs C ABI path when both exist;
+- minimal capability binaries to detect unwanted linkage.
 
 SwiftUI may be included as an architectural comparison, but do not treat it as the zero-overhead UIKit baseline.
 
 Inspect optimized assembly for important ABI hot paths.
 
-Do not optimize benchmarks by weakening functionality.
-
 ## API design
 
-The framework should make common iOS development much less cumbersome than raw `objc2` without creating a second UI framework.
+The framework should make common cross-platform native application development high-level without constructing a second runtime.
 
 Good abstraction:
-- hides repetitive selector/delegate/block/lifetime boilerplate;
+- expresses a portable capability;
+- hides repetitive selector/delegate/JNI/FFI/lifetime boilerplate;
 - stays thin;
-- exposes native access;
+- statically dispatches where practical;
+- exposes platform extension/native access;
 - adds no hidden allocation/copy/lock in the hot path.
 
 Bad abstraction:
-- mirrors UIKit into a new framework object tree;
+- mirrors each platform into a giant duplicate object tree;
+- forces every capability into a lowest-common-denominator model;
 - requires runtime reconciliation;
 - boxes every operation;
-- serializes values between layers;
-- prevents direct access to native capabilities.
+- serializes values between internal layers;
+- prevents native escape;
+- forces all applications to link all capabilities.
 
 ## Networking and async
 
-Prefer Apple's native networking stack.
-
 Do not require Tokio or another general-purpose executor.
 
-Start with direct callback/Block/delegate semantics. Add `Future` adapters only when they remain cheap and useful.
+The portable async contract should be callback/future friendly and executor-neutral.
+
+At a stable C ABI boundary, use explicit operation handles/callbacks/cancellation rather than exposing Rust Future, Swift async internals, Python coroutine internals, or Kotlin coroutine internals.
+
+Language bindings may adapt the same operation to:
+- Rust `Future`;
+- Python awaitable;
+- C callback;
+- C++ future/callback;
+- future Android-language bindings.
 
 Preserve cancellation, error detail, exactly-once completion, and data ownership.
 
@@ -321,12 +507,18 @@ The planning files are temporary execution handoff artifacts and should normally
 
 Check:
 - no `.swift` file was added or generated;
-- only public Apple APIs are used;
-- no private entitlement/API shortcut was introduced;
+- only public supported platform APIs are used;
+- portable APIs contain no platform-native types;
+- Rust callers do not unnecessarily route through the C ABI;
+- optional bindings/backends do not become mandatory dependencies;
+- a minimal capability does not pull unrelated capability crates/frameworks;
+- no new portable-core `std` dependency was introduced without justification;
+- no mandatory runtime/service registry/executor was added;
 - native ownership remains correct;
 - no panic can unwind across foreign ABI;
 - no unnecessary allocation/copy/lock/runtime layer was added;
-- simulator and relevant device builds pass;
+- simulator/device/platform builds pass where relevant;
+- `--no-default-features` checks pass for core crates once available;
 - formatting/lints/tests pass;
 - performance-sensitive changes have evidence;
 - documentation is updated when invariants or ABI assumptions change.
