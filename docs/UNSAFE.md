@@ -51,15 +51,34 @@ Before introducing them, compare optimized objc2 output and document why the dir
 
 ## Assembly
 
-Assembly must be isolated and architecture-gated.
+Assembly must be isolated, architecture-gated, and treated as a small unsafe subsystem.
+
+Primary initial architecture targets are:
+- ARM64/AArch64;
+- x86-64.
+
+Use handwritten assembly only when optimized Rust/compiler output is measurably worse for a hot path and the implementation can remain reliable and bounded in complexity.
 
 Document:
 - register inputs/outputs;
 - clobbers;
+- calling convention;
 - stack/alignment assumptions;
-- Apple ABI requirements;
+- CPU feature requirements;
+- memory ordering/atomic assumptions where relevant;
+- Apple ABI requirements and other target ABI requirements;
+- supported OS/architecture scope;
 - fallback implementation;
-- benchmark evidence.
+- benchmark evidence;
+- differential correctness coverage against the Rust reference implementation.
+
+Keep a portable Rust implementation as the semantic reference/fallback unless the assembly exists solely as an unavoidable ABI thunk.
+
+Safe wrappers must prevent callers from violating alignment, pointer, length, CPU-feature, or aliasing preconditions.
+
+Prefer intrinsics or compiler-generated SIMD when they achieve equivalent performance with materially less maintenance complexity.
+
+If the measured advantage disappears after compiler/toolchain improvements, remove the handwritten assembly rather than preserving it for historical reasons.
 
 ## Auditing
 
