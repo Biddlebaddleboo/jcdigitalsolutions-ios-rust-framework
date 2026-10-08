@@ -32,6 +32,9 @@ jobs:
       - name: Clippy iOS network simulator target
         if: runner.os == 'macOS'
         run: cargo clippy --locked -p ios-network --all-targets --target aarch64-apple-ios-sim -- -D warnings
+      - name: Swift ABI scalar Rust caller probe
+        if: runner.os == 'macOS'
+        run: sh interop/swift-abi-core/tests/check-scalar-swiftcall.sh
       - name: Format
         run: cargo fmt --all -- --check
       - name: Clippy
