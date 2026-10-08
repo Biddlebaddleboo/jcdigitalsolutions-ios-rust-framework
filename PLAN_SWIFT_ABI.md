@@ -134,6 +134,8 @@ Required semantics:
 - no universal Swift-like runtime recreated in Rust;
 - no mandatory Rust executor.
 
+Current C6 result: the inspected Xcode 26.6/SDK 26.5 public C/C++ interfaces expose no supported task-entry/context/resume contract. The compiler-derived C5 thunk match does not supply that contract. Do not invoke exported `swift_task_*` symbols or implement the proposed task/context types from observed IR alone. Phase 3 and async-dependent Translation/StoreKit paths remain blocked until a documented public call contract or suitable public Objective-C/C path is established; see [the C6 feasibility report](docs/swift-abi/ASYNC_RUNTIME_ENTRY_FEASIBILITY.md).
+
 ## Phase 4 — Translation proof
 
 Implement first real framework proof:

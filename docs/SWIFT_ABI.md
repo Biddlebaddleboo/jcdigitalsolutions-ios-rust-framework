@@ -64,6 +64,9 @@ Every Swift-ABI integration must record:
 - [Synchronous scalar thunk feasibility proof](swift-abi/SYNCHRONOUS_THUNK_FEASIBILITY.md)
 - [Async C++ header feasibility proof](swift-abi/ASYNC_CXX_FEASIBILITY.md)
 - [Async Clang thunk feasibility proof](swift-abi/ASYNC_THUNK_FEASIBILITY.md)
+- [Async task-entry feasibility audit](swift-abi/ASYNC_RUNTIME_ENTRY_FEASIBILITY.md)
+
+The C6 audit found no supported public C/C++ Swift task-entry contract in the inspected Xcode 26.6 interfaces. Exported `swift_task_*` symbols and underscore-prefixed Swift-module bindings are not caller contracts. The compiler-derived async thunk proof does not supply task/context creation, executor, resume, error, or cancellation semantics. Translation and StoreKit 2 async paths remain unsupported until a documented public entry contract or a suitable public Objective-C/C path is established.
 
 ## Temporary application escape hatch
 
