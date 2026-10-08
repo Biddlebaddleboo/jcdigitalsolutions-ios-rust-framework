@@ -10,7 +10,7 @@ Requires integrated `PLAN_FOUNDATION.md`.
 
 ## Execution decomposition
 
-The native backend matrix is too broad for one executor. B1 is `PLAN_IOS_APP_DATA.md`: it implements the iOS files and preferences backends only after their D1 portable contracts are integrated. B2 is `PLAN_IOS_SECURE_STORAGE.md`: it implements the Keychain backend after D2. B3 is `PLAN_IOS_NETWORK.md`: it implements foreground HTTP after D1. B4 is `PLAN_IOS_NOTIFICATIONS.md`: it implements the local-notification backend after D3. B5 is `PLAN_IOS_LOCATION.md`: it implements one-shot current location after D4. Other capability backend families require separate named subplans and must not overlap these owned paths.
+The native backend matrix is too broad for one executor. B1 is `PLAN_IOS_APP_DATA.md`: it implements the iOS files and preferences backends only after their D1 portable contracts are integrated. B2 is `PLAN_IOS_SECURE_STORAGE.md`: it implements the Keychain backend after D2. B3 is `PLAN_IOS_NETWORK.md`: it implements foreground HTTP after D1. B4 is `PLAN_IOS_NOTIFICATIONS.md`: it implements the local-notification backend after D3. B5 is `PLAN_IOS_LOCATION.md`: it implements one-shot current location after D4. B6 is `PLAN_IOS_CLIPBOARD.md`: it implements the UIKit general-pasteboard backend after D5. Other capability backend families require separate named subplans and must not overlap these owned paths.
 
 Read first:
 - `docs/IOS_BUILD.md`
