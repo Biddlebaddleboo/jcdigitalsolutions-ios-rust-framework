@@ -19,6 +19,7 @@ const PORTABLE_CRATES: &[&str] = &[
     "framework-secure-storage",
     "framework-notifications",
     "framework-location",
+    "framework-sharing",
 ];
 
 fn main() {

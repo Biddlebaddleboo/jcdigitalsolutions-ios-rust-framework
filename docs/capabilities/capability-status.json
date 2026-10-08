@@ -6,7 +6,7 @@
     "capability_family_count": 15,
     "capability_count": 113,
     "portable_contract_implemented_count": 7,
-    "portable_contract_partial_count": 3,
+    "portable_contract_partial_count": 4,
     "partial_implementation_count": 7,
     "ios_class_counts": {
       "R": 0,
@@ -181,13 +181,13 @@
       "crate_module": [
         "framework-sharing"
       ],
-      "crate_module_status": "planned_not_present",
+      "crate_module_status": "portable_contract_only",
       "portability_class": "portable_with_platform_extensions",
-      "portable_contract_status": "not_implemented",
-      "portable_contract_note": "No portable facade for this capability is included in D1.",
+      "portable_contract_status": "partial",
+      "portable_contract_note": "framework-sharing implements plain-text read, write, and clear only; rich representations and share UI are outside the contract.",
       "ios_implementation_class": "X",
       "implementation_status": "unsupported",
-      "status_reason": "No D1 capability facade or supported iOS backend exists for this row; a separate capability workstream must establish a public implementation path.",
+      "status_reason": "A portable plain-text contract exists, but no iOS pasteboard backend is implemented; native privacy and UI behavior remain unverified.",
       "minimum_ios_version": null,
       "required_frameworks": null,
       "required_permissions": null,
