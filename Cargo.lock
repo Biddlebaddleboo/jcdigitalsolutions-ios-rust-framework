@@ -155,6 +155,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "ios-browser"
+version = "0.1.0"
+dependencies = [
+ "block2",
+ "framework-format",
+ "ios-runtime",
+ "objc2",
+ "objc2-foundation",
+ "objc2-ui-kit",
+]
+
+[[package]]
 name = "ios-files"
 version = "0.1.0"
 dependencies = [

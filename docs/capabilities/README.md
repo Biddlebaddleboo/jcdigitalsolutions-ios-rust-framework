@@ -14,18 +14,19 @@ performance status, and native-escape status.
 | `C` | Compiler/build/discovery contract |
 | `X` | No supported implementation in this workstream; reason is in the row |
 
-Current counts: sixteen rows have `B` support: four partial UIKit example rows, three B1 sandbox-file
-and preference rows, one B2 Keychain row, one B3 foreground HTTP row, one B4 local-notification row,
+Current counts: seventeen rows have `B` support: four partial UIKit example rows, three B1 sandbox-file
+and preference rows, one B2 Keychain row, one B3 foreground HTTP row, one partial B11 external
+HTTPS URL-handler row, one B4 local-notification row,
 one partial B5 current-location row, one partial B6 plain-text clipboard row, one partial B7
 outgoing-share row, one partial B8 accessibility row, one partial B9 acknowledgement-alert row, and
-one partial B10 packaged-resource row; 97 rows are `X` for iOS runtime support. The
+one partial B10 packaged-resource row; 96 rows are `X` for iOS runtime support. The
 four D1 portable contracts cover application lifecycle, sandbox files/directories, preferences,
 and foreground HTTP values. D7 adds the read-only `framework-resources` contract for exact paths
 inside packaged resources. B10 adds an iOS main-bundle backend for exact ordinary files, with an iOS
 4.0 API floor; no live read, localization, asset-catalog access, or symlink-containment claim is made.
 D8 adds borrowed, syntax-validated RFC 3986 `Uri` and `UriReference` values in `framework-format`
-([guide](uri.md)); they do not normalize, percent-decode, or resolve references, and no iOS
-URL/browser backend is included.
+([guide](uri.md)); they do not normalize, percent-decode, or resolve references. B11 separately uses
+`Uri` to request an external HTTPS URL handler; it does not guarantee Safari or page load.
 D5 adds a partial portable plain-text clipboard contract; B6 adds an iOS general-pasteboard backend
 with documented iOS privacy behavior and item replacement. No live
 privacy prompt or paste behavior is claimed. B1 adds iOS sandbox file and
@@ -53,7 +54,7 @@ The manifest counts nine portable contracts as implemented and five as partial.
 | Core app/UI | 9 | `B`: 8 (4 partial UIKit example rows; 1 partial clipboard row; 1 partial share row; 1 partial accessibility row; 1 partial acknowledgement-alert row); `X`: 1 |
 | Files/data/preferences | 7 | `B`: 4 (1 partial packaged-resource row); `X`: 3 |
 | Security/auth | 7 | `B`: 1; `X`: 6 |
-| Networking/web | 7 | `B`: 1 partial; `X`: 6 |
+| Networking/web | 7 | `B`: 2 partial; `X`: 5 |
 | Notifications/background | 6 | `B`: 1 partial; `X`: 5 |
 | Sensors/connectivity | 9 | `B`: 1 partial; `X`: 8 |
 | Camera/audio/media | 8 | `X`: 8 |

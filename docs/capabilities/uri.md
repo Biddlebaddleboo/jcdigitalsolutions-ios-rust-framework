@@ -36,4 +36,6 @@ equivalence after normalization. This URI-only contract excludes unescaped non-A
 percent-encoded text remains part of the original borrowed URI. These types do not use Foundation
 or `NSURL` and do not change `framework-network::HttpUrl`'s HTTP-only semantics.
 
-No platform backend, URL dereference, name resolution, or network behavior is included.
+The portable `framework-format` crate does not dereference URLs, resolve names, or implement network
+behavior. B11's separate `ios-browser` backend consumes an absolute HTTPS `Uri` only to issue a
+system URL-handler request; it does not guarantee Safari, a page load, or visible browser UI.
