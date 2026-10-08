@@ -1,5 +1,7 @@
 # Synchronous Swift ABI Boundary
 
+The scalar-only Clang thunk proof is recorded in [Synchronous Swift Thunk Feasibility](SYNCHRONOUS_THUNK_FEASIBILITY.md). It does not change the unsupported status for direct Apple framework method calls below
+
 ## Implemented
 
 `swift-abi-core` is a separate optional crate. With its `apple-runtime` feature disabled (the default), it links no Swift runtime. With the feature enabled for an Apple target, it provides an owned strong-reference wrapper for Swift class pointers. Clone uses one `swift_retain`; Drop uses one `swift_release`; raw ownership transfer is explicit. It adds no Rust `Arc`/`Rc` layer and does not mark Swift objects `Send` or `Sync`.

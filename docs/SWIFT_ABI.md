@@ -57,6 +57,12 @@ Every Swift-ABI integration must record:
 - fallback behavior;
 - tests across supported deployment targets.
 
+## Compiler evidence
+
+- [Toolchain and SDK inventory](swift-abi/TOOLCHAIN_MANIFEST.md)
+- [Swift ABI ownership and Translation lowering record](swift-abi/SYNCHRONOUS_BOUNDARY.md)
+- [Synchronous scalar thunk feasibility proof](swift-abi/SYNCHRONOUS_THUNK_FEASIBILITY.md)
+
 ## Temporary application escape hatch
 
 A consuming application may temporarily implement a microscopic Swift shim for a framework coverage gap.
