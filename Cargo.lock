@@ -206,6 +206,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "ios-presentation"
+version = "0.1.0"
+dependencies = [
+ "ios-runtime",
+ "objc2",
+ "objc2-foundation",
+ "objc2-ui-kit",
+]
+
+[[package]]
 name = "ios-runtime"
 version = "0.1.0"
 dependencies = [

@@ -14,10 +14,11 @@ performance status, and native-escape status.
 | `C` | Compiler/build/discovery contract |
 | `X` | No supported implementation in this workstream; reason is in the row |
 
-Current counts: fourteen rows have `B` support: four partial UIKit example rows, three B1 sandbox-file
+Current counts: fifteen rows have `B` support: four partial UIKit example rows, three B1 sandbox-file
 and preference rows, one B2 Keychain row, one B3 foreground HTTP row, one B4 local-notification row,
 one partial B5 current-location row, one partial B6 plain-text clipboard row, one partial B7
-outgoing-share row, and one partial B8 accessibility row; 99 rows are `X` for iOS runtime support. The
+outgoing-share row, one partial B8 accessibility row, and one partial B9 acknowledgement-alert row;
+98 rows are `X` for iOS runtime support. The
 four D1 portable contracts cover application lifecycle, sandbox files/directories, preferences,
 and foreground HTTP values. D5 adds a partial portable plain-text clipboard contract; B6 adds an
 iOS general-pasteboard backend with documented iOS privacy behavior and item replacement. No live
@@ -35,13 +36,15 @@ same-window presenter/source-view context, with an iOS 8.0 floor. No live share 
 delivery, or unforeseen UIKit presentation recovery is claimed. B8 adds synchronous accessibility
 metadata setters for a borrowed `UIView`; its iOS 6.0 API floor is declaration-derived, while this
 host's SDK/link deployment minimums are iOS 12.0 for device and iOS 14.0 for simulator. No live
-VoiceOver behavior is claimed. The UIKit slice remains partial: a Rust-owned app delegate, one
-window, basic views, and one target/action callback only.
+VoiceOver behavior is claimed. B9 adds a synchronous one-action `UIAlertController` acknowledgement
+alert with an iOS 9.0 API floor. UIKit's presentation method has no failure callback; no live display
+or dismissal is claimed. The UIKit slice remains partial: a Rust-owned app delegate, one window,
+basic views, and one target/action callback only.
 The manifest counts seven portable contracts as implemented and five as partial.
 
 | Family | Rows | iOS class count |
 | --- | ---: | --- |
-| Core app/UI | 9 | `B`: 7 (4 partial UIKit example rows; 1 partial clipboard row; 1 partial share row; 1 partial accessibility row); `X`: 2 |
+| Core app/UI | 9 | `B`: 8 (4 partial UIKit example rows; 1 partial clipboard row; 1 partial share row; 1 partial accessibility row; 1 partial acknowledgement-alert row); `X`: 1 |
 | Files/data/preferences | 7 | `B`: 3; `X`: 4 |
 | Security/auth | 7 | `B`: 1; `X`: 6 |
 | Networking/web | 7 | `B`: 1 partial; `X`: 6 |

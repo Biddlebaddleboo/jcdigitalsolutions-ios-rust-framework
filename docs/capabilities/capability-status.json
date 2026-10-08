@@ -7,14 +7,14 @@
     "capability_count": 113,
     "portable_contract_implemented_count": 7,
     "portable_contract_partial_count": 5,
-    "partial_implementation_count": 10,
+    "partial_implementation_count": 11,
     "ios_class_counts": {
       "R": 0,
       "M": 0,
-      "B": 14,
+      "B": 15,
       "A": 0,
       "C": 0,
-      "X": 99
+      "X": 98
     }
   },
   "capabilities": [
@@ -152,27 +152,30 @@
       "family": "Core app/UI",
       "capability": "native presentation",
       "crate_module": [
-        "framework-ui"
+        "ios-presentation"
       ],
-      "crate_module_status": "planned_not_present",
+      "crate_module_status": "ios_backend_partial",
       "portability_class": "portable_with_platform_extensions",
       "portable_contract_status": "not_implemented",
       "portable_contract_note": "No portable facade for this capability is included in D1.",
-      "ios_implementation_class": "X",
-      "implementation_status": "unsupported",
-      "status_reason": "No D1 capability facade or supported iOS backend exists for this row; a separate capability workstream must establish a public implementation path.",
-      "minimum_ios_version": null,
-      "required_frameworks": null,
-      "required_permissions": null,
-      "required_info_plist_keys": null,
-      "entitlements": null,
-      "device_only_restrictions": null,
-      "swift_abi_requirement": "not_assessed_for_absent_backend",
-      "metadata_verification": "unverified; null fields do not assert that no requirement exists",
-      "parity_status": "not_tested_no_iOS_implementation",
+      "ios_implementation_class": "B",
+      "implementation_status": "partial",
+      "status_reason": "ios-presentation adds one synchronous UIAlertController acknowledgement action from a borrowed caller-owned UIViewController. It requires the UIKit main thread and a loaded view attached to a window. Preflight returns bounded errors for known invalid contexts; UIKit presentViewController returns void without an error callback, so Ok only means the request was issued and no display, dismissal, or refusal recovery is claimed.",
+      "minimum_ios_version": "9.0",
+      "required_frameworks": [
+        "UIKit",
+        "Foundation"
+      ],
+      "required_permissions": [],
+      "required_info_plist_keys": [],
+      "entitlements": [],
+      "device_only_restrictions": [],
+      "swift_abi_requirement": false,
+      "metadata_verification": "Xcode_26.6_iOS_26.5_headers_derive_iOS_9.0_floor_from_viewIfLoaded; SDK_suggested_target_minimum_12.0_default_26.5; device/simulator_compile_and_lint_only; docs/ios/presentation.md; no_live_alert_or_dismissal; Xcode_27_baseline_not_met",
+      "parity_status": "not_tested_live_alert_or_dismissal_or_capability_parity",
       "performance_status": "not_measured",
       "native_escape_handle_available": false,
-      "native_escape_handle_note": "No native escape handle is exposed by a capability facade in this row."
+      "native_escape_handle_note": "ios-presentation accepts a borrowed UIViewController only as required presentation context and exposes no native controller handle."
     },
     {
       "id": "006-core-app-ui-pasteboard-clipboard",
