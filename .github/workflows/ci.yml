@@ -20,6 +20,18 @@ jobs:
       - name: Install iOS device and simulator targets
         if: runner.os == 'macOS'
         run: rustup target add aarch64-apple-ios aarch64-apple-ios-sim --toolchain 1.94.1
+      - name: Check iOS network device target
+        if: runner.os == 'macOS'
+        run: cargo check --locked -p ios-network --target aarch64-apple-ios
+      - name: Check iOS network simulator target
+        if: runner.os == 'macOS'
+        run: cargo check --locked -p ios-network --target aarch64-apple-ios-sim
+      - name: Clippy iOS network device target
+        if: runner.os == 'macOS'
+        run: cargo clippy --locked -p ios-network --all-targets --target aarch64-apple-ios -- -D warnings
+      - name: Clippy iOS network simulator target
+        if: runner.os == 'macOS'
+        run: cargo clippy --locked -p ios-network --all-targets --target aarch64-apple-ios-sim -- -D warnings
       - name: Format
         run: cargo fmt --all -- --check
       - name: Clippy
