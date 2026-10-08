@@ -1,4 +1,109 @@
-# iOS plain-text clipboard
+# iOS sharing
+
+This guide covers the `ios-sharing` crate's plain-text clipboard backend and outgoing system-share
+backend. The clipboard section below retains its existing behavior and privacy notes; the share
+backend is a separate UIKit presentation path.
+
+## Outgoing system share
+
+`IosShareBackend` implements `framework_sharing::ShareBackend` with UIKit's public
+`UIActivityViewController`. It supports only owned UTF-8 text and URL-text items. It does not
+support files, images, rich representations, custom activities, recipient data, activity IDs,
+previews, extensions, clipboard operations, or a delivery guarantee.
+
+### UI context and use
+
+The caller supplies a live presenting `UIViewController`, a source `UIView`, and a `CGRect` in the
+source view's coordinate system, along with `MainThread::current()`'s typed proof. Keep the
+presenter and source view alive for the backend's lifetime, and construct, poll, and drop the
+backend and its futures on the main thread. `IosShareBackend`, its callback state, and its futures
+are `!Send`.
+
+The share operation starts on its first future poll. It builds a non-empty activity-item array in
+request order and supplies no custom `UIActivity` values. On iPad the controller uses popover
+presentation with the caller's explicit `sourceView` and `sourceRect`; on phone it is presented
+modally. UIKit defines the source rectangle in the source view's coordinate space. The source view
+and the loaded presenter view must be attached to the same window.
+
+~~~rust
+use framework_sharing::{ShareClient, ShareError, ShareItem, ShareOutcome, ShareRequest};
+use framework_core::{Error, ErrorKind};
+use ios_runtime::main_thread::MainThread;
+use ios_sharing::IosShareBackend;
+use objc2_core_foundation::CGRect;
+use objc2_ui_kit::{UIView, UIViewController};
+
+async fn share_text<'ctx>(
+    presenter: &'ctx UIViewController,
+    source_view: &'ctx UIView,
+    source_rect: CGRect,
+) -> Result<ShareOutcome, ShareError> {
+    let main_thread = MainThread::current()
+        .ok_or(ShareError::Backend(Error::new(ErrorKind::Unavailable)))?;
+    let backend = IosShareBackend::new(main_thread, presenter, source_view, source_rect);
+    let mut client = ShareClient::new(backend);
+    client
+        .share(ShareRequest::new(ShareItem::text(String::from("Hello"))))
+        .await
+}
+~~~
+
+`availability()` returns `Availability::Unknown`: it does not claim that a presenter remains
+visible or ready. Before presentation, the backend returns `ErrorKind::Unavailable` when the
+presenter is transitioning, already presents another controller, has no loaded view/window, or
+the source view has no window. A source view in a different window returns `ErrorKind::InvalidInput`.
+These checks provide a bounded error for known invalid context; UIKit's presentation method itself
+has no error callback.
+
+### Payload, results, and cancellation
+
+Text items become owned `NSString` objects. URL text follows Foundation's public
+`NSURL.URLWithString:` path; a nil parse result and file URLs return `ErrorKind::InvalidInput`.
+Accepted URLs may be canonicalized or percent-encoded according to the linked OS, so exact URL
+string preservation is not promised. The owned native items are passed to the activity controller
+in the portable request's order.
+
+UIKit's completion callback maps `completed == true` without an error to `ShareOutcome::Completed`,
+`completed == false` without an error to `ShareOutcome::Dismissed`, and a non-null `NSError` to
+`ShareError::Backend` with `ErrorKind::Platform`. A non-zero error code that fits in `i32` is
+preserved as the optional platform code. A result does not prove that a recipient received or kept
+the shared content.
+
+The callback is exactly-once from Rust's perspective, and unwinding callback panics are contained
+before control returns to UIKit. With `panic=abort`, a panic aborts the process instead of
+unwinding. Dropping the future before its first poll starts no native work. Dropping it after
+presentation clears the waker/result state and removes the UIKit completion handler, so late native
+callbacks are inert. The system UI may remain visible; dropping is not a dismissal or rollback
+guarantee.
+
+The backend adds no permission prompt, app-specific usage string, entitlement, executor, global
+registry, or Swift source. No `Info.plist` key or entitlement was identified for constructing and
+presenting `UIActivityViewController`; the selected destination activity may have separate behavior
+or host-app requirements, which this backend does not configure.
+
+### API floor and evidence limits
+
+The effective API floor is iOS 8.0: `UIActivityViewController` itself is older, but its
+`completionWithItemsHandler` and the popover anchor APIs used here are available from iOS 8.0.
+`UIViewController.present` predates that floor. The active host has Xcode 26.6 (build 17F113),
+iPhoneOS SDK 26.5, and iPhoneSimulator SDK 26.5; this remains below the repository's planned Xcode
+27.x baseline. The local SDK headers and Apple's public references were checked for the APIs and
+availability floor. No device-only availability restriction was found in the reviewed public
+UIKit declarations. Device and simulator consumers both link, but no simulator or device UI action
+was run.
+
+Apple references: [`UIActivityViewController`](https://developer.apple.com/documentation/uikit/uiactivityviewcontroller),
+[`UIActivityViewController` initializer](https://developer.apple.com/documentation/uikit/uiactivityviewcontroller/init%28activityitems%3Aapplicationactivities%3A%29),
+[`completionWithItemsHandler`](https://developer.apple.com/documentation/uikit/uiactivityviewcontroller/completionwithitemshandler-swift.property),
+[`UIViewController.present`](https://developer.apple.com/documentation/uikit/uiviewcontroller/present%28_%3Aanimated%3Acompletion%3A%29),
+[`UIPopoverPresentationController.sourceView`](https://developer.apple.com/documentation/uikit/uipopoverpresentationcontroller/sourceview),
+[`UIPopoverPresentationController.sourceRect`](https://developer.apple.com/documentation/uikit/uipopoverpresentationcontroller/sourcerect),
+and [`NSURL.URLWithString:`](https://developer.apple.com/documentation/foundation/nsurl/urlwithstring%3A).
+
+Host fake-backend checks, target checks, and link/import inspection are not live share-sheet evidence.
+They do not establish simulator/device UI behavior, recipient delivery, parity, or performance.
+
+## Plain-text clipboard
 
 `ios-sharing` implements the `framework-sharing::ClipboardBackend` contract with UIKit's systemwide general `UIPasteboard`. It supports plain-text read, write, and clear only. It does not include a share sheet, `UIPasteControl`, named pasteboards, or rich representations.
 

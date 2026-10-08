@@ -1,20 +1,26 @@
 #![deny(missing_docs)]
 #![deny(unsafe_op_in_unsafe_fn)]
 #![cfg_attr(not(target_os = "ios"), allow(dead_code))]
-#![doc = "Plain-text clipboard access through the iOS general pasteboard."]
+#![doc = "Plain-text clipboard access and outgoing system sharing through public iOS UIKit APIs."]
 
 extern crate alloc;
 
 mod conversion;
 mod operation;
+mod share_conversion;
+mod share_operation;
 
 #[cfg(target_os = "ios")]
 mod platform;
+#[cfg(target_os = "ios")]
+mod share_platform;
 
 #[cfg(target_os = "ios")]
 pub use platform::{
     IosClipboardBackend, IosClipboardClearFuture, IosClipboardReadFuture, IosClipboardWriteFuture,
 };
+#[cfg(target_os = "ios")]
+pub use share_platform::{IosShareBackend, IosShareFuture};
 
 #[cfg(test)]
 mod tests {
