@@ -11,7 +11,7 @@ Thereafter this workstream runs continuously and does not own capability impleme
 
 ## Execution decomposition
 
-G1 established host audits, SDK inventory, CI, and the minimal example build/link checks. G2 owns Xcode archive validation in `PLAN_VALIDATION_ARCHIVE.md`. G3 is `PLAN_VALIDATION_HARNESS.md` for shared parity/benchmark machinery and binding checks. G4 is `PLAN_VALIDATION_IOS_NETWORK.md`, which adds persistent device/simulator compile and Clippy gates for the foreground HTTP backend. G5 is `PLAN_VALIDATION_IOS_NOTIFICATIONS.md`, which adds equivalent gates for local notifications. These slices may consume the minimal app and C ABI without changing their runtime/API ownership.
+G1 established host audits, SDK inventory, CI, and the minimal example build/link checks. G2 owns Xcode archive validation in `PLAN_VALIDATION_ARCHIVE.md`. G3 is `PLAN_VALIDATION_HARNESS.md` for shared parity/benchmark machinery and binding checks. G4 is `PLAN_VALIDATION_IOS_NETWORK.md`, which adds persistent device/simulator compile and Clippy gates for the foreground HTTP backend. G5 is `PLAN_VALIDATION_IOS_NOTIFICATIONS.md`, which adds equivalent gates for local notifications. G6 is `PLAN_VALIDATION_IOS_LOCATION.md`, which adds equivalent gates for the Core Location backend. These slices may consume the minimal app and C ABI without changing their runtime/API ownership.
 
 ## Write scope
 
