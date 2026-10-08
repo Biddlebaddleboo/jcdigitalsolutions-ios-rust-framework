@@ -68,6 +68,18 @@ jobs:
       - name: Clippy iOS sharing simulator target
         if: runner.os == 'macOS'
         run: cargo clippy --locked -p ios-sharing --all-targets --target aarch64-apple-ios-sim -- -D warnings
+      - name: Check iOS accessibility device target
+        if: runner.os == 'macOS'
+        run: cargo check --locked -p ios-accessibility --target aarch64-apple-ios
+      - name: Check iOS accessibility simulator target
+        if: runner.os == 'macOS'
+        run: cargo check --locked -p ios-accessibility --target aarch64-apple-ios-sim
+      - name: Clippy iOS accessibility device target
+        if: runner.os == 'macOS'
+        run: cargo clippy --locked -p ios-accessibility --all-targets --target aarch64-apple-ios -- -D warnings
+      - name: Clippy iOS accessibility simulator target
+        if: runner.os == 'macOS'
+        run: cargo clippy --locked -p ios-accessibility --all-targets --target aarch64-apple-ios-sim -- -D warnings
       - name: Swift ABI scalar Rust caller probe
         if: runner.os == 'macOS'
         run: sh interop/swift-abi-core/tests/check-scalar-swiftcall.sh
