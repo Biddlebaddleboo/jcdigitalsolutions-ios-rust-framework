@@ -36,6 +36,22 @@ used the content. `ShareOutcome::Dismissed` means the backend reported that the 
 cancelled the operation. No platform activity identifier or recipient detail is exposed.
 `ShareError` preserves the framework `ErrorKind` and optional signed native error code.
 
+## iOS backend
+
+The `ios-sharing` crate's `IosShareBackend` uses UIKit `UIActivityViewController` for owned text
+and URL-text items. The caller supplies a live `UIViewController`, a `UIView`, and a `CGRect`
+anchor; the presenter and source view must belong to the same window. Construct, poll, and drop the
+backend on the main thread. iPad presentation uses the explicit popover anchor; other device idioms
+use modal presentation.
+
+The effective API floor is iOS 8.0.
+
+The backend rejects file URLs, and accepted URL text may be normalized by the linked OS. Known
+invalid presentation contexts return bounded errors, but UIKit's presentation call has no error
+callback for an unforeseen refusal or race. Dropping an active future detaches Rust callback state
+but does not dismiss native UI. No live share-sheet behavior, recipient delivery, or parity claim
+is recorded. See the [iOS sharing guide](../ios/sharing.md) for the full API and evidence limits.
+
 ## Non-goals
 
 V1 does not model file, image, or rich payloads; share extensions; recipients; activity selection;
