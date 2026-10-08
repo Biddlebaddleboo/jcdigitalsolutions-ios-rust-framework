@@ -37,7 +37,7 @@ External tiny Swift source is allowed only as ephemeral/compiler-oracle test inp
 
 ## Execution decomposition
 
-C1 is `PLAN_SWIFT_ABI_OWNERSHIP.md`: end-to-end ownership evidence for the existing `SwiftRetained` wrapper and compiler-derived `swift_retain`/`swift_release` bindings. C1 does not implement general Swift values, direct Apple API calls, or async calls. C2 is [PLAN_SWIFT_ABI_STRING.md](PLAN_SWIFT_ABI_STRING.md): a compiler-authored C++ interoperability proof for a concrete Swift `String` round-trip, using only temporary Swift oracle input. C3 is `PLAN_SWIFT_ABI_OPTIONAL.md`: a compiler-authored C++ interoperability proof for `Optional<String>` with a fixed-width C boundary. Further ABI primitives and concrete API proofs require separate bounded subplans.
+C1 is `PLAN_SWIFT_ABI_OWNERSHIP.md`: end-to-end ownership evidence for the existing `SwiftRetained` wrapper and compiler-derived `swift_retain`/`swift_release` bindings. C1 does not implement general Swift values, direct Apple API calls, or async calls. C2 is [PLAN_SWIFT_ABI_STRING.md](PLAN_SWIFT_ABI_STRING.md): a compiler-authored C++ interoperability proof for a concrete Swift `String` round-trip, using only temporary Swift oracle input. C3 is [PLAN_SWIFT_ABI_OPTIONAL.md](PLAN_SWIFT_ABI_OPTIONAL.md): a compiler-authored C++ interoperability proof for `Optional<String>` with a fixed-width C boundary. Further ABI primitives and concrete API proofs require separate bounded subplans.
 
 ## Phase 0 — toolchain manifest and installed SDK inventory
 
