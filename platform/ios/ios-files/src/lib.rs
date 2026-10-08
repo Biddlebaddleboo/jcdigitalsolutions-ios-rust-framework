@@ -77,6 +77,45 @@ impl IosFiles {
         }
     }
 
+    /// Copies a URLSession temporary download file to an app-sandbox path.
+    ///
+    /// Call this synchronous operation before the URLSession download delegate callback returns.
+    /// It validates the destination with the same descriptor-relative, no-follow rules as other
+    /// file operations, copies without a payload-sized `Vec` into a private same-directory
+    /// staging file, then commits with one atomic `renameat`. It creates or replaces the final entry;
+    /// a final symlink is replaced rather than followed. The operation does not retain the URL or
+    /// remove the URLSession-owned source file. Only pass the URLSession callback URL; this method
+    /// does not establish containment for arbitrary source file URLs. Atomic visibility does not
+    /// imply crash durability.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error for an invalid destination, unsafe/missing parent, invalid source URL,
+    /// non-regular source, copy failure, or failed atomic rename. POSIX errors preserve their
+    /// native code. Staging-file cleanup after a copy or rename failure is best-effort.
+    pub fn adopt_url_session_download(
+        &mut self,
+        temporary_file_url: &NSURL,
+        destination: AppPath<'_>,
+    ) -> Result<WriteOutcome, FileError> {
+        let parts = path_parts(destination)?;
+        let root = self.root(destination.directory())?;
+        let (parent, leaf) = open_parent(root, &parts)?;
+        let mut source = open_url_session_temporary_file(temporary_file_url)?;
+        let (staging_name, mut staging_file) = self.temporary_file(&parent)?;
+        let copy_result = io::copy(&mut source, &mut staging_file);
+        drop(staging_file);
+        if let Err(error) = copy_result {
+            unlink_if_present(&parent, &staging_name);
+            return Err(file_error(error));
+        }
+        if let Err(error) = rename_at(&parent, &staging_name, &leaf) {
+            unlink_if_present(&parent, &staging_name);
+            return Err(file_error(error));
+        }
+        Ok(WriteOutcome::new(WriteAtomicity::Atomic))
+    }
+
     fn volume_supports_exclusive_rename(&self, directory: AppDirectory) -> bool {
         match directory {
             AppDirectory::Documents => self.rename_exclusive[0],
@@ -406,6 +445,38 @@ fn open_root(url: &NSURL) -> Result<File, FileError> {
     } else {
         Err(backend_error(ErrorKind::Unavailable, None))
     }
+}
+
+fn open_url_session_temporary_file(url: &NSURL) -> Result<File, FileError> {
+    if !url.isFileURL() {
+        return Err(backend_error(ErrorKind::InvalidInput, None));
+    }
+    autoreleasepool(|_| {
+        let representation = url.fileSystemRepresentation();
+        // SAFETY: Foundation returns a NUL-terminated inner pointer valid for this autorelease
+        // pool. `path` is read and opened before the pool drains.
+        let path = unsafe { CStr::from_ptr(representation.as_ptr()) };
+        if !path.to_bytes().starts_with(b"/") {
+            return Err(FileError::InvalidPath);
+        }
+        // SAFETY: `path` is a live NUL-terminated absolute path. These flags reject a final
+        // symlink, keep the descriptor local to this process, and avoid blocking on a special file.
+        let fd = unsafe {
+            libc::open(
+                path.as_ptr(),
+                libc::O_RDONLY | libc::O_NOFOLLOW | libc::O_CLOEXEC | libc::O_NONBLOCK,
+            )
+        };
+        if fd < 0 {
+            return Err(file_error(io::Error::last_os_error()));
+        }
+        // SAFETY: `open` returned a new owned descriptor.
+        let file = unsafe { File::from_raw_fd(fd) };
+        if !file.metadata().map_err(file_error)?.is_file() {
+            return Err(backend_error(ErrorKind::InvalidInput, None));
+        }
+        Ok(file)
+    })
 }
 
 fn path_parts(path: AppPath<'_>) -> Result<Vec<CString>, FileError> {
