@@ -32,6 +32,18 @@ jobs:
       - name: Clippy iOS network simulator target
         if: runner.os == 'macOS'
         run: cargo clippy --locked -p ios-network --all-targets --target aarch64-apple-ios-sim -- -D warnings
+      - name: Check iOS notifications device target
+        if: runner.os == 'macOS'
+        run: cargo check --locked -p ios-notifications --target aarch64-apple-ios
+      - name: Check iOS notifications simulator target
+        if: runner.os == 'macOS'
+        run: cargo check --locked -p ios-notifications --target aarch64-apple-ios-sim
+      - name: Clippy iOS notifications device target
+        if: runner.os == 'macOS'
+        run: cargo clippy --locked -p ios-notifications --all-targets --target aarch64-apple-ios -- -D warnings
+      - name: Clippy iOS notifications simulator target
+        if: runner.os == 'macOS'
+        run: cargo clippy --locked -p ios-notifications --all-targets --target aarch64-apple-ios-sim -- -D warnings
       - name: Swift ABI scalar Rust caller probe
         if: runner.os == 'macOS'
         run: sh interop/swift-abi-core/tests/check-scalar-swiftcall.sh
