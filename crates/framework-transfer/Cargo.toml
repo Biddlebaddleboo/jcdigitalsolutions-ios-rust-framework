@@ -1,0 +1,16 @@
+[package]
+name = "framework-transfer"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "Portable durable HTTP transfer contract"
+
+[dependencies]
+framework-core.workspace = true
+framework-files = { path = "../framework-files", version = "0.1.0" }
+framework-network = { path = "../framework-network", version = "0.1.0" }
+
+[lints]
+workspace = true

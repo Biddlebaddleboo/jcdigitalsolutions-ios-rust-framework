@@ -146,6 +146,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "framework-transfer"
+version = "0.1.0"
+dependencies = [
+ "framework-core",
+ "framework-files",
+ "framework-network",
+]
+
+[[package]]
 name = "ios-accessibility"
 version = "0.1.0"
 dependencies = [
