@@ -7,12 +7,12 @@ Planning set generated against repository:
 - Repository: `Biddlebaddleboo/jcdigitalsolutions-ios-rust-framework`
 - Target branch: `main`
 - Verified planning baseline: `3fa8222e6e6fff6370ac461a00fa6e61e9e84a6d`
-- Execution host assumption: macOS with a current Xcode 27.x toolchain
+- Required build baseline: macOS with Xcode 27.x; observed local host is Xcode 26.6 build 17F113, below that baseline
 - Primary V1 runtime target: iOS arm64
 - Secondary V1 target: iOS simulator arm64
 - Future targets preserved architecturally: macOS, Android, Windows, Linux, Web/WASM, and a future compact/32-bit-pointer internal mode
 
-This plan is authoritative for V1 implementation. The repository is currently documentation/research-only; all implementation paths named below are proposed additions unless explicitly identified as existing documentation.
+This plan is authoritative for V1 implementation. At the planning baseline, the repository held architecture and research docs only. The current checkout has a Cargo workspace, portable foundation, tooling, selected capability contracts and iOS backends, bindings, and validation. Unimplemented paths remain proposed additions; see the workstream plans and capability status manifest for current scope.
 
 ## Objective
 
@@ -39,7 +39,7 @@ Implement the first complete iOS backend of a reusable, high-level, platform-agn
 
 ## Verified repository facts
 
-1. The repository currently contains architecture/research documentation only; no Cargo workspace or implementation crates exist.
+1. At planning baseline `3fa8222e6e6fff6370ac461a00fa6e61e9e84a6d`, the repository contained architecture/research docs only; no Cargo workspace or implementation crates existed. This is a historical baseline fact, not the current checkout state.
 2. Most ordinary iOS capability families have public C or Objective-C routes and therefore do not require Swift ABI interoperability.
 3. Swift interoperability is a residual subsystem, not the foundation.
 4. The conservative V1 Swift call backend is microscopic Clang/LLVM ABI adaptation using `swiftcall` / `swiftasynccall`, with generated/compiler-oracle lowering. Nightly rustc Swift ABI support is experimental and must not be a V1 dependency.
