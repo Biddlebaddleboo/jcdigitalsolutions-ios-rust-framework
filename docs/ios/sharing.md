@@ -2,6 +2,8 @@
 
 `ios-sharing` implements the `framework-sharing::ClipboardBackend` contract with UIKit's systemwide general `UIPasteboard`. It supports plain-text read, write, and clear only. It does not include a share sheet, `UIPasteControl`, named pasteboards, or rich representations.
 
+Outgoing text and URL-text requests use the separate portable [share contract](../capabilities/share.md); UIKit presentation is a distinct backend workstream.
+
 ## Create and use the backend
 
 ~~~rust

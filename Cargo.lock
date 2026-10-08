@@ -213,6 +213,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "ios-sharing"
+version = "0.1.0"
+dependencies = [
+ "framework-core",
+ "framework-sharing",
+ "ios-runtime",
+ "objc2",
+ "objc2-foundation",
+ "objc2-ui-kit",
+]
+
+[[package]]
 name = "libc"
 version = "0.2.190"
 source = "registry+https://github.com/rust-lang/crates.io-index"

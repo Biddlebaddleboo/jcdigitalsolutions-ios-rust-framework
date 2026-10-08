@@ -14,12 +14,14 @@ performance status, and native-escape status.
 | `C` | Compiler/build/discovery contract |
 | `X` | No supported implementation in this workstream; reason is in the row |
 
-Current counts: eleven rows have `B` support: four partial UIKit example rows, three B1 sandbox-file
+Current counts: twelve rows have `B` support: four partial UIKit example rows, three B1 sandbox-file
 and preference rows, one B2 Keychain row, one B3 foreground HTTP row, one B4 local-notification row,
-and one partial B5 current-location row; 102 rows are `X` for iOS runtime support. The
+one partial B5 current-location row, and one partial B6 plain-text clipboard row; 101 rows are `X`
+for iOS runtime support. The
 four D1 portable contracts cover application lifecycle, sandbox files/directories, preferences,
-and foreground HTTP values. D5 adds a partial portable plain-text clipboard contract; no iOS
-pasteboard backend or native privacy/UI behavior is claimed. B1 adds iOS sandbox file and
+and foreground HTTP values. D5 adds a partial portable plain-text clipboard contract; B6 adds an
+iOS general-pasteboard backend with documented iOS privacy behavior and item replacement. No live
+privacy prompt or paste behavior is claimed. B1 adds iOS sandbox file and
 `NSUserDefaults` backends for three rows.
 B2 adds a public Keychain generic-password backend for opaque bytes with explicit protection
 requirements; no live Keychain test is claimed. B3 adds the Foundation `URLSession` foreground
@@ -34,7 +36,7 @@ The manifest counts seven portable contracts as implemented and five as partial.
 
 | Family | Rows | iOS class count |
 | --- | ---: | --- |
-| Core app/UI | 9 | `B`: 4 partial; `X`: 5 |
+| Core app/UI | 9 | `B`: 5 (4 partial UIKit example rows; 1 partial clipboard row); `X`: 4 |
 | Files/data/preferences | 7 | `B`: 3; `X`: 4 |
 | Security/auth | 7 | `B`: 1; `X`: 6 |
 | Networking/web | 7 | `B`: 1 partial; `X`: 6 |
@@ -65,8 +67,8 @@ The D3 [local-notification guide](../notifications.md) describes the portable sc
 the B4 [iOS guide](../ios/notifications.md) describes the local-only native backend and its runtime
 limits. The D4 [location guide](location.md) describes the one-shot portable current-location
 contract; the B5 [iOS guide](../ios/location.md) documents its Core Location backend and limits.
-The D5 [sharing guide](sharing.md) describes the plain-text clipboard contract; no iOS backend or
-share-sheet API is included.
+The D5 [sharing guide](sharing.md) describes the plain-text clipboard contract; the B6
+[iOS guide](../ios/sharing.md) documents the general-pasteboard backend and native privacy limits.
 The D6 [share guide](share.md) describes outgoing text and URL-text values; no iOS presentation
 backend is included.
 

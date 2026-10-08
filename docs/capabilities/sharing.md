@@ -7,6 +7,9 @@ UI. A platform guide owns native privacy prompts and UI behavior.
 Outgoing system-share values use the separate [share contract guide](share.md); they do not share
 clipboard semantics.
 
+The iOS general-pasteboard backend and its privacy, copy, and item-replacement behavior are in the
+[iOS sharing guide](../ios/sharing.md).
+
 ## Rust API
 
 ~~~rust
