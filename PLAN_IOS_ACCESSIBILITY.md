@@ -50,6 +50,47 @@ Do not edit examples, other platform crates, shared capability manifests/indexes
 - Portable accessibility contracts or changes to `framework-ui`
 - Live VoiceOver/screen-reader behavior claims
 
+## Status
+
+B8's implementation and guide meet the bounded metadata contract. The public API borrows only a
+`UIView` and the typed `MainThread` proof, stores the main-thread marker, and is `!Send`/`!Sync`.
+Each setter is synchronous; text `None` clears through `nil`, `Some("")` remains an empty string,
+and `set_traits` replaces the full trait mask, using UIKit's `UIAccessibilityTraitNone` for an empty
+set. The seven framework-owned traits map to public constants from the active SDK. Focused tests
+cover optional text, trait combination, empty-set behavior, order independence, and deriving masks
+only from the passed traits. No source or guide correction was needed.
+
+On Xcode 26.6 build 17F113 with iPhoneOS and iPhoneSimulator SDK 26.5, these checks pass:
+
+- `cargo test --locked -p ios-accessibility` (3 focused unit tests pass; 0 doc tests)
+- `cargo check --locked -p ios-accessibility`
+- `cargo check --locked -p ios-accessibility --target aarch64-apple-ios`
+- `cargo check --locked -p ios-accessibility --target aarch64-apple-ios-sim`
+- `cargo clippy --locked -p ios-accessibility --all-targets --target aarch64-apple-ios -- -D warnings`
+- `cargo clippy --locked -p ios-accessibility --all-targets --target aarch64-apple-ios-sim -- -D warnings`
+- `cargo fmt --all -- --check`
+- `cargo xtask docs-check`
+- `cargo xtask zero-swift-source`
+- `git diff --check`
+
+Inspection of `UIAccessibility.h` confirms the selected nullable copied text properties and
+synchronous accessibility setters; `UIAccessibilityConstants.h` declares `UIAccessibilityTraits`
+as `uint64_t` and all eight referenced public constants. The header's only explicit iOS minimum in
+the selected trait set is `UIAccessibilityTraitHeader` at iOS 6.0. The SDK's
+`SupportedTargets.iphoneos.MinimumDeploymentTarget` and
+`SupportedTargets.iphonesimulator.MinimumDeploymentTarget` values are 12.0.
+`objc2-ui-kit` 0.3.2 uses the direct features `UIAccessibility`, `UIAccessibilityConstants`,
+`UIResponder`, and `UIView`; Foundation uses `NSString`.
+
+A temporary external Rust `cdylib` consumer linked for device and simulator with
+`IPHONEOS_DEPLOYMENT_TARGET=12.0`. `vtool -show-build` reports device minimum iOS 12.0 / SDK 26.5
+and simulator minimum iOS 14.0 / SDK 26.5. `otool -L` reports UIKit, Foundation,
+`/usr/lib/libobjc.A.dylib`, and `/usr/lib/libSystem.B.dylib`; `nm -u` reports the seven selected
+trait constants, `UIAccessibilityTraitNone`, and `objc_msgSend`. This is compile/link evidence only.
+The host remains below the Xcode 27.x planning baseline; no simulator launch, device run, live
+VoiceOver session, announcement, focus movement, accessibility audit, or UX behavior is claimed.
+No CI/G8 files were changed.
+
 ## Validation and handoff
 
 - Add focused conversion/trait-mapping checks where behavior is framework-owned; do not simulate VoiceOver
