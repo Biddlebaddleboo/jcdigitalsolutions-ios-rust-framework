@@ -61,6 +61,20 @@ define i32 @framework_swift_abi_add(i32 noundef %0, i32 noundef %1)
 
 The host proof linked this object with the Swift compiler object and a separate C caller. The C caller invoked `framework_swift_abi_add(19, 23)` and the executable exited `0`
 
+## Rust caller proof
+
+[`check-scalar-swiftcall.sh`](../../interop/swift-abi-core/tests/check-scalar-swiftcall.sh) makes the same fixture reproducible. It writes Swift, C, and Rust inputs to a `mktemp` directory outside the checkout and removes that directory on exit. The script reads the Swift symbol from `nm`, checks the Swift LLVM IR for `swiftcc i32(i32, i32)`, then emits the Clang shim declaration from that compiler output
+
+The host Rust executable calls `framework_swift_abi_add` through `extern "C"`; the shim calls the compiler-emitted function through `swiftcall`. The executable linked and ran with exit `0`
+
+For device and simulator, the script compiles Swift, Clang, and `no_std` Rust objects. It checks the compiler-derived symbol across both objects and the Swift call in Clang IR/assembly. These are compile-only results; no target executable link or run occurs
+
+Run on macOS with Xcode and the Rust iOS targets installed:
+
+```sh
+./interop/swift-abi-core/tests/check-scalar-swiftcall.sh
+```
+
 ## Device and simulator compile proof
 
 The same temporary Swift and Clang inputs compiled for both iOS targets. `nm -g` showed a defined Swift symbol in the Swift object, an undefined reference to that same symbol in the Clang thunk object, and the exported `_framework_swift_abi_add` wrapper
@@ -111,7 +125,7 @@ clang /tmp/jcdig-swift-abi-phase1/main-host.o /tmp/jcdig-swift-abi-phase1/thunk-
 
 - Proof covers only two direct `Int32` arguments and one direct `Int32` result
 - The source is a synthetic fixture, not a declaration from an Apple SDK
-- No Rust caller or Rust archive link was part of this proof
+- The host Rust caller links and runs; no framework Rust archive or application archive link was part of this proof
 - No device or simulator executable link or runtime call was part of this proof
 - No Swift class ownership, metadata, value witnesses, resilient value, indirect result, generic argument, context, throw, or async shape was part of this proof
 - No general API symbol selection or symbol-version policy follows from this fixture
