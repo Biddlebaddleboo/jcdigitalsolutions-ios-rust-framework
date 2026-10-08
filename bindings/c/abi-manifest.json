@@ -65,6 +65,50 @@
         "inputs": "FrameworkStr and FrameworkSlice are borrowed through the call and are not retained",
         "read_secret": "FrameworkOwnedBuffer must be released exactly once with framework_owned_buffer_destroy; out_secret must not contain a live owned allocation on entry"
       }
+    },
+    "notification_responses": {
+      "cargo_feature": "notification-responses",
+      "header": "framework_notification_responses.h",
+      "symbols": [
+        "framework_notification_response_create",
+        "framework_notification_response_get_view",
+        "framework_notification_response_destroy"
+      ],
+      "response_kinds": {
+        "FRAMEWORK_NOTIFICATION_RESPONSE_KIND_DEFAULT": 0,
+        "FRAMEWORK_NOTIFICATION_RESPONSE_KIND_DISMISS": 1,
+        "FRAMEWORK_NOTIFICATION_RESPONSE_KIND_CUSTOM_ACTION": 2,
+        "FRAMEWORK_NOTIFICATION_RESPONSE_KIND_TEXT_INPUT": 3
+      },
+      "FrameworkNotificationResponseViewV1": {
+        "size": 56,
+        "align": 8,
+        "fields": {
+          "kind": 0,
+          "reserved": 4,
+          "notification_id": 8,
+          "action_id": 24,
+          "user_text": 40
+        }
+      },
+      "view_fields": {
+        "notification_id": "always present",
+        "action_id": "present only for CustomAction and TextInput",
+        "user_text": "present only for TextInput; empty text remains present by kind"
+      },
+      "status_mapping": {
+        "FRAMEWORK_STATUS_INVALID_ARGUMENT": "Malformed spans, invalid UTF-8 or IDs, unknown tags, non-empty unused fields, or null required outputs",
+        "FRAMEWORK_STATUS_RESOURCE_EXHAUSTED": "String reserve failure or view span length not representable as u64",
+        "FRAMEWORK_STATUS_PANIC": "Panic caught by create or get_view"
+      },
+      "panic_boundary": "Create and get_view catch Rust panics and return FRAMEWORK_STATUS_PANIC; destroy has no recoverable panic path; no panic unwinds across C.",
+      "call_thread": "Synchronous; C selects the call thread",
+      "ownership": {
+        "inputs": "FrameworkStr spans are borrowed through create and copied into the owned response; no input span is retained",
+        "handle": "Destroy the original handle once through its writable pointer slot; destroy clears that slot before drop; do not copy or destroy an alias",
+        "view": "View spans borrow from the handle and expire at destroy"
+      },
+      "limits": "Creates, views, and destroys values only; no delivery, delegate, callback, event queue, polling API, executor, native response object, or B12 lifecycle semantics"
     }
   },
   "ownership": {
@@ -85,6 +129,6 @@
     "reserved_must_be_zero": true,
     "future_sized_struct_check": "an accepting API must check struct_size and abi_version before reading fields; no options-accepting API is exported by this slice"
   },
-  "panic_boundary": "No panic may unwind across C ABI. F1 core exports are arithmetic-only/destructor-only and have no recoverable panic path; optional ios_secure_storage exports catch Rust panics and return FRAMEWORK_STATUS_PANIC.",
-  "static_library_runtime": "framework-abi/std is enabled in this opt-in static library to provide the allocator and panic runtime needed by its owned-buffer destructor; framework-abi remains no_std by default for Rust consumers."
+  "panic_boundary": "No panic may unwind across C ABI. F1 core exports are arithmetic-only/destructor-only and have no recoverable panic path; optional ios_secure_storage and notification_responses exports catch Rust panics and return FRAMEWORK_STATUS_PANIC where they have a status return.",
+  "static_library_runtime": "framework-abi/std is enabled in this opt-in static library to provide the allocator and panic runtime needed by owned C buffers, notification-response values, and panic containment; framework-abi remains no_std by default for Rust consumers."
 }

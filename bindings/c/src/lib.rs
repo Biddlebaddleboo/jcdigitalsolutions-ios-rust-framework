@@ -8,11 +8,24 @@ pub use framework_abi::{
     framework_owned_buffer_destroy,
 };
 
-#[cfg(feature = "secure-storage")]
+#[cfg(any(feature = "secure-storage", feature = "notification-responses"))]
 extern crate alloc;
+
+#[cfg(feature = "notification-responses")]
+mod notification_responses;
 
 #[cfg(feature = "secure-storage")]
 mod secure_storage;
+
+#[cfg(feature = "notification-responses")]
+pub use notification_responses::{
+    FRAMEWORK_NOTIFICATION_RESPONSE_KIND_CUSTOM_ACTION,
+    FRAMEWORK_NOTIFICATION_RESPONSE_KIND_DEFAULT, FRAMEWORK_NOTIFICATION_RESPONSE_KIND_DISMISS,
+    FRAMEWORK_NOTIFICATION_RESPONSE_KIND_TEXT_INPUT, FrameworkNotificationResponse,
+    FrameworkNotificationResponseKind, FrameworkNotificationResponseViewV1,
+    framework_notification_response_create, framework_notification_response_destroy,
+    framework_notification_response_get_view,
+};
 
 #[cfg(feature = "secure-storage")]
 pub use secure_storage::{

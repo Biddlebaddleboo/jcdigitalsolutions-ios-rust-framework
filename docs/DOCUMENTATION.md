@@ -3,7 +3,8 @@
 Shared validation commands, report scope, CI coverage, and environment limits live in [Validation and Tooling](VALIDATION.md).
 
 The capability support matrix lives in [`capabilities/README.md`](capabilities/README.md); the
-opt-in Keychain C binding and header-only C++17 layer have separate [developer guides](bindings/secure-storage.md) and [C++ binding guide](bindings/cpp.md).
+opt-in Keychain C ABI, notification-response C ABI, and C++17 layer have separate
+[Keychain guide](bindings/secure-storage.md), [response ABI guide](bindings/notification-responses.md), and [C++ layer guide](bindings/cpp.md)
 
 ## Purpose
 
