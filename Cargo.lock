@@ -81,6 +81,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "framework-format"
+version = "0.1.0"
+dependencies = [
+ "framework-core",
+ "iri-string",
+]
+
+[[package]]
 name = "framework-location"
 version = "0.1.0"
 dependencies = [
@@ -262,6 +270,12 @@ dependencies = [
  "objc2-foundation",
  "objc2-ui-kit",
 ]
+
+[[package]]
+name = "iri-string"
+version = "0.7.14"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "1663ee7d8cf2900cc1414b1e1eec9f348d6eaa3bcab07579f4726a4b8499f447"
 
 [[package]]
 name = "libc"

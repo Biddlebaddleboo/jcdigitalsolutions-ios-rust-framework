@@ -23,6 +23,9 @@ four D1 portable contracts cover application lifecycle, sandbox files/directorie
 and foreground HTTP values. D7 adds the read-only `framework-resources` contract for exact paths
 inside packaged resources. B10 adds an iOS main-bundle backend for exact ordinary files, with an iOS
 4.0 API floor; no live read, localization, asset-catalog access, or symlink-containment claim is made.
+D8 adds borrowed, syntax-validated RFC 3986 `Uri` and `UriReference` values in `framework-format`
+([guide](uri.md)); they do not normalize, percent-decode, or resolve references, and no iOS
+URL/browser backend is included.
 D5 adds a partial portable plain-text clipboard contract; B6 adds an iOS general-pasteboard backend
 with documented iOS privacy behavior and item replacement. No live
 privacy prompt or paste behavior is claimed. B1 adds iOS sandbox file and
@@ -43,7 +46,7 @@ VoiceOver behavior is claimed. B9 adds a synchronous one-action `UIAlertControll
 alert with an iOS 9.0 API floor. UIKit's presentation method has no failure callback; no live display
 or dismissal is claimed. The UIKit slice remains partial: a Rust-owned app delegate, one window,
 basic views, and one target/action callback only.
-The manifest counts eight portable contracts as implemented and five as partial.
+The manifest counts nine portable contracts as implemented and five as partial.
 
 | Family | Rows | iOS class count |
 | --- | ---: | --- |
