@@ -62,6 +62,8 @@ Every Swift-ABI integration must record:
 - [Toolchain and SDK inventory](swift-abi/TOOLCHAIN_MANIFEST.md)
 - [Swift ABI ownership and Translation lowering record](swift-abi/SYNCHRONOUS_BOUNDARY.md)
 - [Synchronous scalar thunk feasibility proof](swift-abi/SYNCHRONOUS_THUNK_FEASIBILITY.md)
+- [Async C++ header feasibility proof](swift-abi/ASYNC_CXX_FEASIBILITY.md)
+- [Async Clang thunk feasibility proof](swift-abi/ASYNC_THUNK_FEASIBILITY.md)
 
 ## Temporary application escape hatch
 
