@@ -116,6 +116,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "framework-resources"
+version = "0.1.0"
+dependencies = [
+ "framework-core",
+]
+
+[[package]]
 name = "framework-secure-storage"
 version = "0.1.0"
 dependencies = [

@@ -16,6 +16,8 @@ provide a general lifecycle or UI facade.
 The complete row-by-row source of truth for all V1 capability families is
 [`capability-status.json`](capability-status.json). It marks every absent implementation `X`, uses
 `null` for unverified platform metadata, and lists the UIKit sample only as partial `B` support.
+Read-only packaged resources use the separate D7 [`resources` contract](resources.md); they are not
+part of D1's writable sandbox-file contract and do not yet have an iOS backend.
 
 ## Application lifecycle
 

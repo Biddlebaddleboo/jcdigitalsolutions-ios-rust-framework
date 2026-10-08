@@ -20,8 +20,10 @@ one partial B5 current-location row, one partial B6 plain-text clipboard row, on
 outgoing-share row, one partial B8 accessibility row, and one partial B9 acknowledgement-alert row;
 98 rows are `X` for iOS runtime support. The
 four D1 portable contracts cover application lifecycle, sandbox files/directories, preferences,
-and foreground HTTP values. D5 adds a partial portable plain-text clipboard contract; B6 adds an
-iOS general-pasteboard backend with documented iOS privacy behavior and item replacement. No live
+and foreground HTTP values. D7 adds the read-only `framework-resources` contract for exact paths
+inside packaged resources; its iOS backend is not yet integrated. D5 adds a partial portable plain-text
+clipboard contract; B6 adds an iOS general-pasteboard backend with documented iOS privacy behavior
+and item replacement. No live
 privacy prompt or paste behavior is claimed. B1 adds iOS sandbox file and
 `NSUserDefaults` backends for three rows.
 B2 adds a public Keychain generic-password backend for opaque bytes with explicit protection
@@ -40,7 +42,7 @@ VoiceOver behavior is claimed. B9 adds a synchronous one-action `UIAlertControll
 alert with an iOS 9.0 API floor. UIKit's presentation method has no failure callback; no live display
 or dismissal is claimed. The UIKit slice remains partial: a Rust-owned app delegate, one window,
 basic views, and one target/action callback only.
-The manifest counts seven portable contracts as implemented and five as partial.
+The manifest counts eight portable contracts as implemented and five as partial.
 
 | Family | Rows | iOS class count |
 | --- | ---: | --- |

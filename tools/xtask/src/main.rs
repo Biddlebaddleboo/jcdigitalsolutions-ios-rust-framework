@@ -15,6 +15,7 @@ const PORTABLE_CRATES: &[&str] = &[
     "framework-app",
     "framework-files",
     "framework-preferences",
+    "framework-resources",
     "framework-network",
     "framework-secure-storage",
     "framework-notifications",
