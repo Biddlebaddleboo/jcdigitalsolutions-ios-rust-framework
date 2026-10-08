@@ -7,14 +7,14 @@
     "capability_count": 113,
     "portable_contract_implemented_count": 8,
     "portable_contract_partial_count": 5,
-    "partial_implementation_count": 11,
+    "partial_implementation_count": 12,
     "ios_class_counts": {
       "R": 0,
       "M": 0,
-      "B": 15,
+      "B": 16,
       "A": 0,
       "C": 0,
-      "X": 98
+      "X": 97
     }
   },
   "capabilities": [
@@ -396,27 +396,30 @@
       "family": "Files/data/preferences",
       "capability": "bundle/resources",
       "crate_module": [
-        "framework-resources"
+        "framework-resources",
+        "ios-resources"
       ],
-      "crate_module_status": "portable_contract_only",
+      "crate_module_status": "portable_contract_and_ios_backend_partial",
       "portability_class": "portable_with_platform_extensions",
       "portable_contract_status": "implemented",
-      "portable_contract_note": "framework-resources defines synchronous exact-path read-only lookup over a statically selected backend; no iOS backend is included.",
-      "ios_implementation_class": "X",
-      "implementation_status": "unsupported",
-      "status_reason": "The framework-resources portable contract exists, but this branch has no iOS backend; no iOS runtime support is claimed.",
-      "minimum_ios_version": null,
-      "required_frameworks": null,
-      "required_permissions": null,
-      "required_info_plist_keys": null,
-      "entitlements": null,
-      "device_only_restrictions": null,
-      "swift_abi_requirement": "not_assessed_for_absent_backend",
-      "metadata_verification": "Portable contract documented in docs/capabilities/resources.md; iOS metadata unverified; null fields do not assert that no requirement exists",
-      "parity_status": "not_applicable_to_portable_contract; no_iOS_backend_parity_test",
+      "portable_contract_note": "framework-resources defines synchronous exact-path read-only lookup over a statically selected backend.",
+      "ios_implementation_class": "B",
+      "implementation_status": "partial",
+      "status_reason": "ios-resources reads exact, nonlocalized ordinary files from NSBundle.mainBundle synchronously. It does not enumerate resources, access asset catalogs, decode formats, accept arbitrary URLs, or promise symlink containment; no live app resource read was exercised.",
+      "minimum_ios_version": "4.0",
+      "required_frameworks": [
+        "Foundation"
+      ],
+      "required_permissions": [],
+      "required_info_plist_keys": [],
+      "entitlements": [],
+      "device_only_restrictions": [],
+      "swift_abi_requirement": false,
+      "metadata_verification": "Xcode_26.6_iOS_26.5_headers_derive_iOS_4.0_floor_from_NSBundle_URLForResource_subdirectory_localization; SDKSettings_min12_recommended15_default26.5; device/simulator_compile_and_lint_only; docs/ios/resources.md; no_live_resource_read",
+      "parity_status": "not_tested_live_bundle_resource_read_or_capability_parity",
       "performance_status": "not_measured",
       "native_escape_handle_available": false,
-      "native_escape_handle_note": "No native escape handle is exposed by a capability facade in this row."
+      "native_escape_handle_note": "ios-resources returns bytes only and exposes no bundle URL or native handle."
     },
     {
       "id": "014-files-data-preferences-file-coordination-provider-aware-operations-as-platform-extensions",

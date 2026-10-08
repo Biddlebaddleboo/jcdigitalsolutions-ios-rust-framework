@@ -223,6 +223,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "ios-resources"
+version = "0.1.0"
+dependencies = [
+ "framework-core",
+ "framework-resources",
+ "objc2",
+ "objc2-foundation",
+]
+
+[[package]]
 name = "ios-runtime"
 version = "0.1.0"
 dependencies = [

@@ -14,16 +14,17 @@ performance status, and native-escape status.
 | `C` | Compiler/build/discovery contract |
 | `X` | No supported implementation in this workstream; reason is in the row |
 
-Current counts: fifteen rows have `B` support: four partial UIKit example rows, three B1 sandbox-file
+Current counts: sixteen rows have `B` support: four partial UIKit example rows, three B1 sandbox-file
 and preference rows, one B2 Keychain row, one B3 foreground HTTP row, one B4 local-notification row,
 one partial B5 current-location row, one partial B6 plain-text clipboard row, one partial B7
-outgoing-share row, one partial B8 accessibility row, and one partial B9 acknowledgement-alert row;
-98 rows are `X` for iOS runtime support. The
+outgoing-share row, one partial B8 accessibility row, one partial B9 acknowledgement-alert row, and
+one partial B10 packaged-resource row; 97 rows are `X` for iOS runtime support. The
 four D1 portable contracts cover application lifecycle, sandbox files/directories, preferences,
 and foreground HTTP values. D7 adds the read-only `framework-resources` contract for exact paths
-inside packaged resources; its iOS backend is not yet integrated. D5 adds a partial portable plain-text
-clipboard contract; B6 adds an iOS general-pasteboard backend with documented iOS privacy behavior
-and item replacement. No live
+inside packaged resources. B10 adds an iOS main-bundle backend for exact ordinary files, with an iOS
+4.0 API floor; no live read, localization, asset-catalog access, or symlink-containment claim is made.
+D5 adds a partial portable plain-text clipboard contract; B6 adds an iOS general-pasteboard backend
+with documented iOS privacy behavior and item replacement. No live
 privacy prompt or paste behavior is claimed. B1 adds iOS sandbox file and
 `NSUserDefaults` backends for three rows.
 B2 adds a public Keychain generic-password backend for opaque bytes with explicit protection
@@ -47,7 +48,7 @@ The manifest counts eight portable contracts as implemented and five as partial.
 | Family | Rows | iOS class count |
 | --- | ---: | --- |
 | Core app/UI | 9 | `B`: 8 (4 partial UIKit example rows; 1 partial clipboard row; 1 partial share row; 1 partial accessibility row; 1 partial acknowledgement-alert row); `X`: 1 |
-| Files/data/preferences | 7 | `B`: 3; `X`: 4 |
+| Files/data/preferences | 7 | `B`: 4 (1 partial packaged-resource row); `X`: 3 |
 | Security/auth | 7 | `B`: 1; `X`: 6 |
 | Networking/web | 7 | `B`: 1 partial; `X`: 6 |
 | Notifications/background | 6 | `B`: 1 partial; `X`: 5 |

@@ -43,3 +43,7 @@ Lookup is synchronous and may block. The backend defines platform availability, 
 file-system security, and resource-copy costs. The contract does not define cancellation, directory
 enumeration, arbitrary URL lookup, localized-resource selection, asset-catalog access, or resource
 format decoding. Packaged resources are read-only and distinct from writable sandbox files.
+
+The iOS main-bundle backend for ordinary packaged files is documented in the
+[`ios-resources` guide](../ios/resources.md). It does not add localized lookup, asset-catalog
+access, resource enumeration, or filesystem symlink-containment guarantees.
