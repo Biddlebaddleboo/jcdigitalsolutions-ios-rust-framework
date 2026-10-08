@@ -14,21 +14,23 @@ performance status, and native-escape status.
 | `C` | Compiler/build/discovery contract |
 | `X` | No supported implementation in this workstream; reason is in the row |
 
-Current counts: eight rows have `B` support, including four partial rows for the UIKit app example;
-105 rows are `X` for iOS runtime support. The four D1 portable contracts cover application
-lifecycle, sandbox files/directories, preferences, and foreground HTTP values. B1 adds iOS sandbox
-file and `NSUserDefaults` backends for three rows. B2 adds a public Keychain generic-password
-backend for opaque bytes with explicit protection requirements; no live Keychain test is claimed.
-The UIKit slice remains partial: a Rust-owned app delegate, one window, basic views, and one
-target/action callback only. The manifest counts seven portable contracts as implemented and one
-as partial.
+Current counts: nine rows have `B` support, including four partial rows for the UIKit app example
+and one partial foreground HTTP row; 104 rows are `X` for iOS runtime support. The four D1
+portable contracts cover application lifecycle, sandbox files/directories, preferences, and
+foreground HTTP values. B1 adds iOS sandbox file and `NSUserDefaults` backends for three rows. B2
+adds a public Keychain generic-password backend for opaque bytes with explicit protection
+requirements; no live Keychain test is claimed. B3 adds the Foundation `URLSession` foreground
+HTTP backend; no runtime request or Apple parity test is claimed. D3 adds a partial portable local-
+notification contract; it does not include an iOS backend or remote push. The UIKit slice remains
+partial: a Rust-owned app delegate, one window, basic views, and one target/action callback only.
+The manifest counts seven portable contracts as implemented and two as partial.
 
 | Family | Rows | iOS class count |
 | --- | ---: | --- |
 | Core app/UI | 9 | `B`: 4 partial; `X`: 5 |
 | Files/data/preferences | 7 | `B`: 3; `X`: 4 |
 | Security/auth | 7 | `B`: 1; `X`: 6 |
-| Networking/web | 7 | `X`: 7 |
+| Networking/web | 7 | `B`: 1 partial; `X`: 6 |
 | Notifications/background | 6 | `X`: 6 |
 | Sensors/connectivity | 9 | `X`: 9 |
 | Camera/audio/media | 8 | `X`: 8 |
@@ -53,6 +55,8 @@ See [the D1 API guide](app-data.md) for the four portable crate contracts and
 [the secure-storage guide](secure-storage.md) for D2's opaque-byte contract. These guides detail
 ownership, copy, atomicity, async/cancellation, errors, and runtime limits. Later D capability
 groups need separate named subplans and executors; D1 and D2 do not claim Workstream D complete.
+The D3 [local-notification guide](../notifications.md) describes the portable scheduling contract;
+it does not claim an iOS delivery backend.
 
 The optional foreign-language Keychain surface is documented in the
 [secure-storage C ABI guide](../bindings/secure-storage.md); it does not change the Rust-native

@@ -12,8 +12,9 @@ Requires `PLAN_BINDINGS_CORE.md` and the integrated core C ABI.
 
 - `bindings/cpp/**`
 - C++ consumer checks and binding docs
+- `Cargo.toml` only to exclude this header-only, non-Cargo directory from the `bindings/*` member glob
 
-Do not change C ABI symbols/layouts, Rust capability APIs, workspace dependency policy, or platform backends.
+Do not change C ABI symbols/layouts, Rust capability APIs, workspace dependency versions/features, or platform backends.
 
 ## Required surface
 

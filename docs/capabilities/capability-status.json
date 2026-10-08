@@ -6,15 +6,15 @@
     "capability_family_count": 15,
     "capability_count": 113,
     "portable_contract_implemented_count": 7,
-    "portable_contract_partial_count": 1,
-    "partial_implementation_count": 4,
+    "portable_contract_partial_count": 2,
+    "partial_implementation_count": 5,
     "ios_class_counts": {
       "R": 0,
       "M": 0,
-      "B": 8,
+      "B": 9,
       "A": 0,
       "C": 0,
-      "X": 105
+      "X": 104
     }
   },
   "capabilities": [
@@ -711,27 +711,34 @@
       "family": "Networking/web",
       "capability": "foreground HTTP",
       "crate_module": [
-        "framework-network"
+        "framework-network",
+        "ios-network"
       ],
-      "crate_module_status": "portable_contract_only",
+      "crate_module_status": "portable_contract_and_ios_backend_partial",
       "portability_class": "portable",
       "portable_contract_status": "implemented",
-      "portable_contract_note": "framework-network defines portable values and a generic backend contract; no platform backend is included.",
-      "ios_implementation_class": "X",
-      "implementation_status": "unsupported",
-      "status_reason": "The framework-network portable contract exists, but this branch has no iOS backend for this capability; no iOS runtime support is claimed.",
-      "minimum_ios_version": null,
-      "required_frameworks": null,
-      "required_permissions": null,
-      "required_info_plist_keys": null,
-      "entitlements": null,
-      "device_only_restrictions": null,
-      "swift_abi_requirement": "not_assessed_for_absent_backend",
-      "metadata_verification": "unverified; null fields do not assert that no requirement exists",
-      "parity_status": "not_applicable_to_portable_contract; no_iOS_backend_parity_test",
+      "portable_contract_note": "framework-network defines portable values and a generic backend contract; ios-network implements foreground HTTP with Foundation URLSession.",
+      "ios_implementation_class": "B",
+      "implementation_status": "partial",
+      "status_reason": "The URLSession backend and device/simulator compile checks exist; no runtime URLSession request, local-server differential, Apple parity suite, or performance measurement is claimed.",
+      "minimum_ios_version": "7.0",
+      "required_frameworks": [
+        "Foundation"
+      ],
+      "required_permissions": [
+        "Local Network access for local-network destinations on iOS 14+ only"
+      ],
+      "required_info_plist_keys": [
+        "NSLocalNetworkUsageDescription for local-network destinations on iOS 14+ only"
+      ],
+      "entitlements": [],
+      "device_only_restrictions": [],
+      "swift_abi_requirement": false,
+      "metadata_verification": "NSURLSession SDK availability and local-network/ATS notes are documented in docs/ios/network.md; SDK inspected on macOS Xcode 26.5.",
+      "parity_status": "not_tested_no_device_or_local_server_runtime_or_Apple_parity_suite",
       "performance_status": "not_measured",
-      "native_escape_handle_available": false,
-      "native_escape_handle_note": "No native escape handle is exposed by a capability facade in this row."
+      "native_escape_handle_available": true,
+      "native_escape_handle_note": "IosHttpBackend::native_session provides a caller-owned Foundation session escape hatch."
     },
     {
       "id": "026-networking-web-background-transfer",
@@ -875,13 +882,13 @@
       "crate_module": [
         "framework-notifications"
       ],
-      "crate_module_status": "planned_not_present",
+      "crate_module_status": "portable_contract_partial",
       "portability_class": "portable_with_platform_extensions",
-      "portable_contract_status": "not_implemented",
-      "portable_contract_note": "No portable facade for this capability is included in D1.",
+      "portable_contract_status": "partial",
+      "portable_contract_note": "framework-notifications defines local notification values and a static backend contract; remote push and response handling are not covered.",
       "ios_implementation_class": "X",
       "implementation_status": "unsupported",
-      "status_reason": "No D1 capability facade or supported iOS backend exists for this row; a separate capability workstream must establish a public implementation path.",
+      "status_reason": "The portable local-notification contract exists; no iOS UserNotifications backend or remote-push/response support is claimed.",
       "minimum_ios_version": null,
       "required_frameworks": null,
       "required_permissions": null,
