@@ -29,6 +29,9 @@ jobs:
       - name: C API header, layout, symbol, and consumer check
         if: runner.os == 'macOS'
         run: sh bindings/c/check.sh
+      - name: Header-only C++17 binding check
+        if: runner.os == 'macOS'
+        run: sh bindings/cpp/check.sh
       - name: Optional secure-storage C ABI check
         if: runner.os == 'macOS'
         run: sh bindings/c/check-secure-storage.sh
