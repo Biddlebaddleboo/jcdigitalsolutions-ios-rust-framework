@@ -1,0 +1,17 @@
+[package]
+name = "ios-presentation"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "Bounded UIKit acknowledgement alert presentation for iOS"
+
+[target.'cfg(target_os = "ios")'.dependencies]
+ios-runtime = { path = "../ios-runtime" }
+objc2 = { workspace = true, features = ["std"] }
+objc2-foundation = { workspace = true, features = ["NSString"] }
+objc2-ui-kit = { workspace = true, features = ["UIAlertController", "UIResponder", "UIView", "UIViewController", "UIWindow", "block2"] }
+
+[lints]
+workspace = true
