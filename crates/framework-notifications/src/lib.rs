@@ -5,6 +5,8 @@
 
 extern crate alloc;
 
+pub mod response;
+
 use alloc::string::String;
 use core::future::Future;
 use framework_core::{AuthorizationState, Availability, Error, ErrorKind, PlatformErrorCode};
