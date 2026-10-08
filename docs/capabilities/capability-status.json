@@ -6,7 +6,7 @@
     "capability_family_count": 15,
     "capability_count": 113,
     "portable_contract_implemented_count": 9,
-    "portable_contract_partial_count": 5,
+    "portable_contract_partial_count": 6,
     "partial_implementation_count": 13,
     "ios_class_counts": {
       "R": 0,
@@ -938,13 +938,13 @@
       "crate_module": [
         "framework-notifications"
       ],
-      "crate_module_status": "planned_not_present",
+      "crate_module_status": "portable_contract_only",
       "portability_class": "portable_with_platform_extensions",
-      "portable_contract_status": "not_implemented",
-      "portable_contract_note": "D3 covers local notification content, authorization, scheduling, and cancellation; response/delegate values are not part of that contract.",
+      "portable_contract_status": "partial",
+      "portable_contract_note": "D9 adds owned NotificationResponse values for default, dismiss, custom-action, and text-input data; no callback or delivery API exists. B12 native response delivery remains separate.",
       "ios_implementation_class": "X",
       "implementation_status": "unsupported",
-      "status_reason": "No notification response/delegate facade or supported iOS backend exists; a separate workstream must establish callback ownership, lifecycle, and response delivery semantics.",
+      "status_reason": "No iOS response/delegate backend exists. D9 is value-only; B12 must define native callback lifecycle, threading, completion semantics, and platform translation.",
       "minimum_ios_version": null,
       "required_frameworks": null,
       "required_permissions": null,
@@ -953,7 +953,7 @@
       "device_only_restrictions": null,
       "swift_abi_requirement": "not_assessed_for_absent_backend",
       "metadata_verification": "unverified; null fields do not assert that no requirement exists",
-      "parity_status": "not_tested_no_iOS_implementation",
+      "parity_status": "not_applicable_to_portable_contract; no_iOS_backend_parity_test",
       "performance_status": "not_measured",
       "native_escape_handle_available": false,
       "native_escape_handle_note": "No native escape handle is exposed by a capability facade in this row."

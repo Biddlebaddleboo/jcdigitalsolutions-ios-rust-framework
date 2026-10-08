@@ -47,7 +47,9 @@ VoiceOver behavior is claimed. B9 adds a synchronous one-action `UIAlertControll
 alert with an iOS 9.0 API floor. UIKit's presentation method has no failure callback; no live display
 or dismissal is claimed. The UIKit slice remains partial: a Rust-owned app delegate, one window,
 basic views, and one target/action callback only.
-The manifest counts nine portable contracts as implemented and five as partial.
+The manifest counts nine portable contracts as implemented and six as partial. D9 adds owned
+notification-response values in `framework-notifications` ([guide](../notification-responses.md));
+it does not deliver responses or add an iOS delegate, which remains a separate B12 workstream.
 
 | Family | Rows | iOS class count |
 | --- | ---: | --- |
