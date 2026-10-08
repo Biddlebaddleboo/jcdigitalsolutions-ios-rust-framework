@@ -13,7 +13,7 @@ Consumes iOS native implementations from B, Swift residual implementations from 
 
 ## Execution decomposition
 
-Workstream D is too broad for one bounded executor. Start with `PLAN_CAPABILITIES_APP_DATA.md` (D1), which owns the application lifecycle, files, preferences, foreground HTTP facades, and the first complete support manifest. Further capability groups require separate named subplans and executors; they must not overlap D1-owned crates or manifest edits.
+Workstream D is too broad for one bounded executor. Start with `PLAN_CAPABILITIES_APP_DATA.md` (D1), which owns the application lifecycle, files, preferences, foreground HTTP facades, and the first complete support manifest. `PLAN_CAPABILITIES_SECURE_STORAGE.md` (D2) owns secure storage. `PLAN_CAPABILITIES_NOTIFICATIONS.md` (D3) owns the bounded local-notification contract. Further capability groups require separate named subplans and executors; they must not overlap D1-owned crates or manifest edits.
 
 ## Write scope
 

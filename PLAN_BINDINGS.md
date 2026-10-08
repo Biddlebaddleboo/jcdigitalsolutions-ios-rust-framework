@@ -11,7 +11,7 @@ Capability-specific bindings start only after the corresponding D public contrac
 
 ## Execution decomposition
 
-Start with `PLAN_BINDINGS_CORE.md` (F1), which freezes and validates the foundational C ABI from A without waiting for capability crates. F2 is `PLAN_BINDINGS_SECURE_STORAGE.md`; it adds a capability-scoped C API only after D2 and B2 are integrated. Add other capability-specific headers only in later named slices after their D contracts are stable. C++ and Python remain optional and must not block the C ABI.
+Start with `PLAN_BINDINGS_CORE.md` (F1), which freezes and validates the foundational C ABI from A without waiting for capability crates. F2 is `PLAN_BINDINGS_SECURE_STORAGE.md`; it adds a capability-scoped C API only after D2 and B2 are integrated. `PLAN_BINDINGS_CPP.md` (F3) owns a small header-only C++ convenience layer over the existing core ABI. Add other capability-specific headers only in later named slices after their D contracts are stable. Python remains optional and must not block the C ABI.
 
 ## Write scope
 
