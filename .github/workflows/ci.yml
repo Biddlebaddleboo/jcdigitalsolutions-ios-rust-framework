@@ -56,6 +56,18 @@ jobs:
       - name: Clippy iOS location simulator target
         if: runner.os == 'macOS'
         run: cargo clippy --locked -p ios-location --all-targets --target aarch64-apple-ios-sim -- -D warnings
+      - name: Check iOS sharing device target
+        if: runner.os == 'macOS'
+        run: cargo check --locked -p ios-sharing --target aarch64-apple-ios
+      - name: Check iOS sharing simulator target
+        if: runner.os == 'macOS'
+        run: cargo check --locked -p ios-sharing --target aarch64-apple-ios-sim
+      - name: Clippy iOS sharing device target
+        if: runner.os == 'macOS'
+        run: cargo clippy --locked -p ios-sharing --all-targets --target aarch64-apple-ios -- -D warnings
+      - name: Clippy iOS sharing simulator target
+        if: runner.os == 'macOS'
+        run: cargo clippy --locked -p ios-sharing --all-targets --target aarch64-apple-ios-sim -- -D warnings
       - name: Swift ABI scalar Rust caller probe
         if: runner.os == 'macOS'
         run: sh interop/swift-abi-core/tests/check-scalar-swiftcall.sh
