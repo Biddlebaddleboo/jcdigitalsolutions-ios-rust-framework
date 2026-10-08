@@ -5,6 +5,9 @@
 
 extern crate alloc;
 
+pub mod share;
+pub use share::{ShareBackend, ShareClient, ShareError, ShareItem, ShareOutcome, ShareRequest};
+
 use alloc::string::String;
 use core::future::Future;
 use framework_core::{Availability, Error, ErrorKind, PlatformErrorCode};
