@@ -1,0 +1,15 @@
+[package]
+name = "framework-format"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "Portable borrowed URI values"
+
+[dependencies]
+framework-core.workspace = true
+iri-string.workspace = true
+
+[lints]
+workspace = true
