@@ -219,6 +219,8 @@ Observe normal Xcode pipeline:
 - bundle `Metadata.appintents`;
 - `AppIntentsPackage` relationship.
 
+C7 observed this pipeline on Xcode 26.6 / iOS SDK 26.5 using a temporary Release simulator app build. Xcode invoked its metadata processors with compiler-generated files and produced `Metadata.appintents`, but the processor executable, command line, file lists, and metadata encoding were not documented public Rust/C inputs. Apple documents the Swift `AppIntent`/`perform()` and `AppIntentsPackage` surfaces; no supported Rust/C metadata input or processor API was found. See [the C7 report](docs/swift-abi/APP_INTENTS_STAGE0.md). This host is below the Xcode 27.x baseline.
+
 ### Stage 1
 Attempt a parameterless Rust-defined AppIntent with:
 - no repository/generated shipping Swift source;
@@ -228,6 +230,8 @@ Attempt a parameterless Rust-defined AppIntent with:
 - archived Release install validation.
 
 If the input artifact format required by Xcode is undocumented/toolchain-private and cannot be generated through a supported interface, stop and document App Intents as unsupported for V1. Do not use private runtime registration.
+
+Current C7 decision: Stage 1 is unsupported on the audited Xcode 26.6 / SDK 26.5 toolchain. The async `perform()` path also lacks a supported public C/C++ task-entry contract under C6; re-audit only when a documented public build input and callable runtime contract are available.
 
 Full WidgetKit provider/rendering, rich AppEntity/query, macro-equivalent Generable, and result-builder/SwiftUI emulation are not allowed to balloon the common Layer-1 runtime.
 

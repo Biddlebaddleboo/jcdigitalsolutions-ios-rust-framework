@@ -63,6 +63,9 @@ facts come from [`docs/ios/runtime.md`](../ios/runtime.md) and the `ios-minimal`
 minimum version is stated there, so the manifest leaves it unknown. No entitlement, permission, or
 framework requirement is inferred for an `X` row. A `true` native-escape value names the handle
 documented for that row: UIKit example handles or a capability-specific borrowed native object.
+The C7 [App Intents audit](../swift-abi/APP_INTENTS_STAGE0.md) found no stable Rust/C metadata input
+or processor API on Xcode 26.6; the Stage 1 runtime path remains unsupported, with no fake capability
+API. Re-audit on the Xcode 27.x baseline.
 
 See [the D1 API guide](app-data.md) for the four portable crate contracts and
 [the secure-storage guide](secure-storage.md) for D2's opaque-byte contract. These guides detail

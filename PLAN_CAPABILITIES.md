@@ -195,7 +195,7 @@ Expose portable or iOS-exclusive facades/documented shells for:
 Entitlement-limited APIs must remain explicit iOS capabilities and must not be claimed as generally usable without entitlement.
 
 ### Compiler/build-host capabilities
-- App Intents: use result of C Stage 0/1; if unsupported, expose no fake runtime implementation.
+- App Intents: C7 Stage 0 found no documented stable Rust/C metadata input or processor API on Xcode 26.6; Stage 1 is unsupported on the audited toolchain. Expose no fake runtime implementation and re-audit on Xcode 27.x; see [the C7 report](docs/swift-abi/APP_INTENTS_STAGE0.md).
 - WidgetKit: support management/data logic available through proven interfaces; do not implement a SwiftUI clone merely to claim full rendering support.
 - ActivityKit: support if Layer-2 ABI work is proven.
 - extension bundle metadata helpers: only through supported Xcode/public mechanisms.

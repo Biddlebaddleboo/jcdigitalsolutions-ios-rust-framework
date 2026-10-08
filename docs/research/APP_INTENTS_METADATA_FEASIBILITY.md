@@ -451,3 +451,7 @@ Therefore:
 - only proceed if required emitted artifacts can be produced through a sufficiently supported/stable interface;
 - never fall back to private runtime registration;
 - keep Swift source out of the framework even if that means App Intents remains unsupported initially.
+
+### Stage 0 update — 2026-10-07
+
+The [C7 App Intents Stage 0 audit](../swift-abi/APP_INTENTS_STAGE0.md) observed Xcode 26.6 / iOS SDK 26.5 compiling a temporary Swift AppIntent, invoking its normal metadata extraction steps, and producing `Metadata.appintents` in the app bundle. The processor executable, command syntax, generated file lists, and metadata encoding remain observed Xcode implementation details; no documented stable Rust/C metadata input or processor API was found. Combined with C6's no-go for a public C/C++ task-entry contract for async `perform()`, Stage 1 is unsupported on the audited toolchain. The earlier plausibility assessment remains a research hypothesis, not a V1 implementation claim; re-audit on Xcode 27.x.

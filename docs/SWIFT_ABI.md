@@ -65,8 +65,11 @@ Every Swift-ABI integration must record:
 - [Async C++ header feasibility proof](swift-abi/ASYNC_CXX_FEASIBILITY.md)
 - [Async Clang thunk feasibility proof](swift-abi/ASYNC_THUNK_FEASIBILITY.md)
 - [Async task-entry feasibility audit](swift-abi/ASYNC_RUNTIME_ENTRY_FEASIBILITY.md)
+- [App Intents metadata pipeline Stage 0 audit](swift-abi/APP_INTENTS_STAGE0.md)
 
 The C6 audit found no supported public C/C++ Swift task-entry contract in the inspected Xcode 26.6 interfaces. Exported `swift_task_*` symbols and underscore-prefixed Swift-module bindings are not caller contracts. The compiler-derived async thunk proof does not supply task/context creation, executor, resume, error, or cancellation semantics. Translation and StoreKit 2 async paths remain unsupported until a documented public entry contract or a suitable public Objective-C/C path is established.
+
+The C7 audit observed Xcode 26.6 metadata extraction and a `Metadata.appintents` bundle output, but found no documented stable Rust/C metadata input or processor API. Stage 1 is unsupported on that toolchain; the processor command and metadata format are not treated as public interfaces. Re-audit on Xcode 27.x before making a baseline claim.
 
 ## Temporary application escape hatch
 
