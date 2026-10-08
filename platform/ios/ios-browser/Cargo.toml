@@ -1,0 +1,21 @@
+[package]
+name = "ios-browser"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "Bounded external HTTPS URL-handler requests for iOS"
+
+[dependencies]
+framework-format = { path = "../../../crates/framework-format" }
+
+[target.'cfg(target_os = "ios")'.dependencies]
+block2 = { workspace = true, features = ["alloc"] }
+ios-runtime = { path = "../ios-runtime" }
+objc2 = { workspace = true, features = ["std"] }
+objc2-foundation = { workspace = true, features = ["NSDictionary", "NSString", "NSURL"] }
+objc2-ui-kit = { workspace = true, features = ["UIApplication", "UIResponder", "block2"] }
+
+[lints]
+workspace = true
