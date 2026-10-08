@@ -47,6 +47,9 @@ jobs:
       - name: Swift ABI scalar Rust caller probe
         if: runner.os == 'macOS'
         run: sh interop/swift-abi-core/tests/check-scalar-swiftcall.sh
+      - name: Swift ABI retained class ownership Rust caller probe
+        if: runner.os == 'macOS'
+        run: sh interop/swift-abi-core/tests/check-retained-ownership.sh
       - name: Format
         run: cargo fmt --all -- --check
       - name: Clippy
