@@ -35,6 +35,10 @@ No `.swift` shipping source.
 
 External tiny Swift source is allowed only as ephemeral/compiler-oracle test input under tooling if it is not framework/application source and is never packaged as shipping source. Prefer generated temporary files from tests/tools so the repository invariant is explicit.
 
+## Execution decomposition
+
+C1 is `PLAN_SWIFT_ABI_OWNERSHIP.md`: end-to-end ownership evidence for the existing `SwiftRetained` wrapper and compiler-derived `swift_retain`/`swift_release` bindings. C1 does not implement general Swift values, direct Apple API calls, or async calls. Further ABI primitives and concrete API proofs require separate bounded subplans.
+
 ## Phase 0 — toolchain manifest and installed SDK inventory
 
 Before writing ABI thunks, record:
