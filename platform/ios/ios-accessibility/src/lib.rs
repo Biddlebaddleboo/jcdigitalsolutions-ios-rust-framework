@@ -1,0 +1,63 @@
+#![deny(missing_docs)]
+#![deny(unsafe_op_in_unsafe_fn)]
+#![doc = "Bounded synchronous accessibility metadata setters for caller-owned iOS UIKit views."]
+
+#[cfg(any(target_os = "ios", test))]
+mod text;
+#[cfg(any(target_os = "ios", test))]
+mod traits;
+
+#[cfg(any(target_os = "ios", test))]
+pub use traits::AccessibilityTrait;
+
+#[cfg(target_os = "ios")]
+mod platform;
+
+#[cfg(target_os = "ios")]
+pub use platform::AccessibilityMetadata;
+
+#[cfg(test)]
+mod tests {
+    use super::text::map_optional_text;
+    use super::traits::{AccessibilityTrait, fold_traits};
+
+    fn fixture_mask(trait_: AccessibilityTrait) -> u64 {
+        match trait_ {
+            AccessibilityTrait::Button => 1 << 0,
+            AccessibilityTrait::Link => 1 << 1,
+            AccessibilityTrait::Header => 1 << 2,
+            AccessibilityTrait::Image => 1 << 3,
+            AccessibilityTrait::Selected => 1 << 4,
+            AccessibilityTrait::StaticText => 1 << 5,
+            AccessibilityTrait::SearchField => 1 << 6,
+        }
+    }
+
+    #[test]
+    fn absent_text_remains_absent_and_empty_text_remains_present() {
+        assert_eq!(map_optional_text(None, str::len), None);
+        assert_eq!(map_optional_text(Some(""), str::len), Some(0));
+        assert_eq!(map_optional_text(Some("Save"), str::len), Some(4));
+    }
+
+    #[test]
+    fn trait_sets_combine_and_empty_set_uses_the_supplied_none_value() {
+        let traits = [AccessibilityTrait::Button, AccessibilityTrait::Header];
+        assert_eq!(fold_traits(&traits, 0, fixture_mask), (1 << 0) | (1 << 2));
+        assert_eq!(fold_traits(&[], 99, fixture_mask), 99);
+    }
+
+    #[test]
+    fn trait_mapping_is_order_independent_and_uses_only_passed_traits() {
+        let first = [AccessibilityTrait::Link, AccessibilityTrait::Selected];
+        let reversed = [AccessibilityTrait::Selected, AccessibilityTrait::Link];
+        assert_eq!(
+            fold_traits(&first, 0, fixture_mask),
+            fold_traits(&reversed, 0, fixture_mask)
+        );
+        assert_eq!(
+            fold_traits(&[AccessibilityTrait::Image], 0, fixture_mask),
+            1 << 3
+        );
+    }
+}
