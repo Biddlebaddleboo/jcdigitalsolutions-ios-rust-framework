@@ -1,6 +1,6 @@
 # Location
 
-**framework-location** defines a portable **no_std** contract for one-shot current-location requests. It contains framework-owned values only and has no native location backend in this workstream. The contract does not probe a device, request permission, or create a global service.
+**framework-location** defines a portable **no_std** contract for one-shot current-location requests. It contains framework-owned values only and does not itself probe a device, request permission, or create a global service. The B5 [iOS location guide](../ios/location.md) documents the separate Core Location backend.
 
 ## Rust API
 
@@ -41,7 +41,7 @@ Dropping an authorization-request future abandons interest in its result but can
 
 ## Scope and support
 
-This contract covers one fix per request. It does not implement continuous updates, geofencing, visit monitoring, heading, speed, background location, location history, or a native iOS, Android, desktop, or web backend. It makes no claim about prompt presentation, device sensor availability, indoor performance, permission policy beyond the normalized states, fix freshness, time-to-fix, or meeting an accuracy target.
+This portable contract covers one fix per request. It does not implement continuous updates, geofencing, visit monitoring, heading, speed, background location, or location history. The separate iOS backend implements only one-shot current location; neither layer claims prompt presentation, device sensor availability, indoor performance, fix freshness, time-to-fix, or that a requested accuracy target will be met.
 
 Portable checks for this crate:
 

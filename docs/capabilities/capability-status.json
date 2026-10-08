@@ -7,14 +7,14 @@
     "capability_count": 113,
     "portable_contract_implemented_count": 7,
     "portable_contract_partial_count": 3,
-    "partial_implementation_count": 6,
+    "partial_implementation_count": 7,
     "ios_class_counts": {
       "R": 0,
       "M": 0,
-      "B": 10,
+      "B": 11,
       "A": 0,
       "C": 0,
-      "X": 103
+      "X": 102
     }
   },
   "capabilities": [
@@ -1048,27 +1048,35 @@
       "family": "Sensors/connectivity",
       "capability": "location/geofencing/significant-change where supported",
       "crate_module": [
-        "framework-location"
+        "framework-location",
+        "ios-location"
       ],
-      "crate_module_status": "portable_contract_partial",
+      "crate_module_status": "portable_contract_and_ios_backend_partial",
       "portability_class": "portable_with_platform_extensions",
       "portable_contract_status": "partial",
       "portable_contract_note": "framework-location defines one-shot current-location values and a static backend contract; continuous updates, geofencing, significant-change monitoring, and background operations are not covered.",
-      "ios_implementation_class": "X",
-      "implementation_status": "unsupported",
-      "status_reason": "The one-shot portable location contract exists; no iOS Core Location backend or geofencing/significant-change support is claimed.",
-      "minimum_ios_version": null,
-      "required_frameworks": null,
-      "required_permissions": null,
-      "required_info_plist_keys": null,
-      "entitlements": null,
-      "device_only_restrictions": null,
-      "swift_abi_requirement": "not_assessed_for_absent_backend",
-      "metadata_verification": "unverified; null fields do not assert that no requirement exists",
-      "parity_status": "not_tested_no_iOS_implementation",
+      "ios_implementation_class": "B",
+      "implementation_status": "partial",
+      "status_reason": "ios-location implements explicit foreground authorization and a one-shot current-location request; geofencing, significant-change monitoring, continuous/background location, live permission/positioning tests, Apple parity, and performance are not claimed.",
+      "minimum_ios_version": "9.0",
+      "required_frameworks": [
+        "CoreLocation",
+        "Foundation"
+      ],
+      "required_permissions": [
+        "When In Use authorization is explicit and opt-in; Always authorization is not requested"
+      ],
+      "required_info_plist_keys": [
+        "NSLocationWhenInUseUsageDescription"
+      ],
+      "entitlements": [],
+      "device_only_restrictions": [],
+      "swift_abi_requirement": false,
+      "metadata_verification": "Xcode_26.6_iOS_26.5_headers_verify_requestLocation_iOS_9.0_floor; docs/ios/location.md; device/simulator compile and import checks only; no live permission or positioning test; Xcode_27_baseline_not_met",
+      "parity_status": "not_tested_live_permission_or_positioning_or_Apple_parity",
       "performance_status": "not_measured",
-      "native_escape_handle_available": false,
-      "native_escape_handle_note": "No native escape handle is exposed by a capability facade in this row."
+      "native_escape_handle_available": true,
+      "native_escape_handle_note": "IosLocationFuture::native_location_manager exposes the active operation-scoped CLLocationManager while the future is alive."
     },
     {
       "id": "038-sensors-connectivity-motion",
