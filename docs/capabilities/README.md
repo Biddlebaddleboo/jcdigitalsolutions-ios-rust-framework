@@ -27,9 +27,10 @@ HTTP backend; no runtime request or Apple parity test is claimed. D3 adds a part
 notification contract; B4 adds an iOS local-notification backend but not remote push. D4 adds a
 partial portable one-shot location contract; B5 adds an iOS Core Location backend for foreground
 current location only, with no continuous updates, geofencing, significant-change monitoring, or
-background operation. The UIKit slice remains partial:
+background operation. D6 adds a partial portable outgoing-share contract for UTF-8 text and URL
+text; it does not present native share UI. The UIKit slice remains partial:
 a Rust-owned app delegate, one window, basic views, and one target/action callback only.
-The manifest counts seven portable contracts as implemented and four as partial.
+The manifest counts seven portable contracts as implemented and five as partial.
 
 | Family | Rows | iOS class count |
 | --- | ---: | --- |
@@ -66,6 +67,8 @@ limits. The D4 [location guide](location.md) describes the one-shot portable cur
 contract; the B5 [iOS guide](../ios/location.md) documents its Core Location backend and limits.
 The D5 [sharing guide](sharing.md) describes the plain-text clipboard contract; no iOS backend or
 share-sheet API is included.
+The D6 [share guide](share.md) describes outgoing text and URL-text values; no iOS presentation
+backend is included.
 
 The optional foreign-language Keychain surface is documented in the
 [secure-storage C ABI guide](../bindings/secure-storage.md); it does not change the Rust-native

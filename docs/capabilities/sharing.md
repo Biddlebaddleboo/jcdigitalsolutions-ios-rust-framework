@@ -4,6 +4,9 @@
 and clear. It does not access a device, request permission, create a global service, or present share
 UI. A platform guide owns native privacy prompts and UI behavior.
 
+Outgoing system-share values use the separate [share contract guide](share.md); they do not share
+clipboard semantics.
+
 ## Rust API
 
 ~~~rust
