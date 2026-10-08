@@ -1,0 +1,21 @@
+[package]
+name = "ios-sharing"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "Plain-text clipboard backend using public iOS UIKit APIs"
+
+[dependencies]
+framework-core.workspace = true
+framework-sharing = { path = "../../../crates/framework-sharing", version = "0.1.0" }
+ios-runtime = { path = "../ios-runtime" }
+
+[target.'cfg(target_os = "ios")'.dependencies]
+objc2 = { workspace = true, features = ["std"] }
+objc2-foundation = { workspace = true, features = ["NSData", "NSArray", "NSDictionary", "NSString"] }
+objc2-ui-kit = { workspace = true, features = ["UIPasteboard"] }
+
+[lints]
+workspace = true
