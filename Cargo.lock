@@ -211,6 +211,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "ios-notification-responses"
+version = "0.1.0"
+dependencies = [
+ "block2",
+ "framework-notifications",
+ "objc2",
+ "objc2-foundation",
+ "objc2-user-notifications",
+]
+
+[[package]]
 name = "ios-notifications"
 version = "0.1.0"
 dependencies = [
