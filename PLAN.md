@@ -160,6 +160,7 @@ platform/
     ios-preferences/
     ios-secure-storage/
     ios-network/
+    ios-transfer/                       # proposed B13; gated on D10
     ios-notifications/
     ios-location/
     ios-bluetooth/
