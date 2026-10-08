@@ -48,7 +48,9 @@ pub struct ShareRequest {
 impl ShareRequest {
     /// Creates a request with one item, taking ownership of its payload.
     pub fn new(item: ShareItem) -> Self {
-        Self { items: alloc::vec![item] }
+        Self {
+            items: alloc::vec![item],
+        }
     }
 
     /// Appends an item while preserving the request's existing item order.
