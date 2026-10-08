@@ -11,6 +11,10 @@ This workstream does **not** pursue “zero Apple frameworks.”
 Requires A foundation and G parity/benchmark infrastructure.
 Consumes Apple reference implementations from B only in tests/benchmarks.
 
+## Execution decomposition
+
+`PLAN_REPLACEMENTS_HTTP.md` (E1) is an evaluation-only review of foreground HTTP URL/request construction. It may conclude that no Rust replacement is justified; absent parity and representative-device performance evidence, Foundation and URLSession remain the default.
+
 ## Write scope
 
 Candidate pure Rust crates/modules under:
