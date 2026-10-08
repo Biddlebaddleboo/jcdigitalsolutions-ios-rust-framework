@@ -6,15 +6,15 @@
     "capability_family_count": 15,
     "capability_count": 113,
     "portable_contract_implemented_count": 7,
-    "portable_contract_partial_count": 2,
-    "partial_implementation_count": 5,
+    "portable_contract_partial_count": 3,
+    "partial_implementation_count": 6,
     "ios_class_counts": {
       "R": 0,
       "M": 0,
-      "B": 9,
+      "B": 10,
       "A": 0,
       "C": 0,
-      "X": 104
+      "X": 103
     }
   },
   "capabilities": [
@@ -880,27 +880,33 @@
       "family": "Notifications/background",
       "capability": "local/push notification client APIs",
       "crate_module": [
-        "framework-notifications"
+        "framework-notifications",
+        "ios-notifications"
       ],
-      "crate_module_status": "portable_contract_partial",
+      "crate_module_status": "portable_contract_and_ios_backend_partial",
       "portability_class": "portable_with_platform_extensions",
       "portable_contract_status": "partial",
       "portable_contract_note": "framework-notifications defines local notification values and a static backend contract; remote push and response handling are not covered.",
-      "ios_implementation_class": "X",
-      "implementation_status": "unsupported",
-      "status_reason": "The portable local-notification contract exists; no iOS UserNotifications backend or remote-push/response support is claimed.",
-      "minimum_ios_version": null,
-      "required_frameworks": null,
-      "required_permissions": null,
-      "required_info_plist_keys": null,
-      "entitlements": null,
-      "device_only_restrictions": null,
-      "swift_abi_requirement": "not_assessed_for_absent_backend",
-      "metadata_verification": "unverified; null fields do not assert that no requirement exists",
-      "parity_status": "not_tested_no_iOS_implementation",
+      "ios_implementation_class": "B",
+      "implementation_status": "partial",
+      "status_reason": "ios-notifications implements local authorization, one-shot scheduling, and pending-request cancellation through UserNotifications; remote push, response delegates, and live delivery behavior are not claimed.",
+      "minimum_ios_version": "10.0",
+      "required_frameworks": [
+        "UserNotifications",
+        "Foundation"
+      ],
+      "required_permissions": [
+        "UserNotifications alert authorization is opt-in and requested only by an explicit API call"
+      ],
+      "required_info_plist_keys": [],
+      "entitlements": [],
+      "device_only_restrictions": [],
+      "swift_abi_requirement": false,
+      "metadata_verification": "Xcode_26.6_iOS_26.5_headers_verify_iOS_10_API_floor; local_permission_scope_documented_in_docs/ios/notifications.md; no_live_prompt_or_delivery_test; Xcode_27_baseline_not_met",
+      "parity_status": "not_tested_live_permission_or_delivery_or_Apple_parity",
       "performance_status": "not_measured",
-      "native_escape_handle_available": false,
-      "native_escape_handle_note": "No native escape handle is exposed by a capability facade in this row."
+      "native_escape_handle_available": true,
+      "native_escape_handle_note": "IosNotificationsBackend::native_notification_center exposes the shared UNUserNotificationCenter; native changes can race portable cancellation."
     },
     {
       "id": "032-notifications-background-notification-response-delegate",
@@ -1044,13 +1050,13 @@
       "crate_module": [
         "framework-location"
       ],
-      "crate_module_status": "planned_not_present",
+      "crate_module_status": "portable_contract_partial",
       "portability_class": "portable_with_platform_extensions",
-      "portable_contract_status": "not_implemented",
-      "portable_contract_note": "No portable facade for this capability is included in D1.",
+      "portable_contract_status": "partial",
+      "portable_contract_note": "framework-location defines one-shot current-location values and a static backend contract; continuous updates, geofencing, significant-change monitoring, and background operations are not covered.",
       "ios_implementation_class": "X",
       "implementation_status": "unsupported",
-      "status_reason": "No D1 capability facade or supported iOS backend exists for this row; a separate capability workstream must establish a public implementation path.",
+      "status_reason": "The one-shot portable location contract exists; no iOS Core Location backend or geofencing/significant-change support is claimed.",
       "minimum_ios_version": null,
       "required_frameworks": null,
       "required_permissions": null,

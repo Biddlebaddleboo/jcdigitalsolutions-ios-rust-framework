@@ -81,6 +81,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "framework-location"
+version = "0.1.0"
+dependencies = [
+ "framework-core",
+]
+
+[[package]]
 name = "framework-network"
 version = "0.1.0"
 dependencies = [

@@ -1,6 +1,6 @@
 # Local notifications
 
-`framework-notifications` defines a portable, `no_std` + `alloc` contract for owned local-notification content and one-shot scheduling. It has no platform backend in this workstream. The crate does not link `UserNotifications`, request permission, deliver notifications, or implement remote push/APNs/PushKit.
+`framework-notifications` defines a portable, `no_std` + `alloc` contract for owned local-notification content and one-shot scheduling. The D3 crate does not link `UserNotifications` or implement a native backend; B4's iOS adapter is documented in the [iOS local-notifications guide](ios/notifications.md). Neither crate implements remote push/APNs/PushKit.
 
 ## Rust API
 
@@ -39,7 +39,7 @@ Backend futures are executor-neutral and do not require `Send`. Wake behavior an
 
 ## Scope and support
 
-This contract is portable. No iOS, Android, desktop, or web implementation is included here, and no minimum operating-system version or required framework is claimed. There is no runtime delivery guarantee. Push notifications, notification responses/delegates, categories/actions, attachments, repeating/calendar triggers, critical alerts, and badge APIs remain out of scope.
+This contract is portable and contains no iOS, Android, desktop, or web types. The portable crate makes no platform availability claim. The iOS adapter uses `UserNotifications` from iOS 10.0; compile and import evidence does not establish live prompt or delivery behavior. Push notifications, notification responses/delegates, categories/actions, attachments, repeating/calendar triggers, critical alerts, and badge APIs remain out of scope.
 
 ## Costs and validation
 
