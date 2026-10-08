@@ -7,17 +7,21 @@ D1 adds four independently usable `no_std` crates: `framework-app`, `framework-f
 Rust monomorphization selects the implementation at build time. There is no boxed backend, runtime
 lookup, global registry, framework initialization call, or required executor.
 
-These crates define portable contracts only. This work does **not** add an iOS files, preferences,
-or HTTP backend. The generic traits are seams for later backends, not proof that an operation can
-run on iOS today. The current iOS code remains the separate, partial UIKit app example described
-in [the iOS runtime guide](../ios/runtime.md); it is not connected to `framework-app` and does not
-provide a general lifecycle or UI facade.
+These crates define portable contracts only; D1 adds no native backend implementation. The
+integrated workspace has separate `ios-files`, `ios-preferences`, and `ios-network` adapters, as
+recorded in the canonical manifest. Those adapters are not part of these D1 crates, and a portable
+contract alone does not establish iOS runtime support. The `framework-app` lifecycle contract is
+still not connected to the partial UIKit app example described in [the iOS runtime
+guide](../ios/runtime.md); that example does not provide a reusable lifecycle or UI facade.
 
 The complete row-by-row source of truth for all V1 capability families is
-[`capability-status.json`](capability-status.json). It marks every absent implementation `X`, uses
-`null` for unverified platform metadata, and lists the UIKit sample only as partial `B` support.
-Read-only packaged resources use the separate D7 [`resources` contract](resources.md); they are not
-part of D1's writable sandbox-file contract and do not yet have an iOS backend.
+[`capability-status.json`](capability-status.json). It marks unsupported implementations `X` and
+uses `null` for unverified platform metadata. The UIKit sample remains partial `B` support; the
+manifest separately records iOS backends for sandbox files, preferences, and foreground HTTP.
+Read-only packaged resources use the separate D7 [`resources` contract](resources.md), distinct
+from D1's writable sandbox-file contract. The integrated workspace has a separate `ios-resources`
+main-bundle backend for exact ordinary files; its limits are documented in the
+[iOS resources guide](../ios/resources.md).
 
 ## Application lifecycle
 
@@ -142,8 +146,9 @@ required. The operation starts when the facade's future is first polled. The fac
 cookie jar, redirect policy, or background-transfer mode. Dropping its future drops the
 caller-side interest and backend future; whether the OS request is cancelled or detached is a
 backend-specific contract and is not guaranteed here. Backend docs must state completion, callback
-thread, reentrancy, and cancellation behavior. There is no HTTP backend in D1, so no request can be
-sent by these crates alone.
+thread, reentrancy, and cancellation behavior. D1 adds no transport; the integrated workspace's
+separate `ios-network` backend implements `HttpBackend` with Foundation `URLSession`. A request
+needs an explicitly supplied backend and cannot be sent by `framework-network` alone.
 
 ```rust
 use framework_network::{Header, HttpBackend, HttpClient, HttpMethod, HttpRequest, HttpUrl};
@@ -158,8 +163,9 @@ async fn get<B: HttpBackend>(client: &mut HttpClient<B>) {
 ```
 
 `NetworkError` uses stable portable categories and optional backend codes. HTTP status is not
-converted to an error. No Info.plist key, entitlement, permission, minimum iOS version, Apple
-framework linkage, parity result, or performance result is claimed for an absent transport backend.
+converted to an error. D1 makes no platform metadata claims for its generic contract. The canonical
+manifest records verified metadata for the separate `ios-network` backend; no runtime request,
+parity result, or performance result is claimed there.
 
 ## Validation boundary
 
