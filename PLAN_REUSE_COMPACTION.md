@@ -12,6 +12,14 @@ Audit `PLAN.md`, `PLAN_FOUNDATION.md`, `PLAN_SWIFT_ABI.md`, `PLAN_CAPABILITIES.m
 
 The inspected repository contains 397 `PLAN*.md` files. The manifest records 98/114 capability rows as **partial** and 16 as X. Old plan titles, existing crates, and compiler link checks alone cannot establish completion of the original requirements.
 
+## Identifier and presentation policy
+
+- Preserve every already-issued workstream identifier across consolidation, retirement and follow-up. Do not renumber existing P/R/A/B/C/D/F/G workstreams, create a W-series substitute, or reuse gaps. Allocate future IDs monotonically within the appropriate original series after consulting both live files and historical Git/ledger records.
+- Keep capability-manifest IDs unchanged; they are capability identity, not workstream order.
+- A merged plan must provide a self-contained executable contract for every retained workstream ID, without requiring executors to compare old and consolidated versions. Merge by coherent ownership, never by erasing distinct interfaces, invariants, non-goals, evidence boundaries or tests.
+- Keep a durable historical mapping of original ID, former path, surviving authoritative location, reviewed commit, completion status and remaining owner. This mapping is audit data and should not be mandatory Codex reading for routine execution.
+- Rewrite only references to retired **paths** where necessary; preserve ID citations as historical and dependency identities. Validate referential integrity and uniqueness, including historical IDs, before proposing any deletion.
+
 ## Classification
 
 Record each existing plan once, with original path, objective and acceptance criteria, evidence (exact source symbols, tests, CI, verified commit), residual requirements, new owner, reviewed SHA and one status:
