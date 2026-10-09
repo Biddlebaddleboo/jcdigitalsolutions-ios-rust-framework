@@ -64,6 +64,9 @@ mod tests {
         assert_eq!(bits.set(130, true), Err(BitSetError::OutOfRange));
         assert_eq!(bits.set(64, false), Ok(true));
         assert_eq!(bits.count_ones(), 5);
+        bits.clear();
+        assert_eq!(bits.count_ones(), 0);
+        assert_eq!(bits.get(0), Some(false));
     }
 
     #[test]

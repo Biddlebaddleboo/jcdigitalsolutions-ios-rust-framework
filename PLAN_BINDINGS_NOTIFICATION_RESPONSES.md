@@ -1,5 +1,17 @@
 # PLAN_BINDINGS_NOTIFICATION_RESPONSES.md — Workstream F4: Notification-Response C ABI
 
+## Status
+
+F4's opt-in response-value ABI is integrated; audits clarified C alignment, output-slot, and no-alias
+preconditions in the header and guide; the manifest now records those output-slot rules; the
+check script asserts exact response tags, view layout and field descriptions, status mappings,
+ownership text, and header/archive symbol parity; the prior
+`sh bindings/c/check-notification-responses.sh` run passed, including C11/C++17 host consumer links;
+this audit did not rerun that build/link gate after the new manifest assertions; it does not execute
+consumers or run tests; manual F4 ownership audit on 2026-10-09 confirms that manifest facts for
+input spans, output slots, handles, and view lifetime match the source, header, and guide; no
+pointer/lifetime mismatch remains
+
 ## Objective
 
 Expose D9's owned notification-response values through an opt-in, capability-scoped C ABI. Reuse `framework-notifications`; add no delivery or delegate behavior
@@ -90,7 +102,8 @@ The view's `notification_id` is always present. `action_id` is present only for 
 - Do not copy a live handle, destroy an alias, or use a view after destroy
 - Input byte ranges must be readable for the call; output pointers must be aligned, writable, and distinct from live input and handle storage
 - Invalid UTF-8, invalid IDs, malformed pointer/length pairs, unknown tags, invalid unused fields, or null required outputs map to `FRAMEWORK_STATUS_INVALID_ARGUMENT`
-- Fallible string reserve failure maps to `FRAMEWORK_STATUS_RESOURCE_EXHAUSTED`
+- Fallible string reserve failure or a view span length that does not fit in `u64` maps to `FRAMEWORK_STATUS_RESOURCE_EXHAUSTED`
+- A future D9 response kind with no C tag maps to `FRAMEWORK_STATUS_INTERNAL_ERROR`; the view stays all zero
 - C ABI entry points contain Rust panics and return `FRAMEWORK_STATUS_PANIC`; allocator abort policy remains the Rust process policy
 - Destroy has no recoverable error path and never unwinds across C
 
@@ -102,8 +115,9 @@ This slice creates, views, and destroys response values only. It adds no notific
 
 - Check default-feature isolation and the opt-in dependency edge
 - Build the feature-enabled static C library
-- Compile and link generated C11 and C++17 API source files without execution
-- Compare optional C symbols with the ABI manifest
+- Derive C11/C++17 compile-time checks from the manifest for every response tag and view size, alignment, and field offset
+- Check manifest key sets and values for response tags, view fields, status mappings, and ownership records; compare ownership prose manually with the implementation, header, and guide
+- Compare optional C symbols in the header and archive with the ABI manifest
 - Run Rust/C++ formatting, docs index and zero-Swift checks, and `git diff --check`
 - Do not add or run behavioral tests in this slice
 - Report changed paths, commit SHA, non-test checks, exact mappings, ownership, deviations, and limits

@@ -1,5 +1,44 @@
 # PLAN_IOS_NOTIFICATIONS.md — Workstream B4: Local Notification Backend
 
+## Status
+
+B4 status: package-local Release link/import gate passed on 2026-10-09 for device and Simulator after Cargo.lock refresh; the probe executables were not run
+
+B4's UserNotifications backend matches the plan; cancellation reports whether the ID appeared in the asynchronous request snapshot, not an atomic removal result. The guide records this best-effort query/remove behavior and the race with direct native-center changes. The guide records Xcode 26.6 with iPhoneOS SDK 26.5
+
+B4 now also exposes `IosNotificationsBackend::pending_request_count`, an iOS-only future for the
+app's `u64` local-request count at native callback time. It claims no authorization, delivery, or
+readiness; the count may change after the native snapshot and has no ID or content
+
+The pending-count follow-up passed root device and Simulator checks, strict all-target Clippy,
+rustdoc, and the Release link/import gate. The compile-only example selects the new method, but no
+tests, pending-request callback, or linked probe executable ran
+
+This audit pass used Xcode 26.6 (17F113) and iPhoneOS SDK 26.5. These locked device and simulator checks pass
+
+- `cargo +1.94.1 check --locked -p ios-notifications --target aarch64-apple-ios`
+- `cargo +1.94.1 check --locked -p ios-notifications --target aarch64-apple-ios-sim`
+- `cargo +1.94.1 clippy --locked -p ios-notifications --all-targets --target aarch64-apple-ios -- -D warnings`
+- `cargo +1.94.1 clippy --locked -p ios-notifications --all-targets --target aarch64-apple-ios-sim -- -D warnings`
+- `cargo +1.94.1 doc --locked --no-deps -p ios-notifications --target aarch64-apple-ios --document-private-items`
+- `cargo +1.94.1 doc --locked --no-deps -p ios-notifications --target aarch64-apple-ios-sim --document-private-items`
+- `cargo +1.94.1 xtask docs-check`; `cargo +1.94.1 xtask zero-swift-source`; `cargo +1.94.1 fmt --all -- --check`; `git diff --check`
+
+Release cdylib probes for device and simulator were built from a temporary crate under `target/ios-notifications-link-probe`
+- `cargo +1.94.1 build --manifest-path target/ios-notifications-link-probe/Cargo.toml --release --target aarch64-apple-ios`
+- `cargo +1.94.1 build --manifest-path target/ios-notifications-link-probe/Cargo.toml --release --target aarch64-apple-ios-sim`
+
+- `otool -L target/ios-notifications-link-probe/target/aarch64-apple-ios/release/libios_notifications_link_probe.dylib`
+- `otool -L target/ios-notifications-link-probe/target/aarch64-apple-ios-sim/release/libios_notifications_link_probe.dylib`
+- `nm -u target/ios-notifications-link-probe/target/aarch64-apple-ios/release/libios_notifications_link_probe.dylib`
+- `nm -u target/ios-notifications-link-probe/target/aarch64-apple-ios-sim/release/libios_notifications_link_probe.dylib`
+
+The prior manual probe record reports only UserNotifications, Foundation, `libSystem.B.dylib`, and `libobjc.A.dylib` after the cdylib self path. `nm -u` reported 75 undefined symbols per target and no Swift, Python, UIKit, Core Location, APNs, or PushKit match. Those results remain historical evidence; the new package gate is a separate check, and neither probe set ran its binaries
+
+A direct `cargo +1.94.1 rustc --locked -p ios-notifications --target aarch64-apple-ios --release -- --crate-type cdylib` attempt did not form a usable probe because its dependencies were not available in rlib form; the temporary crate dependency produced a valid link probe. The first `sh platform/ios/ios-notifications/check-link-imports.sh` attempt on 2026-10-09 exited 101 before either target build with `error: cannot update the lock file /Users/john/Projects/jcdigitalsolutions-ios-rust-framework/Cargo.lock because --locked was passed to prevent this`. After root refreshed Cargo.lock, the same command passed for `aarch64-apple-ios` and `aarch64-apple-ios-sim`. Both exact import lists were `Foundation`, `UserNotifications`, `libSystem.B.dylib`, and `libobjc.A.dylib`; both `nm -u` denylist scans passed. The linked binaries were inspected but not executed. G5 CI retains the target check and Clippy gates and now runs this import gate on macOS; no passing workflow run is recorded
+
+No tests, live permission prompts, or notification delivery checks were run in this audit. The package gate provides link/import evidence only; its probe binaries were not executed and no runtime behavior is claimed
+
 ## Objective
 
 Implement the D3 local-notification contract with public iOS UserNotifications APIs reached from Rust, without a Swift application/source layer.
@@ -18,9 +57,9 @@ Do not change the portable D3 contract, shared core semantics, other iOS backend
 
 ## Required implementation
 
-- Use `UNUserNotificationCenter` for authorization query/request, one-shot schedule, and pending-request cancellation.
+- Use `UNUserNotificationCenter` for authorization query/request, one-shot schedule, pending-request cancellation, and a local pending-request count snapshot.
 - Map native authorization states to `framework_core::AuthorizationState`; document any information loss for provisional or ephemeral states.
-- Preserve D3 semantics for caller-supplied IDs, same-ID replacement, immediate or absolute Unix-millisecond triggers, future drop/detach, and cancel results.
+- Preserve D3 semantics for caller-supplied IDs, same-ID replacement, immediate or absolute Unix-millisecond triggers, future drop/detach, and boolean cancel results. The iOS cancellation result is based on whether the ID appears in the asynchronous pending-request snapshot; UserNotifications exposes no atomic remove result, so query/remove is best-effort and concurrent native changes can race.
 - Start no permission prompt or scheduling work during backend construction. `request_authorization` may prompt only when polled.
 - Keep native callbacks safe and exactly-once; do not unwind across an Objective-C block boundary.
 - Expose a narrow native notification-center escape hatch under the iOS backend.

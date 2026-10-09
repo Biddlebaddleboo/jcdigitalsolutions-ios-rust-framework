@@ -1,6 +1,6 @@
 # iOS location
 
-`ios-location` implements the portable one-shot `framework-location` contract with public Core Location APIs. It does not start continuous updates or enable background location.
+`ios-location` implements the portable one-shot `framework-location` contract with public Core Location APIs. It does not run continuous updates, track geofence regions or significant-change events, or enable background location. The portable contract defines no region value, transition event, or event lifecycle; authorization status and the one-shot native-manager escape do not add these operations.
 
 ## Create and use the backend
 
@@ -20,13 +20,13 @@ async fn read_location() -> Result<framework_location::LocationFix, framework_lo
 }
 ~~~
 
-`authorization()` queries the current Core Location status without a prompt. Only polling an explicit `request_authorization()` operation can call `requestWhenInUseAuthorization`; it never requests Always access. An already-determined status is returned as-is without another prompt. The application must call the explicit authorization operation in response to a meaningful user action if it wants Core Location's prompt.
+`authorization()` queries the current Core Location status without a prompt. Only polling an explicit `request_authorization()` operation can call `requestWhenInUseAuthorization`; it never requests Always access. The request future completes only after Core Location reports a raw authorization status different from the status sampled before the request. An already-determined status is not returned as an immediate request result; if the call reports no status change, the future can remain pending and callers may drop it. Use `authorization()` to read the current status without waiting for a change. The application must call the explicit authorization operation in response to a meaningful user action if it wants Core Location's prompt.
 
 ## Availability and permission configuration
 
 The operation-scoped `CLLocationManager` and Rust delegate are created lazily on the first future poll. The backend constructor requires `MainThreadMarker`; create, poll, and drop its backend and futures on that same main thread. Core Location delivers delegate callbacks on the run loop of the thread where the manager was created, so the application's main run loop must continue to run. A normal UIKit application owns that run loop. No background mode or background-location setting is enabled.
 
-For a permission prompt, the consuming app must provide a meaningful `NSLocationWhenInUseUsageDescription` string in its `Info.plist` and call the request while the app is in use. Without the key or an active app, Core Location may do nothing and the authorization future can remain pending because no status-change callback is guaranteed. This backend does not require or request `NSLocationAlwaysAndWhenInUseUsageDescription`, Always authorization, temporary full accuracy, or background location. Make one-shot requests while the app is foregrounded; no background mode is enabled.
+For a permission prompt, the consuming app must provide a meaningful `NSLocationWhenInUseUsageDescription` string in its `Info.plist` and call the request while the app is in use. The authorization future completes only after Core Location reports an authorization-status change. If the request yields no status change, the future can remain pending; the app may drop it to abandon the result. Without the key or an active app, Core Location may provide no status-change callback, so the future can remain pending. This backend does not require or request `NSLocationAlwaysAndWhenInUseUsageDescription`, Always authorization, temporary full accuracy, or background location. Make one-shot requests while the app is foregrounded; no background mode is enabled.
 
 The backend reports `Availability::TemporarilyUnavailable` when `+[CLLocationManager locationServicesEnabled]` is false; authorization remains a separate query. The authorization map is: not determined, restricted, denied, authorized Always as `Background`, authorized When In Use as `Foreground`, and unknown raw statuses as `Unknown`.
 
@@ -40,7 +40,7 @@ Core Location errors map `kCLErrorLocationUnknown` and `kCLErrorNetwork` to `Una
 
 ## Cancellation, ownership, and native escape
 
-The mutable backend borrow prevents two simultaneous requests through this backend. Each operation owns its `CLLocationManager` and strongly retains its Rust delegate because Core Location's delegate property is weak. The delegate contains only the operation's exactly-once completion state; native values are copied into framework-owned scalar values before the callback returns. Callback panics are contained and mapped to an internal error.
+The mutable backend borrow prevents two simultaneous requests through this backend. Each operation owns its `CLLocationManager` and strongly retains its Rust delegate because Core Location's delegate property is weak. The delegate contains only the operation's exactly-once completion state; native values are copied into framework-owned scalar values before the callback returns. With an unwinding Rust panic strategy, callback panics are caught and mapped to an internal error; with `panic=abort`, a panic aborts the process.
 
 Dropping a pending current-location future detaches its result and calls `stopUpdatingLocation()` on its operation-scoped manager. Any racing or late delegate completion is discarded. Dropping an authorization future detaches the result but cannot promise to dismiss a prompt already shown; releasing the future releases its delegate, and Core Location's weak delegate reference does not point into freed Rust state. `native_location_manager()` exposes a borrowed manager only after the future starts; direct calls can alter the active operation. It remains valid only while the future is alive.
 
@@ -48,10 +48,10 @@ Dropping a pending current-location future detaches its result and calls `stopUp
 
 The installed Xcode 26.6 / iPhoneOS 26.5 SDK headers mark `requestLocation()` available starting in iOS 9.0; this is the backend's minimum iOS API floor. `requestWhenInUseAuthorization()` is available from iOS 8.0. The backend uses the deprecated class-level `authorizationStatus` query to retain compatibility with iOS versions before the iOS 14 instance property. The old and new authorization delegate callbacks are both implemented.
 
-Pure tests cover authorization, accuracy, fix-value, and native-error conversion. Device and simulator target checks and import inspection establish compile/linkage scope only. They do not exercise live permission UI, physical GPS/Wi-Fi positioning, cached-fix age, timeout behavior, or cancellation races on a running device.
+Pure tests cover authorization, accuracy, fix-value, and native-error conversion. `sh platform/ios/ios-location/check-link-imports.sh` checks both targets' `objc2-core-location` feature trees and links probes for direct-import inspection; target checks and probe import inspection establish compile/linkage scope only. They do not exercise live permission UI, physical GPS/Wi-Fi positioning, cached-fix age, timeout behavior, or cancellation races on a running device.
 
 Apple API references: [`CLLocationManager`](https://developer.apple.com/documentation/corelocation/cllocationmanager), [`requestLocation()`](https://developer.apple.com/documentation/corelocation/cllocationmanager/requestlocation%28%29?language=objc).
 
 ## Binding dependency
 
-The backend uses `objc2-core-location` 0.3.2 with only the `CLLocation`, `CLLocationManager`, and `CLLocationManagerDelegate` feature surface enabled. This supplies the public Objective-C bindings required for a one-shot request; other Core Location services and optional binding dependencies remain disabled. The portable crate exposes none of these dependency types. Conversion and delegate code are isolated under `ios-location`, so a future binding replacement remains local to this backend.
+The backend uses `objc2-core-location` 0.3.2 with only the `CLLocation`, `CLLocationManager`, and `CLLocationManagerDelegate` features enabled. The device and Simulator link/import gate also checks each target's Cargo feature tree for exactly these Core Location binding features. This supplies the public Objective-C bindings required for a one-shot request; other Core Location services remain disabled. The portable crate exposes none of these dependency types. Conversion and delegate code are isolated under `ios-location`, so a future binding replacement remains local to this backend.

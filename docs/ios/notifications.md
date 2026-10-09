@@ -12,7 +12,9 @@ use framework_notifications::{
 use ios_notifications::IosNotificationsBackend;
 use alloc::string::String;
 
-async fn schedule_reminder() -> Result<(), framework_notifications::NotificationError> {
+async fn schedule_reminder(
+    trigger_at_unix_millis: u64,
+) -> Result<(), framework_notifications::NotificationError> {
     let mut notifications = Notifications::new(IosNotificationsBackend::new());
     let state = notifications.authorization().await?;
     if state == framework_core::AuthorizationState::NotDetermined {
@@ -24,7 +26,7 @@ async fn schedule_reminder() -> Result<(), framework_notifications::Notification
             String::from("Reminder"),
             Some(String::from("Review today's notes")),
         ),
-        NotificationTrigger::at_unix_millis(1_700_000_000_000)?,
+        NotificationTrigger::at_unix_millis(trigger_at_unix_millis)?,
     );
     notifications.schedule(request).await
 }
@@ -34,10 +36,9 @@ The app supplies its executor or polls these executor-neutral futures itself. `I
 
 ## Availability and authorization
 
-The `UserNotifications` center, settings, requests, and calendar triggers used here are available
-from iOS 10.0. The installed Xcode 26.5 iPhoneOS SDK headers mark the native classes and methods
-used by this backend as iOS 10.0 APIs. The provisional status was added in iOS 12.0; the ephemeral
-status was added in iOS 14.0.
+`UserNotifications` center, authorization-state query, request, schedule, pending-request count, and
+calendar-trigger APIs in this backend have an iOS 10.0 floor per Xcode 26.6 iPhoneOS SDK 26.5. `UNAuthorizationStatusProvisional`
+has an iOS 12.0 floor; `UNAuthorizationStatusEphemeral` has an iOS 14.0 floor
 
 Native `NotDetermined` and `Denied` map to the matching `framework_core::AuthorizationState`.
 Native `Authorized`, `Provisional`, and `Ephemeral` map to portable `Authorized`; this intentionally
@@ -70,10 +71,19 @@ action, response-delegate, or notification-service-extension behavior.
 - `UNNotificationRequest` uses the exact caller ID. Apple documents that adding a request with the
   same ID replaces its previous pending request, matching D3 replacement behavior.
 - Cancellation fetches the app's pending requests, compares their identifiers, and removes the ID
-  when present. It returns `true` for an ID observed in that query and `false` otherwise. The public
-  remove API has no completion or prior-existence result, so this is a query-then-remove sequence,
-  not an atomic system transaction. Calls made directly through `native_notification_center()` can
-  race that sequence. Cancellation does not remove already delivered notifications.
+  when present. It returns `true` for an ID observed in that query and `false` otherwise; the bool
+  is not confirmation of an atomic removal. The public remove API has no completion or
+  prior-existence result, so this is a best-effort query-then-remove sequence, not an atomic system
+  transaction. Calls made directly through `native_notification_center()` can race that sequence.
+  Cancellation does not remove already delivered notifications.
+
+The iOS-only `IosNotificationsBackend::pending_request_count` future gives a `u64` count of this
+app's local-request queue at native callback time. Apple's [pending-request API](https://developer.apple.com/documentation/usernotifications/unusernotificationcenter/getpendingnotificationrequests%28completionhandler%3A%29)
+docs say an empty array means zero and the callback block may run on a background thread. A native
+add or cancel can alter the queue at once; treat this count as a snapshot, not a stable fact. The
+count has no IDs or content, does not cover a notice once delivery occurs, and proves no
+authorization or readiness. A future drop after first poll ends result interest only; the native
+call still runs to its callback
 
 The iOS system owns its pending-request capacity and delivery policy. A successful `schedule` means
 the native add API completed without an `NSError`, not that the request remains pending, is delivered
@@ -95,7 +105,8 @@ Authorization denial is returned as `AuthorizationState::Denied`, not as an oper
 Native `NSError` values map to `ErrorKind::Platform`; the signed native code is retained when it fits
 `PlatformErrorCode(i32)`. The error domain is not retained because the current portable error type
 has no domain field. A clock before the Unix epoch maps to `Unavailable`. Unsupported future dates
-map to `Unsupported`; unexpected Rust panics map to `Internal`.
+map to `Unsupported`; a native queue count that cannot fit `u64` maps to `ResourceExhausted`;
+unexpected Rust panics map to `Internal`.
 
 ## Dependency and linkage
 
@@ -111,5 +122,21 @@ replacing the binding crate is confined to this backend adapter.
 Release linkage should include the public `UserNotifications` and Foundation frameworks plus the
 Objective-C runtime support required by `objc2`; it must not import UIKit or a Swift runtime. No
 physical-device prompt/delivery or simulator-delivery behavior is claimed by automated checks.
+
+Run `sh platform/ios/ios-notifications/check-link-imports.sh` on macOS for a Release probe on each
+target. The gate checks the exact direct imports `Foundation`, `UserNotifications`,
+`libSystem.B.dylib`, and `libobjc.A.dylib`, then scans undefined symbols for Swift/Python runtime
+and selected unrelated capability imports. It also checks that the compile-only probe retains
+`pending_request_count()`. It does not run the probes or request permission, schedule, cancel, count
+live requests, or deliver a notification
+
+After root refreshed `Cargo.lock` and added the pending-request count future, the updated
+2026-10-09 gate passed for `aarch64-apple-ios` and `aarch64-apple-ios-sim`. Both exact import lists were `Foundation`, `UserNotifications`,
+`libSystem.B.dylib`, and `libobjc.A.dylib`; the `nm -u` denylist passed on both targets. The probe
+binaries were inspected but not executed, so this check makes no runtime claim
+The macOS CI workflow now runs this gate; no passing workflow run is recorded
+
+The first attempt exited 101 before either target build because `--locked` required a shared
+`Cargo.lock` refresh; no probe was built by that attempt
 
 References: [Apple's UserNotifications center](https://developer.apple.com/documentation/usernotifications/unusernotificationcenter), [authorization request guidance](https://developer.apple.com/documentation/usernotifications/asking-permission-to-use-notifications), [authorization status](https://developer.apple.com/documentation/usernotifications/unauthorizationstatus), [absolute calendar triggers](https://developer.apple.com/documentation/usernotifications/uncalendarnotificationtrigger), [request identifier replacement](https://developer.apple.com/documentation/usernotifications/unnotificationrequest/identifier), and [objc2 UserNotifications bindings](https://docs.rs/objc2-user-notifications/0.3.2/objc2_user_notifications/).

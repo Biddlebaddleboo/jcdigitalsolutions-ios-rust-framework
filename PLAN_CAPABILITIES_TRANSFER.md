@@ -1,5 +1,12 @@
 # PLAN_CAPABILITIES_TRANSFER.md — Workstream D10: Durable HTTP Downloads
 
+## Status
+
+D10's portable contract and guide are integrated. A follow-up audit made ID reuse, terminal metadata
+retention, absent-ID behavior, and preservation of error kind/platform code explicit. Locked
+no-default-features check, strict Clippy, formatting, docs, zero-Swift, and diff checks pass. A
+read-only B13 spot-check found no contract mismatch. No tests were added or run.
+
 ## Objective
 
 Add a portable durable HTTP file-download contract for B13. A static backend can retain task state across app relaunch; no executor or global registry is part of the API
@@ -24,7 +31,7 @@ Do not edit B13 or B14 plans, `ios-files`, iOS backends, the shared capability m
 - Add `TransferId(u128)` with nonzero validation; the app assigns each stable ID and retains it across app relaunch
 - Treat an ID with a stored durable record as a conflict; do not replace its task; permit reuse only after terminal `forget`
 - Add GET-only `DownloadRequest` with `TransferId`, HTTP(S) `HttpUrl`, borrowed request `Header` values, and destination `AppPath`
-- Add synchronous `start_download`, `status`, `cancel`, and `forget` methods; `start_download` returns success only after durable task acceptance, not network start
+- Add synchronous `start_download`, `status`, `cancel`, and `forget` methods; `start_download` returns success only after durable task acceptance, not network start. `DuplicateId` leaves the existing task unchanged; any other error means this call accepted no new task record. Outcomes after acceptance are observed through `status`; a retained terminal failure uses `TransferStatus::Failed`
 - Make a query after app relaunch return the last durable state and any retained terminal metadata until `forget`
 - Represent queued, active, succeeded, failed, and cancelled states; success holds HTTP `StatusCode` and owned `ResponseHeader` values
 - Treat HTTP status as result metadata; a non-2xx response remains a completed HTTP response

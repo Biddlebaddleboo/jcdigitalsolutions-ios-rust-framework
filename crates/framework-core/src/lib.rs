@@ -70,6 +70,7 @@ mod tests {
     #[test]
     fn zero_is_reserved_for_identifiers_and_generations() {
         assert_eq!(CapabilityId::new(0), None);
+        assert_eq!(PlatformErrorCode::new(0), None);
         assert_eq!(OperationId::new(0), None);
         assert_eq!(Generation::new(0), None);
         assert_eq!(CompactHandle::from_raw(0), None);

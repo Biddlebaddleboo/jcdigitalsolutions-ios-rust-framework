@@ -78,7 +78,7 @@ The async symbols confirm that the Swift compiler emitted Swift entry symbols. T
 /usr/lib/swift/libswiftCore.dylib
 ```
 
-A temporary C `dlopen`/`dlclose` executable loaded the Swift library without invoking any Swift function. With `DYLD_PRINT_LIBRARIES=1`, the host loader reported one path load each for `/usr/lib/swift/libswiftCore.dylib`, `/usr/lib/swift/libswift_Concurrency.dylib`, and `/usr/lib/libc++.1.dylib`. This records the Swift library's host load closure only; it does not measure a C++ caller's linkage or load behavior. No C++ shim or executable was built because the async functions have no generated C++ entry.
+A temporary C program used `dlopen` and `dlclose` on the Swift library and called no Swift function. With `DYLD_PRINT_LIBRARIES=1`, its host run showed one path load each for `/usr/lib/swift/libswiftCore.dylib`, `/usr/lib/swift/libswift_Concurrency.dylib`, and `/usr/lib/libc++.1.dylib`. This records only the Swift library's host load closure; it does not measure C++ link or load behavior. No C++ shim or async-call binary was built because the async functions had no generated C++ entry
 
 ## Device/simulator and unperformed call-path checks
 

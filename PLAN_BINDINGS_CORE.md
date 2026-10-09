@@ -1,5 +1,15 @@
 # PLAN_BINDINGS_CORE.md — Workstream F1: Core C ABI
 
+## Status
+
+F1's core C ABI, hand-maintained header, ABI manifest, and minimal consumer are integrated. A
+follow-up audit corrected the C++ fixture's function-pointer representation check. ABI 1.0 layout,
+symbol, and header checks pass; `sh bindings/c/check.sh` linked and ran the minimal C consumer. No
+Rust test suite was run and no new test was added. `FrameworkOptionsV1` layout is checked, but no
+public C function takes that record, so no test or promise for larger same-major `struct_size`
+values exists yet. The focused C check now compares every public `FRAMEWORK_STATUS_*` macro value
+with `status_codes` in `bindings/c/abi-manifest.json`
+
 ## Objective
 
 Expose the stable foundational values in `framework-abi` through a small, linkable C library and a hand-maintained C header. This slice covers the ABI version and core value/ownership types only; it does not invent capability APIs before their D contracts are stable.
@@ -33,7 +43,7 @@ Do not edit `crates/framework-abi/**`, capability crates, Swift ABI, iOS backend
 - Compile the header from C11 and C++ translation units; C++ is only a header-compatibility check, not a C++ API.
 - Link and run the C example against the built static library on the host where toolchain support permits.
 - Check known struct size/alignment/offset values against Rust, and compare exported symbols with the header/ABI manifest.
-- Prove a future-sized options struct can be checked by `struct_size`; do not promise forward compatibility for unversioned fields.
+- Record the V1 options layout, but do not claim that a future-size record is accepted: no public C function takes `FrameworkOptionsV1`. Any later function that takes an extensible versioned record must check `struct_size` and `abi_version` before field reads and state if a larger same-major record is valid. Do not promise forward compatibility for unversioned fields
 - Preserve `catch_unwind`/panic-abort constraints: no panic may unwind across an exported C boundary.
 
 If a required host linker or ABI probe fails, report the exact command and error; do not claim the failing check passed or hide the failure with a syntax-only substitute.

@@ -37,7 +37,11 @@ fn valid_relative_path(path: &str) -> bool {
     if path.is_empty() || path.starts_with('/') || path.ends_with('/') {
         return false;
     }
-    if path.bytes().any(|byte| byte == 0 || byte == b'\\') {
+    let bytes = path.as_bytes();
+    if bytes.len() >= 2 && bytes[0].is_ascii_alphabetic() && bytes[1] == b':' {
+        return false;
+    }
+    if bytes.iter().any(|&byte| byte == 0 || byte == b'\\') {
         return false;
     }
     path.split('/')
@@ -48,7 +52,7 @@ fn valid_relative_path(path: &str) -> bool {
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
 #[non_exhaustive]
 pub enum ResourceError {
-    /// The path is empty, absolute, or contains a forbidden segment or character.
+    /// The path is empty, absolute, drive-prefixed, or contains a forbidden segment or character.
     InvalidPath,
     /// Resource bytes were not valid UTF-8 for a string read.
     InvalidUtf8,

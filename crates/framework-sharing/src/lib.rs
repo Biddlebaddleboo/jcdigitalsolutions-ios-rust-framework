@@ -1,7 +1,7 @@
 #![no_std]
 #![forbid(unsafe_code)]
 #![deny(missing_docs)]
-#![doc = "Portable plain-text clipboard values and a static backend contract."]
+#![doc = "Portable clipboard and outgoing-share contracts with statically selected backends."]
 
 extern crate alloc;
 
@@ -50,7 +50,11 @@ impl ClipboardError {
 /// a successful read does not reserve its value and a successful write or clear does not promise
 /// that the value remains unchanged.
 pub trait ClipboardBackend {
-    /// Reports whether plain-text clipboard access is usable in the current context.
+    /// Reports the backend's current view of plain-text clipboard availability.
+    ///
+    /// This is a backend judgment, not a guarantee that a later read, write, or clear will
+    /// succeed. The portable contract does not assign permission or privacy semantics to this
+    /// value.
     fn availability(&self) -> Availability;
 
     /// The future type for a plain-text read.
@@ -101,6 +105,9 @@ impl<B: ClipboardBackend> Clipboard<B> {
     }
 
     /// Reports backend availability without a global lookup or hidden initialization.
+    ///
+    /// The backend's current view does not guarantee that a later clipboard operation will
+    /// succeed.
     pub fn availability(&self) -> Availability {
         self.backend.availability()
     }
@@ -154,6 +161,7 @@ mod tests {
     struct Backend {
         value: Option<String>,
         read_error: Option<ClipboardError>,
+        read_count: Rc<Cell<u32>>,
         write_count: u32,
         clear_count: u32,
         cancel_count: Rc<Cell<u32>>,
@@ -165,6 +173,7 @@ mod tests {
             Self {
                 value: value.map(String::from),
                 read_error: None,
+                read_count: Rc::new(Cell::new(0)),
                 write_count: 0,
                 clear_count: 0,
                 cancel_count: Rc::new(Cell::new(0)),
@@ -185,6 +194,7 @@ mod tests {
         type Output = Option<String>;
 
         fn start(self, backend: &mut Backend) -> Result<Self::Output, ClipboardError> {
+            backend.read_count.set(backend.read_count.get() + 1);
             match backend.read_error {
                 Some(error) => Err(error),
                 None => Ok(backend.value.clone()),
@@ -319,10 +329,12 @@ mod tests {
         let owned = run_pending_once(clipboard.read()).unwrap().unwrap();
         clipboard.backend_mut().value = Some(String::from("changed later"));
         assert_eq!(owned, "plain text 🦀");
+        assert_eq!(clipboard.backend().read_count.get(), 1);
         assert_eq!(clipboard.backend().result_count.get(), 1);
 
         let mut clipboard = Clipboard::new(Backend::new(None));
         assert_eq!(run_pending_once(clipboard.read()), Ok(None));
+        assert_eq!(clipboard.backend().read_count.get(), 1);
 
         let mut backend = Backend::new(None);
         let code = PlatformErrorCode::new(-41).unwrap();
@@ -332,6 +344,7 @@ mod tests {
         backend.read_error = Some(error);
         let mut clipboard = Clipboard::new(backend);
         assert_eq!(run_pending_once(clipboard.read()), Err(error));
+        assert_eq!(clipboard.backend().read_count.get(), 1);
         assert_eq!(error.kind(), ErrorKind::PermissionDenied);
         assert_eq!(error.platform_code(), Some(code));
     }
@@ -352,9 +365,11 @@ mod tests {
     #[test]
     fn dropping_an_unpolled_operation_starts_no_backend_work() {
         let mut clipboard = Clipboard::new(Backend::new(Some("existing")));
+        let read_count = clipboard.backend().read_count.clone();
         drop(clipboard.write("not started"));
         drop(clipboard.read());
         drop(clipboard.clear());
+        assert_eq!(read_count.get(), 0);
         assert_eq!(clipboard.backend().write_count, 0);
         assert_eq!(clipboard.backend().clear_count, 0);
         assert_eq!(clipboard.backend().cancel_count.get(), 0);
@@ -363,15 +378,46 @@ mod tests {
     }
 
     #[test]
-    fn dropping_a_pending_read_cancels_interest_and_suppresses_its_result() {
+    fn read_starts_on_first_poll_and_dropping_pending_read_suppresses_its_result() {
         let mut clipboard = Clipboard::new(Backend::new(Some("late result")));
+        let read_count = clipboard.backend().read_count.clone();
         {
             let mut future = pin!(clipboard.read());
             let mut context = Context::from_waker(Waker::noop());
+            assert_eq!(read_count.get(), 0);
             assert!(future.as_mut().poll(&mut context).is_pending());
+            assert_eq!(read_count.get(), 1);
         }
         assert_eq!(clipboard.backend().cancel_count.get(), 1);
         assert_eq!(clipboard.backend().result_count.get(), 0);
         assert_eq!(clipboard.backend().value.as_deref(), Some("late result"));
+    }
+
+    #[test]
+    fn dropping_a_pending_write_cancels_interest_and_suppresses_its_result() {
+        let mut clipboard = Clipboard::new(Backend::new(Some("before")));
+        {
+            let mut future = pin!(clipboard.write("after"));
+            let mut context = Context::from_waker(Waker::noop());
+            assert!(future.as_mut().poll(&mut context).is_pending());
+        }
+        assert_eq!(clipboard.backend().write_count, 1);
+        assert_eq!(clipboard.backend().value.as_deref(), Some("after"));
+        assert_eq!(clipboard.backend().cancel_count.get(), 1);
+        assert_eq!(clipboard.backend().result_count.get(), 0);
+    }
+
+    #[test]
+    fn dropping_a_pending_clear_cancels_interest_and_suppresses_its_result() {
+        let mut clipboard = Clipboard::new(Backend::new(Some("before")));
+        {
+            let mut future = pin!(clipboard.clear());
+            let mut context = Context::from_waker(Waker::noop());
+            assert!(future.as_mut().poll(&mut context).is_pending());
+        }
+        assert_eq!(clipboard.backend().clear_count, 1);
+        assert_eq!(clipboard.backend().value, None);
+        assert_eq!(clipboard.backend().cancel_count.get(), 1);
+        assert_eq!(clipboard.backend().result_count.get(), 0);
     }
 }

@@ -1,0 +1,11 @@
+[package]
+name = "framework-device-integrity"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "Portable App Attest and DeviceCheck support snapshot"
+
+[lints]
+workspace = true

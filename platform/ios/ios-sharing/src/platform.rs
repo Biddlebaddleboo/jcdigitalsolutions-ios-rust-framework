@@ -84,7 +84,9 @@ impl ClipboardAccess for IosClipboardBackend {
 
 impl ClipboardBackend for IosClipboardBackend {
     fn availability(&self) -> Availability {
-        Availability::Available
+        // UIKit exposes no query for current programmatic-read usability or approval. `Unknown`
+        // does not mean that permission is required.
+        Availability::Unknown
     }
 
     type ReadFuture<'a>

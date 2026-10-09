@@ -18,7 +18,9 @@ use objc2_security::{
     kSecClassGenericPassword, kSecReturnData, kSecValueData,
 };
 
-/// Stateless caller-owned access to generic-password items in the app's default Keychain group.
+/// Stateless caller-owned access to generic-password items in the app's Keychain access groups.
+/// Adds use the default group; searches omit an access-group filter and may match across groups.
+/// Updates and deletes may affect every matching item across those groups.
 #[derive(Clone, Copy, Debug, Default)]
 pub struct IosSecureStorage;
 

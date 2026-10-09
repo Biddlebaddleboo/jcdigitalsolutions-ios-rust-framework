@@ -1,0 +1,26 @@
+[package]
+name = "ios-bluetooth"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "Bluetooth authorization and foreground central discovery for iOS"
+
+[dependencies]
+framework-bluetooth = { path = "../../../crates/framework-bluetooth" }
+
+[target.'cfg(target_os = "ios")'.dependencies]
+objc2 = { workspace = true, features = ["std"] }
+objc2-core-bluetooth = { workspace = true, features = [
+    "CBManager",
+    "CBCentralManager",
+    "CBPeer",
+    "CBPeripheral",
+    "CBUUID",
+    "dispatch2",
+] }
+objc2-foundation = { workspace = true, features = ["NSString", "NSObject", "NSUUID", "NSValue"] }
+
+[lints]
+workspace = true

@@ -1,0 +1,21 @@
+[package]
+name = "ios-sign-in-with-apple-status"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.85"
+license = "MIT OR Apache-2.0"
+repository = "https://github.com/Biddlebaddleboo/jcdigitalsolutions-ios-rust-framework"
+description = "Query one prior Sign in with Apple credential state on iOS"
+
+[dependencies]
+block2 = { version = "=0.6.2", default-features = false, features = ["alloc"] }
+objc2 = { version = "=0.6.5", default-features = false, features = ["std"] }
+objc2-authentication-services = { version = "=0.3.2", default-features = false, features = ["ASAuthorizationAppleIDProvider", "block2"] }
+objc2-foundation = { version = "=0.3.2", default-features = false, features = ["NSError", "NSString"] }
+
+[lints.rust]
+unsafe_op_in_unsafe_fn = "deny"
+unused_must_use = "deny"
+
+[lints.clippy]
+all = "warn"

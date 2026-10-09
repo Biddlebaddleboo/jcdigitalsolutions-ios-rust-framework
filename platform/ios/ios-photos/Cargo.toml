@@ -1,0 +1,21 @@
+[package]
+name = "ios-photos"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "iOS Photos read/write authorization backend"
+
+[dependencies]
+framework-photos = { path = "../../../crates/framework-photos" }
+
+[target.'cfg(target_os = "ios")'.dependencies]
+block2 = { workspace = true, features = ["alloc"] }
+objc2-photos = { version = "=0.3.2", default-features = false, features = [
+    "PHPhotoLibrary",
+    "block2",
+] }
+
+[lints]
+workspace = true

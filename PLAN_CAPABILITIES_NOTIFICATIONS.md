@@ -1,5 +1,14 @@
 # PLAN_CAPABILITIES_NOTIFICATIONS.md — Workstream D3: Local Notification Contract
 
+## Status
+
+D3's portable notification contract and deterministic fake-backend tests are integrated. Tests
+cover IDs, trigger bounds, authorization states, replacement, cancellation, and dropping a started
+schedule future while later completion remains owned by the backend. The command
+`cargo test -p framework-notifications` passed (6 unit tests and 1 doctest); no-default check,
+workspace format and diff checks pass. This does not validate an iOS permission prompt, delivery, response callback,
+or native behavior; those remain B4/B12 scope.
+
 ## Objective
 
 Add a portable Rust contract for local user notifications, with no iOS backend or remote-push claim.
@@ -24,7 +33,7 @@ Do not modify D1-owned crates, the global support manifest, iOS backend crates, 
 - Model authorization state without exposing `UNAuthorizationStatus` or another platform type.
 - Expose a statically selected `NotificationBackend` and a thin client for availability, authorization query/request, schedule, and cancel operations.
 - Use `no_std` plus `alloc` only as required; do not require a global executor or service registry.
-- State future-drop, cancellation, replacement-by-ID, duplicate-ID, and exactly-once completion semantics in rustdoc.
+- State future-drop, cancellation, replacement-by-ID, duplicate-ID, and exactly-once completion semantics in rustdoc. Define the cancellation bool at a backend-documented observation point; do not imply atomic compare-and-remove when a native API separates lookup from removal.
 - Preserve native escape hatches for a later iOS backend without adding Apple types to this portable crate.
 
 ## Explicit non-goals

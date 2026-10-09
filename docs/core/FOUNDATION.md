@@ -2,7 +2,7 @@
 
 ## Scope
 
-Workstream A owns shared semantic primitives and root Cargo policy. The workspace starts with five independently usable crates; no platform implementation or mandatory framework runtime is present.
+Workstream A owns shared semantic primitives and root Cargo policy. The foundation layer has five independently usable crates; later workstreams add platform backends and iOS runtime adapters as separate workspace packages. No mandatory framework runtime is part of this foundation layer
 
 ```text
 framework-alloc ──────► framework-core
@@ -19,23 +19,25 @@ The root workspace uses the `crates/*` member glob so later workstreams can add 
 
 The following measurements use Rust `1.94.1` on the validation host target, macOS x86_64. Sizes are fixed by the listed integer representation; alignment for scalar wrappers follows that scalar's target ABI and is not universally equal to its byte size. `Error` is an internal Rust value and its observed layout is not a C ABI promise.
 
-| Type | Size | Alignment | Representation and domain |
-| --- | ---: | ---: | --- |
-| `Platform` | 1 byte | 1 byte | `repr(u8)`; unknown is `0`, dedicated platforms are `1..=6`, other is `255` |
-| `Capability` | 2 bytes | 2 bytes | `repr(u16)`; V1 known IDs are `1..=16` |
-| `CapabilityId` | 2 bytes | 2 bytes | transparent nonzero `u16`; `0` is invalid, unknown future IDs remain representable |
-| `Availability` | 1 byte | 1 byte | `repr(u8)` semantic availability state |
-| `ErrorKind` | 1 byte | 1 byte | `repr(u8)` portable error category |
-| `PlatformErrorCode` | 4 bytes | 4 bytes | transparent nonzero signed `i32`; `0` means no platform code |
-| `Error` | 8 bytes | 4 bytes | observed Rust layout; not exposed by the C ABI |
-| `PermissionState` | 1 byte | 1 byte | `repr(u8)` normalized permission state |
-| `AuthorizationState` | 1 byte | 1 byte | `repr(u8)` normalized authorization state |
-| `Cancellation` | 1 byte | 1 byte | `repr(u8)` cancellation cause |
-| `OperationId` | 8 bytes | target `u64` alignment (8 bytes on this host) | transparent nonzero `u64`; `0` means no operation |
-| `Generation` | 4 bytes | 4 bytes | transparent nonzero `u32`; `0` is reserved |
-| `CompactHandle` | 8 bytes | target `u64` alignment (8 bytes on this host) | transparent `u64`; low 32 bits are index, high 32 bits are generation |
+| Type | Size | Alignment | Array stride | Representation and domain |
+| --- | ---: | ---: | ---: | --- |
+| `Platform` | 1 byte | 1 byte | 1 byte | `repr(u8)`; unknown is `0`, dedicated platforms are `1..=6`, other is `255` |
+| `Capability` | 2 bytes | 2 bytes | 2 bytes | `repr(u16)`; V1 known IDs are `1..=16` |
+| `CapabilityId` | 2 bytes | 2 bytes | 2 bytes | transparent nonzero `u16`; `0` is invalid, unknown future IDs remain representable |
+| `Availability` | 1 byte | 1 byte | 1 byte | `repr(u8)` semantic availability state |
+| `ErrorKind` | 1 byte | 1 byte | 1 byte | `repr(u8)` portable error category |
+| `PlatformErrorCode` | 4 bytes | 4 bytes | 4 bytes | transparent nonzero signed `i32`; `0` means no platform code |
+| `Error` | 8 bytes | 4 bytes | 8 bytes | observed Rust layout; not exposed by the C ABI |
+| `PermissionState` | 1 byte | 1 byte | 1 byte | `repr(u8)` normalized permission state |
+| `AuthorizationState` | 1 byte | 1 byte | 1 byte | `repr(u8)` normalized authorization state |
+| `Cancellation` | 1 byte | 1 byte | 1 byte | `repr(u8)` cancellation cause |
+| `OperationId` | 8 bytes | target `u64` alignment (8 bytes on this host) | 8 bytes | transparent nonzero `u64`; `0` means no operation |
+| `Generation` | 4 bytes | 4 bytes | 4 bytes | transparent nonzero `u32`; `0` is reserved |
+| `CompactHandle` | 8 bytes | target `u64` alignment (8 bytes on this host) | 8 bytes | transparent `u64`; low 32 bits are index, high 32 bits are generation |
 
 `CompactHandle` has no all-zero valid value because generation zero is invalid. Its full index range is representable, though `GenerationalSlab` reserves `u32::MAX` as its free-list sentinel. A slab therefore supports at most `u32::MAX` slots with valid indices `0..u32::MAX`. Generation advancement wraps from `u32::MAX` to `1`; after `4,294,967,295` advances of one slot, a historical handle can numerically alias again. Applications must not treat generations as permanent globally unique IDs.
+
+Array stride equals `size_of::<T>()` for every row; the `Error` layout remains an observed Rust layout, not a cross-version or C ABI promise
 
 These values use semantic fixed-width fields rather than native pointers or `usize` identifiers. Raw pointers appear only in the C ABI pointer-length and owned-buffer forms. No serialized pointer representation is defined.
 
@@ -49,7 +51,7 @@ Allocator-free, `#![no_std]` semantic types: `Platform`, `Capability`, `Capabili
 
 `#![no_std]` plus `alloc`. `GenerationalSlab<T>` uses contiguous `Vec` slot storage and an intrusive `u32` free list. Empty construction allocates nothing. New slots use generation one; removal advances generation before linking the slot for reuse. `insert` reports capacity/allocation failure while returning the input value. `BitSet` uses fixed-domain contiguous `u64` words; its first bit is the low bit of word zero. It neither resizes nor exposes bit allocation as public framework semantics.
 
-These are small shared mechanisms needed by compact callback/operation identities and dense bounded state. They do not replace `Vec`, `String`, hashing, or general-purpose collections.
+These are reusable tools for compact identities and bounded state; no non-test crate uses them, and no benchmark proves a runtime need. They do not replace `Vec`, `String`, hashing, or general-purpose collections.
 
 ### `framework-async`
 
@@ -82,7 +84,8 @@ cargo test -p framework-alloc
 cargo test -p framework-async
 cargo test -p framework-abi --all-features
 cargo test -p framework-platform
-cargo clippy -p framework-core -p framework-alloc -p framework-async -p framework-abi --all-targets -- -D warnings
+cargo clippy -p framework-core -p framework-alloc -p framework-async -p framework-abi -p framework-platform --all-targets -- -D warnings
+cargo clippy -p framework-abi --all-features --all-targets -- -D warnings
 ```
 
 An optimized codegen smoke check compiled `is_current::<CurrentPlatform>()` through a tiny release probe. On the validation host it returned an immediate constant with no backend lookup or call; this confirms static marker selection only and is not a performance benchmark.

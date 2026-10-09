@@ -26,7 +26,8 @@ pub enum AppDirectory {
 /// A validated slash-separated path relative to one semantic application directory.
 ///
 /// This type is not an absolute host path. It rejects empty, dot, parent, backslash, and NUL
-/// segments, but does not resolve symbolic links or prove a backend's sandbox containment.
+/// segments, along with Windows drive-prefixed paths, but does not resolve symbolic links or prove
+/// a backend's sandbox containment.
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
 pub struct AppPath<'a> {
     directory: AppDirectory,
@@ -58,6 +59,10 @@ impl<'a> AppPath<'a> {
 
 fn valid_relative_path(path: &str) -> bool {
     if path.is_empty() || path.starts_with('/') || path.ends_with('/') {
+        return false;
+    }
+    let bytes = path.as_bytes();
+    if bytes.len() >= 2 && bytes[0].is_ascii_alphabetic() && bytes[1] == b':' {
         return false;
     }
     if path.bytes().any(|byte| byte == 0 || byte == b'\\') {
@@ -200,7 +205,12 @@ pub struct DirectoryEntry {
 }
 
 impl DirectoryEntry {
-    /// Creates an entry from one owned path segment.
+    /// Creates an entry from one owned UTF-8 path segment.
+    ///
+    /// Empty, `.` or `..` names and names containing `/`, `\\`, or NUL are rejected. A backend
+    /// that encounters a filesystem name outside this portable representation must return an
+    /// error with kind `ErrorKind::InvalidInput` from `read_directory` rather than silently omit
+    /// the entry.
     pub fn new(name: String, kind: FileKind) -> Result<Self, FileError> {
         if name.is_empty()
             || name == "."
@@ -227,9 +237,11 @@ impl DirectoryEntry {
 
 /// A compile-time-selected backend for sandbox-scoped file operations.
 ///
-/// Every path is relative to a semantic application directory. A backend must enforce actual
-/// sandbox containment, including its policy for symbolic links. Methods are synchronous and may
-/// block; the facade starts no thread or executor and does not retain borrowed arguments.
+/// Every path is relative to a semantic application directory. A backend must resolve paths
+/// relative to its selected directory while applying a documented symbolic-link policy. It must
+/// state any containment limits caused by concurrent native namespace mutation; this trait and
+/// [`AppPath`] do not prove race-free sandbox containment. Methods are synchronous and may block;
+/// the facade starts no thread or executor and does not retain borrowed arguments.
 pub trait FileBackend {
     /// Reports whether sandbox file access is usable in the current context.
     fn availability(&self) -> Availability;
@@ -256,6 +268,9 @@ pub trait FileBackend {
     fn create_directory(&mut self, path: AppPath<'_>) -> Result<(), FileError>;
 
     /// Reads one directory into owned names; entry order is unspecified.
+    ///
+    /// If an entry name cannot be represented by `DirectoryEntry`, the backend returns an
+    /// error with kind `ErrorKind::InvalidInput` rather than silently omitting that entry.
     fn read_directory(&mut self, path: AppPath<'_>) -> Result<Vec<DirectoryEntry>, FileError>;
 
     /// Removes one file; directory removal is a separate operation.
@@ -264,7 +279,13 @@ pub trait FileBackend {
     /// Removes one empty directory; recursive deletion is not implied.
     fn remove_directory(&mut self, path: AppPath<'_>) -> Result<(), FileError>;
 
-    /// Reports whether a file or directory exists at the path.
+    /// Reports whether any final directory entry exists without following a final symlink.
+    ///
+    /// A present regular file, directory, symlink, or other entry returns `true`. A confirmed
+    /// absent final component returns `false`; errors resolving parent components or inspecting
+    /// the entry remain errors. The backend applies its documented path and symbolic-link policy
+    /// while resolving the parent path and documents any limits caused by concurrent namespace
+    /// mutation.
     fn exists(&mut self, path: AppPath<'_>) -> Result<bool, FileError>;
 }
 
@@ -321,6 +342,9 @@ impl<B: FileBackend> Files<B> {
     }
 
     /// Reads one directory into owned entries; ordering is unspecified.
+    ///
+    /// Returns an error with kind `ErrorKind::InvalidInput` if an entry name cannot be represented
+    /// by `DirectoryEntry`.
     pub fn read_directory(&mut self, path: AppPath<'_>) -> Result<Vec<DirectoryEntry>, FileError> {
         self.backend.read_directory(path)
     }
@@ -335,7 +359,7 @@ impl<B: FileBackend> Files<B> {
         self.backend.remove_directory(path)
     }
 
-    /// Reports whether a file or directory exists.
+    /// Reports whether any final directory entry exists without following a final symlink.
     pub fn exists(&mut self, path: AppPath<'_>) -> Result<bool, FileError> {
         self.backend.exists(path)
     }
@@ -363,7 +387,7 @@ mod tests {
 
     struct Backend {
         bytes: Vec<u8>,
-        last_atomicity: WriteAtomicity,
+        atomicity: WriteAtomicity,
     }
 
     impl FileBackend for Backend {
@@ -381,14 +405,14 @@ mod tests {
             bytes: &[u8],
             options: WriteOptions,
         ) -> Result<WriteOutcome, FileError> {
+            if options.atomicity() == AtomicityRequirement::RequireAtomic
+                && self.atomicity != WriteAtomicity::Atomic
+            {
+                return Err(FileError::Backend(Error::new(ErrorKind::Unsupported)));
+            }
             self.bytes.clear();
             self.bytes.extend_from_slice(bytes);
-            self.last_atomicity = if options.atomicity() == AtomicityRequirement::RequireAtomic {
-                WriteAtomicity::Atomic
-            } else {
-                WriteAtomicity::NotGuaranteed
-            };
-            Ok(WriteOutcome::new(self.last_atomicity))
+            Ok(WriteOutcome::new(self.atomicity))
         }
 
         fn create_directory(&mut self, _path: AppPath<'_>) -> Result<(), FileError> {
@@ -425,6 +449,8 @@ mod tests {
             "notes/..",
             "notes//file",
             "a\\b",
+            "C:/outside",
+            "c:relative",
         ] {
             assert_eq!(
                 AppPath::new(AppDirectory::Documents, path).err(),
@@ -437,7 +463,7 @@ mod tests {
     fn byte_and_utf8_views_have_explicit_owned_read_semantics() {
         let mut files = Files::new(Backend {
             bytes: vec![b'h', b'i'],
-            last_atomicity: WriteAtomicity::NotGuaranteed,
+            atomicity: WriteAtomicity::NotGuaranteed,
         });
         let path = AppPath::new(AppDirectory::Documents, "greeting.txt").unwrap();
         assert_eq!(files.read_string(path), Ok(String::from("hi")));
@@ -452,10 +478,39 @@ mod tests {
     fn malformed_utf8_is_a_stable_semantic_error() {
         let mut files = Files::new(Backend {
             bytes: vec![0xff],
-            last_atomicity: WriteAtomicity::NotGuaranteed,
+            atomicity: WriteAtomicity::NotGuaranteed,
         });
         let path = AppPath::new(AppDirectory::Documents, "invalid.txt").unwrap();
         assert_eq!(files.read_string(path), Err(FileError::InvalidUtf8));
         assert_eq!(FileError::InvalidUtf8.kind(), ErrorKind::InvalidInput);
+    }
+
+    #[test]
+    fn required_atomic_write_fails_before_mutation_when_unavailable() {
+        let mut files = Files::new(Backend {
+            bytes: vec![b'o', b'l', b'd'],
+            atomicity: WriteAtomicity::NotGuaranteed,
+        });
+        let path = AppPath::new(AppDirectory::Documents, "note.txt").unwrap();
+        let options = WriteOptions::new(
+            FileWriteMode::CreateOrReplace,
+            AtomicityRequirement::RequireAtomic,
+        );
+
+        assert_eq!(
+            files.write(path, b"new", options),
+            Err(FileError::Backend(Error::new(ErrorKind::Unsupported)))
+        );
+        assert_eq!(files.read(path), Ok(vec![b'o', b'l', b'd']));
+    }
+
+    #[test]
+    fn directory_entry_names_are_single_relative_segments() {
+        for name in ["", ".", "..", "a/b", "a\\b", "a\0b"] {
+            assert_eq!(
+                DirectoryEntry::new(String::from(name), FileKind::File).err(),
+                Some(FileError::InvalidPath)
+            );
+        }
     }
 }

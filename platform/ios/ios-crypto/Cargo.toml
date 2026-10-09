@@ -1,0 +1,11 @@
+[package]
+name = "ios-crypto"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "B66 iOS-only CommonCrypto SHA-256 wrapper"
+
+[lints]
+workspace = true

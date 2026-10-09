@@ -110,13 +110,17 @@ unsafe fn read(
 ) -> FrameworkStatus {
     // SAFETY: the caller promises a writable optional native-code output when non-null.
     unsafe { initialize_native_code(out_native_os_status) };
+    // SAFETY: each non-null required output is writable per the caller contract.
+    unsafe {
+        if !out_found.is_null() {
+            out_found.write(0);
+        }
+        if !out_secret.is_null() {
+            out_secret.write(FrameworkOwnedBuffer::default());
+        }
+    }
     if out_found.is_null() || out_secret.is_null() {
         return FrameworkStatus::INVALID_ARGUMENT;
-    }
-    // SAFETY: required outputs are writable, distinct, and the buffer does not own a live allocation.
-    unsafe {
-        out_found.write(0);
-        out_secret.write(FrameworkOwnedBuffer::default());
     }
     // SAFETY: the exported function documents valid input pointer and lifetime requirements.
     let (service, item) = match unsafe { identifiers(service, item) } {
@@ -154,14 +158,17 @@ unsafe fn read(
     }
 }
 
-/// Reads one Keychain item. The operation is synchronous and may block.
+/// Reads one matching Keychain item; the unfiltered query searches all app groups.
+/// The operation is synchronous and may block.
 ///
 /// # Safety
 /// Non-empty input spans must point to readable memory valid for the duration of the call. The
-/// required output pointers must be writable and distinct. `out_secret` must not contain a live
-/// framework-owned allocation; it is initialized to empty on entry. A non-null native-code output
-/// must be writable and must not alias another output. The function catches Rust panics, but it
-/// cannot validate arbitrary invalid C addresses or pointer provenance.
+/// required output pointers may be null; each non-null pointer must be writable and distinct. A
+/// missing required pointer returns `INVALID_ARGUMENT` after the other non-null required output is
+/// initialized. A non-null `out_secret` must not contain a live framework-owned allocation; it is
+/// initialized to empty on entry. A non-null native-code output must be writable and must not alias
+/// another output. The function catches Rust panics, but it cannot validate arbitrary invalid C
+/// addresses or pointer provenance.
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn framework_ios_secure_storage_read(
     service: FrameworkStr,
@@ -231,8 +238,8 @@ unsafe fn store(
     }
 }
 
-/// Stores opaque bytes in the app's default Keychain group and reports the effective policy.
-/// The operation is synchronous and may block.
+/// Stores opaque bytes using a default-group add or an unfiltered update across app groups, then
+/// reports the effective policy. The operation is synchronous and may block.
 ///
 /// # Safety
 /// Non-empty input spans must point to readable memory valid for the duration of the call. The
@@ -306,7 +313,7 @@ unsafe fn remove(
     }
 }
 
-/// Removes one item from the app's default Keychain group and reports whether it existed.
+/// Removes all matching items across app groups and reports whether any existed.
 /// The operation is synchronous and may block.
 ///
 /// # Safety
@@ -387,6 +394,37 @@ mod tests {
         // SAFETY: `output` is a writable native-code slot for this unit test.
         unsafe { write_native_code(&mut output, platform) };
         assert_eq!(output, -25300);
+    }
+
+    #[test]
+    fn every_known_error_kind_maps_to_its_stable_status() {
+        let cases = [
+            (ErrorKind::Unknown, FrameworkStatus::INTERNAL_ERROR),
+            (ErrorKind::InvalidInput, FrameworkStatus::INVALID_ARGUMENT),
+            (ErrorKind::Unsupported, FrameworkStatus::UNSUPPORTED),
+            (ErrorKind::Unavailable, FrameworkStatus::UNAVAILABLE),
+            (
+                ErrorKind::PermissionDenied,
+                FrameworkStatus::PERMISSION_DENIED,
+            ),
+            (ErrorKind::Cancelled, FrameworkStatus::CANCELLED),
+            (ErrorKind::Timeout, FrameworkStatus::TIMEOUT),
+            (ErrorKind::NotFound, FrameworkStatus::NOT_FOUND),
+            (ErrorKind::AlreadyExists, FrameworkStatus::ALREADY_EXISTS),
+            (
+                ErrorKind::ResourceExhausted,
+                FrameworkStatus::RESOURCE_EXHAUSTED,
+            ),
+            (ErrorKind::Platform, FrameworkStatus::PLATFORM_ERROR),
+            (ErrorKind::Internal, FrameworkStatus::INTERNAL_ERROR),
+        ];
+
+        for (kind, expected) in cases {
+            assert_eq!(
+                status_from_error(SecureStorageError::Backend(Error::new(kind))),
+                expected
+            );
+        }
     }
 
     #[test]
@@ -501,6 +539,90 @@ mod tests {
         };
         assert_eq!(status, FrameworkStatus::INVALID_ARGUMENT);
         assert_eq!(effective, 0);
+        assert_eq!(native, 0);
+    }
+
+    #[cfg(not(target_os = "ios"))]
+    #[test]
+    fn host_stubs_initialize_available_outputs_before_validation_errors() {
+        let service = FrameworkStr::from_utf8("service").unwrap();
+        let item = FrameworkStr::from_utf8("item").unwrap();
+        let empty = FrameworkStr::from_utf8("").unwrap();
+        let secret = FrameworkSlice::from_bytes(&[]).unwrap();
+        let mut native = -99;
+        let mut output = FrameworkOwnedBuffer::default();
+
+        // SAFETY: each non-null output points to a writable local slot.
+        let status = unsafe {
+            framework_ios_secure_storage_read(
+                service,
+                item,
+                ptr::null_mut(),
+                &mut output,
+                &mut native,
+            )
+        };
+        assert_eq!(status, FrameworkStatus::INVALID_ARGUMENT);
+        assert_eq!(output.length(), 0);
+        assert!(output.data().is_null());
+        assert_eq!(native, 0);
+
+        let mut found = 7;
+        native = -99;
+        // SAFETY: each non-null output points to a writable local slot.
+        let status = unsafe {
+            framework_ios_secure_storage_read(
+                service,
+                item,
+                &mut found,
+                ptr::null_mut(),
+                &mut native,
+            )
+        };
+        assert_eq!(status, FrameworkStatus::INVALID_ARGUMENT);
+        assert_eq!(found, 0);
+        assert_eq!(native, 0);
+
+        native = -99;
+        // SAFETY: the optional native-code output points to a writable local slot.
+        let status = unsafe {
+            framework_ios_secure_storage_store(
+                service,
+                item,
+                secret,
+                0,
+                ptr::null_mut(),
+                &mut native,
+            )
+        };
+        assert_eq!(status, FrameworkStatus::INVALID_ARGUMENT);
+        assert_eq!(native, 0);
+
+        let mut effective = 99;
+        native = -99;
+        // SAFETY: each non-null output points to a writable local slot; empty IDs are rejected.
+        let status = unsafe {
+            framework_ios_secure_storage_store(empty, item, secret, 0, &mut effective, &mut native)
+        };
+        assert_eq!(status, FrameworkStatus::INVALID_ARGUMENT);
+        assert_eq!(effective, 0);
+        assert_eq!(native, 0);
+
+        native = -99;
+        // SAFETY: the optional native-code output points to a writable local slot.
+        let status = unsafe {
+            framework_ios_secure_storage_remove(service, item, ptr::null_mut(), &mut native)
+        };
+        assert_eq!(status, FrameworkStatus::INVALID_ARGUMENT);
+        assert_eq!(native, 0);
+
+        let mut removed = 7;
+        native = -99;
+        // SAFETY: each non-null output points to a writable local slot; empty IDs are rejected.
+        let status =
+            unsafe { framework_ios_secure_storage_remove(empty, item, &mut removed, &mut native) };
+        assert_eq!(status, FrameworkStatus::INVALID_ARGUMENT);
+        assert_eq!(removed, 0);
         assert_eq!(native, 0);
     }
 }

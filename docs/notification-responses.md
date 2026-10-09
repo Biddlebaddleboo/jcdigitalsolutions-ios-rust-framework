@@ -1,6 +1,6 @@
 # Notification response values
 
-`framework_notifications::response` holds owned values for the kind and data of a local-notification interaction. It does not deliver or observe responses. Native delivery and callback behavior remain a separate B12 workstream.
+`framework_notifications::response` holds owned values for the kind and data of a local-notification interaction. It does not deliver or observe responses. B12 adds a separate opt-in [iOS response bridge](ios/notification-responses.md) that maps valid local responses to these values.
 
 ## Rust API
 

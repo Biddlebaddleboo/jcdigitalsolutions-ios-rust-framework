@@ -27,8 +27,9 @@ typedef struct FrameworkNotificationResponseViewV1 {
 /* Input spans must name valid UTF-8 and stay fixed through this call. Zero-length spans use
  * {NULL, 0}; notification/action IDs must be non-empty and contain no NUL byte. Text input may be
  * empty and may contain NUL bytes. Unused fields must be exactly {NULL, 0}. The call copies input
- * bytes before return. out_response must name storage with write access, distinct from inputs, and not hold a live
- * handle on entry; it is set to NULL before input checks */
+ * bytes before return. out_response must point to storage with the C type's alignment and permit
+ * writes; it must be distinct from input spans and must not hold a live handle on entry. The call
+ * sets it to NULL before input checks */
 FrameworkStatus framework_notification_response_create(
     FrameworkStr notification_id,
     FrameworkNotificationResponseKind kind,
@@ -36,16 +37,17 @@ FrameworkStatus framework_notification_response_create(
     FrameworkStr user_text,
     FrameworkNotificationResponse **out_response);
 
-/* out_view must name storage with write access, distinct from response; it is set to zero before work
- * View spans borrow from response and stay valid only while the response stays alive. Do not race
- * get_view with destroy. Absent fields
- * use {NULL, 0}; kind marks empty text input */
+/* out_view must point to storage with the C type's alignment and permit writes; it must be distinct
+ * from response. It is set to zero before work. View spans borrow from response and stay valid only
+ * while the response stays alive. Do not race get_view with destroy. Absent fields use {NULL, 0};
+ * kind marks empty text input */
 FrameworkStatus framework_notification_response_get_view(
     const FrameworkNotificationResponse *response,
     FrameworkNotificationResponseViewV1 *out_view);
 
-/* NULL is a no-op. For a live original handle, this clears its original slot before drop. Do not
- * race with get_view, copy the handle, destroy an alias, or use a view once this call returns */
+/* NULL is a no-op. A non-NULL response slot must meet the C pointer type's alignment and permit
+ * writes. For a live original handle, this clears its original slot before drop. Do not race with
+ * get_view, copy the handle, destroy an alias, or use a view once this call returns */
 void framework_notification_response_destroy(FrameworkNotificationResponse **response);
 
 #ifdef __cplusplus

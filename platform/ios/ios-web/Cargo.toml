@@ -1,0 +1,24 @@
+[package]
+name = "ios-web"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "Bounded HTTPS WKWebView adapter for framework-web"
+
+[dependencies]
+framework-core = { workspace = true }
+framework-web = { path = "../../../crates/framework-web", version = "0.1.0" }
+
+[target.'cfg(target_os = "ios")'.dependencies]
+block2 = { workspace = true, features = ["alloc"] }
+ios-runtime = { path = "../ios-runtime" }
+objc2 = { workspace = true, features = ["std"] }
+objc2-core-foundation = { workspace = true, features = ["objc2"] }
+objc2-foundation = { workspace = true, features = ["NSString", "NSURL", "NSURLRequest", "NSURLResponse"] }
+objc2-ui-kit = { workspace = true, features = ["UIResponder", "UIView", "objc2-core-foundation"] }
+objc2-web-kit = { workspace = true, features = ["WKFrameInfo", "WKNavigation", "WKNavigationAction", "WKNavigationResponse", "WKWebViewConfiguration"] }
+
+[lints]
+workspace = true

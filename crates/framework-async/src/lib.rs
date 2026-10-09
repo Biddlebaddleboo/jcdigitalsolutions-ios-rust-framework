@@ -61,6 +61,53 @@ mod tests {
     }
 
     #[test]
+    fn rejects_invalid_transitions_and_publishes_failure_once() {
+        let state = OperationState::<(), u8>::new();
+        assert_eq!(state.phase(), OperationPhase::Created);
+        assert!(!state.complete(Err(1)));
+
+        let mut future = state.future().unwrap();
+        let mut cx = context(Waker::noop());
+        assert!(matches!(Pin::new(&mut future).poll(&mut cx), Poll::Pending));
+
+        assert!(state.start());
+        assert!(!state.start());
+        assert!(state.complete(Err(7)));
+        assert!(!state.complete(Err(8)));
+        assert!(!state.cancellation_source().cancel(Cancellation::Caller));
+        assert_eq!(state.phase(), OperationPhase::Completed);
+        assert!(matches!(
+            Pin::new(&mut future).poll(&mut cx),
+            Poll::Ready(Completion::Failure(7))
+        ));
+        drop(future);
+        assert_eq!(state.future().err(), Some(FutureAlreadyTaken));
+    }
+
+    #[test]
+    fn cancellation_from_running_rejects_later_completion() {
+        let state = OperationState::<(), ()>::new();
+        let source = state.cancellation_source();
+        let token = source.token();
+        assert!(!token.is_cancelled());
+        assert_eq!(token.reason(), None);
+        assert!(state.start());
+        assert!(source.cancel(Cancellation::Timeout));
+        assert!(!source.cancel(Cancellation::Caller));
+        assert!(!state.complete(Ok(())));
+        assert_eq!(state.phase(), OperationPhase::Cancelled);
+        assert!(token.is_cancelled());
+        assert_eq!(token.reason(), Some(Cancellation::Timeout));
+
+        let mut future = state.future().unwrap();
+        let mut cx = context(Waker::noop());
+        assert!(matches!(
+            Pin::new(&mut future).poll(&mut cx),
+            Poll::Ready(Completion::Cancelled(Cancellation::Timeout))
+        ));
+    }
+
+    #[test]
     fn cancellation_before_start_is_terminal_and_carries_its_reason() {
         let state = OperationState::<(), ()>::new();
         let source = state.cancellation_source();

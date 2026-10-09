@@ -13,12 +13,25 @@ extern "C" {
 
 /*
  * These declarations are opt-in through the framework-c-api Cargo feature
- * `secure-storage`. On iOS they use the app's default Keychain group. On other
- * targets the same symbols validate arguments and return FRAMEWORK_STATUS_UNSUPPORTED.
+ * `secure-storage`. On iOS, SecItemAdd without kSecAttrAccessGroup writes to the
+ * app's default Keychain group. Read/update/remove queries omit that filter and
+ * search all groups available to the app; update and remove may affect all matches.
+ * This ABI exposes no group selector. On other targets the same symbols validate
+ * arguments and return FRAMEWORK_STATUS_UNSUPPORTED.
  *
  * Inputs are borrowed for the synchronous call. Each non-empty pointer/length span
  * must reference readable memory; FrameworkStr bytes must be UTF-8. Output pointers
- * must be writable and must not alias. A non-null native OSStatus output is optional.
+ * must be writable and must not alias. Required output pointers may be null; each non-null
+ * pointer gets its default value before input checks. If a read output is null, the other
+ * non-null read output gets its default before FRAMEWORK_STATUS_INVALID_ARGUMENT. Read
+ * uses out_found = 0 and an empty out_secret; store and remove use 0. On success, read
+ * sets out_found to 1 for a present item, even when the secret is empty. out_secret must
+ * not hold a live buffer on entry; pass each returned buffer to
+ * framework_owned_buffer_destroy exactly once. Store leaves out_effective_policy_flags at
+ * 0 on error. Remove leaves out_removed at 0 unless one or more matches existed and were
+ * removed. A non-null native OSStatus output is optional; it is 0 before input checks and
+ * for non-platform errors. A platform error returns FRAMEWORK_STATUS_PLATFORM_ERROR and
+ * its exact nonzero OSStatus.
  */
 FrameworkStatus framework_ios_secure_storage_read(
     FrameworkStr service,

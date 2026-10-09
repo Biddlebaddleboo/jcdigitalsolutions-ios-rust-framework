@@ -75,7 +75,7 @@ impl ShareRequest {
 pub enum ShareOutcome {
     /// The system-share operation reported completion; this does not prove recipient delivery.
     Completed,
-    /// The user dismissed or cancelled the system-share operation.
+    /// The backend reported that the operation was dismissed or cancelled without completion.
     Dismissed,
 }
 
@@ -111,7 +111,10 @@ impl ShareError {
 /// must detach callback state safely, ignore any late result, and arrange exactly one terminal
 /// completion while the future remains attached. No executor or `Send` requirement is imposed.
 pub trait ShareBackend {
-    /// Reports whether sharing is usable in the current backend context without presenting UI.
+    /// Reports the backend's current view of sharing availability without presenting UI.
+    ///
+    /// The result may be [`Availability::Unknown`] and does not guarantee that a particular
+    /// request can be presented or completed.
     fn availability(&self) -> Availability;
 
     /// The future type for a system-share operation.

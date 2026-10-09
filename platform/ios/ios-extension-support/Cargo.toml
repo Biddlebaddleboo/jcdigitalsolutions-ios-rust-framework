@@ -1,0 +1,15 @@
+[package]
+name = "ios-extension-support"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "Read one caller-supplied iOS app-extension bundle point identifier"
+
+[target.'cfg(target_os = "ios")'.dependencies]
+objc2 = { workspace = true }
+objc2-foundation = { workspace = true, features = ["alloc", "NSBundle", "NSDictionary", "NSString", "NSURL"] }
+
+[lints]
+workspace = true

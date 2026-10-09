@@ -1,0 +1,20 @@
+[package]
+name = "ios-nearby"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "Non-prompting Nearby Interaction device-capability query for iOS"
+
+[dependencies]
+framework-nearby = { path = "../../../crates/framework-nearby" }
+
+[target.'cfg(target_os = "ios")'.dependencies]
+objc2-nearby-interaction = { workspace = true, features = [
+    "NISession",
+    "NIDeviceCapability",
+] }
+
+[lints]
+workspace = true

@@ -1,5 +1,12 @@
 # PLAN_CAPABILITIES_RESOURCES.md — Workstream D7: Packaged Resources Contract
 
+## Status
+
+D7 is integrated as `framework-resources`. A follow-up audit corrected path validation to reject
+Windows drive-prefixed paths and expanded the guide's public API inventory. No tests were added or
+run. The portable no-default-features check, strict Clippy, workspace formatting, docs check, and
+diff check pass. No unresolved D7 assumptions were found.
+
 ## Objective
 
 Add a small portable, read-only contract for looking up resources packaged with an application. Keep packaged resources distinct from writable sandbox files and avoid claiming support for asset catalogs, localization policy, or resource discovery beyond exact relative paths.

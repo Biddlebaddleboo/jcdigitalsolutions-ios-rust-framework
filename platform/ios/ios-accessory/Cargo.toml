@@ -1,0 +1,17 @@
+[package]
+name = "ios-accessory"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "Status-only connected external-accessory snapshot for iOS"
+
+[dependencies]
+framework-accessory = { path = "../../../crates/framework-accessory" }
+
+[target.'cfg(target_os = "ios")'.dependencies]
+objc2-external-accessory = { workspace = true, features = ["EAAccessory", "EAAccessoryManager"] }
+
+[lints]
+workspace = true

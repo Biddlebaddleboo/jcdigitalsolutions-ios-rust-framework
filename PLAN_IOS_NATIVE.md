@@ -1,5 +1,16 @@
 # PLAN_IOS_NATIVE.md — Workstream B: iOS Native Runtime and Backends
 
+## Status
+
+The minimal Rust-owned UIKit app builds for the arm64 device and simulator targets, and the
+unsigned Xcode archive gate passes on Xcode 26.6 / SDK 26.5, below the Xcode 27.x plan baseline.
+An added x86_64 simulator bundle launched on iOS 18.0 and showed the adaptive-color label/button
+in light and dark appearance. A launch-argument smoke also sent `UIControlEvents::TouchUpInside`
+through `UIControl::sendActionsForControlEvents`; the Rust callback changed the label to
+`Rust callback: 1 tap(s)`. This is supplemental x86_64 evidence of programmatic target/action
+dispatch only: it does not verify arm64 runtime or a user touch. Capability backends retain their
+own subplan status and limits.
+
 ## Objective
 
 Implement the native iOS runtime substrate and capability-scoped Apple C/CoreFoundation/Objective-C backends entirely from Rust/C/Objective-C ABI tooling, with no Swift application/source layer.
@@ -10,7 +21,8 @@ Requires integrated `PLAN_FOUNDATION.md`.
 
 ## Execution decomposition
 
-The native backend matrix is too broad for one executor. B1 is `PLAN_IOS_APP_DATA.md`: it implements the iOS files and preferences backends only after their D1 portable contracts are integrated. B2 is `PLAN_IOS_SECURE_STORAGE.md`: it implements the Keychain backend after D2. B3 is `PLAN_IOS_NETWORK.md`: it implements foreground HTTP after D1. B4 is `PLAN_IOS_NOTIFICATIONS.md`: it implements the local-notification backend after D3. B5 is `PLAN_IOS_LOCATION.md`: it implements one-shot current location after D4. B6 is `PLAN_IOS_CLIPBOARD.md`: it implements the UIKit general-pasteboard backend after D5. B7 is `PLAN_IOS_SHARE.md`: it implements the UIKit outgoing-share backend after D6. B8 is [PLAN_IOS_ACCESSIBILITY.md](PLAN_IOS_ACCESSIBILITY.md): it adds bounded accessibility metadata setters for caller-owned UIKit views. B9 is [PLAN_IOS_PRESENTATION.md](PLAN_IOS_PRESENTATION.md): it adds a bounded one-action UIKit acknowledgement alert for a caller-owned presenter. B10 is [PLAN_IOS_RESOURCES.md](PLAN_IOS_RESOURCES.md): it reads ordinary packaged files from the main application bundle after D7. B11 is [PLAN_IOS_BROWSER.md](PLAN_IOS_BROWSER.md): it adds a bounded external HTTPS URL-handler request using `UIApplication.open(_:options:completionHandler:)`. B12 is [PLAN_IOS_NOTIFICATION_RESPONSES.md](PLAN_IOS_NOTIFICATION_RESPONSES.md): it adds an opt-in bridge from native response data to D9 values. B13 is [PLAN_IOS_BACKGROUND_TRANSFER.md](PLAN_IOS_BACKGROUND_TRANSFER.md): proposal only; it would add URLSession background file downloads after D10 defines a portable durable-transfer contract and B14's secure `ios-files` temp-file adoption is complete. B14 is [PLAN_IOS_FILE_ADOPTION.md](PLAN_IOS_FILE_ADOPTION.md): it adds that narrow `ios-files` operation; B1 owns all of `platform/ios/ios-files/**`. Unlisted capability backend families need separate named subplans and must not overlap these owned paths.
+The native backend matrix is too broad for one executor. B1 is `PLAN_IOS_APP_DATA.md`: it implements the iOS files and preferences backends only after their D1 portable contracts are integrated. B2 is `PLAN_IOS_SECURE_STORAGE.md`: it implements the Keychain backend after D2. B3 is `PLAN_IOS_NETWORK.md`: it implements foreground HTTP after D1. B4 is `PLAN_IOS_NOTIFICATIONS.md`: it implements the local-notification backend after D3. B5 is `PLAN_IOS_LOCATION.md`: it implements one-shot current location after D4. B6 is `PLAN_IOS_CLIPBOARD.md`: it implements the UIKit general-pasteboard backend after D5. B7 is `PLAN_IOS_SHARE.md`: it implements the UIKit outgoing-share backend after D6, including the retained callback session required by F7. B8 is [PLAN_IOS_ACCESSIBILITY.md](PLAN_IOS_ACCESSIBILITY.md): it adds bounded accessibility metadata setters for caller-owned UIKit views. B9 is [PLAN_IOS_PRESENTATION.md](PLAN_IOS_PRESENTATION.md): it adds a bounded one-action UIKit acknowledgement alert for a caller-owned presenter. B10 is [PLAN_IOS_RESOURCES.md](PLAN_IOS_RESOURCES.md): it reads ordinary packaged files from the main application bundle after D7. B11 is [PLAN_IOS_BROWSER.md](PLAN_IOS_BROWSER.md): it adds a bounded external HTTPS URL-handler request using `UIApplication.open(_:options:completionHandler:)`. B12 is [PLAN_IOS_NOTIFICATION_RESPONSES.md](PLAN_IOS_NOTIFICATION_RESPONSES.md): it adds an opt-in bridge from native response data to D9 values. B13 is [PLAN_IOS_BACKGROUND_TRANSFER.md](PLAN_IOS_BACKGROUND_TRANSFER.md): it implements Foundation URLSession background downloads after D10 and B14 are integrated. B14 is [PLAN_IOS_FILE_ADOPTION.md](PLAN_IOS_FILE_ADOPTION.md): it adds that narrow `ios-files` operation. B1 owns the D1 sandbox implementation; B14 and B17 are additive named extensions in `ios-files`, with root reconciling shared crate exports and indexes. B15 is [PLAN_IOS_MOTION.md](PLAN_IOS_MOTION.md): it implements the one-shot raw accelerometer backend after D11. B16 is [PLAN_IOS_AUTHENTICATION.md](PLAN_IOS_AUTHENTICATION.md): it implements one-shot local authentication after D12 with public LocalAuthentication APIs. B17 is [PLAN_IOS_FILE_COORDINATION.md](PLAN_IOS_FILE_COORDINATION.md): it adds synchronous caller-owned file URL read/write coordination; it does not change the sandbox `Files` contract. B18 is [PLAN_IOS_CONNECTIVITY.md](PLAN_IOS_CONNECTIVITY.md): it implements a one-shot informational network path snapshot after D15; it does not preflight or gate D1/B3 requests. B24 is [PLAN_IOS_CONNECTION.md](PLAN_IOS_CONNECTION.md): it implements outbound TLS-over-TCP streams for D19 through Network.framework C APIs; listeners and UDP are excluded. B25 is [PLAN_IOS_BACKGROUND_TASKS.md](PLAN_IOS_BACKGROUND_TASKS.md): it implements one BGAppRefreshTask path for D20; BGProcessingTask and UIKit background execution remain excluded. B26 is [PLAN_IOS_IMAGE_METADATA.md](PLAN_IOS_IMAGE_METADATA.md): it implements source count and image-zero encoded dimensions through ImageIO only. B27 is [PLAN_IOS_PHOTOS.md](PLAN_IOS_PHOTOS.md): it implements read/write authorization status and request through PhotoKit only. B28 is [PLAN_IOS_BACKGROUND_EXECUTION.md](PLAN_IOS_BACKGROUND_EXECUTION.md): it implements one UIKit background-execution lease with cooperative expiry and explicit end; app extensions are unsupported. B29 is [PLAN_IOS_CONTACTS.md](PLAN_IOS_CONTACTS.md): it implements Contacts authorization status and request only through the public Contacts framework. B30 is [PLAN_IOS_CALENDAR.md](PLAN_IOS_CALENDAR.md): it implements EventKit Calendar event-authorization status and explicit full-access request for iOS 17.0+. B31 is [PLAN_IOS_HEALTH_AUTHORIZATION.md](PLAN_IOS_HEALTH_AUTHORIZATION.md): it implements availability and explicit type-scoped read/share authorization only, without grant inference or health-data access. B32 is [PLAN_IOS_BLUETOOTH.md](PLAN_IOS_BLUETOOTH.md): it reads `CBManager.authorization` without manager creation or a prompt. B33 is [PLAN_IOS_WEB.md](PLAN_IOS_WEB.md), a bounded typed `WKWebView` HTTPS/navigation adapter with no browser-parity claim. B34 is [PLAN_IOS_BLUETOOTH_DISCOVERY.md](PLAN_IOS_BLUETOOTH_DISCOVERY.md), an explicitly requested unfiltered foreground central scan with copied peer UUID/RSSI values and a fixed event queue; it does not connect or expose peripherals. B35 is [PLAN_IOS_ICLOUD_DRIVE_IDENTITY.md](PLAN_IOS_ICLOUD_DRIVE_IDENTITY.md), a presence-only `NSFileManager.ubiquityIdentityToken` snapshot that does not expose the token or claim CloudKit status. B36 is [PLAN_IOS_MEDIA_AUTHORIZATION.md](PLAN_IOS_MEDIA_AUTHORIZATION.md), a status-only AVFoundation camera/microphone authorization query; it does not request access or capture media. B37 is [PLAN_IOS_NFC.md](PLAN_IOS_NFC.md), the Core NFC `readingAvailable` support query; it does not create a session or operate on tags. B38 HomeKit feasibility audit found that first `HMHomeManager` use can prompt, so no non-prompting status-only backend is claimed. B39 is [PLAN_IOS_NEARBY_INTERACTION.md](PLAN_IOS_NEARBY_INTERACTION.md), a non-prompting iOS 16+ precise-distance capability query with no session, token, peer, or ranging operation. Unlisted capability backend families need separate named subplans and must not overlap these owned paths.
+ B76 is [PLAN_IOS_PROXIMITYREADER.md](PLAN_IOS_PROXIMITYREADER.md): it calls only `PaymentCardReader.isSupported` through a compiler-derived C `swiftcall` thunk and returns the iPhone device-model predicate; it does not establish payment readiness.
 
 Read first:
 - `docs/IOS_BUILD.md`
@@ -109,17 +121,17 @@ Implement the following native/system backends, capability-scoped so linking one
 - Security/Keychain;
 - SecKey/Secure Enclave public APIs where requested;
 - LocalAuthentication;
-- AuthenticationServices passkeys/Sign in with Apple;
+- AuthenticationServices: B78 implements only prior-user Sign in with Apple credential-state status under a conservative entitlement requirement; passkeys and authorization flows remain unsupported;
 - DeviceCheck/App Attest;
 - AppTrackingTransparency/AdServices native paths where applicable.
 
 ### Network
 - current Network framework C/native route where useful;
 - URLSession foreground;
-- URLSession background file downloads proposed as B13, gated on D10 and B14 and not part of B3;
+- URLSession background file downloads implemented as B13 after D10 and B14; they remain separate from B3;
 - SystemConfiguration only for still-supported semantics;
-- WebKit/SafariServices remain separate unplanned slices: WebKit needs a platform-exclusive contract and bounded view/navigation scope; Safari in-app UI needs verified generated `SFSafariViewController` bindings. B11 covers only the external UIKit URL-handler request.
-- Network.framework connections/listeners and reachability remain unplanned: no portable contract or bounded consumer need is established. A future plan must name these as iOS extensions, not widen D1 foreground HTTP.
+- B33 covers one platform-exclusive `WKWebView` view/navigation slice. It does not claim browser parity or include a JavaScript bridge; Safari in-app UI remains separate and needs verified generated `SFSafariViewController` bindings. B11 covers only the external UIKit URL-handler request.
+- D19/B24 now scopes only outbound TLS-over-TCP byte streams through public Network.framework C APIs, separately from D1/B3 URLSession HTTP and D15/B18 informational NWPathMonitor status. It does not include listeners, UDP, Bonjour, or endpoint preflight; those remain unplanned without a bounded consumer need.
 
 ### Notifications/background
 - UserNotifications;
@@ -197,7 +209,8 @@ Implement the following native/system backends, capability-scoped so linking one
 - RoomPlan/DockKit native pieces where public bindings permit.
 
 ### Extension/entitlement shells
-- NetworkExtension/VPN;
+- NetworkExtension/VPN: B79 scopes a read-only caller-app Personal VPN profile-status query; provider extensions, tunnel control, and system-wide VPN state remain unsupported;
+- B77 reads only `NSExtension.NSExtensionPointIdentifier` from one caller-selected `.appex`; no build-host plist generation, `.appext`, or App Intents support is claimed;
 - ExtensionKit native pieces;
 - FileProvider;
 - BrowserEngineKit for eligible apps;

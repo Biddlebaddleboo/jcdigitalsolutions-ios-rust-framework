@@ -1,0 +1,18 @@
+[package]
+name = "ios-url"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "Strict Foundation URL owners for validated portable URIs"
+
+[dependencies]
+framework-format = { path = "../../../crates/framework-format", version = "0.1.0" }
+
+[target.'cfg(target_os = "ios")'.dependencies]
+objc2 = { workspace = true, features = ["alloc"] }
+objc2-foundation = { workspace = true, features = ["alloc", "NSString", "NSURL"] }
+
+[lints]
+workspace = true

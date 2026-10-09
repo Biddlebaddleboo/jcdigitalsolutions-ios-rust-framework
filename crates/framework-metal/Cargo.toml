@@ -1,0 +1,11 @@
+[package]
+name = "framework-metal"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "Portable Metal default-device presence snapshot and static backend contract"
+
+[lints]
+workspace = true

@@ -1,5 +1,24 @@
 # PLAN_IOS_SECURE_STORAGE.md — Workstream B2: iOS Keychain Backend
 
+## Status
+
+B2 is integrated as a caller-owned `ios-secure-storage` backend over public Keychain Services
+APIs. Locked device and simulator checks plus strict all-target Clippy pass. The current local CI
+workflow preserves those target gates. The opt-in C link probe calls all three storage APIs on
+device and simulator; both probe imports are `CoreFoundation`, `Security`, and `libSystem.B.dylib`.
+This probe-scoped evidence does not establish imports for arbitrary host apps. Host policy/status
+tests exist but were not run in this execution; no live Keychain or signed-app behavior is claimed
+
+The recorded target-check host is Xcode 26.6 with iPhoneOS/iPhoneSimulator SDK 26.5, below the
+required Xcode 27.x baseline.
+
+Access-group behavior is not default-only: `SecItemAdd` omits `kSecAttrAccessGroup` and creates in
+the app's default group, while unfiltered `SecItemCopyMatching`, `SecItemUpdate`, and
+`SecItemDelete` search all access groups available to the app. The backend exposes no explicit
+group-selection API; an app with multiple access-group entitlements can therefore read, update, or
+delete a matching service/account item in another entitled group. Strict default-group isolation
+remains an open design item. See the [iOS secure-storage guide](docs/ios/secure-storage.md).
+
 ## Objective
 
 Implement the iOS backend for D2 `framework-secure-storage` with public Keychain Services APIs. Keep the portable contract `no_std` and map only the contract's device-unlock and device-bound policy flags.
@@ -32,6 +51,6 @@ Do not edit the portable D2 crate, root workspace configuration, shared capabili
 
 - Run `cargo check` and Clippy for the backend on `aarch64-apple-ios` and `aarch64-apple-ios-sim`
 - Add deterministic tests for policy mapping and native-status translation when they can run without a live app Keychain
-- Inspect target imports for Security and absence of unrelated frameworks, Swift runtime, and network capability frameworks
+- Link a C probe that calls read, store, and remove on iOS device and simulator; use `otool -L` to enforce the exact direct import set `CoreFoundation`, `Security`, and `libSystem.B.dylib`, and reject Swift, Objective-C, network, and unrelated framework imports for that probe
 - Document minimum iOS version only from installed SDK metadata, data-copy cost, callback/thread behavior, native escape handles, and actual entitlements/Info.plist requirements
 - Report exact checks, changed files, commit SHA, deviations, and unavailable live-device checks

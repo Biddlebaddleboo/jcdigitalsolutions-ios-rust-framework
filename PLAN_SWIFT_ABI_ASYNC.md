@@ -1,5 +1,12 @@
 # PLAN_SWIFT_ABI_ASYNC.md — Workstream C4: Swift Async C++ Interop Feasibility
 
+## Status
+
+C4 passes as the specified feasibility stop: `sh interop/swift-abi-core/tests/check-swift-async-cxx.sh`
+confirms the generated header exposes the synchronous control but marks both `async` entries
+unavailable in C++. The script exits successfully after that expected omission; no C++/Rust async
+caller or task runtime is claimed. Xcode 26.6 / SDK 26.5 remains below the Xcode 27.x plan baseline.
+
 ## Objective
 
 Use the active Swift compiler to determine whether its generated C++ API can call a public `async throws` Swift function, and record a safe fixed-width C boundary if supported

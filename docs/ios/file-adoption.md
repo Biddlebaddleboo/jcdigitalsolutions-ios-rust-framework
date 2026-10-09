@@ -15,7 +15,9 @@ returns. URLSession owns the temporary source location; the operation borrows th
 file, but does not retain the URL, move the source, or remove it. The source must be a file URL to a
 regular file. A non-file URL, final source symlink, or non-regular source is rejected. The method
 cannot prove URLSession provenance or containment for arbitrary source URLs; pass only the callback
-URL.
+URL. It reads through one open descriptor without file coordination or a snapshot. Concurrent
+source mutation through another handle can affect the bytes copied; do not mutate the callback file
+during adoption.
 
 ## Destination boundary
 
@@ -26,6 +28,13 @@ symlinks. The final entry is never followed. If it is a symlink, atomic replacem
 symlink itself and leaves its target untouched. A directory at the final path causes the rename to
 fail. The operation creates no parent directories.
 
+Before copying, and again immediately before commit, the backend compares the source file's device
+and inode with the existing destination entry using `fstatat(..., AT_SYMLINK_NOFOLLOW)`. If they
+match, it returns `InvalidInput` rather than replacing a directory entry that names the source. A
+destination symlink is compared as a symlink entry and is replaced without following it. The
+identity check does not serialize concurrent mutations made through another handle; callers must
+not concurrently replace this destination during adoption.
+
 ## Copy and atomic commit
 
 The backend creates a private mode-`0600` staging file in the already-open destination parent and
@@ -33,15 +42,16 @@ copies the source with `std::io::copy`. This avoids a payload-sized `Vec`, but i
 the complete file is copied once. The standard library may use bounded buffering or an optimized
 OS file-copy path, and the operation can block for the duration of that copy.
 
-The staging file is closed before `renameat` installs it at the final path. Successful `renameat`
-is the atomic commit point and the method then returns `WriteAtomicity::Atomic`. Before that point,
+The staging file is explicitly closed and any close error is reported before `renameat` installs it
+at the final path. Successful close followed by successful `renameat` is the atomic commit point
+and the method then returns `WriteAtomicity::Atomic`. Before that point,
 the final path remains absent or names the old entry; after it, it names the complete new file.
 There is no direct-write or non-atomic fallback. The same-directory stage keeps the commit on the
 same filesystem.
 
 Atomic visibility is not crash durability. The backend does not call `fsync` on the staged file or
 parent directory. A crash before commit can leave a hidden `.ios-files-*` stage; there is no
-startup scavenger. After copy or rename failure, the method closes and unlinks the stage
+startup scavenger. After copy, close, alias-check, or rename failure, the method unlinks the stage
 best-effort, preserves the primary operation error, and does not commit the destination. Cleanup
 failure can leave a hidden stage. The URLSession source remains owned by URLSession/caller cleanup.
 

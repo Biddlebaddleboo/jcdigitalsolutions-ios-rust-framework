@@ -93,12 +93,17 @@ define_class!(
             completion_handler: &block2::DynBlock<dyn Fn()>,
         ) {
             let mut completion = NativeCompletion::new(completion_handler);
+            // SAFETY: objc2 calls this method with a live `self` ref; this retain keeps its
+            // ivars valid through the Rust closure and native completion call
+            let receiver = catch_unwind(AssertUnwindSafe(|| unsafe {
+                retain_callback_receiver(self)
+            }))
+            .ok()
+            .flatten();
             let _ = catch_unwind(AssertUnwindSafe(|| {
-                // SAFETY: objc2 calls this method with a live `self` ref; this retain keeps its
-                // ivars valid while the Rust closure can drop the public handle
-                let Some(_receiver) = (unsafe { retain_callback_receiver(self) }) else {
+                if receiver.is_none() {
                     return;
-                };
+                }
                 let handler = Arc::clone(&self.ivars().handler);
                 autoreleasepool(|_| {
                     if let Some(response) = response_value(response) {
@@ -107,6 +112,7 @@ define_class!(
                 });
             }));
             completion.run();
+            let _ = catch_unwind(AssertUnwindSafe(move || drop(receiver)));
         }
     }
 );

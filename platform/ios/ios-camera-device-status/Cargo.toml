@@ -1,0 +1,15 @@
+[package]
+name = "ios-camera-device-status"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "Default video device status query for iOS"
+
+[target.'cfg(target_os = "ios")'.dependencies]
+objc2 = { workspace = true, features = ["std"] }
+objc2-av-foundation = { workspace = true, features = ["AVCaptureDevice", "AVMediaFormat"] }
+
+[lints]
+workspace = true

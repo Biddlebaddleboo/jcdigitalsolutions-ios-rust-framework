@@ -1,13 +1,16 @@
 use alloc::rc::Rc;
+use alloc::sync::Arc;
 use alloc::vec::Vec;
 use core::future::Future;
 use core::marker::PhantomData;
 use core::pin::Pin;
+use core::sync::atomic::{AtomicBool, Ordering};
 use core::task::{Context, Poll};
+use dispatch2::{DispatchQueue, MainThreadBound};
 use framework_core::{Availability, Error, ErrorKind};
 use framework_sharing::{ShareBackend, ShareError, ShareRequest};
 use ios_runtime::main_thread::MainThread;
-use objc2::rc::{Retained, autoreleasepool};
+use objc2::rc::{Retained, Weak, autoreleasepool};
 use objc2::runtime::{AnyObject, Bool};
 use objc2::{MainThreadMarker, MainThreadOnly};
 use objc2_core_foundation::CGRect;
@@ -18,7 +21,10 @@ use objc2_ui_kit::{
 };
 
 use crate::share_conversion::map_request;
-use crate::share_operation::{ShareAccess, ShareCompletion, ShareOperation, map_activity_result};
+use crate::share_operation::{
+    ShareAccess, ShareCompletion, ShareOperation, ShareStartError, accept_preflight,
+    map_activity_result, rejected_start,
+};
 
 /// A caller-owned iOS system-share backend bound to an explicit presentation context.
 ///
@@ -31,6 +37,143 @@ pub struct IosShareBackend<'ctx> {
     _main_thread: MainThread,
     _not_send: PhantomData<Rc<()>>,
     active_controller: Option<Retained<UIActivityViewController>>,
+}
+
+/// An owned, one-operation iOS share session for callback-based callers.
+///
+/// The session retains its UIKit presentation context and is bound to the main thread. It does not
+/// own an executor or dismiss system UI when an operation is cancelled or the session is dropped.
+pub struct IosShareSession {
+    presenter: Retained<UIViewController>,
+    source_view: Retained<UIView>,
+    source_rect: CGRect,
+    _main_thread: MainThread,
+    _not_send: PhantomData<Rc<()>>,
+    active_operation: Option<IosShareOperation>,
+}
+
+struct PreparedShare {
+    activity: Retained<UIActivityViewController>,
+    callback_marker: MainThreadMarker,
+}
+
+struct IosShareOperation {
+    activity: Retained<UIActivityViewController>,
+    completion: ShareCompletion,
+}
+
+struct ShareCallbackState {
+    completion: ShareCompletion,
+    activity: Weak<UIActivityViewController>,
+}
+
+impl IosShareOperation {
+    fn detach(&self) {
+        self.completion.detach();
+        autoreleasepool(|_| clear_completion_handler(&self.activity));
+    }
+}
+
+impl Drop for IosShareOperation {
+    fn drop(&mut self) {
+        self.detach();
+    }
+}
+
+impl IosShareSession {
+    /// Creates a callback session with retained presenter and popover-anchor objects.
+    ///
+    /// The source rectangle uses the coordinate system of `source_view`. The presenter and source
+    /// view must belong to the same window when sharing starts. Construction and all later session
+    /// calls and drops must occur on the main thread.
+    pub fn new(
+        main_thread: MainThread,
+        presenter: Retained<UIViewController>,
+        source_view: Retained<UIView>,
+        source_rect: CGRect,
+    ) -> Self {
+        Self {
+            presenter,
+            source_view,
+            source_rect,
+            _main_thread: main_thread,
+            _not_send: PhantomData,
+            active_operation: None,
+        }
+    }
+
+    /// Reports unknown availability without claiming that the presenter is ready.
+    pub const fn availability(&self) -> Availability {
+        Availability::Unknown
+    }
+
+    /// Starts one owned request and calls `completion` once when UIKit reports its terminal result.
+    ///
+    /// Input and presentation preflight errors return synchronously with the callback in
+    /// `ShareStartError`, so rejected starts do not take callback ownership.
+    /// A second start while an operation is active returns `ErrorKind::AlreadyExists`. Starting
+    /// work occurs during this call; no future or executor is involved. UIKit has no presentation
+    /// error result, so `Ok(())` means presentation was requested, not that visible UI or a terminal
+    /// callback is guaranteed. Callback state is detached before its one-shot notification, and a
+    /// callback panic is caught in the main-queue work item. UIKit result data goes to main by an
+    /// async queue post, so `completion` runs only after `IosShareSession::start` returns
+    pub fn start<F>(
+        &mut self,
+        request: ShareRequest,
+        completion: F,
+    ) -> Result<(), ShareStartError<F>>
+    where
+        F: FnOnce(Result<framework_sharing::ShareOutcome, ShareError>) + 'static,
+    {
+        let Some(main_thread) = MainThread::current() else {
+            return Err(rejected_start(unavailable(), completion));
+        };
+        if self
+            .active_operation
+            .as_ref()
+            .is_some_and(|operation| operation.completion.is_active())
+        {
+            return Err(rejected_start(
+                ShareError::Backend(Error::new(ErrorKind::AlreadyExists)),
+                completion,
+            ));
+        }
+        drop(self.active_operation.take());
+
+        let mut backend = IosShareBackend::new(
+            main_thread,
+            &self.presenter,
+            &self.source_view,
+            self.source_rect,
+        );
+        let (prepared, completion) = accept_preflight(backend.prepare(request), completion)?;
+        let callback = ShareCompletion::with_callback(completion);
+        let activity = backend.present_prepared(prepared, callback.clone());
+        self.active_operation = Some(IosShareOperation {
+            activity,
+            completion: callback,
+        });
+        Ok(())
+    }
+
+    /// Detaches the active result callback without dismissing UIKit share UI.
+    ///
+    /// Returns `true` only when an accepted operation was still awaiting a terminal callback.
+    /// Returns `false` if no operation is active or it already completed.
+    pub fn cancel(&mut self) -> bool {
+        let active = self
+            .active_operation
+            .as_ref()
+            .is_some_and(|operation| operation.completion.is_active());
+        drop(self.active_operation.take());
+        active
+    }
+}
+
+impl Drop for IosShareSession {
+    fn drop(&mut self) {
+        drop(self.active_operation.take());
+    }
 }
 
 impl<'ctx> IosShareBackend<'ctx> {
@@ -62,6 +205,20 @@ impl ShareAccess for IosShareBackend<'_> {
         request: ShareRequest,
         completion: ShareCompletion,
     ) -> Result<(), ShareError> {
+        let prepared = self.prepare(request)?;
+        self.present_prepared(prepared, completion);
+        Ok(())
+    }
+
+    fn detach(&mut self) {
+        if let Some(activity) = self.active_controller.take() {
+            autoreleasepool(|_| clear_completion_handler(&activity));
+        }
+    }
+}
+
+impl IosShareBackend<'_> {
+    fn prepare(&self, request: ShareRequest) -> Result<PreparedShare, ShareError> {
         autoreleasepool(|_| {
             let items: Vec<Retained<AnyObject>> = map_request(
                 request,
@@ -94,41 +251,6 @@ impl ShareAccess for IosShareBackend<'_> {
                 )
             };
 
-            let callback_completion = completion.clone();
-            let handler = block2::RcBlock::new(
-                move |_activity_type: *mut NSString,
-                      completed: Bool,
-                      _returned_items: *mut NSArray,
-                      activity_error: *mut NSError| {
-                    let callback_completion = callback_completion.clone();
-                    let callback = ios_runtime::ffi::catch_unwind(|| {
-                        autoreleasepool(|_| {
-                            // SAFETY: UIKit documents this callback argument as either null or a
-                            // valid NSError pointer for the duration of the callback.
-                            let native_error = unsafe { activity_error.as_ref() };
-                            let native_code =
-                                native_error.and_then(|error| i32::try_from(error.code()).ok());
-                            callback_completion.complete(map_activity_result(
-                                completed.as_bool(),
-                                native_error.is_some(),
-                                native_code,
-                            ));
-                        });
-                    });
-                    if callback.is_err() {
-                        let _ = ios_runtime::ffi::catch_unwind(|| {
-                            callback_completion.complete(Err(ShareError::Backend(Error::new(
-                                ErrorKind::Internal,
-                            ))));
-                        });
-                    }
-                },
-            );
-
-            // SAFETY: `handler` is a valid Blocks closure with the generated UIKit signature.
-            // UIKit copies this property; `RcBlock` remains alive through the setter call.
-            unsafe { activity.setCompletionWithItemsHandler(block2::RcBlock::as_ptr(&handler)) };
-
             if is_ipad {
                 activity.setModalPresentationStyle(UIModalPresentationStyle::Popover);
                 let popover = activity
@@ -138,26 +260,87 @@ impl ShareAccess for IosShareBackend<'_> {
                 popover.setSourceRect(self.source_rect);
             }
 
-            self.active_controller = Some(activity.clone());
-            self.presenter
-                .presentViewController_animated_completion(&activity, true, None);
-            Ok(())
+            let callback_marker = MainThreadMarker::new().ok_or_else(unavailable)?;
+            Ok(PreparedShare {
+                activity,
+                callback_marker,
+            })
         })
     }
 
-    fn detach(&mut self) {
-        if let Some(activity) = self.active_controller.take() {
-            autoreleasepool(|_| {
-                // SAFETY: This runs on the backend's main thread. UIKit accepts null to clear the
-                // copied completion-handler property, detaching the callback after completion or
-                // future drop. The future and backend are both !Send.
-                unsafe { activity.setCompletionWithItemsHandler(core::ptr::null_mut()) };
-            });
-        }
-    }
-}
+    fn present_prepared(
+        &mut self,
+        prepared: PreparedShare,
+        completion: ShareCompletion,
+    ) -> Retained<UIActivityViewController> {
+        autoreleasepool(|_| {
+            let PreparedShare {
+                activity,
+                callback_marker,
+            } = prepared;
+            let callback_state = Arc::new(MainThreadBound::new(
+                ShareCallbackState {
+                    completion: completion.clone(),
+                    activity: Weak::from(&activity),
+                },
+                callback_marker,
+            ));
+            let callback_claimed = Arc::new(AtomicBool::new(false));
+            let handler = block2::RcBlock::new(
+                move |_activity_type: *mut NSString,
+                      completed: Bool,
+                      _returned_items: *mut NSArray,
+                      activity_error: *mut NSError| {
+                    let _ = ios_runtime::ffi::catch_unwind(|| {
+                        if callback_claimed.swap(true, Ordering::AcqRel) {
+                            return;
+                        }
+                        let native_result = ios_runtime::ffi::catch_unwind(|| {
+                            autoreleasepool(|_| {
+                                // SAFETY: UIKit documents this callback argument as either null or a
+                                // valid NSError pointer for the duration of the callback.
+                                let native_error = unsafe { activity_error.as_ref() };
+                                let native_code =
+                                    native_error.and_then(|error| i32::try_from(error.code()).ok());
+                                (completed.as_bool(), native_error.is_some(), native_code)
+                            })
+                        });
+                        let callback_state = Arc::clone(&callback_state);
+                        DispatchQueue::main().exec_async(move || {
+                            let _ = ios_runtime::ffi::catch_unwind(|| {
+                                // SAFETY: this closure runs on DispatchQueue::main, so this marker is valid
+                                let marker = unsafe { MainThreadMarker::new_unchecked() };
+                                let (completion, activity) = {
+                                    let state = callback_state.get(marker);
+                                    (state.completion.clone(), state.activity.clone())
+                                };
+                                let result = match native_result {
+                                    Ok((completed, has_error, native_code)) => {
+                                        map_activity_result(completed, has_error, native_code)
+                                    }
+                                    Err(_) => {
+                                        Err(ShareError::Backend(Error::new(ErrorKind::Internal)))
+                                    }
+                                };
+                                completion.complete_with(result, || {
+                                    clear_weak_completion_handler(&activity)
+                                });
+                            });
+                        });
+                    });
+                },
+            );
 
-impl IosShareBackend<'_> {
+            // SAFETY: `handler` is a valid Blocks closure with the generated UIKit signature.
+            // UIKit copies this property; `RcBlock` remains alive through the setter call.
+            unsafe { activity.setCompletionWithItemsHandler(block2::RcBlock::as_ptr(&handler)) };
+            self.active_controller = Some(activity.clone());
+            self.presenter
+                .presentViewController_animated_completion(&activity, true, None);
+            activity
+        })
+    }
+
     fn preflight(&self) -> Result<(), ShareError> {
         if self.presenter.isBeingPresented()
             || self.presenter.isBeingDismissed()
@@ -175,6 +358,18 @@ impl IosShareBackend<'_> {
             return Err(invalid_input());
         }
         Ok(())
+    }
+}
+
+fn clear_completion_handler(activity: &UIActivityViewController) {
+    // SAFETY: Callers run on the main thread. UIKit accepts null to clear the copied completion
+    // handler, detaching callback state without dismissing the presented controller.
+    unsafe { activity.setCompletionWithItemsHandler(core::ptr::null_mut()) };
+}
+
+fn clear_weak_completion_handler(activity: &Weak<UIActivityViewController>) {
+    if let Some(activity) = activity.load() {
+        clear_completion_handler(&activity);
     }
 }
 

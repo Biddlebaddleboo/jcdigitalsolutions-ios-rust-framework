@@ -4,11 +4,13 @@
 
 use framework_core::{Availability, Error, ErrorKind};
 use framework_preferences::{
-    AtomicityRequirement, PreferenceError, PreferenceKey, PreferencesBackend, UpdateAtomicity,
-    WriteOptions, WriteOutcome,
+    PreferenceError, PreferenceKey, PreferencesBackend, WriteOptions, WriteOutcome,
 };
 use objc2::{rc::Retained, rc::autoreleasepool, runtime::AnyObject};
 use objc2_foundation::{NSData, NSString, NSUserDefaults};
+
+mod write_policy;
+use write_policy::accepted_write_outcome;
 
 /// A caller-owned handle to the standard app preferences domain.
 ///
@@ -67,9 +69,7 @@ impl PreferencesBackend for IosPreferences {
         value: &[u8],
         options: WriteOptions,
     ) -> Result<WriteOutcome, PreferenceError> {
-        if options.atomicity() == AtomicityRequirement::RequireAtomic {
-            return Err(PreferenceError::Backend(Error::new(ErrorKind::Unsupported)));
-        }
+        let outcome = accepted_write_outcome(options)?;
         autoreleasepool(|_| {
             let key = NSString::from_str(key.as_str());
             let data = NSData::with_bytes(value);
@@ -77,7 +77,7 @@ impl PreferencesBackend for IosPreferences {
             // SAFETY: `value` is an immutable `NSData`, a valid property-list object, retained
             // through this synchronous call; Foundation copies/stores its value.
             unsafe { self.defaults.setObject_forKey(Some(value), &key) };
-            Ok(WriteOutcome::new(UpdateAtomicity::NotGuaranteed))
+            Ok(outcome)
         })
     }
 

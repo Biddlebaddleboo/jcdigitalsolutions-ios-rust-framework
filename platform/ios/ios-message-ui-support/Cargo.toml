@@ -1,0 +1,19 @@
+[package]
+name = "ios-message-ui-support"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "Status-only MessageUI mail and text support queries for iOS"
+
+[target.'cfg(target_os = "ios")'.dependencies]
+objc2 = { workspace = true, features = ["std"] }
+objc2-message-ui = { workspace = true, features = [
+    "MFMailComposeViewController",
+    "MFMessageComposeViewController",
+    "objc2-ui-kit",
+] }
+
+[lints]
+workspace = true

@@ -1,0 +1,11 @@
+[package]
+name = "framework-audio"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "Portable audio and playback capability snapshots"
+
+[lints]
+workspace = true

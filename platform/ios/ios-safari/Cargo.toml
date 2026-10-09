@@ -1,0 +1,21 @@
+[package]
+name = "ios-safari"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "B64 main-thread SafariServices controller construction for iOS"
+build = "build.rs"
+
+[dependencies]
+framework-format = { path = "../../../crates/framework-format" }
+
+[target.'cfg(target_os = "ios")'.dependencies]
+ios-runtime = { path = "../ios-runtime" }
+objc2 = { workspace = true, features = ["std"] }
+objc2-foundation = { workspace = true, features = ["NSString", "NSURL"] }
+objc2-ui-kit = { workspace = true, features = ["UIResponder", "UIViewController"] }
+
+[lints]
+workspace = true

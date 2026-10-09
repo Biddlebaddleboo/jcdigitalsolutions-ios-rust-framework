@@ -1,5 +1,15 @@
 # PLAN_VALIDATION_ARCHIVE.md — Workstream G2: Xcode Archive Smoke
 
+## Status
+
+- Result: `cargo xtask archive-smoke` passed on 2026-10-07 and twice on 2026-10-08 with Xcode 26.6 (build 17F113) and iPhoneOS SDK 26.5; the latest run follows the adaptive-color and callback-smoke app changes
+- Evidence: Cargo Release device app; shared `ios-minimal` Xcode scheme; archive/app plist lint; app executable import scan; no Swift/Python runtime import, no `.swift` file in archive, and no app code signature, `_CodeSignature`, or `embedded.mobileprovision`
+- Archive path: `target/ios-minimal/archive/ios-minimal.xcarchive`
+- Scope: unsigned archive evidence only; Xcode 26.6 and SDK 26.5 fall below Xcode 27.x plan baseline
+- CI: manual macOS archive check; CI has simulator Release app build and import/plist check only, no archive action
+- Supplemental runtime: the x86_64 iOS 18.0 simulator app launched on 2026-10-08 and displayed the label/button in light and dark appearance. With `--exercise-rust-button-callback`, `UIControl::sendActionsForControlEvents(UIControlEvents::TouchUpInside)` invoked the Rust callback and changed the label; this was programmatic UIKit dispatch, not a user touch
+- Open: archive code sign, provisioning, archive export, arm64 simulator launch/install, and physical-device run
+
 ## Objective
 
 Turn the explicit `archive-smoke` unavailable result into a real public-Xcode archive check for the Rust-owned minimal iOS example. The result must not require repository-authored Swift or a signing certificate for the unsigned validation path.

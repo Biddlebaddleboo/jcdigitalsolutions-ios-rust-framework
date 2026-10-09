@@ -1,5 +1,12 @@
 # PLAN_SWIFT_ABI_STRING.md — Workstream C2: Swift String Boundary Proof
 
+## Status
+
+C2 passes `sh interop/swift-abi-core/tests/check-swift-string-cxx.sh`. The host Swift/C++/Rust
+round-trip preserves all six exact UTF-8 fixtures, and device/simulator Swift, C++, and Rust object
+checks pass without target execution or link. The result is compiler-specific proof, not a
+production `String` adapter. Xcode 26.6 / SDK 26.5 remains below the Xcode 27.x plan baseline.
+
 ## Objective
 
 Determine whether the installed Swift compiler can generate a supported C++ interoperability wrapper for a concrete Swift `String` round-trip that a Rust caller can reach through a narrow C ABI. This is a compiler/toolchain proof, not a general Swift value runtime and not yet a Translation implementation.

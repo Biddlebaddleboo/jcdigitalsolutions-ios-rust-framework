@@ -1,0 +1,17 @@
+[package]
+name = "ios-nfc"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "Narrow Core NFC reader-support query for iOS"
+
+[dependencies]
+framework-nfc = { path = "../../../crates/framework-nfc" }
+
+[target.'cfg(target_os = "ios")'.dependencies]
+objc2-core-nfc = { workspace = true }
+
+[lints]
+workspace = true

@@ -1,3 +1,4 @@
+use alloc::boxed::Box;
 use alloc::rc::Rc;
 use core::cell::RefCell;
 use core::future::Future;
@@ -7,11 +8,45 @@ use core::task::{Context, Poll, Waker};
 use framework_core::{Error, ErrorKind, PlatformErrorCode};
 use framework_sharing::{ShareError, ShareOutcome, ShareRequest};
 
+type ShareCallback = Box<dyn FnOnce(Result<ShareOutcome, ShareError>)>;
+
+/// A synchronous share-start failure that returns the callback to its caller.
+pub struct ShareStartError<F> {
+    /// The error that prevented request acceptance.
+    pub error: ShareError,
+    /// The callback that remains owned by the caller after rejection.
+    pub callback: F,
+}
+
+impl<F> core::fmt::Debug for ShareStartError<F> {
+    fn fmt(&self, formatter: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        formatter
+            .debug_struct("ShareStartError")
+            .field("error", &self.error)
+            .finish_non_exhaustive()
+    }
+}
+
+pub(crate) fn rejected_start<F>(error: ShareError, callback: F) -> ShareStartError<F> {
+    ShareStartError { error, callback }
+}
+
+pub(crate) fn accept_preflight<T, F>(
+    preflight: Result<T, ShareError>,
+    callback: F,
+) -> Result<(T, F), ShareStartError<F>> {
+    match preflight {
+        Ok(value) => Ok((value, callback)),
+        Err(error) => Err(rejected_start(error, callback)),
+    }
+}
+
 struct CompletionState {
     active: bool,
     completed: bool,
     result: Option<Result<ShareOutcome, ShareError>>,
     waker: Option<Waker>,
+    callback: Option<ShareCallback>,
 }
 
 #[derive(Clone)]
@@ -27,24 +62,64 @@ impl ShareCompletion {
                 completed: false,
                 result: None,
                 waker: None,
+                callback: None,
+            })),
+        }
+    }
+
+    pub(crate) fn with_callback(
+        callback: impl FnOnce(Result<ShareOutcome, ShareError>) + 'static,
+    ) -> Self {
+        Self {
+            state: Rc::new(RefCell::new(CompletionState {
+                active: true,
+                completed: false,
+                result: None,
+                waker: None,
+                callback: Some(Box::new(callback)),
             })),
         }
     }
 
     pub(crate) fn complete(&self, result: Result<ShareOutcome, ShareError>) -> bool {
-        let waker = {
+        self.complete_with(result, || {})
+    }
+
+    pub(crate) fn complete_with(
+        &self,
+        result: Result<ShareOutcome, ShareError>,
+        before_notify: impl FnOnce(),
+    ) -> bool {
+        let (waker, callback) = {
             let mut state = self.state.borrow_mut();
             if !state.active || state.completed {
                 return false;
             }
             state.completed = true;
-            state.result = Some(result);
-            state.waker.take()
+            let callback = state.callback.take();
+            if callback.is_some() {
+                state.active = false;
+                state.result = None;
+                state.waker = None;
+                (None, callback)
+            } else {
+                state.result = Some(result);
+                (state.waker.take(), None)
+            }
         };
+        before_notify();
+        if let Some(callback) = callback {
+            callback(result);
+        }
         if let Some(waker) = waker {
             waker.wake();
         }
         true
+    }
+
+    pub(crate) fn is_active(&self) -> bool {
+        let state = self.state.borrow();
+        state.active && !state.completed
     }
 
     fn poll_result(&self, context: &Context<'_>) -> Poll<Result<ShareOutcome, ShareError>> {
@@ -65,11 +140,12 @@ impl ShareCompletion {
         Poll::Pending
     }
 
-    fn detach(&self) {
+    pub(crate) fn detach(&self) {
         let mut state = self.state.borrow_mut();
         state.active = false;
         state.result = None;
         state.waker = None;
+        state.callback = None;
     }
 }
 
@@ -163,6 +239,7 @@ mod tests {
     use super::*;
     use alloc::rc::Rc;
     use alloc::string::ToString;
+    use core::cell::Cell;
     use core::cell::RefCell;
     use core::pin::pin;
     use core::task::{Context, Poll, Waker};
@@ -291,5 +368,53 @@ mod tests {
         assert_eq!(poll(future.as_mut()), Poll::Ready(Err(error)));
         assert_eq!(state.borrow().present_count, 1);
         assert_eq!(state.borrow().detach_count, 1);
+    }
+
+    #[test]
+    fn synchronous_preflight_rejection_returns_the_unconsumed_callback() {
+        let error = ShareError::Backend(Error::new(ErrorKind::Unavailable));
+        let callback_called = Rc::new(Cell::new(false));
+        let callback_state = callback_called.clone();
+        let callback = move |_: Result<ShareOutcome, ShareError>| callback_state.set(true);
+        let rejected = accept_preflight::<(), _>(Err(error), callback);
+        let rejection = match rejected {
+            Err(rejection) => rejection,
+            Ok(_) => panic!("failed preflight was accepted"),
+        };
+
+        assert_eq!(rejection.error, error);
+        assert!(!callback_called.get());
+        (rejection.callback)(Ok(ShareOutcome::Completed));
+        assert!(callback_called.get());
+    }
+
+    #[test]
+    fn callback_completion_detaches_before_notifying_exactly_once() {
+        let callback_count = Rc::new(Cell::new(0));
+        let callback_detached = Rc::new(Cell::new(false));
+        let callback_count_state = callback_count.clone();
+        let callback_detached_state = callback_detached.clone();
+        let completion = ShareCompletion::with_callback(move |_| {
+            assert!(callback_detached_state.get());
+            callback_count_state.set(callback_count_state.get() + 1);
+        });
+
+        assert!(completion.complete_with(Ok(ShareOutcome::Completed), || {
+            callback_detached.set(true);
+        }));
+        assert!(!completion.is_active());
+        assert!(!completion.complete(Ok(ShareOutcome::Dismissed)));
+        assert_eq!(callback_count.get(), 1);
+    }
+
+    #[test]
+    fn detached_callback_completion_suppresses_late_result() {
+        let callback_called = Rc::new(Cell::new(false));
+        let callback_state = callback_called.clone();
+        let completion = ShareCompletion::with_callback(move |_| callback_state.set(true));
+
+        completion.detach();
+        assert!(!completion.complete(Ok(ShareOutcome::Completed)));
+        assert!(!callback_called.get());
     }
 }

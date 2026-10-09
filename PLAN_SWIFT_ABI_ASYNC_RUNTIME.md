@@ -1,5 +1,12 @@
 # PLAN_SWIFT_ABI_ASYNC_RUNTIME.md — Workstream C6: Public Swift Async Task Entry Feasibility
 
+## Status
+
+C6's `sh interop/swift-abi-core/tests/check-swift-async-runtime-entry.sh` audit returns the
+documented no-go: inspected public C/C++ interfaces expose no supported task-entry/context/resume
+contract. Exported runtime symbols were observed but not called. This blocks direct Rust async
+entry on the audited toolchain; Xcode 26.6 / SDK 26.5 remains below the Xcode 27.x plan baseline.
+
 ## Objective
 
 Determine whether a supported public Apple/Swift C or C++ interface can create, own, and resume the Swift task context required to call a compiler-derived async entry from Rust without Swift source

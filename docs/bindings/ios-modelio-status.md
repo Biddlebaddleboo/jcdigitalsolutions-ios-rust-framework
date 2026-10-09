@@ -1,0 +1,9 @@
+# iOS ModelIO Status C ABI
+
+F20 proposes the opt-in `ios-modelio-status` feature and one synchronous C function, `framework_ios_modelio_can_import_file_extension`, over B67's `ios_modelio_status::can_import_file_extension` API
+
+The function forwards a borrowed valid UTF-8 `FrameworkStr` without normalization and writes one caller-owned byte. The output address must point to valid, properly aligned writable memory for the full synchronous call and must not overlap nonempty input. The caller must prevent unsynchronized access to either region. The wrapper checks range arithmetic and input/output overlap but cannot prove that memory is valid, aligned, writable, or live. It retains no caller pointer. `FRAMEWORK_STATUS_OK` writes exactly zero or one; an unsupported or unknown extension is a successful false result. Empty input is forwarded. Invalid UTF-8, malformed span metadata, overlapping input/output, or null output returns `FRAMEWORK_STATUS_INVALID_ARGUMENT`. A valid non-iOS call returns `FRAMEWORK_STATUS_UNSUPPORTED` with zero output; a caught Rust panic returns `FRAMEWORK_STATUS_PANIC` with zero output
+
+The query calls `+[MDLAsset canImportFileExtension:]`, available from iOS 9.0. The focused link probes use iOS deployment minima 10.0 for device and 14.0 for Simulator; these are probe minima, not the native API floor. Expected direct C imports are `Foundation`, `ModelIO`, `libSystem.B.dylib`, and `libobjc.A.dylib`; C++ consumers may also import `libc++.1.dylib`
+
+The result reports extension support only. It does not create `MDLAsset`, load an asset, access a URL or file data, prove that a specific file is valid or readable, or claim parsing, rendering, GPU support, parity, or performance. The function retains no caller pointer and adds no main-thread rule or thread-safety guarantee. See [D61](../../PLAN_CAPABILITIES_MODELIO_STATUS.md), [B67](../../PLAN_IOS_MODELIO_STATUS.md), and [F20](../../PLAN_BINDINGS_F20.md)

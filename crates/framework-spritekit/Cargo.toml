@@ -1,0 +1,14 @@
+[package]
+name = "framework-spritekit"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "Portable finite position contract for a SpriteKit node"
+
+[dependencies]
+framework-core.workspace = true
+
+[lints]
+workspace = true

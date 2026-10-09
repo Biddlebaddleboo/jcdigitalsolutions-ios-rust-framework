@@ -1,0 +1,11 @@
+[package]
+name = "framework-photos"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "Portable Photos read/write authorization contract"
+
+[lints]
+workspace = true

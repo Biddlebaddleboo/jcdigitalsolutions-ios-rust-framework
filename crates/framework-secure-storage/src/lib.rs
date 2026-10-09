@@ -155,7 +155,10 @@ impl StoreOutcome {
 /// `UnsupportedPolicy` before mutating stored state. A `read` returns an owned byte vector; this
 /// necessarily permits a backend copy from its native representation.
 pub trait SecureStorageBackend {
-    /// Reports whether secure storage is usable in the current context.
+    /// Reports the backend's general view of secure-storage availability.
+    ///
+    /// This does not guarantee that a particular service/item operation can succeed or that a
+    /// requested policy can be met. Operation-specific errors remain authoritative.
     fn availability(&self) -> Availability;
 
     /// Reads an owned secret byte vector, or `None` when the item does not exist.
@@ -203,6 +206,9 @@ impl<B: SecureStorageBackend> SecureStorage<B> {
     }
 
     /// Reports backend availability without a global lookup or hidden initialization.
+    ///
+    /// This general signal does not guarantee that a particular operation or required policy will
+    /// succeed.
     pub fn availability(&self) -> Availability {
         self.backend.availability()
     }

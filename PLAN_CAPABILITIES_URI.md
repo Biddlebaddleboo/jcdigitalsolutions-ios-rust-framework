@@ -1,5 +1,12 @@
 # PLAN_CAPABILITIES_URI.md — Workstream D8: Portable URI Values
 
+## Status
+
+D8 matches its contract: `Uri` and `UriReference` borrow exact text and component slices, while
+`iri-string` 0.7.14 stays behind the facade with default and optional features disabled. Locked
+no-default-features check, strict Clippy, workspace formatting, docs check, feature-tree review,
+and diff check pass. No tests were added or run; no D8 gap was found.
+
 ## Objective
 
 Add borrowed, validated URI and URI-reference values for the URL/URI capability row. Preserve the caller's exact text; do not add URL normalization, host resolution, dereference, or platform behavior.

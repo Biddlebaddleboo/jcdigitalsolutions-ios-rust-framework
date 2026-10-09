@@ -1,0 +1,15 @@
+[package]
+name = "ios-system-services"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "Narrow ClassKit deep-link marker query for caller-owned iOS user activities"
+
+[target.'cfg(target_os = "ios")'.dependencies]
+objc2-class-kit = { version = "=0.3.2", default-features = false, features = ["NSUserActivity_CLSDeepLinks"] }
+objc2-foundation = { workspace = true, features = ["NSUserActivity"] }
+
+[lints]
+workspace = true

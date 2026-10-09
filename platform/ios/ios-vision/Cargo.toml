@@ -1,0 +1,19 @@
+[package]
+name = "ios-vision"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "Bounded Vision text-recognition revision query for iOS"
+
+[dependencies]
+framework-vision = { path = "../../../crates/framework-vision" }
+
+[target.'cfg(target_os = "ios")'.dependencies]
+objc2 = { workspace = true, features = ["std"] }
+objc2-foundation = { workspace = true, features = ["NSIndexSet"] }
+objc2-vision = { workspace = true, features = ["VNRequest", "VNRecognizeTextRequest"] }
+
+[lints]
+workspace = true

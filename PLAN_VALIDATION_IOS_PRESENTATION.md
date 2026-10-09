@@ -37,3 +37,19 @@ Do not edit the iOS backend, portable contracts, root Cargo workspace/dependenci
 - Run all four target-specific commands
 - Parse `.github/workflows/ci.yml`, run `cargo xtask docs-check`, and run `git diff --check`
 - Report changed files, commit SHA, exact commands/results, deviations, and unresolved assumptions. Do not push
+
+## Status and evidence
+
+Status: complete. The existing macOS workflow contains all four locked device/simulator check and strict Clippy gates. `docs/VALIDATION.md` lists the exact commands and limits the evidence to compile/lint; `docs/ios/presentation.md` states that no live alert display, dismissal, or device/simulator behavior is claimed
+
+Validation passed at repository HEAD `53ef4ef`:
+
+- `cargo check --locked -p ios-presentation --target aarch64-apple-ios`
+- `cargo check --locked -p ios-presentation --target aarch64-apple-ios-sim`
+- `cargo clippy --locked -p ios-presentation --all-targets --target aarch64-apple-ios -- -D warnings`
+- `cargo clippy --locked -p ios-presentation --all-targets --target aarch64-apple-ios-sim -- -D warnings`
+- `ruby -e 'require "yaml"; YAML.parse_file(".github/workflows/ci.yml"); puts "CI YAML parse passed"'`
+- `cargo xtask docs-check`
+- `git diff --check`
+
+Only this plan's status/evidence was changed for G9; the workflow and validation documentation already met the acceptance criteria. No tests, app launch, live alert presentation/dismissal, user interaction, signing, or device runtime check was performed. No commit or push was made

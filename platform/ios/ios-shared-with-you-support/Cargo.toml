@@ -1,0 +1,15 @@
+[package]
+name = "ios-shared-with-you-support"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "Status-only SharedWithYou collaboration support query for iOS"
+
+[target.'cfg(target_os = "ios")'.dependencies]
+objc2 = { workspace = true, features = ["std"] }
+objc2-shared-with-you = { workspace = true, features = ["SWHighlightCenter"] }
+
+[lints]
+workspace = true

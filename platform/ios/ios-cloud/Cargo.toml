@@ -1,0 +1,21 @@
+[package]
+name = "ios-cloud"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "iOS CloudKit account-status and iCloud identity-presence backends"
+
+[dependencies]
+framework-core.workspace = true
+framework-cloud = { path = "../../../crates/framework-cloud", version = "0.1.0" }
+
+[target.'cfg(target_os = "ios")'.dependencies]
+block2 = { workspace = true, features = ["alloc"] }
+objc2 = { workspace = true, features = ["std"] }
+objc2-cloud-kit = { workspace = true, features = ["CKContainer", "block2"] }
+objc2-foundation = { workspace = true, features = ["std", "NSFileManager", "NSObject", "NSError"] }
+
+[lints]
+workspace = true

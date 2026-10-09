@@ -33,7 +33,7 @@ Implement `NotificationBackend` for a backend selected by Rust's type system and
 
 Authorization uses the framework-owned `framework_core::AuthorizationState` values (`Unknown`, `NotDetermined`, `Denied`, `Restricted`, and `Authorized`), not an operating-system status type. Query does not prompt. An authorization request may prompt only when an implemented native backend is called; this portable crate has no prompt side effect.
 
-The future returned by each facade operation starts backend work on first poll. A started operation has one terminal success or error result. Dropping the caller-facing future drops interest in that result; it does not cancel a started backend operation. A backend that uses callbacks must retain callback state safely until the operation's one terminal outcome. `cancel(id)` is a separate operation that removes a pending scheduled request and returns whether one existed. It does not promise to withdraw a notification already presented or delivered.
+The future returned by each facade operation starts backend work on first poll. A started operation has one terminal success or error result. Dropping the caller-facing future drops interest in that result; it does not cancel a started backend operation. A backend that uses callbacks must retain callback state safely until the operation's one terminal outcome. `cancel(id)` is a separate operation that requests removal of a pending scheduled request and reports whether the backend observed one at its documented cancellation point. A backend whose native API separates lookup from removal must document the race; the boolean does not promise an atomic compare-and-remove. It does not promise to withdraw a notification already presented or delivered.
 
 Scheduling a pending request with an identifier already in use replaces the existing pending request; it must not create a duplicate. When requests for one ID race through multiple clients, the backend's serialization order decides which successful schedule remains. A successful schedule means the backend accepted the request, not that the operating system or user will deliver or display it. Authorization state and scheduling are separate operations; a backend defines its error behavior when authorization is insufficient.
 
@@ -41,7 +41,7 @@ Backend futures are executor-neutral and do not require `Send`. Wake behavior an
 
 ## Scope and support
 
-This contract is portable and contains no iOS, Android, desktop, or web types. The portable crate makes no platform availability claim. The iOS adapter uses `UserNotifications` from iOS 10.0; compile and import evidence does not establish live prompt or delivery behavior. Push notifications, notification response delivery/delegates, categories/actions configuration, attachments, repeating/calendar triggers, critical alerts, and badge APIs remain out of scope.
+This contract is portable and contains no iOS, Android, desktop, or web types. The portable crate makes no platform availability claim. The iOS adapter uses `UserNotifications` from iOS 10.0; compile and import evidence does not establish live prompt or delivery behavior. Push notifications/APNs/PushKit, category/action setup, attachments, repeat and calendar triggers, critical alerts, and badge APIs remain outside D3 scope. Response values are portable; D3 does not deliver responses or own a delegate. The separate opt-in [B12 iOS bridge](ios/notification-responses.md) maps valid local responses to D9 values
 
 ## Costs and validation
 

@@ -34,6 +34,14 @@ Do not edit the iOS backend, portable contracts, root Cargo workspace/dependenci
 - Run the gates on macOS runners with both Rust targets and Xcode SDKs
 - Update `docs/VALIDATION.md` with exact commands and the limit: compile/lint only, with no live VoiceOver, focus, announcement, or accessibility UX proof
 
+## Status and evidence
+
+- G8's four locked check/Clippy gates are present in `.github/workflows/ci.yml` under macOS conditions after CI installs both iOS Rust targets
+- Pass: `cargo check --locked -p ios-accessibility --target aarch64-apple-ios`; `cargo check --locked -p ios-accessibility --target aarch64-apple-ios-sim`; `cargo clippy --locked -p ios-accessibility --all-targets --target aarch64-apple-ios -- -D warnings`; `cargo clippy --locked -p ios-accessibility --all-targets --target aarch64-apple-ios-sim -- -D warnings`
+- Pass: `ruby -e 'require "yaml"; YAML.parse_file(".github/workflows/ci.yml"); puts "CI YAML parse passed"'`; `cargo xtask docs-check`; `git diff --check`
+- `docs/VALIDATION.md` already records all four commands and limits evidence to compile/lint. No tests, live VoiceOver, focus movement, announcement delivery, accessibility UX, signing, or device execution ran; no runtime claim is made
+- The local target gates do not record a CI workflow run or prove device/simulator behavior; `docs/ios/accessibility.md` records Xcode 26.6 / SDK 26.5 compile/link evidence below the Xcode 27.x plan baseline
+
 ## Validation and handoff
 
 - Run all four target-specific commands

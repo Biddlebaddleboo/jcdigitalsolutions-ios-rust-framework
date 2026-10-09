@@ -24,8 +24,10 @@ async fn copy_text<B: ClipboardBackend>(clipboard: &mut Clipboard<B>)
 
 **Clipboard<B>** owns caller-supplied backend state. The concrete **ClipboardBackend** type is
 selected statically; each associated future uses **core::future::Future**. The crate adds no boxed
-trait object, executor, **Send** requirement, registry, or hidden initialization. Availability is a
-non-prompting backend query.
+trait object, executor, **Send** requirement, registry, or hidden initialization. Availability is
+backend-reported and may be **Unknown**. It reflects the backend's current view, not a guarantee
+that a later read, write, or clear will succeed. The portable contract does not define its relation
+to native permission or privacy state.
 
 ## Text, ownership, and shared state
 
@@ -37,9 +39,10 @@ may allocate and copy during conversion.
 
 **Clipboard::write** borrows the caller's **str** until its future completes or is dropped. The
 facade makes no owned input copy; a backend must copy text if it needs the bytes after the borrow
-ends or if its native API requires owned storage. **Clipboard::clear** removes the plain-text value
-only. Rich text, images, files, arbitrary pasteboard representations, and share-sheet UI are outside
-this API.
+ends or if its native API requires owned storage. **Clipboard::clear** removes the plain-text value.
+The portable contract does not promise whether other representations are preserved or removed.
+Rich text, images, files, arbitrary pasteboard representations, and share-sheet UI are outside this
+API.
 
 The clipboard is shared state, not an exclusive resource. Other apps or native code may change it
 at any time. A read does not reserve its result, and a successful write or clear does not guarantee

@@ -3,26 +3,33 @@
 #![cfg_attr(not(target_os = "ios"), allow(dead_code))]
 #![doc = "Plain-text clipboard access and outgoing system sharing through public iOS UIKit APIs."]
 
+#[cfg(any(feature = "clipboard", feature = "share"))]
 extern crate alloc;
 
+#[cfg(feature = "clipboard")]
 mod conversion;
+#[cfg(feature = "clipboard")]
 mod operation;
+#[cfg(feature = "share")]
 mod share_conversion;
+#[cfg(feature = "share")]
 mod share_operation;
 
-#[cfg(target_os = "ios")]
+#[cfg(all(target_os = "ios", feature = "clipboard"))]
 mod platform;
-#[cfg(target_os = "ios")]
+#[cfg(all(target_os = "ios", feature = "share"))]
 mod share_platform;
 
-#[cfg(target_os = "ios")]
+#[cfg(all(target_os = "ios", feature = "clipboard"))]
 pub use platform::{
     IosClipboardBackend, IosClipboardClearFuture, IosClipboardReadFuture, IosClipboardWriteFuture,
 };
-#[cfg(target_os = "ios")]
-pub use share_platform::{IosShareBackend, IosShareFuture};
+#[cfg(all(target_os = "ios", feature = "share"))]
+pub use share_operation::ShareStartError;
+#[cfg(all(target_os = "ios", feature = "share"))]
+pub use share_platform::{IosShareBackend, IosShareFuture, IosShareSession};
 
-#[cfg(test)]
+#[cfg(all(test, feature = "clipboard"))]
 mod tests {
     use super::conversion::decode_utf8;
     use super::operation::{Clear, ClipboardAccess, Deferred, Read, Write};
@@ -36,6 +43,7 @@ mod tests {
     #[derive(Default)]
     struct FakeClipboard {
         value: Option<String>,
+        read_error: Option<ClipboardError>,
         reads: usize,
         writes: usize,
         clears: usize,
@@ -44,6 +52,9 @@ mod tests {
     impl ClipboardAccess for FakeClipboard {
         fn read(&mut self) -> Result<Option<String>, ClipboardError> {
             self.reads += 1;
+            if let Some(error) = self.read_error {
+                return Err(error);
+            }
             Ok(self.value.clone())
         }
 
@@ -124,5 +135,18 @@ mod tests {
         }
         assert_eq!(clipboard.clears, 1);
         assert_eq!(clipboard.value, None);
+    }
+
+    #[test]
+    fn read_backend_error_is_not_reported_as_empty() {
+        let error = framework_sharing::ClipboardError::Backend(framework_core::Error::new(
+            ErrorKind::Platform,
+        ));
+        let mut clipboard = FakeClipboard {
+            read_error: Some(error),
+            ..FakeClipboard::default()
+        };
+        let mut future = pin!(Deferred::new(&mut clipboard, Read));
+        assert_eq!(poll_once(future.as_mut()), Poll::Ready(Err(error)));
     }
 }

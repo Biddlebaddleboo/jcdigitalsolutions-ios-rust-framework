@@ -134,25 +134,65 @@ pub struct ExplicitCounters {
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct BenchmarkRecord {
     /// Supplied target/build/workload metadata.
-    pub metadata: BenchmarkMetadata,
+    metadata: BenchmarkMetadata,
     /// Number of warmup invocations performed before timing.
-    pub warmup_sample_count: usize,
+    warmup_sample_count: usize,
     /// Raw measured latency values in nanoseconds, in capture order.
-    pub raw_samples_ns: Vec<u64>,
+    raw_samples_ns: Vec<u64>,
     /// Measured-value count; always equal to `raw_samples_ns.len()`.
-    pub sample_count: usize,
+    sample_count: usize,
     /// Median latency in nanoseconds; even-count median is integer-truncated.
-    pub median_ns: u64,
+    median_ns: u64,
     /// Nearest-rank 95th percentile latency in nanoseconds.
-    pub p95_ns: u64,
+    p95_ns: u64,
     /// Nearest-rank 99th percentile latency in nanoseconds.
-    pub p99_ns: u64,
+    p99_ns: u64,
     /// Explicit caller-supplied counters; missing values remain `None`.
-    pub counters: ExplicitCounters,
+    counters: ExplicitCounters,
 }
 
 impl BenchmarkRecord {
-    /// Validate raw samples and summarize them using an explicitly supplied sample count.
+    /// Return the caller-supplied target, build, workload, and evidence context.
+    pub fn metadata(&self) -> &BenchmarkMetadata {
+        &self.metadata
+    }
+
+    /// Return the number of warmup invocations performed before timing.
+    pub fn warmup_sample_count(&self) -> usize {
+        self.warmup_sample_count
+    }
+
+    /// Return raw latency samples in capture order.
+    pub fn raw_samples_ns(&self) -> &[u64] {
+        &self.raw_samples_ns
+    }
+
+    /// Return the number of validated timing samples.
+    pub fn sample_count(&self) -> usize {
+        self.sample_count
+    }
+
+    /// Return the integer-truncated median latency in nanoseconds.
+    pub fn median_ns(&self) -> u64 {
+        self.median_ns
+    }
+
+    /// Return the nearest-rank 95th percentile latency in nanoseconds.
+    pub fn p95_ns(&self) -> u64 {
+        self.p95_ns
+    }
+
+    /// Return the nearest-rank 99th percentile latency in nanoseconds.
+    pub fn p99_ns(&self) -> u64 {
+        self.p99_ns
+    }
+
+    /// Return only counters supplied by workload instrumentation.
+    pub fn counters(&self) -> &ExplicitCounters {
+        &self.counters
+    }
+
+    /// Validate raw samples and summarize them using the count derived from the vector.
     pub fn from_samples(
         metadata: BenchmarkMetadata,
         warmup_sample_count: usize,
@@ -307,7 +347,10 @@ fn median(sorted_samples: &[u64]) -> u64 {
 }
 
 fn nearest_rank_percentile(sorted_samples: &[u64], percentile: usize) -> u64 {
-    let rank = (sorted_samples.len() * percentile).div_ceil(100);
+    let sample_count = sorted_samples.len() as u128;
+    let percentile = percentile as u128;
+    let rank = usize::try_from((sample_count * percentile).div_ceil(100))
+        .expect("nearest rank cannot exceed the sample count");
     sorted_samples[rank - 1]
 }
 
@@ -377,11 +420,11 @@ mod tests {
         )
         .unwrap();
 
-        assert_eq!(record.sample_count, 100);
-        assert_eq!(record.raw_samples_ns, raw_samples_ns);
-        assert_eq!(record.median_ns, 50);
-        assert_eq!(record.p95_ns, 95);
-        assert_eq!(record.p99_ns, 99);
+        assert_eq!(record.sample_count(), 100);
+        assert_eq!(record.raw_samples_ns(), raw_samples_ns);
+        assert_eq!(record.median_ns(), 50);
+        assert_eq!(record.p95_ns(), 95);
+        assert_eq!(record.p99_ns(), 99);
     }
 
     #[test]

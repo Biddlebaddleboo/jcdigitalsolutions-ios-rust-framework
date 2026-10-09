@@ -16,11 +16,106 @@ framework-core = { workspace = true, optional = true }
 framework-notifications = { path = "../../crates/framework-notifications", version = "0.1.0", optional = true }
 framework-secure-storage = { path = "../../crates/framework-secure-storage", version = "0.1.0", optional = true }
 ios-secure-storage = { path = "../../platform/ios/ios-secure-storage", version = "0.1.0", optional = true }
+framework-sharing = { path = "../../crates/framework-sharing", version = "0.1.0", optional = true }
+framework-preferences = { path = "../../crates/framework-preferences", version = "0.1.0", optional = true }
+framework-maps = { path = "../../crates/framework-maps", version = "0.1.0", optional = true }
+framework-media = { path = "../../crates/framework-media", version = "0.1.0", optional = true }
+
+[target.'cfg(target_os = "ios")'.dependencies]
+framework-files = { path = "../../crates/framework-files", version = "0.1.0", optional = true }
+framework-network = { path = "../../crates/framework-network", version = "0.1.0", optional = true }
+framework-transfer = { path = "../../crates/framework-transfer", version = "0.1.0", optional = true }
+framework-location = { path = "../../crates/framework-location", version = "0.1.0", optional = true }
+framework-key-support = { path = "../../crates/framework-key-support", version = "0.1.0", optional = true }
+ios-transfer = { path = "../../platform/ios/ios-transfer", version = "0.1.0", optional = true }
+ios-location = { path = "../../platform/ios/ios-location", version = "0.1.0", optional = true }
+ios-sharing = { path = "../../platform/ios/ios-sharing", version = "0.1.0", optional = true, default-features = false }
+ios-preferences = { path = "../../platform/ios/ios-preferences", version = "0.1.0", optional = true }
+ios-media-library-status = { path = "../../platform/ios/ios-media-library-status", version = "0.1.0", optional = true }
+framework-spritekit = { path = "../../crates/framework-spritekit", version = "0.1.0", optional = true }
+ios-spritekit = { path = "../../platform/ios/ios-spritekit", version = "0.1.0", optional = true }
+ios-call-observer = { path = "../../platform/ios/callkit/ios-call-observer", version = "0.1.0", optional = true, default-features = false }
+ios-maps = { path = "../../platform/ios/ios-maps", version = "0.1.0", optional = true, default-features = false }
+ios-system-services = { path = "../../platform/ios/ios-system-services", version = "0.1.0", optional = true, default-features = false }
+ios-file-provider = { path = "../../platform/ios/ios-file-provider", version = "0.1.0", optional = true }
+ios-vision = { path = "../../platform/ios/ios-vision", version = "0.1.0", optional = true }
+ios-proximity-reader = { path = "../../platform/ios/ios-proximity-reader", version = "0.1.0", optional = true }
+ios-crypto = { path = "../../platform/ios/ios-crypto", version = "0.1.0", optional = true }
+ios-modelio-status = { path = "../../platform/ios/ios-modelio-status", version = "0.1.0", optional = true }
+ios-sign-in-with-apple-status = { path = "../../platform/ios/ios-sign-in-with-apple-status", version = "0.1.0", optional = true }
+ios-accelerate = { path = "../../platform/ios/ios-accelerate", version = "0.1.0", optional = true }
+ios-key-support = { path = "../../platform/ios/ios-key-support", version = "0.1.0", optional = true }
+ios-mps-status = { path = "../../platform/ios/ios-mps-status", version = "0.1.0", optional = true }
+ios-media = { path = "../../platform/ios/ios-media", version = "0.1.0", optional = true }
+ios-camera-device-status = { path = "../../platform/ios/ios-camera-device-status", version = "0.1.0", optional = true }
+ios-core-ml-status = { path = "../../platform/ios/ios-core-ml-status", version = "0.1.0", optional = true, default-features = false }
+ios-speech-status = { path = "../../platform/ios/ios-speech-status", version = "0.1.0", optional = true }
+ios-natural-language-status = { path = "../../platform/ios/ios-natural-language-status", version = "0.1.0", optional = true }
+ios-extension-support = { path = "../../platform/ios/ios-extension-support", version = "0.1.0", optional = true }
+ios-roomplan = { path = "../../platform/ios/ios-roomplan", version = "0.1.0", optional = true }
+ios-storekit2-status = { path = "../../platform/ios/ios-storekit2-status", version = "0.1.0", optional = true }
+framework-game = { path = "../../crates/framework-game", version = "0.1.0", optional = true }
+ios-game = { path = "../../platform/ios/ios-game", version = "0.1.0", optional = true }
+ios-runtime = { path = "../../platform/ios/ios-runtime", version = "0.1.0", optional = true }
+objc2 = { workspace = true, optional = true, features = ["std"] }
+objc2-core-foundation = { workspace = true, optional = true }
+objc2-foundation = { workspace = true, optional = true, features = ["NSUserActivity"] }
+objc2-ui-kit = { workspace = true, optional = true }
 
 [features]
 default = []
 notification-responses = ["dep:framework-notifications"]
 secure-storage = ["dep:framework-core", "dep:framework-secure-storage", "dep:ios-secure-storage"]
+ios-preferences = ["dep:framework-core", "dep:framework-preferences", "dep:ios-preferences"]
+ios-media-library-status = ["dep:ios-media-library-status"]
+ios-spritekit = ["dep:framework-spritekit", "dep:ios-spritekit", "dep:ios-runtime"]
+ios-call-observer = ["dep:ios-call-observer"]
+ios-maps = ["dep:framework-maps", "dep:ios-maps"]
+ios-classkit-deep-link = ["dep:ios-system-services", "dep:objc2", "dep:objc2-foundation"]
+ios-location = ["dep:framework-core", "dep:framework-location", "dep:ios-location", "dep:ios-runtime"]
+ios-file-provider = ["dep:ios-file-provider"]
+ios-vision = ["dep:ios-vision"]
+ios-proximity-reader = ["dep:ios-proximity-reader"]
+ios-crypto = ["dep:ios-crypto"]
+ios-modelio-status = ["dep:ios-modelio-status"]
+ios-sign-in-with-apple-status = ["dep:ios-sign-in-with-apple-status"]
+ios-accelerate = ["dep:ios-accelerate"]
+ios-key-support = ["dep:framework-key-support", "dep:ios-key-support"]
+ios-mps-status = ["dep:ios-mps-status"]
+ios-videotoolbox = ["dep:framework-media", "dep:ios-media"]
+ios-camera-device-status = ["dep:ios-camera-device-status"]
+ios-core-ml-status = ["dep:ios-core-ml-status"]
+ios-speech-status = ["dep:ios-speech-status"]
+ios-natural-language-status = ["dep:ios-natural-language-status"]
+ios-extension-support = ["dep:ios-extension-support"]
+ios-roomplan-status = ["dep:ios-roomplan"]
+ios-storekit2-status = ["dep:ios-storekit2-status"]
+ios-game-status = ["dep:framework-game", "dep:ios-game"]
+ios-transfer = [
+    "dep:framework-core",
+    "dep:framework-files",
+    "dep:framework-network",
+    "dep:framework-transfer",
+    "dep:ios-transfer",
+    "dep:objc2",
+]
+ios-clipboard = [
+    "dep:framework-core",
+    "dep:framework-sharing",
+    "dep:ios-sharing",
+    "dep:ios-runtime",
+    "ios-sharing/clipboard",
+]
+ios-share = [
+    "dep:framework-core",
+    "dep:framework-sharing",
+    "dep:ios-sharing",
+    "dep:ios-runtime",
+    "ios-sharing/share",
+    "dep:objc2",
+    "dep:objc2-core-foundation",
+    "dep:objc2-ui-kit",
+]
 
 [lints]
 workspace = true

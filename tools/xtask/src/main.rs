@@ -1,4 +1,6 @@
 mod audits;
+mod codegen;
+mod no_std_link;
 mod sdk_inventory;
 
 use std::env;
@@ -12,16 +14,48 @@ const PORTABLE_CRATES: &[&str] = &[
     "framework-async",
     "framework-abi",
     "framework-platform",
+    "framework-background",
+    "framework-background-execution",
+    "framework-accessory",
+    "framework-contacts",
+    "framework-calendar",
+    "framework-bluetooth",
+    "framework-health-authorization",
+    "framework-device-integrity",
+    "framework-cloud",
+    "framework-game",
+    "framework-maps",
+    "framework-vision",
+    "framework-roomplan",
+    "framework-web",
+    "framework-nfc",
+    "framework-data",
     "framework-app",
     "framework-files",
     "framework-preferences",
     "framework-resources",
     "framework-format",
+    "framework-key-support",
+    "framework-spritekit",
+    "framework-image",
     "framework-network",
+    "framework-connection",
+    "framework-connectivity",
+    "framework-transfer",
     "framework-secure-storage",
+    "framework-auth",
     "framework-notifications",
     "framework-location",
+    "framework-motion",
+    "framework-photos",
+    "framework-media",
+    "framework-media-authorization",
+    "framework-nearby",
+    "framework-metal",
     "framework-sharing",
+    "framework-audio",
+    "framework-ui",
+    "framework-watch-connectivity",
 ];
 
 fn main() {
@@ -45,15 +79,17 @@ fn run() -> Result<(), String> {
         }
         "toolchain-manifest" => toolchain_manifest(&args),
         "no-std-check" => no_std_check(),
+        "no-std-link-probe" => no_std_link::run(&args),
         "sdk-inventory" => sdk_inventory::run(&args),
         "dependency-audit" => audits::dependency_audit(&args),
         "abi-audit" => audits::abi_audit(&args),
+        "codegen-audit" => codegen::run(&args),
         "linkage-audit" => audits::linkage_audit(&args),
         "zero-swift-source" => zero_swift_source(),
         "docs-check" => docs_check(),
         "ios-build" => ios_build(&args),
         "archive-smoke" => run_example_script("archive.sh", &args, "archive smoke"),
-        "parity" => Err("parity harness is not available: no Apple reference adapter or Rust candidate is registered".into()),
+        "parity" => Err("parity is unavailable until a real Apple reference adapter and Rust candidate suite exist".into()),
         _ => Err(format!("unknown command `{command}`; run `cargo xtask help`")),
     }
 }
@@ -70,14 +106,16 @@ Commands:\n\
   toolchain-manifest [--output PATH]       Record host, Xcode, SDK, Swift, Clang, and Rust versions\n\
   ios-build (--simulator | --device) --release  Build the minimal iOS example\n\
   no-std-check                            Check portable crates with default and no default features\n\
+  no-std-link-probe [--output PATH]        Link and audit the host and Apple-target no_std probes\n\
   sdk-inventory [--sdk NAME] [--output PATH]  Inventory installed public Apple SDK files\n\
   dependency-audit [--output-dir PATH]     Record Cargo graphs and duplicate versions\n\
   abi-audit [--output PATH]                Inventory current C ABI source declarations\n\
+  codegen-audit [--output PATH]             Inspect optimized OperationId LLVM IR for host and installed iOS targets\n\
   linkage-audit --binary PATH              Inspect a Mach-O binary with otool\n\
-  zero-swift-source                       Reject every committed .swift source file\n\
+  zero-swift-source                       Reject .swift files in the checkout except .git and target\n\
   docs-check                              Check shared docs index and zero-Swift-source policy\n\
   archive-smoke                            Build and inspect an unsigned Xcode archive\n\
-  parity                                  Unavailable until Apple and Rust reference inputs exist\n\
+  parity                                  Unavailable until a real Apple reference adapter and Rust candidate suite exist\n\
 \n\
 Xcode 27.x is the plan baseline. A toolchain manifest warns when the host does not meet it\n"
 }
@@ -296,6 +334,7 @@ fn toolchain_manifest(args: &[String]) -> Result<(), String> {
 fn no_std_check() -> Result<(), String> {
     let cargo = env::var("CARGO").unwrap_or_else(|_| "cargo".into());
     for package in PORTABLE_CRATES {
+        check_portable_normal_dependencies(&cargo, package)?;
         let source = root().join("crates").join(package).join("src/lib.rs");
         let contents = fs::read_to_string(&source)
             .map_err(|error| format!("read {}: {error}", source.display()))?;
@@ -324,6 +363,123 @@ fn no_std_check() -> Result<(), String> {
     Ok(())
 }
 
+fn check_portable_normal_dependencies(cargo: &str, package: &str) -> Result<(), String> {
+    let platform_root = root()
+        .join("platform")
+        .canonicalize()
+        .map_err(|error| format!("resolve platform workspace path: {error}"))?;
+    let normal_tree = portable_dependency_tree(cargo, package, "normal")?;
+    let dev_tree = portable_dependency_tree(cargo, package, "dev")?;
+    let build_tree = portable_dependency_tree(cargo, package, "build")?;
+    let platform_packages = normal_tree
+        .iter()
+        .filter_map(|(_, package_id)| {
+            let (_, source) = package_id.split_once(" (")?;
+            let source = source.strip_suffix(')')?;
+            if Path::new(source).starts_with(&platform_root) {
+                package_id.split_whitespace().next().map(str::to_owned)
+            } else {
+                None
+            }
+        })
+        .collect::<Vec<_>>();
+    if !platform_packages.is_empty() {
+        return Err(format!(
+            "{package} normal dependency tree includes internal platform package(s): {}",
+            platform_packages.join(", ")
+        ));
+    }
+    let direct_dependencies = |tree: &[(usize, String)]| {
+        tree.iter()
+            .filter(|(depth, _)| *depth == 1)
+            .map(|(_, package_id)| package_id.clone())
+            .collect::<std::collections::BTreeSet<_>>()
+    };
+    let normal_direct = direct_dependencies(&normal_tree);
+    let dev_direct = direct_dependencies(&dev_tree);
+    let build_direct = direct_dependencies(&build_tree);
+    let duplicated_kinds = normal_direct
+        .intersection(&dev_direct)
+        .chain(normal_direct.intersection(&build_direct))
+        .cloned()
+        .collect::<std::collections::BTreeSet<_>>();
+    if !duplicated_kinds.is_empty() {
+        return Err(format!(
+            "{package} portable dependencies occur as both normal and dev/build edges: {}",
+            duplicated_kinds.into_iter().collect::<Vec<_>>().join(", ")
+        ));
+    }
+    println!(
+        "cargo tree --locked --all-features --target all -p {package}: normal={}, dev={}, build={}; no normal/dev/build edge overlap or internal platform package in the normal tree",
+        normal_direct.len(),
+        dev_direct.len(),
+        build_direct.len()
+    );
+    Ok(())
+}
+
+fn portable_dependency_tree(
+    cargo: &str,
+    package: &str,
+    edge: &str,
+) -> Result<Vec<(usize, String)>, String> {
+    let args = [
+        "tree",
+        "--locked",
+        "--all-features",
+        "--target",
+        "all",
+        "--edges",
+        edge,
+        "--no-dedupe",
+        "--prefix",
+        "depth",
+        "--format",
+        "{p}",
+        "-p",
+        package,
+    ];
+    let output = Command::new(cargo)
+        .current_dir(root())
+        .args(args)
+        .output()
+        .map_err(|error| format!("run cargo tree for {package} ({edge} edges): {error}"))?;
+    if !output.status.success() {
+        return Err(format!(
+            "cargo tree for {package} ({edge} edges) failed: {}",
+            output_text(&output)
+        ));
+    }
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let mut entries = Vec::new();
+    for line in stdout.lines().filter(|line| !line.trim().is_empty()) {
+        let depth_length = line.bytes().take_while(u8::is_ascii_digit).count();
+        if depth_length == 0 {
+            return Err(format!(
+                "unrecognized cargo tree ({edge} edges) output for {package}: {line}"
+            ));
+        }
+        let depth = line[..depth_length]
+            .parse::<usize>()
+            .map_err(|error| format!("parse cargo tree depth for {package}: {error}"))?;
+        let package_id = line[depth_length..].trim();
+        if package_id.is_empty() {
+            return Err(format!(
+                "missing package ID in cargo tree ({edge} edges) output for {package}"
+            ));
+        }
+        entries.push((depth, package_id.to_owned()));
+    }
+    if !entries.first().is_some_and(|(depth, package_id)| {
+        *depth == 0 && package_id.split_whitespace().next() == Some(package)
+    }) {
+        return Err(format!(
+            "cargo tree ({edge} edges) output did not start with package {package}"
+        ));
+    }
+    Ok(entries)
+}
+
 fn zero_swift_source() -> Result<(), String> {
     let mut swift_files = Vec::new();
     collect_swift_files(&root(), &root(), &mut swift_files)?;
@@ -334,7 +490,7 @@ fn zero_swift_source() -> Result<(), String> {
         return Ok(());
     }
     Err(format!(
-        "committed .swift source found; oracle input must remain transient and outside the checkout: {}",
+        ".swift source found in the checkout; oracle input must remain transient and outside the checkout: {}",
         swift_files.join(", ")
     ))
 }
@@ -513,6 +669,7 @@ mod tests {
             "toolchain-manifest",
             "ios-build (--simulator | --device) --release",
             "no-std-check",
+            "no-std-link-probe [--output PATH]",
             "sdk-inventory",
             "dependency-audit",
             "abi-audit",
@@ -525,6 +682,8 @@ mod tests {
             assert!(help.contains(command), "help is missing {command}");
         }
         assert!(help.contains("Build and inspect an unsigned Xcode archive"));
-        assert!(help.contains("Unavailable until Apple and Rust reference inputs exist"));
+        assert!(help.contains(
+            "Unavailable until a real Apple reference adapter and Rust candidate suite exist"
+        ));
     }
 }

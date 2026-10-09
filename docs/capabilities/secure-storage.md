@@ -13,6 +13,10 @@ The crate is `#![no_std]` and uses `alloc` for caller-owned read results. Each
 executor. Backend methods are synchronous and may block; a backend must document its native
 threading and availability behavior.
 
+Availability is a backend-reported general signal and may be `Unknown`. It does not guarantee that
+a particular service/item operation can succeed or that a requested policy can be met; the
+operation result remains authoritative.
+
 ## Identifiers and operations
 
 `ServiceId` and `ItemId` are borrowed UTF-8 identifiers. Each rejects empty text and NUL bytes but
@@ -57,14 +61,32 @@ particular platform protection class.
 The facade deals only in opaque bytes. It neither interprets secrets nor exposes cryptographic
 keys, algorithms, key generation, or encryption APIs. It does not promise encryption at rest,
 hardware-backed protection, access-control enforcement, secure deletion, backup exclusion, or
-resistance to a compromised process. Those properties depend on a future backend's chosen public
-platform API and the caller's configuration.
+resistance to a compromised process. Those properties depend on the selected backend's chosen
+public platform API and the caller's configuration.
 
-Apple Keychain is a future system-owned backend. No Keychain type or other platform type appears
-in this portable API, and this contract does not claim Keychain parity, availability, entitlement
-requirements, or an iOS implementation. A future adapter must document its mapping of access
-policy, availability, errors, native status codes, and data-copy behavior. It must use public,
-supported APIs and must not claim guarantees stronger than those APIs provide.
+## Current iOS backend
+
+The separate B2 `ios-secure-storage` backend uses public Keychain Services generic-password
+operations; it does not add Keychain types to this portable API. Its mapping of the two policy
+flags, native errors, status codes, copy behavior, and Keychain lock-state limits are documented in
+the [iOS backend guide](../ios/secure-storage.md). B2 currently reports `Availability::Available`
+without checking device lock state or a requested item's policy; Keychain operations can still fail
+under the selected accessibility class. The portable policy reports only its two modeled
+requirements; it does not express the Keychain `AfterFirstUnlock` requirement for an initial
+unlock after device restart.
+
+The portable contract has no access-group selector. In B2, `SecItemAdd` without
+`kSecAttrAccessGroup` creates an item in the app's default group, while unfiltered
+`SecItemCopyMatching`, `SecItemUpdate`, and `SecItemDelete` queries search all groups available to
+the app; updates and deletes affect all matching items. Therefore B2 does not configure or let
+callers select a shared group, but it is not isolated to the default group when the host app has
+multiple groups. Matching `ServiceId`/`ItemId` pairs may read, update, or delete items across those
+groups. Hosts with multiple groups must avoid such collisions. This is native adapter behavior,
+not a portable access-group or cross-platform guarantee.
+
+The facade itself does not claim Keychain parity or guarantees stronger than a backend's public,
+supported APIs. Any additional adapter must document its policy mapping, availability, errors,
+native status codes, and data-copy behavior.
 
 ## Example
 
@@ -93,4 +115,5 @@ The example's backend is supplied by its caller; this crate alone cannot read or
 Unit tests use an in-memory backend to check identifier validation, policy rejection before
 mutation, owned reads, effective policy reporting, and remove semantics. They do not validate
 platform persistence, confidentiality, native protection, Keychain behavior, cryptography,
-biometrics, or performance. No Apple or other platform backend is included in this workstream.
+biometrics, or performance. The D2 workstream contains no platform backend; iOS Keychain behavior
+belongs to the separate B2 workstream.

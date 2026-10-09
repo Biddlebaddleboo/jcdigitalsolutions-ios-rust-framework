@@ -6,6 +6,18 @@ Create the V1 Cargo workspace and the shared portable Rust foundations that ever
 
 This workstream is the single owner of shared semantic primitives. It must land before other workstreams modify shared interfaces.
 
+## Status and evidence
+
+All five foundation crates have `#![no_std]` roots; no third-party crate appears in their dependency trees
+
+- `framework-core` uses only `core`
+- `framework-alloc`, `framework-async`, `framework-abi`, and `framework-platform` each depend only on `framework-core`
+- `framework-alloc` exposes reusable `GenerationalSlab` and `BitSet` values, but no production crate uses them and no benchmark proves a runtime need
+- `framework-abi` has no C function that makes an owned buffer; `FrameworkOwnedBuffer::try_from_vec` creates Rust-owned buffers and `framework_owned_buffer_destroy` releases the original descriptor
+- `FrameworkErrorHandle` is only a scalar value; this foundation has no function or type to create, store, or free error detail
+
+Host result: Rust `1.94.1` no-default checks for these five crates passed again on 2026-10-09 as part of the 47-crate `cargo xtask no-std-check` run. Tests, strict Clippy, rustdoc, and codegen status passed on 2026-10-08. No host check proves device or simulator linkage, runtime behavior, 32-bit target execution, or a production need for `framework-alloc`
+
 ## Implementation scope
 
 Inspect first:
@@ -187,34 +199,65 @@ Do not allocate a diagnostic string on every success/failure path unless require
 ## Tests
 
 Deterministic unit/property tests:
-- packed encode/decode;
-- all valid/invalid state transitions;
+- fixed-width semantic value layouts and `CompactHandle` encode/decode without pointer IDs;
+- `BitSet` word edges, set/get, clear, count, empty domain, and out-of-range rejection; V1 has no packed-value API;
+- valid and invalid `OperationState` transitions, one-shot success/failure/cancellation, and repeated calls;
+- zero-sentinel checks for `CapabilityId`, `OperationId`, `Generation`, `PlatformErrorCode`, `CompactHandle`, `FrameworkOperationHandle`, and `FrameworkErrorHandle`;
 - handle generation/stale-handle behavior;
 - wraparound policy;
 - cancellation/completion race model using controlled synchronization;
-- C ABI layout/size assertions;
-- FFI create/destroy ownership;
-- panic-containment wrappers.
+- C ABI layout/size assertions, fixed status codes and category mapping, zero-handle sentinels, and `FrameworkOptionsV1` header values;
+- `FrameworkOwnedBuffer::try_from_vec` ownership transfer and one call to the C destructor on the original descriptor; no C-side buffer creator exists to test;
+- `catch_unwind_status` under the optional `std` feature.
 
-No real sleeps.
+No real sleeps
 
 ## Validation commands
 
 At minimum:
 
 ```bash
-cargo check -p framework-core --no-default-features
-cargo check -p framework-alloc --no-default-features
-cargo check -p framework-async --no-default-features
-cargo check -p framework-abi --no-default-features
-cargo test -p framework-core
-cargo test -p framework-alloc
-cargo test -p framework-async
-cargo test -p framework-abi
-cargo clippy -p framework-core -p framework-alloc -p framework-async -p framework-abi --all-targets -- -D warnings
+cargo +1.94.1 check --locked -p framework-core -p framework-alloc -p framework-async -p framework-abi -p framework-platform --no-default-features
+cargo +1.94.1 test --locked -p framework-core
+cargo +1.94.1 test --locked -p framework-alloc
+cargo +1.94.1 test --locked -p framework-async
+cargo +1.94.1 test --locked -p framework-abi --all-features
+cargo +1.94.1 test --locked -p framework-platform
+cargo +1.94.1 clippy --locked -p framework-core -p framework-alloc -p framework-async -p framework-abi -p framework-platform --all-targets -- -D warnings
+cargo +1.94.1 clippy --locked -p framework-abi --all-features --all-targets -- -D warnings
+cargo +1.94.1 run --locked -p xtask -- codegen-audit
 ```
 
-Also inspect optimized code for trivial wrappers to verify zero-cost static abstractions.
+The `codegen-audit` inspects optimized LLVM IR for four synthetic `OperationId` probes on the host and installed iOS targets; it is structural evidence for fixed-width accessors, not a benchmark, full-program LTO check, link check, or runtime claim
+
+### Host check record (2026-10-08)
+
+- `cargo +1.94.1 check --locked -p framework-core -p framework-alloc -p framework-async -p framework-abi -p framework-platform --no-default-features` — PASS
+- `cargo +1.94.1 test --locked -p framework-core` — PASS, 7 tests
+- `cargo +1.94.1 test --locked -p framework-alloc` — PASS, 5 tests
+- `cargo +1.94.1 test --locked -p framework-async` — PASS, 7 tests incl controlled cancellation/completion race
+- `cargo +1.94.1 test --locked -p framework-abi --all-features` — PASS, 7 tests incl `catch_unwind_status`
+- `cargo +1.94.1 test --locked -p framework-platform` — PASS, 2 tests
+- `cargo +1.94.1 clippy --locked -p framework-core -p framework-alloc -p framework-async -p framework-abi -p framework-platform --all-targets -- -D warnings` — PASS
+- `cargo +1.94.1 clippy --locked -p framework-abi --all-features --all-targets -- -D warnings` — PASS
+- `cargo +1.94.1 doc --locked --all-features -p framework-core -p framework-alloc -p framework-async -p framework-abi -p framework-platform --no-deps` — PASS
+- `cargo +1.94.1 run --locked -p xtask -- codegen-audit --output target/xtask/codegen-audit-foundation-20261008.json` — PASS for `x86_64-apple-darwin`, `aarch64-apple-ios`, `aarch64-apple-ios-sim`, and `x86_64-apple-ios`
+- `cargo +1.94.1 tree --locked -p framework-core -p framework-alloc -p framework-async -p framework-abi -p framework-platform --prefix none` — `framework-core` has no dependency; each other foundation crate has only the `framework-core` edge
+- `rustfmt +1.94.1 --check crates/framework-core/src/lib.rs crates/framework-async/src/lib.rs crates/framework-alloc/src/lib.rs crates/framework-abi/src/lib.rs` — PASS
+- `git diff --check` — PASS
+
+The codegen report is structural IR evidence for `OperationId` only; it makes no runtime cost claim. The host has no 32-bit target, and no device or simulator app ran. Prior audit files remain in `target/xtask/codegen-audit/build.pre-foundation-audit-20261008` and `target/xtask/codegen-audit/fixture.pre-foundation-audit-20261008`
+
+## Recorded evidence and limits
+
+- The representation table in [docs/core/FOUNDATION.md](docs/core/FOUNDATION.md) records size, alignment, array stride, scalar domains, sentinel values, slab capacity, and generation wrap behavior
+- [docs/core/ASYNC_AND_OWNERSHIP.md](docs/core/ASYNC_AND_OWNERSHIP.md) records atomic phase values, compare-exchange ordering, result publication, waker-slot ordering, future drop behavior, and backend callback lifetime
+- [docs/core/C_ABI.md](docs/core/C_ABI.md) records C layouts, pointer-width-dependent fields, owned-buffer rules, status values, callback lifetime, options headers, and panic limits
+- `framework-alloc` remains optional reusable infrastructure without a production caller or benchmark evidence; a production caller or benchmark must justify any required runtime use
+- The owned-buffer tests cover a Rust-created `Vec<u8>` allocation and its original descriptor; no C function creates a buffer or a non-null foreign-created descriptor
+- `FrameworkErrorHandle` has no detail object owner or destructor until a later API defines both
+- Other workstreams must keep fixed-width semantic IDs, zero sentinels, `CompactHandle` field order, generation wrap from `u32::MAX` to `1`, the single cancellation/completion winner, operation-state lifetime through backend callback teardown, and one destroy call on the original owned-buffer descriptor
+- The host test and codegen gates do not prove iOS device or simulator linking, platform runtime behavior, or 32-bit target execution
 
 ## Non-goals
 
@@ -234,5 +277,5 @@ Report:
 - shared public symbols;
 - size/alignment table;
 - dependencies added and rationale;
-- test commands/results;
+- exact test, Clippy, and codegen commands/results;
 - any semantics that later workstreams must not change.

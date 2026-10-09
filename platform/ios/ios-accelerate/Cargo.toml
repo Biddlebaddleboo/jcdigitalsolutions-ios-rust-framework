@@ -1,0 +1,11 @@
+[package]
+name = "ios-accelerate"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "B65 safe single-precision vDSP vector addition for iOS"
+
+[lints]
+workspace = true

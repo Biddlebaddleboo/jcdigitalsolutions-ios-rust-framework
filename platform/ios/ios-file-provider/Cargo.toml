@@ -1,0 +1,17 @@
+[package]
+name = "ios-file-provider"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "File Provider registered-domain presence query for iOS"
+
+[target.'cfg(target_os = "ios")'.dependencies]
+block2 = { workspace = true, features = ["alloc"] }
+objc2 = { workspace = true, features = ["std"] }
+objc2-file-provider = { version = "=0.3.2", default-features = false, features = ["Extension", "NSFileProviderDomain", "block2"] }
+objc2-foundation = { workspace = true, features = ["NSArray", "NSError", "NSString"] }
+
+[lints]
+workspace = true

@@ -1,0 +1,15 @@
+[package]
+name = "framework-web"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "Platform-exclusive HTTPS web-view and navigation contract"
+
+[dependencies]
+framework-core = { workspace = true }
+framework-format = { path = "../framework-format", version = "0.1.0" }
+
+[lints]
+workspace = true

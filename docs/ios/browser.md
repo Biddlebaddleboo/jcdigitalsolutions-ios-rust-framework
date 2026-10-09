@@ -33,8 +33,9 @@ options dictionary. A synchronous `Ok(())` means only that it issued the system 
 completion bool is UIKit's report that the URL was opened by a handler; it does not prove the remote
 server responded, that a page loaded, or that a person viewed it. iOS may open the system-selected
 browser, another URL handler, or an app associated with a Universal Link. Safari is not guaranteed.
-The completion runs asynchronously on the app's main queue. A panic in the Rust callback is caught
-and discarded at the Objective-C block boundary.
+The completion runs asynchronously on the app's main queue; an `Err` means UIKit gets no request
+and the completion does not run; `catch_unwind` catches Rust callback panics only with an unwind
+panic strategy; with `panic=abort`, a Rust panic aborts the process
 
 The function requires `MainThread` and takes no presenter. `UIApplication.sharedApplication` is
 unavailable to app extensions. This crate does not use `canOpenURL`, SafariServices,

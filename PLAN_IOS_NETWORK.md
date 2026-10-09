@@ -1,5 +1,31 @@
 # PLAN_IOS_NETWORK.md — Workstream B3: Foreground iOS HTTP Backend
 
+## Status
+
+B3 passes locked device/simulator checks and strict all-target Clippy. Its Release link/import gate
+builds a probe for each target; `otool -L` reports exactly `Foundation`, `libSystem.B.dylib`, and
+`libobjc.A.dylib`; the script also rejects Swift source and its selected Swift/Python/runtime and
+unrelated capability symbol patterns. The probes are link-only and were not executed. The recorded
+host unit test gate, `cargo test --locked -p ios-network`, passes 10 deterministic tests for
+conversion and operation completion/drop races. No URLSession request, local-server differential,
+or HTTP parity result is claimed; the recorded Xcode 26.6 host is below the plan's 27.x baseline.
+
+## Next-scope gate
+
+No additional B3 implementation is justified by the current plans. The adjacent E1 review in
+[`PLAN_REPLACEMENTS_HTTP.md`](PLAN_REPLACEMENTS_HTTP.md) and
+[`the HTTP construction decision`](docs/decisions/http-request-construction.md) traces portable
+request validation and owned staging through the required Foundation `NSURLRequest` and URLSession
+boundary; it identifies no bounded Apple operation that can be replaced without changing the
+contract and no credible performance hypothesis. Reopen implementation only after naming a
+replaceable operation and an apples-to-apples workload meeting the criteria in
+[`PLAN_REPLACEMENTS_HTTP.md#reopening-and-acceptance-criteria`](PLAN_REPLACEMENTS_HTTP.md#reopening-and-acceptance-criteria).
+The present baseline is [`OwnedRequest::from_request`](platform/ios/ios-network/src/conversion.rs),
+[`IosSendFuture::start` / `make_request`](platform/ios/ios-network/src/platform.rs), and
+[`response_from_callback`](platform/ios/ios-network/src/platform.rs); Foundation remains required
+for URLSession request submission and callback values. B13 background downloads and B14 file
+adoption remain separate completed scopes, not extensions of B3.
+
 ## Objective
 
 Implement the iOS foreground HTTP backend for the stable `framework-network` contract using public Apple APIs and no Swift source or mandatory executor.
@@ -39,7 +65,7 @@ Do not edit portable network contracts, root workspace configuration, `Cargo.loc
 - Remain executor-neutral; do not require Tokio, async-std, a global executor, runtime discovery, or a process-global session registry.
 - Preserve request method, URL, duplicate headers, header order, and body bytes as far as `URLSession` permits. Document native normalization or unsupported fields based on observed API behavior rather than claiming exact parity by assumption.
 - Return HTTP status codes, including non-success status codes, as ordinary responses; preserve response header duplicates/order where the public API permits observation.
-- Preserve native `NSError` domain/code in the framework's native error detail supported by current shared contracts; map stable categories explicitly.
+- Map stable `NSError` categories explicitly and preserve its signed code only when it fits the current optional `PlatformErrorCode(i32)` contract. The current shared error type has no domain field, so this workstream does not retain the domain or extend the portable contract.
 - Own request/response bytes safely across the native callback. Document every required copy and the OS/native callback thread.
 - Define future drop, native task cancellation/detachment, completion exactly-once, callback reentrancy, and thread-safety behavior. No callback may panic across Objective-C/C.
 - Reject or explicitly document any portable input that `URLSession` cannot represent without unsafe or undocumented behavior.
@@ -51,6 +77,7 @@ Do not edit portable network contracts, root workspace configuration, `Cargo.loc
 - Add deterministic unit coverage for request/response/error conversion and future completion/drop races using fake or controlled operations where possible.
 - Check the crate on `aarch64-apple-ios` and `aarch64-apple-ios-sim`; run Clippy with warnings denied.
 - Link minimal consumers for both targets and inspect imports to confirm only required public frameworks/runtime symbols are present, with no Swift runtime/source.
+- Run `sh platform/ios/ios-network/check-link-imports.sh` on macOS; it builds a link-only probe for both targets, checks exact direct imports `Foundation`, `libSystem.B.dylib`, and `libobjc.A.dylib` with `otool -L`, rejects the script's selected Swift/Python/runtime and unrelated capability symbol patterns with `nm -u`, and does not run either binary.
 - Run applicable repository checks after dependency integration.
 - Apple network differential tests must use deterministic local fixtures; do not use live external services or sleeps as correctness oracles. If the environment cannot run them, state the exact limitation and do not claim parity.
 - No performance replacement is proposed; record measurement status as not measured.
@@ -67,4 +94,4 @@ Document URL and header semantics, HTTP status behavior, native defaults, permis
 
 ## Handoff
 
-Report changed files, commit SHA, exact checks and linkage imports, actual parity evidence, deviations, and unresolved assumptions. The orchestrator integrates shared Cargo and capability-manifest changes.
+Report changed files, commit SHA, exact checks and linkage imports, actual parity evidence, deviations, and unresolved assumptions. Link/import evidence is not URLSession runtime or parity evidence. The orchestrator integrates shared Cargo and capability-manifest changes.

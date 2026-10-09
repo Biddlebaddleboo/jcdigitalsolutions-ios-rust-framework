@@ -1,5 +1,12 @@
 # PLAN_SWIFT_APP_INTENTS.md — Workstream C7: App Intents Metadata Feasibility
 
+## Status
+
+C7 Stage 0 is recorded in `docs/swift-abi/APP_INTENTS_STAGE0.md`. The audited Xcode 26.6 build
+produced metadata through its normal Swift pipeline, but no documented stable Rust/C metadata
+input or processor API was found; Stage 1 is no-go for this toolchain. No private metadata path or
+runtime registration was used. Re-audit on a host that meets the Xcode 27.x plan baseline.
+
 ## Objective
 
 Audit the normal Xcode App Intents metadata pipeline and determine whether the Stage 1 Rust-defined, zero-Swift-source attempt has a documented, stable input path. Record a precise go/no-go boundary; do not infer support from tool presence or exported symbols.

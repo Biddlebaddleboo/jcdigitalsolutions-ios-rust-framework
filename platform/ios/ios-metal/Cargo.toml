@@ -1,0 +1,18 @@
+[package]
+name = "ios-metal"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "Narrow iOS Metal system-default device-presence query"
+
+[dependencies]
+framework-metal = { path = "../../../crates/framework-metal" }
+
+[target.'cfg(target_os = "ios")'.dependencies]
+objc2-core-graphics = { workspace = true, features = ["CGBase"] }
+objc2-metal = { workspace = true, features = ["MTLDevice"] }
+
+[lints]
+workspace = true

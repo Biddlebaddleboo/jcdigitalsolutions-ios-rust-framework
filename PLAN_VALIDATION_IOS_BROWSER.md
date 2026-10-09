@@ -34,6 +34,14 @@ Do not edit the iOS backend, portable URI contract, root Cargo workspace/depende
 - Run the gates on macOS runners with both Rust targets and Xcode SDKs.
 - Update `docs/VALIDATION.md` with the exact commands and their limits: compile/lint only, with no live URL-handler call or app/browser runtime proof.
 
+## Status and evidence
+
+- G11 CI gates are present in `.github/workflows/ci.yml` on macOS for both `aarch64-apple-ios` and `aarch64-apple-ios-sim`; CI installs both Rust targets before the gates
+- `docs/VALIDATION.md` records all four exact commands and limits the evidence to compile/lint; `docs/ios/browser.md` also states that no URL handler, browser, or network request was run
+- Pass: `cargo check --locked -p ios-browser --target aarch64-apple-ios`; `cargo check --locked -p ios-browser --target aarch64-apple-ios-sim`; `cargo clippy --locked -p ios-browser --all-targets --target aarch64-apple-ios -- -D warnings`; `cargo clippy --locked -p ios-browser --all-targets --target aarch64-apple-ios-sim -- -D warnings`
+- Pass: `ruby -e 'require "yaml"; YAML.parse_file(".github/workflows/ci.yml"); puts "CI YAML parse passed"'`; `cargo xtask docs-check`; `git diff --check`
+- No tests, live URL-handler call, browser launch, or network request ran; no app/browser runtime result is claimed
+
 ## Validation and handoff
 
 - Run all four target-specific check/lint commands.

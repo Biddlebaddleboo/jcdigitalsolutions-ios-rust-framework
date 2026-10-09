@@ -6,8 +6,8 @@ use objc2::{ClassType, DefinedClass, MainThreadOnly, define_class, msg_send, sel
 use objc2_core_foundation::{CGPoint, CGRect, CGSize};
 use objc2_foundation::{NSObject, NSObjectProtocol, NSString};
 use objc2_ui_kit::{
-    UIApplication, UIApplicationDelegate, UIButton, UIControlEvents, UIControlState, UILabel,
-    UIScreen, UIView, UIViewController, UIWindow,
+    UIApplication, UIApplicationDelegate, UIButton, UIColor, UIControlEvents, UIControlState,
+    UILabel, UIScreen, UIView, UIViewController, UIWindow,
 };
 
 #[derive(Default)]
@@ -112,9 +112,14 @@ impl AppDelegate {
         let controller = UIViewController::new(mtm);
         let root_view = UIView::new(mtm);
         root_view.setFrame(bounds);
+        root_view.setBackgroundColor(Some(&UIColor::systemBackgroundColor()));
 
         let label = UILabel::new(mtm);
         label.setFrame(label_frame);
+        // SAFETY: a non-null adaptive UIKit system color is valid for UILabel text.
+        unsafe {
+            label.setTextColor(Some(&UIColor::labelColor()));
+        }
         let initial_text = NSString::from_str("Rust created this UIKit screen");
         label.setText(Some(&initial_text));
 
@@ -122,6 +127,7 @@ impl AppDelegate {
         button.setFrame(button_frame);
         let title = NSString::from_str("Call Rust");
         button.setTitle_forState(Some(&title), UIControlState::Normal);
+        button.setTitleColor_forState(Some(&UIColor::systemBlueColor()), UIControlState::Normal);
 
         let target = ButtonTarget::with_label(mtm, label.clone());
         // SAFETY: `target` is the retained Rust target object and implements the exact `buttonTapped:` selector.
@@ -146,6 +152,9 @@ impl AppDelegate {
             .get()
             .expect("window retained")
             .makeKeyAndVisible();
+        if std::env::args_os().any(|arg| arg == "--exercise-rust-button-callback") {
+            button.sendActionsForControlEvents(UIControlEvents::TouchUpInside);
+        }
         true
     }
 }

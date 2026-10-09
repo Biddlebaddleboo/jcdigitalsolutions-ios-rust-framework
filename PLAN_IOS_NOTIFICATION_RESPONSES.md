@@ -1,5 +1,20 @@
 # PLAN_IOS_NOTIFICATION_RESPONSES.md — Workstream B12: Local Notification Responses
 
+## Status
+
+Implemented on `main` in commit `5111fad9b101aee85cc32719502470a7bc9cbae8`; see [the iOS guide](docs/ios/notification-responses.md). The bridge remains opt-in and partial; no live response-delivery or permission-prompt behavior is claimed
+
+A follow-up audit now keeps the delegate retained through response conversion, the app closure, and
+native completion, with panic containment across release of that retain. The bridge maps default
+and dismiss IDs first; other non-system action IDs map to `CustomAction` unless the native response
+is `UNTextInputNotificationResponse`, which maps to `TextInput`. Invalid values are suppressed
+before native completion. Locked device and simulator checks, strict Clippy, device rustdoc,
+feature-tree review, zero-Swift-source check, formatting, docs checks, and diff checks pass. No
+tests or live response checks were run in this follow-up.
+
+The recorded target-check host is Xcode 26.6 with iPhoneOS/iPhoneSimulator SDK 26.5, below the
+required Xcode 27.x baseline.
+
 ## Goal
 
 Map native iOS local-notification response data into D9 `NotificationResponse` values with an opt-in Rust bridge and no Swift source

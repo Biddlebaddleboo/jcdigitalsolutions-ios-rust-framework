@@ -22,8 +22,10 @@ pub enum PresentationError {
 ///
 /// The caller retains ownership of `presenter` and controls its view tree and lifecycle. This
 /// function synchronously constructs an alert with exactly one default action, passes no action
-/// handler, and sends a presentation request. UIKit owns the alert after presentation. The proof
-/// and UIKit objects are main-thread-only; this function exposes no retained UIKit handle.
+/// handler or presentation-completion block, and sends a presentation request. UIKit manages the
+/// alert only if it accepts and presents the request. The proof and UIKit objects are
+/// main-thread-only; this function exposes no retained UIKit handle or signal that UIKit accepted
+/// the request.
 ///
 /// `Ok(())` means only that `presentViewController:animated:completion:` was called. That UIKit
 /// method returns `void` and has no error callback, so this result does not prove that the alert

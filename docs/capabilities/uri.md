@@ -39,3 +39,8 @@ or `NSURL` and do not change `framework-network::HttpUrl`'s HTTP-only semantics.
 The portable `framework-format` crate does not dereference URLs, resolve names, or implement network
 behavior. B11's separate `ios-browser` backend consumes an absolute HTTPS `Uri` only to issue a
 system URL-handler request; it does not guarantee Safari, a page load, or visible browser UI.
+
+B20's [iOS URL adapter](../ios/url.md) retains an absolute `Uri` beside an owned `NSURL` created by
+`NSURL::URLWithString_encodingInvalidCharacters` with `false`. The adapter has an iOS 17.0 API floor;
+Foundation may reject a syntactically valid `Uri`, and the native parsed components are not claimed
+to match the source text in every detail.

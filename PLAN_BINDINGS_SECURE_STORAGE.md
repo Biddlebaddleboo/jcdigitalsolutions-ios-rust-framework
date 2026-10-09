@@ -1,5 +1,18 @@
 # PLAN_BINDINGS_SECURE_STORAGE.md — Workstream F2: Secure-Storage C ABI
 
+## Status
+
+F2's opt-in C ABI is implemented. The device and simulator static libraries link through a C probe
+that calls read, store, and remove. Each probe Mach-O has the exact direct import set
+`CoreFoundation`, `Security`, and `libSystem.B.dylib`; its undefined-symbol scan requires
+Keychain/CoreFoundation APIs and rejects Swift, Objective-C, and network symbols. This evidence
+applies to the probe, not arbitrary app links. The ABI manifest now records the invalid-input,
+unsupported-policy, non-iOS, backend, platform-code, allocation, and panic status mappings; the
+check script validates that record and exact header-to-manifest symbol parity. Deterministic Rust
+mapping tests now pass for every known error-kind status, non-iOS output initialization, policy and
+identifier validation, and panic containment. Eight targeted tests passed; this does not claim a
+live Keychain or physical-device test
+
 ## Objective
 
 Add a capability-scoped synchronous C ABI for the stable secure-storage contract, backed on iOS by `IosSecureStorage`. Keep the C layer as an opt-in foreign-language boundary; Rust callers continue to call `SecureStorage<IosSecureStorage>` directly.
@@ -37,8 +50,8 @@ Do not edit `crates/framework-abi/**`, secure-storage contracts/backends, root w
 - Add C11 and C++17 header compile coverage for the capability header.
 - Test known policy flags/output semantics and validate the capability symbol list.
 - Link and run a host C consumer against the explicit non-iOS `UNSUPPORTED` stubs when toolchain support permits.
-- Build the iOS static library with the feature for `aarch64-apple-ios` and `aarch64-apple-ios-sim`; audit its imports for Security/CoreFoundation and absence of Swift/Objective-C runtime.
-- Exercise the Rust mapping layer with deterministic tests; do not claim a live Keychain or physical-device test unless one is run.
+- Build the iOS static library with the feature for `aarch64-apple-ios` and `aarch64-apple-ios-sim`; link a C probe that calls read, store, and remove; use `otool -L` to enforce the exact direct imports `CoreFoundation`, `Security`, and `libSystem.B.dylib`; use `nm -u` to require Keychain/CoreFoundation symbols and reject Swift, Objective-C, network, and unrelated framework imports for that probe
+- Exercise the Rust mapping layer with deterministic tests; link checks do not satisfy this criterion. Do not claim a live Keychain or physical-device test unless one is run
 - Update the ABI manifest and binding documentation with symbols, ownership, status/native-code mapping, policy bits, synchronous/blocking behavior, target support, and validation limits.
 
 ## Non-goals

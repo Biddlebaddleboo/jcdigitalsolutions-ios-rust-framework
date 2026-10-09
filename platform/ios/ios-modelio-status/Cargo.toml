@@ -1,0 +1,15 @@
+[package]
+name = "ios-modelio-status"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "ModelIO file-extension support query for iOS"
+
+[target.'cfg(target_os = "ios")'.dependencies]
+objc2-foundation = { workspace = true, features = ["NSString"] }
+objc2-model-io = { workspace = true, features = ["MDLAsset"] }
+
+[lints]
+workspace = true

@@ -1,0 +1,11 @@
+[package]
+name = "framework-nearby"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "Portable Nearby Interaction capability snapshot contract"
+
+[lints]
+workspace = true

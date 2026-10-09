@@ -219,10 +219,12 @@ impl NotificationError {
 /// A successful schedule for an identifier replaces any pending notification with that same
 /// identifier; it must not create a duplicate pending request. If operations from multiple clients
 /// race for one identifier, the backend's serialization order determines which successful
-/// schedule remains. Cancelling returns whether a pending request existed at the backend's
-/// removal point. It does not promise to withdraw a notification already presented or delivered.
-/// This contract does not promise delivery at an exact time or provide an executor, process-wide
-/// service, or permission prompt by itself.
+/// schedule remains. Cancelling reports whether the backend observed a matching pending request at
+/// its documented cancellation point. A backend whose native API separates lookup from removal
+/// must document that race; the boolean does not imply an atomic compare-and-remove. Cancellation
+/// does not promise to withdraw a notification already presented or delivered. This contract does
+/// not promise delivery at an exact time or provide an executor, process-wide service, or
+/// permission prompt by itself.
 pub trait NotificationBackend {
     /// Reports whether local notifications are usable in the current context.
     fn availability(&self) -> Availability;
@@ -264,7 +266,10 @@ pub trait NotificationBackend {
     where
         Self: 'a;
 
-    /// Removes a pending request and reports whether one existed.
+    /// Requests removal of a pending request and reports whether the backend observed one.
+    ///
+    /// The backend defines and documents its cancellation observation point. This result does not
+    /// imply an atomic compare-and-remove when its native API separates lookup from removal.
     fn cancel<'a>(&'a mut self, identifier: NotificationId) -> Self::CancelFuture<'a>;
 }
 
@@ -302,10 +307,11 @@ impl<B: NotificationBackend> Notifications<B> {
         self.backend.schedule(notification).await
     }
 
-    /// Cancels a pending notification and reports whether the identifier was present.
+    /// Requests cancellation and reports whether the backend observed a matching pending request.
     ///
-    /// This is distinct from dropping a future returned by another operation. A backend cannot
-    /// promise to withdraw a notification already presented or delivered.
+    /// This is distinct from dropping a future returned by another operation. The selected
+    /// backend documents its observation point and whether native lookup/removal can race. A
+    /// backend cannot promise to withdraw a notification already presented or delivered.
     pub async fn cancel(&mut self, identifier: NotificationId) -> Result<bool, NotificationError> {
         self.backend.cancel(identifier).await
     }
@@ -329,7 +335,9 @@ impl<B: NotificationBackend> Notifications<B> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use alloc::rc::Rc;
     use alloc::vec::Vec;
+    use core::cell::RefCell;
     use core::future::{Future, Ready, ready};
     use core::pin::pin;
     use core::task::{Context, Poll, Waker};
@@ -411,6 +419,147 @@ mod tests {
                 .map(|index| self.pending.remove(index))
                 .is_some();
             ready(Ok(removed))
+        }
+    }
+
+    struct PendingState {
+        schedule_calls: u32,
+        work_started: u32,
+        cancellation_calls: u32,
+        dropped_interest: u32,
+        completion_count: u32,
+        delivered_count: u32,
+        callback_attached: bool,
+        completed: bool,
+    }
+
+    impl PendingState {
+        fn new() -> Self {
+            Self {
+                schedule_calls: 0,
+                work_started: 0,
+                cancellation_calls: 0,
+                dropped_interest: 0,
+                completion_count: 0,
+                delivered_count: 0,
+                callback_attached: false,
+                completed: false,
+            }
+        }
+    }
+
+    struct PendingBackend {
+        state: Rc<RefCell<PendingState>>,
+    }
+
+    impl PendingBackend {
+        fn new() -> Self {
+            Self {
+                state: Rc::new(RefCell::new(PendingState::new())),
+            }
+        }
+
+        fn callback(&self) -> PendingCallback {
+            PendingCallback(self.state.clone())
+        }
+    }
+
+    struct PendingCallback(Rc<RefCell<PendingState>>);
+
+    impl PendingCallback {
+        fn complete(&self) -> bool {
+            let mut state = self.0.borrow_mut();
+            if !state.callback_attached || state.completed {
+                return false;
+            }
+            state.callback_attached = false;
+            state.completed = true;
+            state.completion_count += 1;
+            true
+        }
+    }
+
+    struct PendingScheduleFuture {
+        state: Rc<RefCell<PendingState>>,
+        started: bool,
+        completed: bool,
+    }
+
+    impl Future for PendingScheduleFuture {
+        type Output = Result<(), NotificationError>;
+
+        fn poll(self: core::pin::Pin<&mut Self>, _context: &mut Context<'_>) -> Poll<Self::Output> {
+            let this = self.get_mut();
+            if !this.started {
+                this.started = true;
+                let mut state = this.state.borrow_mut();
+                state.work_started += 1;
+                state.callback_attached = true;
+            }
+            let mut state = this.state.borrow_mut();
+            if state.completed {
+                this.completed = true;
+                state.delivered_count += 1;
+                Poll::Ready(Ok(()))
+            } else {
+                Poll::Pending
+            }
+        }
+    }
+
+    impl Drop for PendingScheduleFuture {
+        fn drop(&mut self) {
+            if self.started && !self.completed {
+                self.state.borrow_mut().dropped_interest += 1;
+            }
+        }
+    }
+
+    impl NotificationBackend for PendingBackend {
+        fn availability(&self) -> Availability {
+            Availability::Available
+        }
+
+        type AuthorizationFuture<'a>
+            = Ready<Result<AuthorizationState, NotificationError>>
+        where
+            Self: 'a;
+
+        fn authorization<'a>(&'a mut self) -> Self::AuthorizationFuture<'a> {
+            ready(Ok(AuthorizationState::NotDetermined))
+        }
+
+        type RequestAuthorizationFuture<'a>
+            = Ready<Result<AuthorizationState, NotificationError>>
+        where
+            Self: 'a;
+
+        fn request_authorization<'a>(&'a mut self) -> Self::RequestAuthorizationFuture<'a> {
+            ready(Ok(AuthorizationState::NotDetermined))
+        }
+
+        type ScheduleFuture<'a>
+            = PendingScheduleFuture
+        where
+            Self: 'a;
+
+        fn schedule<'a>(&'a mut self, _notification: Notification) -> Self::ScheduleFuture<'a> {
+            self.state.borrow_mut().schedule_calls += 1;
+            PendingScheduleFuture {
+                state: self.state.clone(),
+                started: false,
+                completed: false,
+            }
+        }
+
+        type CancelFuture<'a>
+            = Ready<Result<bool, NotificationError>>
+        where
+            Self: 'a;
+
+        fn cancel<'a>(&'a mut self, _identifier: NotificationId) -> Self::CancelFuture<'a> {
+            self.state.borrow_mut().cancellation_calls += 1;
+            ready(Ok(false))
         }
     }
 
@@ -523,5 +672,41 @@ mod tests {
         drop(notifications.schedule(notification("not-started", "title")));
         assert_eq!(notifications.backend().schedule_count, 0);
         assert!(notifications.backend().pending.is_empty());
+    }
+
+    #[test]
+    fn dropping_started_schedule_future_drops_interest_without_cancelling_work() {
+        let backend = PendingBackend::new();
+        let callback = backend.callback();
+        let state = backend.state.clone();
+        let mut notifications = Notifications::new(backend);
+        {
+            let mut future = pin!(notifications.schedule(notification("started", "title")));
+            let mut context = Context::from_waker(Waker::noop());
+            {
+                let state = state.borrow();
+                assert_eq!(state.schedule_calls, 0);
+                assert_eq!(state.work_started, 0);
+            }
+            assert!(future.as_mut().poll(&mut context).is_pending());
+        }
+
+        {
+            let state = state.borrow();
+            assert_eq!(state.schedule_calls, 1);
+            assert_eq!(state.work_started, 1);
+            assert_eq!(state.dropped_interest, 1);
+            assert_eq!(state.cancellation_calls, 0);
+            assert!(state.callback_attached);
+            assert_eq!(state.completion_count, 0);
+            assert_eq!(state.delivered_count, 0);
+        }
+        assert!(callback.complete());
+        assert!(!callback.complete());
+        let state = state.borrow();
+        assert!(!state.callback_attached);
+        assert_eq!(state.completion_count, 1);
+        assert_eq!(state.delivered_count, 0);
+        assert_eq!(state.cancellation_calls, 0);
     }
 }

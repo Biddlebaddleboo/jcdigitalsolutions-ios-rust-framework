@@ -1,5 +1,14 @@
 # PLAN_CAPABILITIES_SECURE_STORAGE.md — Workstream D2: Secure Storage Contract
 
+## Status
+
+D2 remains the portable `no_std` facade and contract; it does not select or implement a storage
+backend. B2 is separately integrated as an iOS Keychain backend. The facade alone provides no
+secrecy; see `docs/capabilities/secure-storage.md` and `docs/ios/secure-storage.md`. B2 adds items
+in the app's default Keychain group, but unfiltered reads, updates, and deletes search all groups
+available to the app; strict default-group isolation is not provided. This backend-specific
+behavior does not change D2's portable identity or policy semantics.
+
 ## Objective
 
 Add a portable, statically selected secure-storage facade for opaque secret bytes. This slice defines semantics only; it does not implement Keychain, cryptography, biometric access, key generation, or remote sync.
@@ -31,7 +40,7 @@ Do not edit root workspace configuration, the capability status manifest, iOS ba
 
 ## Documentation
 
-Record confidentiality boundaries, plaintext exposure after read, backend-selected protection limits, copy costs, access-policy semantics, and the absence of cryptographic key APIs in this slice. State that Apple Keychain is a future system-owned backend and that the facade alone does not provide secrecy.
+Record confidentiality boundaries, plaintext exposure after read, backend-selected protection limits, copy costs, access-policy semantics, and the absence of cryptographic key APIs in this slice. Distinguish this portable D2 contract from the separately integrated B2 Keychain backend, state that the facade alone does not provide secrecy, and link to the current backend guide.
 
 ## Validation and handoff
 

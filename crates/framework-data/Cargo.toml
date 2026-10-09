@@ -1,0 +1,11 @@
+[package]
+name = "framework-data"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "Portable borrowed byte and UTF-8 views with explicit ownership conversions"
+
+[lints]
+workspace = true

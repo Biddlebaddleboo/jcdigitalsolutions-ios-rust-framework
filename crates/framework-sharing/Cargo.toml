@@ -5,7 +5,7 @@ edition.workspace = true
 rust-version.workspace = true
 license.workspace = true
 repository.workspace = true
-description = "Portable plain-text clipboard contract"
+description = "Portable clipboard and outgoing-share contracts"
 
 [dependencies]
 framework-core.workspace = true

@@ -20,6 +20,33 @@ jobs:
       - name: Install iOS device and simulator targets
         if: runner.os == 'macOS'
         run: rustup target add aarch64-apple-ios aarch64-apple-ios-sim --toolchain 1.94.1
+      - name: Check iOS files device target
+        if: runner.os == 'macOS'
+        run: cargo check --locked -p ios-files --target aarch64-apple-ios
+      - name: Check iOS files simulator target
+        if: runner.os == 'macOS'
+        run: cargo check --locked -p ios-files --target aarch64-apple-ios-sim
+      - name: Clippy iOS files device target
+        if: runner.os == 'macOS'
+        run: cargo clippy --locked -p ios-files --all-targets --target aarch64-apple-ios -- -D warnings
+      - name: Clippy iOS files simulator target
+        if: runner.os == 'macOS'
+        run: cargo clippy --locked -p ios-files --all-targets --target aarch64-apple-ios-sim -- -D warnings
+      - name: Check iOS preferences device target
+        if: runner.os == 'macOS'
+        run: cargo check --locked -p ios-preferences --target aarch64-apple-ios
+      - name: Check iOS preferences simulator target
+        if: runner.os == 'macOS'
+        run: cargo check --locked -p ios-preferences --target aarch64-apple-ios-sim
+      - name: Clippy iOS preferences device target
+        if: runner.os == 'macOS'
+        run: cargo clippy --locked -p ios-preferences --all-targets --target aarch64-apple-ios -- -D warnings
+      - name: Clippy iOS preferences simulator target
+        if: runner.os == 'macOS'
+        run: cargo clippy --locked -p ios-preferences --all-targets --target aarch64-apple-ios-sim -- -D warnings
+      - name: Link and audit iOS app-data imports and deployment metadata
+        if: runner.os == 'macOS'
+        run: sh platform/ios/ios-files/check-app-data-link-imports.sh
       - name: Check iOS network device target
         if: runner.os == 'macOS'
         run: cargo check --locked -p ios-network --target aarch64-apple-ios
@@ -32,6 +59,117 @@ jobs:
       - name: Clippy iOS network simulator target
         if: runner.os == 'macOS'
         run: cargo clippy --locked -p ios-network --all-targets --target aarch64-apple-ios-sim -- -D warnings
+      - name: Check iOS connectivity device target
+        if: runner.os == 'macOS'
+        run: cargo check --locked -p ios-connectivity --target aarch64-apple-ios
+      - name: Check iOS connectivity simulator target
+        if: runner.os == 'macOS'
+        run: cargo check --locked -p ios-connectivity --target aarch64-apple-ios-sim
+      - name: Clippy iOS connectivity device target
+        if: runner.os == 'macOS'
+        run: cargo clippy --locked -p ios-connectivity --all-targets --target aarch64-apple-ios -- -D warnings
+      - name: Clippy iOS connectivity simulator target
+        if: runner.os == 'macOS'
+        run: cargo clippy --locked -p ios-connectivity --all-targets --target aarch64-apple-ios-sim -- -D warnings
+      - name: Link and audit iOS connectivity imports
+        if: runner.os == 'macOS'
+        run: sh platform/ios/ios-connectivity/check-link-imports.sh
+      - name: Check iOS connection device target
+        if: runner.os == 'macOS'
+        run: cargo check --locked -p ios-connection --target aarch64-apple-ios
+      - name: Check iOS connection simulator target
+        if: runner.os == 'macOS'
+        run: cargo check --locked -p ios-connection --target aarch64-apple-ios-sim
+      - name: Clippy iOS connection device target
+        if: runner.os == 'macOS'
+        run: cargo clippy --locked -p ios-connection --all-targets --target aarch64-apple-ios -- -D warnings
+      - name: Clippy iOS connection simulator target
+        if: runner.os == 'macOS'
+        run: cargo clippy --locked -p ios-connection --all-targets --target aarch64-apple-ios-sim -- -D warnings
+      - name: Link and audit iOS connection imports
+        if: runner.os == 'macOS'
+        run: sh platform/ios/ios-connection/check-link-imports.sh
+      - name: Check iOS data device target
+        if: runner.os == 'macOS'
+        run: cargo check --locked -p ios-data --target aarch64-apple-ios
+      - name: Check iOS data simulator target
+        if: runner.os == 'macOS'
+        run: cargo check --locked -p ios-data --target aarch64-apple-ios-sim
+      - name: Clippy iOS data device target
+        if: runner.os == 'macOS'
+        run: cargo clippy --locked -p ios-data --all-targets --target aarch64-apple-ios -- -D warnings
+      - name: Clippy iOS data simulator target
+        if: runner.os == 'macOS'
+        run: cargo clippy --locked -p ios-data --all-targets --target aarch64-apple-ios-sim -- -D warnings
+      - name: Link and audit iOS data imports
+        if: runner.os == 'macOS'
+        run: sh platform/ios/ios-data/check-link-imports.sh
+      - name: Check iOS URL device target
+        if: runner.os == 'macOS'
+        run: cargo check --locked -p ios-url --target aarch64-apple-ios
+      - name: Check iOS URL simulator target
+        if: runner.os == 'macOS'
+        run: cargo check --locked -p ios-url --target aarch64-apple-ios-sim
+      - name: Clippy iOS URL device target
+        if: runner.os == 'macOS'
+        run: cargo clippy --locked -p ios-url --all-targets --target aarch64-apple-ios -- -D warnings
+      - name: Clippy iOS URL simulator target
+        if: runner.os == 'macOS'
+        run: cargo clippy --locked -p ios-url --all-targets --target aarch64-apple-ios-sim -- -D warnings
+      - name: Link and audit iOS URL imports
+        if: runner.os == 'macOS'
+        run: sh platform/ios/ios-url/check-link-imports.sh
+      - name: Check iOS UI device target
+        if: runner.os == 'macOS'
+        run: cargo check --locked -p ios-ui --target aarch64-apple-ios
+      - name: Check iOS UI simulator target
+        if: runner.os == 'macOS'
+        run: cargo check --locked -p ios-ui --target aarch64-apple-ios-sim
+      - name: Clippy iOS UI device target
+        if: runner.os == 'macOS'
+        run: cargo clippy --locked -p ios-ui --all-targets --target aarch64-apple-ios -- -D warnings
+      - name: Clippy iOS UI simulator target
+        if: runner.os == 'macOS'
+        run: cargo clippy --locked -p ios-ui --all-targets --target aarch64-apple-ios-sim -- -D warnings
+      - name: Link and audit iOS UI geometry imports and ABI
+        if: runner.os == 'macOS'
+        run: sh platform/ios/ios-ui/check-link-imports.sh
+      - name: Link and audit iOS UI text-metrics imports and signatures
+        if: runner.os == 'macOS'
+        run: sh platform/ios/ios-ui/check-text-metrics-link-imports.sh
+      - name: Check iOS media device target
+        if: runner.os == 'macOS'
+        run: cargo check --locked -p ios-media --target aarch64-apple-ios
+      - name: Check iOS media simulator target
+        if: runner.os == 'macOS'
+        run: cargo check --locked -p ios-media --target aarch64-apple-ios-sim
+      - name: Check bounded iOS VideoToolbox capability package
+        if: runner.os == 'macOS'
+        run: sh platform/ios/ios-media/check.sh
+      - name: Clippy iOS media device target
+        if: runner.os == 'macOS'
+        run: cargo clippy --locked -p ios-media --all-targets --target aarch64-apple-ios -- -D warnings
+      - name: Clippy iOS media simulator target
+        if: runner.os == 'macOS'
+        run: cargo clippy --locked -p ios-media --all-targets --target aarch64-apple-ios-sim -- -D warnings
+      - name: Link and audit iOS media imports and CMTime layout
+        if: runner.os == 'macOS'
+        run: sh platform/ios/ios-media/check-link-imports.sh
+      - name: Check iOS playback capability package
+        if: runner.os == 'macOS'
+        run: sh platform/ios/ios-playback/check.sh
+      - name: Check iOS MessageUI status package
+        if: runner.os == 'macOS'
+        run: sh platform/ios/ios-message-ui-support/scripts/check.sh
+      - name: Check iOS SharedWithYou status package
+        if: runner.os == 'macOS'
+        run: sh platform/ios/ios-shared-with-you-support/scripts/check.sh
+      - name: Check iOS Apple Pay capability status
+        if: runner.os == 'macOS'
+        run: sh crates/framework-payments/scripts/check.sh
+      - name: Link and audit iOS network imports
+        if: runner.os == 'macOS'
+        run: sh platform/ios/ios-network/check-link-imports.sh
       - name: Check iOS notifications device target
         if: runner.os == 'macOS'
         run: cargo check --locked -p ios-notifications --target aarch64-apple-ios
@@ -44,6 +182,223 @@ jobs:
       - name: Clippy iOS notifications simulator target
         if: runner.os == 'macOS'
         run: cargo clippy --locked -p ios-notifications --all-targets --target aarch64-apple-ios-sim -- -D warnings
+      - name: iOS notifications Release link/import check
+        if: runner.os == 'macOS'
+        run: sh platform/ios/ios-notifications/check-link-imports.sh
+      - name: Check portable app-refresh contract without default features
+        run: cargo check --locked -p framework-background --no-default-features
+      - name: Clippy portable app-refresh contract
+        run: cargo clippy --locked -p framework-background --all-targets -- -D warnings
+      - name: Check iOS background tasks device target
+        if: runner.os == 'macOS'
+        run: cargo check --locked -p ios-background-tasks --target aarch64-apple-ios
+      - name: Check iOS background tasks simulator target
+        if: runner.os == 'macOS'
+        run: cargo check --locked -p ios-background-tasks --target aarch64-apple-ios-sim
+      - name: Clippy iOS background tasks device target
+        if: runner.os == 'macOS'
+        run: cargo clippy --locked -p ios-background-tasks --all-targets --target aarch64-apple-ios -- -D warnings
+      - name: Clippy iOS background tasks simulator target
+        if: runner.os == 'macOS'
+        run: cargo clippy --locked -p ios-background-tasks --all-targets --target aarch64-apple-ios-sim -- -D warnings
+      - name: Link and audit iOS background tasks imports
+        if: runner.os == 'macOS'
+        run: sh platform/ios/ios-background-tasks/check-link-imports.sh
+      - name: Check portable image metadata without default features
+        run: cargo check --locked -p framework-image --no-default-features
+      - name: Clippy portable image metadata
+        run: cargo clippy --locked -p framework-image --all-targets -- -D warnings
+      - name: Check iOS ImageIO device and Simulator targets
+        if: runner.os == 'macOS'
+        run: sh platform/ios/ios-image-io/check-ios.sh
+      - name: Check portable Photos authorization without default features
+        run: cargo check --locked -p framework-photos --no-default-features
+      - name: Clippy portable Photos authorization
+        run: cargo clippy --locked -p framework-photos --all-targets -- -D warnings
+      - name: Check iOS Photos device target
+        if: runner.os == 'macOS'
+        run: cargo check --locked -p ios-photos --target aarch64-apple-ios
+      - name: Check iOS Photos Simulator target
+        if: runner.os == 'macOS'
+        run: cargo check --locked -p ios-photos --target aarch64-apple-ios-sim
+      - name: Clippy iOS Photos device target
+        if: runner.os == 'macOS'
+        run: cargo clippy --locked -p ios-photos --all-targets --target aarch64-apple-ios -- -D warnings
+      - name: Clippy iOS Photos Simulator target
+        if: runner.os == 'macOS'
+        run: cargo clippy --locked -p ios-photos --all-targets --target aarch64-apple-ios-sim -- -D warnings
+      - name: Link and audit iOS Photos imports
+        if: runner.os == 'macOS'
+        run: sh platform/ios/ios-photos/check-link-imports.sh
+      - name: Check portable background execution without default features
+        run: cargo check --locked -p framework-background-execution --no-default-features
+      - name: Clippy portable background execution
+        run: cargo clippy --locked -p framework-background-execution --all-targets -- -D warnings
+      - name: Check iOS background execution device target
+        if: runner.os == 'macOS'
+        run: cargo check --locked -p ios-background-execution --target aarch64-apple-ios
+      - name: Check iOS background execution Simulator target
+        if: runner.os == 'macOS'
+        run: cargo check --locked -p ios-background-execution --target aarch64-apple-ios-sim
+      - name: Clippy iOS background execution device target
+        if: runner.os == 'macOS'
+        run: cargo clippy --locked -p ios-background-execution --all-targets --target aarch64-apple-ios -- -D warnings
+      - name: Clippy iOS background execution Simulator target
+        if: runner.os == 'macOS'
+        run: cargo clippy --locked -p ios-background-execution --all-targets --target aarch64-apple-ios-sim -- -D warnings
+      - name: Link and audit iOS background execution imports
+        if: runner.os == 'macOS'
+        run: sh platform/ios/ios-background-execution/check-link-imports.sh
+      - name: Check portable Contacts without default features
+        run: cargo check --locked -p framework-contacts --no-default-features
+      - name: Clippy portable Contacts
+        run: cargo clippy --locked -p framework-contacts --all-targets -- -D warnings
+      - name: Check iOS Contacts device and Simulator targets
+        if: runner.os == 'macOS'
+        run: sh platform/ios/ios-contacts/scripts/check-targets.sh
+      - name: Check portable Calendar without default features
+        run: cargo check --locked -p framework-calendar --no-default-features
+      - name: Clippy portable Calendar
+        run: cargo clippy --locked -p framework-calendar --all-targets -- -D warnings
+      - name: Check iOS Calendar package gates
+        if: runner.os == 'macOS'
+        run: sh platform/ios/ios-calendar/check.sh
+      - name: Check portable Bluetooth authorization without default features
+        run: cargo check --locked -p framework-bluetooth --no-default-features
+      - name: Clippy portable Bluetooth authorization
+        run: cargo clippy --locked -p framework-bluetooth --all-targets -- -D warnings
+      - name: Check iOS Bluetooth authorization targets
+        if: runner.os == 'macOS'
+        run: sh platform/ios/ios-bluetooth/scripts/check-targets.sh
+      - name: Test portable Bluetooth contracts
+        run: cargo test --locked -p framework-bluetooth
+      - name: Check portable NFC contract without default features
+        run: cargo check --locked -p framework-nfc --no-default-features
+      - name: Test portable NFC contract
+        run: cargo test --locked -p framework-nfc
+      - name: Clippy portable NFC contract
+        run: cargo clippy --locked --all-targets -p framework-nfc -- -D warnings
+      - name: Check iOS Core NFC device target
+        if: runner.os == 'macOS'
+        run: cargo check --locked -p ios-nfc --target aarch64-apple-ios
+      - name: Check iOS Core NFC Simulator target
+        if: runner.os == 'macOS'
+        run: cargo check --locked -p ios-nfc --target aarch64-apple-ios-sim
+      - name: Clippy iOS Core NFC device target
+        if: runner.os == 'macOS'
+        run: cargo clippy --locked -p ios-nfc --all-targets --target aarch64-apple-ios -- -D warnings
+      - name: Clippy iOS Core NFC Simulator target
+        if: runner.os == 'macOS'
+        run: cargo clippy --locked -p ios-nfc --all-targets --target aarch64-apple-ios-sim -- -D warnings
+      - name: Check camera and microphone authorization package gates
+        if: runner.os == 'macOS'
+        run: sh platform/ios/ios-media-authorization/check.sh
+      - name: Check Nearby Interaction capability package gates
+        if: runner.os == 'macOS'
+        run: sh platform/ios/ios-nearby/check.sh
+      - name: Check portable web contract without default features
+        run: cargo check --locked -p framework-web --no-default-features
+      - name: Test portable web contract
+        run: cargo test --locked -p framework-web
+      - name: Clippy portable web contract
+        run: cargo clippy --locked --all-targets -p framework-web -- -D warnings
+      - name: Check iOS WebKit package gates
+        if: runner.os == 'macOS'
+        run: sh platform/ios/ios-web/check.sh
+      - name: Audit bounded iOS WebKit surface
+        if: runner.os == 'macOS'
+        run: sh platform/ios/ios-web/check-surface.sh
+      - name: Check portable HealthKit authorization without default features
+        run: cargo check --locked -p framework-health-authorization --no-default-features
+      - name: Clippy portable HealthKit authorization
+        run: cargo clippy --locked -p framework-health-authorization --all-targets -- -D warnings
+      - name: Check iOS HealthKit authorization device target
+        if: runner.os == 'macOS'
+        run: cargo check --locked -p ios-health-authorization --target aarch64-apple-ios
+      - name: Check iOS HealthKit authorization Simulator target
+        if: runner.os == 'macOS'
+        run: cargo check --locked -p ios-health-authorization --target aarch64-apple-ios-sim
+      - name: Clippy iOS HealthKit authorization device target
+        if: runner.os == 'macOS'
+        run: cargo clippy --locked -p ios-health-authorization --all-targets --target aarch64-apple-ios -- -D warnings
+      - name: Clippy iOS HealthKit authorization Simulator target
+        if: runner.os == 'macOS'
+        run: cargo clippy --locked -p ios-health-authorization --all-targets --target aarch64-apple-ios-sim -- -D warnings
+      - name: Check portable iCloud identity without default features
+        run: cargo check --locked -p framework-cloud --no-default-features
+      - name: Test portable iCloud identity contract
+        run: cargo test --locked -p framework-cloud
+      - name: Clippy portable iCloud identity contract
+        run: cargo clippy --locked -p framework-cloud --all-targets -- -D warnings
+      - name: Check iOS iCloud identity package gates
+        if: runner.os == 'macOS'
+        run: sh platform/ios/ios-cloud/check.sh
+      - name: Check CloudKit account-status contract and iOS gates
+        if: runner.os == 'macOS'
+        run: sh platform/ios/ios-cloud/check-cloudkit.sh
+      - name: Check iOS CallKit active-call snapshot package
+        if: runner.os == 'macOS'
+        run: sh platform/ios/callkit/ios-call-observer/check.sh
+      - name: Check iOS ClassKit deep-link marker package
+        if: runner.os == 'macOS'
+        run: sh platform/ios/ios-system-services/check.sh
+      - name: Check SafetyKit crash-detection availability gates
+        if: runner.os == 'macOS'
+        run: sh platform/ios/ios-safety/scripts/check.sh
+      - name: Check Game Center status contract and iOS gates
+        if: runner.os == 'macOS'
+        run: sh platform/ios/ios-game/check.sh
+      - name: Check iOS ARKit support and MapKit geometry
+        if: runner.os == 'macOS'
+        run: sh platform/ios/ios-maps/check.sh
+      - name: Check Core ML compute-device status
+        if: runner.os == 'macOS'
+        run: sh platform/ios/ios-core-ml-status/scripts/check.sh
+      - name: Check Vision text-recognition revision status
+        if: runner.os == 'macOS'
+        run: sh platform/ios/ios-vision/check.sh
+      - name: Check Speech authorization status
+        if: runner.os == 'macOS'
+        run: sh platform/ios/ios-speech-status/scripts/check.sh
+      - name: Check Natural Language English model asset status
+        if: runner.os == 'macOS'
+        run: sh platform/ios/ios-natural-language-status/scripts/check.sh
+      - name: Check legacy StoreKit purchase status
+        if: runner.os == 'macOS'
+        run: sh platform/ios/ios-storekit-status/scripts/check.sh
+      - name: Check StoreKit 2 purchase-ability status
+        if: runner.os == 'macOS'
+        run: sh platform/ios/ios-storekit2-status/check.sh
+      - name: Check RoomPlan device-support status
+        if: runner.os == 'macOS'
+        run: sh platform/ios/ios-roomplan/check.sh
+      - name: Check ProximityReader Tap to Pay device-model status
+        if: runner.os == 'macOS'
+        run: sh platform/ios/ios-proximity-reader/check.sh
+      - name: Check iOS extension bundle metadata support
+        if: runner.os == 'macOS'
+        run: sh platform/ios/ios-extension-support/check.sh
+      - name: Check Sign in with Apple credential-state support
+        if: runner.os == 'macOS'
+        run: sh platform/ios/ios-sign-in-with-apple-status/check.sh
+      - name: Check Personal VPN status support
+        if: runner.os == 'macOS'
+        run: sh platform/ios/ios-vpn/check.sh
+      - name: Check default camera video-device status
+        if: runner.os == 'macOS'
+        run: sh platform/ios/ios-camera-device-status/check.sh
+      - name: Check iOS notification responses device target
+        if: runner.os == 'macOS'
+        run: cargo check --locked -p ios-notification-responses --target aarch64-apple-ios
+      - name: Check iOS notification responses simulator target
+        if: runner.os == 'macOS'
+        run: cargo check --locked -p ios-notification-responses --target aarch64-apple-ios-sim
+      - name: Clippy iOS notification responses device target
+        if: runner.os == 'macOS'
+        run: cargo clippy --locked -p ios-notification-responses --all-targets --target aarch64-apple-ios -- -D warnings
+      - name: Clippy iOS notification responses simulator target
+        if: runner.os == 'macOS'
+        run: cargo clippy --locked -p ios-notification-responses --all-targets --target aarch64-apple-ios-sim -- -D warnings
       - name: Check iOS location device target
         if: runner.os == 'macOS'
         run: cargo check --locked -p ios-location --target aarch64-apple-ios
@@ -56,6 +411,60 @@ jobs:
       - name: Clippy iOS location simulator target
         if: runner.os == 'macOS'
         run: cargo clippy --locked -p ios-location --all-targets --target aarch64-apple-ios-sim -- -D warnings
+      - name: Link and audit iOS location imports
+        if: runner.os == 'macOS'
+        run: sh platform/ios/ios-location/check-link-imports.sh
+      - name: Check iOS motion device target
+        if: runner.os == 'macOS'
+        run: cargo check --locked -p ios-motion --target aarch64-apple-ios
+      - name: Check iOS motion simulator target
+        if: runner.os == 'macOS'
+        run: cargo check --locked -p ios-motion --target aarch64-apple-ios-sim
+      - name: Clippy iOS motion device target
+        if: runner.os == 'macOS'
+        run: cargo clippy --locked -p ios-motion --all-targets --target aarch64-apple-ios -- -D warnings
+      - name: Clippy iOS motion simulator target
+        if: runner.os == 'macOS'
+        run: cargo clippy --locked -p ios-motion --all-targets --target aarch64-apple-ios-sim -- -D warnings
+      - name: Check iOS authentication device target
+        if: runner.os == 'macOS'
+        run: cargo check --locked -p ios-auth --target aarch64-apple-ios
+      - name: Check iOS authentication simulator target
+        if: runner.os == 'macOS'
+        run: cargo check --locked -p ios-auth --target aarch64-apple-ios-sim
+      - name: Clippy iOS authentication device target
+        if: runner.os == 'macOS'
+        run: cargo clippy --locked -p ios-auth --all-targets --target aarch64-apple-ios -- -D warnings
+      - name: Clippy iOS authentication simulator target
+        if: runner.os == 'macOS'
+        run: cargo clippy --locked -p ios-auth --all-targets --target aarch64-apple-ios-sim -- -D warnings
+      - name: Link and audit iOS authentication imports
+        if: runner.os == 'macOS'
+        run: sh platform/ios/ios-auth/check-link-imports.sh
+      - name: Check App Tracking Transparency status contract and iOS backend
+        if: runner.os == 'macOS'
+        run: sh platform/ios/ios-auth/check.sh
+      - name: Check Metal device-presence contract and iOS backend
+        if: runner.os == 'macOS'
+        run: sh platform/ios/ios-metal/check.sh
+      - name: Check DeviceCheck and App Attest support contract and iOS backend
+        if: runner.os == 'macOS'
+        run: sh platform/ios/ios-device-integrity/check.sh
+      - name: Check Watch Connectivity support contract and iOS backend
+        if: runner.os == 'macOS'
+        run: sh platform/ios/ios-watch-connectivity/scripts/check.sh
+      - name: Check ExternalAccessory presence contract and iOS backend
+        if: runner.os == 'macOS'
+        run: sh platform/ios/ios-accessory/scripts/check.sh
+      - name: Check ReplayKit availability contract and iOS backend
+        if: runner.os == 'macOS'
+        run: sh platform/ios/ios-replaykit/check.sh
+      - name: Check SoundAnalysis classifier-recognition contract and iOS backend
+        if: runner.os == 'macOS'
+        run: sh platform/ios/ios-sound-analysis/check.sh
+      - name: Check other-audio status contract and iOS backend
+        if: runner.os == 'macOS'
+        run: sh platform/ios/ios-media/check-audio-playback.sh
       - name: Check iOS sharing device target
         if: runner.os == 'macOS'
         run: cargo check --locked -p ios-sharing --target aarch64-apple-ios
@@ -68,6 +477,12 @@ jobs:
       - name: Clippy iOS sharing simulator target
         if: runner.os == 'macOS'
         run: cargo clippy --locked -p ios-sharing --all-targets --target aarch64-apple-ios-sim -- -D warnings
+      - name: B6 iOS clipboard-only release link/import/minos gate
+        if: runner.os == 'macOS'
+        run: sh platform/ios/ios-sharing/check-clipboard-link-imports.sh
+      - name: B7 iOS share-only release link/import/minos gate
+        if: runner.os == 'macOS'
+        run: sh platform/ios/ios-sharing/check-share-link-imports.sh
       - name: Check iOS accessibility device target
         if: runner.os == 'macOS'
         run: cargo check --locked -p ios-accessibility --target aarch64-apple-ios
@@ -104,6 +519,18 @@ jobs:
       - name: Clippy iOS resources simulator target
         if: runner.os == 'macOS'
         run: cargo clippy --locked -p ios-resources --all-targets --target aarch64-apple-ios-sim -- -D warnings
+      - name: Check iOS secure storage device target
+        if: runner.os == 'macOS'
+        run: cargo check --locked -p ios-secure-storage --target aarch64-apple-ios
+      - name: Check iOS secure storage simulator target
+        if: runner.os == 'macOS'
+        run: cargo check --locked -p ios-secure-storage --target aarch64-apple-ios-sim
+      - name: Clippy iOS secure storage device target
+        if: runner.os == 'macOS'
+        run: cargo clippy --locked -p ios-secure-storage --all-targets --target aarch64-apple-ios -- -D warnings
+      - name: Clippy iOS secure storage simulator target
+        if: runner.os == 'macOS'
+        run: cargo clippy --locked -p ios-secure-storage --all-targets --target aarch64-apple-ios-sim -- -D warnings
       - name: Check iOS browser device target
         if: runner.os == 'macOS'
         run: cargo check --locked -p ios-browser --target aarch64-apple-ios
@@ -116,6 +543,75 @@ jobs:
       - name: Clippy iOS browser simulator target
         if: runner.os == 'macOS'
         run: cargo clippy --locked -p ios-browser --all-targets --target aarch64-apple-ios-sim -- -D warnings
+      - name: Check iOS SafariServices device target
+        if: runner.os == 'macOS'
+        run: cargo check --locked -p ios-safari --target aarch64-apple-ios
+      - name: Check iOS SafariServices simulator target
+        if: runner.os == 'macOS'
+        run: cargo check --locked -p ios-safari --target aarch64-apple-ios-sim
+      - name: Clippy iOS SafariServices device target
+        if: runner.os == 'macOS'
+        run: cargo clippy --locked -p ios-safari --all-targets --target aarch64-apple-ios -- -D warnings
+      - name: Clippy iOS SafariServices simulator target
+        if: runner.os == 'macOS'
+        run: cargo clippy --locked -p ios-safari --all-targets --target aarch64-apple-ios-sim -- -D warnings
+      - name: Audit iOS SafariServices link imports
+        if: runner.os == 'macOS'
+        run: sh platform/ios/ios-safari/check-link-imports.sh
+      - name: Check iOS Accelerate device target
+        if: runner.os == 'macOS'
+        run: cargo check --locked -p ios-accelerate --target aarch64-apple-ios
+      - name: Check iOS Accelerate simulator target
+        if: runner.os == 'macOS'
+        run: cargo check --locked -p ios-accelerate --target aarch64-apple-ios-sim
+      - name: Clippy iOS Accelerate device target
+        if: runner.os == 'macOS'
+        run: cargo clippy --locked -p ios-accelerate --all-targets --target aarch64-apple-ios -- -D warnings
+      - name: Clippy iOS Accelerate simulator target
+        if: runner.os == 'macOS'
+        run: cargo clippy --locked -p ios-accelerate --all-targets --target aarch64-apple-ios-sim -- -D warnings
+      - name: Audit iOS Accelerate link imports
+        if: runner.os == 'macOS'
+        run: sh platform/ios/ios-accelerate/check-link-imports.sh
+      - name: Check iOS CommonCrypto device target
+        if: runner.os == 'macOS'
+        run: cargo check --locked -p ios-crypto --target aarch64-apple-ios
+      - name: Check iOS CommonCrypto simulator target
+        if: runner.os == 'macOS'
+        run: cargo check --locked -p ios-crypto --target aarch64-apple-ios-sim
+      - name: Clippy iOS CommonCrypto device target
+        if: runner.os == 'macOS'
+        run: cargo clippy --locked -p ios-crypto --all-targets --target aarch64-apple-ios -- -D warnings
+      - name: Clippy iOS CommonCrypto simulator target
+        if: runner.os == 'macOS'
+        run: cargo clippy --locked -p ios-crypto --all-targets --target aarch64-apple-ios-sim -- -D warnings
+      - name: Audit iOS CommonCrypto link imports
+        if: runner.os == 'macOS'
+        run: sh platform/ios/ios-crypto/check-link-imports.sh
+      - name: Check iOS ModelIO extension-status package
+        if: runner.os == 'macOS'
+        run: sh platform/ios/ios-modelio-status/check.sh
+      - name: Check iOS MPS preferred-device status package
+        if: runner.os == 'macOS'
+        run: sh platform/ios/ios-mps-status/check.sh
+      - name: Audit iOS MPS preferred-device link imports
+        if: runner.os == 'macOS'
+        run: sh platform/ios/ios-mps-status/check-link-imports.sh
+      - name: Check iOS P-256 key-support package
+        if: runner.os == 'macOS'
+        run: sh platform/ios/ios-key-support/check.sh
+      - name: Audit iOS P-256 key-support link imports
+        if: runner.os == 'macOS'
+        run: sh platform/ios/ios-key-support/check-link-imports.sh
+      - name: Check iOS MediaPlayer library status package
+        if: runner.os == 'macOS'
+        run: sh platform/ios/ios-media-library-status/check.sh
+      - name: Check iOS SpriteKit node-position package
+        if: runner.os == 'macOS'
+        run: sh platform/ios/ios-spritekit/check.sh
+      - name: Audit iOS SpriteKit node-position link imports
+        if: runner.os == 'macOS'
+        run: sh platform/ios/ios-spritekit/check-link-imports.sh
       - name: Swift ABI scalar Rust caller probe
         if: runner.os == 'macOS'
         run: sh interop/swift-abi-core/tests/check-scalar-swiftcall.sh
@@ -140,8 +636,125 @@ jobs:
       - name: Optional notification-response C ABI compile and link check
         if: runner.os == 'macOS'
         run: sh bindings/c/check-notification-responses.sh
+      - name: Optional iOS transfer C ABI compile and link check
+        if: runner.os == 'macOS'
+        run: sh bindings/c/check-ios-transfer.sh
+      - name: Optional iOS clipboard C ABI compile and link check
+        if: runner.os == 'macOS'
+        run: sh bindings/c/check-ios-clipboard.sh
+      - name: Optional iOS share C ABI compile and link check
+        if: runner.os == 'macOS'
+        run: sh bindings/c/check-ios-share.sh
+      - name: Optional iOS preferences C ABI compile and link check
+        if: runner.os == 'macOS'
+        run: sh bindings/c/check-ios-preferences.sh
+      - name: Optional iOS MediaPlayer status C ABI compile and link check
+        if: runner.os == 'macOS'
+        run: sh bindings/c/check-ios-media-library-status.sh
+      - name: Optional iOS SpriteKit position C ABI compile and link check
+        if: runner.os == 'macOS'
+        run: sh bindings/c/check-ios-spritekit.sh
+      - name: Optional iOS CallKit active-call snapshot C ABI check
+        if: runner.os == 'macOS'
+        run: sh bindings/c/check-ios-call-observer.sh
+      - name: Optional iOS MapKit geometry C ABI check
+        if: runner.os == 'macOS'
+        run: sh bindings/c/check-ios-maps.sh
+      - name: Optional iOS ClassKit deep-link C ABI check
+        if: runner.os == 'macOS'
+        run: sh bindings/c/check-ios-classkit-deep-link.sh
+      - name: Optional iOS Location C ABI check
+        if: runner.os == 'macOS'
+        run: sh bindings/c/check-ios-location.sh
+      - name: Optional iOS FileProvider C ABI check
+        if: runner.os == 'macOS'
+        run: sh bindings/c/check-ios-file-provider.sh
+      - name: Optional iOS Vision revision C ABI check
+        if: runner.os == 'macOS'
+        run: sh bindings/c/check-ios-vision.sh
+      - name: Optional iOS ProximityReader C ABI check
+        if: runner.os == 'macOS'
+        run: sh bindings/c/check-ios-proximity-reader.sh
+      - name: Optional iOS CommonCrypto C ABI check
+        if: runner.os == 'macOS'
+        run: sh bindings/c/check-ios-crypto.sh
+      - name: Optional iOS ModelIO status C ABI check
+        if: runner.os == 'macOS'
+        run: sh bindings/c/check-ios-modelio-status.sh
+      - name: Optional Sign in with Apple credential-state C ABI check
+        if: runner.os == 'macOS'
+        run: sh bindings/c/check-ios-sign-in-with-apple-status.sh
+      - name: Optional Sign in with Apple credential-state C ABI link/import check
+        if: runner.os == 'macOS'
+        run: sh bindings/c/check-ios-sign-in-with-apple-status-link.sh
+      - name: Optional iOS Accelerate vector-add C ABI check
+        if: runner.os == 'macOS'
+        run: sh bindings/c/check-ios-accelerate.sh
+      - name: Optional iOS key-support C ABI check
+        if: runner.os == 'macOS'
+        run: sh bindings/c/check-ios-key-support.sh
+      - name: Optional iOS key-support C ABI link/import check
+        if: runner.os == 'macOS'
+        run: sh bindings/c/check-ios-key-support-link.sh
+      - name: Optional iOS MPS status C ABI check
+        if: runner.os == 'macOS'
+        run: sh bindings/c/check-ios-mps-status.sh
+      - name: Optional iOS MPS status C ABI link/import check
+        if: runner.os == 'macOS'
+        run: sh bindings/c/check-ios-mps-status-link.sh
+      - name: Optional iOS VideoToolbox hardware-decode C ABI check
+        if: runner.os == 'macOS'
+        run: sh bindings/c/check-ios-videotoolbox.sh
+      - name: Optional iOS VideoToolbox hardware-decode C ABI link/import check
+        if: runner.os == 'macOS'
+        run: sh bindings/c/check-ios-videotoolbox-link.sh
+      - name: Optional iOS camera-device status C ABI check
+        if: runner.os == 'macOS'
+        run: sh bindings/c/check-ios-camera-device-status.sh
+      - name: Optional iOS camera-device status C ABI link/import check
+        if: runner.os == 'macOS'
+        run: sh bindings/c/check-ios-camera-device-status-link.sh
+      - name: Optional iOS Core ML status C ABI check
+        if: runner.os == 'macOS'
+        run: sh bindings/c/check-ios-core-ml-status.sh
+      - name: Optional iOS Core ML status C ABI link/import check
+        if: runner.os == 'macOS'
+        run: sh bindings/c/check-ios-core-ml-status-link.sh
+      - name: Optional iOS Speech status C ABI check
+        if: runner.os == 'macOS'
+        run: sh bindings/c/check-ios-speech-status.sh
+      - name: Optional iOS Speech status C ABI link/import check
+        if: runner.os == 'macOS'
+        run: sh bindings/c/check-ios-speech-status-link.sh
+      - name: Optional iOS Natural Language status C ABI check
+        if: runner.os == 'macOS'
+        run: sh bindings/c/check-ios-natural-language-status.sh
+      - name: Optional iOS Natural Language status C ABI link/import check
+        if: runner.os == 'macOS'
+        run: sh bindings/c/check-ios-natural-language-status-link.sh
+      - name: Optional iOS extension metadata C ABI check
+        if: runner.os == 'macOS'
+        run: sh bindings/c/check-ios-extension-support.sh
+      - name: Optional iOS extension metadata C ABI link/import check
+        if: runner.os == 'macOS'
+        run: sh bindings/c/check-ios-extension-support-link.sh
+      - name: Optional iOS RoomPlan status C ABI compile check
+        if: runner.os == 'macOS'
+        run: sh bindings/c/check-ios-roomplan-status.sh
+      - name: Optional iOS RoomPlan status C ABI link/import check
+        if: runner.os == 'macOS'
+        run: sh bindings/c/check-ios-roomplan-status-link.sh
+      - name: Optional iOS StoreKit 2 status C ABI gate
+        if: runner.os == 'macOS'
+        run: sh bindings/c/check-ios-storekit2-status-link.sh
+      - name: Optional iOS Game Center status C ABI gate
+        if: runner.os == 'macOS'
+        run: sh bindings/c/check-ios-game-status-link.sh
       - name: Portable no_std checks
         run: cargo xtask no-std-check
+      - name: Bounded portable no_std host and Apple-target link probes
+        if: runner.os == 'macOS'
+        run: cargo xtask no-std-link-probe
       - name: Dependency inventory
         run: cargo xtask dependency-audit
       - name: ABI source inventory

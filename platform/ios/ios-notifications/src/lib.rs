@@ -11,6 +11,6 @@ mod platform;
 
 #[cfg(target_os = "ios")]
 pub use platform::{
-    IosAuthorizationFuture, IosCancelFuture, IosNotificationsBackend,
+    IosAuthorizationFuture, IosCancelFuture, IosNotificationsBackend, IosPendingRequestCountFuture,
     IosRequestAuthorizationFuture, IosScheduleFuture,
 };

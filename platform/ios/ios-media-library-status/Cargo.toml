@@ -1,0 +1,14 @@
+[package]
+name = "ios-media-library-status"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "Status-only MediaPlayer library authorization query for iOS"
+
+[target.'cfg(target_os = "ios")'.dependencies]
+objc2-media-player = { version = "=0.3.2", default-features = false, features = ["MPMediaLibrary"] }
+
+[lints]
+workspace = true

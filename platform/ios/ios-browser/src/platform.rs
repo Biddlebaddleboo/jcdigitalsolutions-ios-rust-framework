@@ -32,8 +32,10 @@ pub enum OpenError {
 /// instead of a browser. Safari is not guaranteed.
 ///
 /// UIKit and the completion are main-thread-affine. The system invokes the completion
-/// asynchronously on the app's main queue. Panics from the callback are caught and discarded so
-/// they cannot unwind through the Objective-C block boundary. The caller must keep any captured
+/// asynchronously on the app's main queue. With an unwind panic strategy, `catch_unwind` catches
+/// Rust callback panics; with `panic=abort`, a Rust panic aborts the process
+/// An `Err` means UIKit gets no request and the completion does not run
+/// The caller must keep any captured
 /// state valid for the asynchronous callback. This API does not use `canOpenURL`, create a
 /// presenter, or expose a UIKit handle.
 pub fn open_external_https_uri<F>(

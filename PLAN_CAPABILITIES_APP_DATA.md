@@ -1,5 +1,14 @@
 # PLAN_CAPABILITIES_APP_DATA.md — Workstream D1
 
+## Status
+
+D1 portable contracts and the support matrix are integrated. A follow-up audit now rejects
+Windows drive-prefixed `AppPath` values and states that unsupported required-atomic preference
+writes fail before mutation. `FileBackend::exists` is defined as a no-follow final-entry metadata
+probe: symlinks count as present, confirmed absence returns `false`, and parent or inspection errors
+remain errors. The changed portable crates pass locked no-std checks and the shared docs-index check;
+no tests were run in this resumed pass.
+
 ## Objective
 
 Implement the first bounded slice of Workstream D from `PLAN_CAPABILITIES.md`: a portable application lifecycle contract, sandbox file and preference capability facades, and request/response values for foreground HTTP. This slice must use Foundation A directly and may use the integrated iOS runtime B only through its documented iOS-specific surface.

@@ -13,7 +13,7 @@ preceding relative directory to `NSBundle.URLForResource:withExtension:subdirect
 It passes nil for localization, which Apple's Foundation header documents as lookup of global
 resources only. It does not use localized lookup or normalize the path. D7 rejects empty and
 absolute paths, empty components, `.` and `..`, backslashes, and NUL bytes before this backend
-receives a path.
+receives a path. D7 also rejects Windows drive-prefixed forms before they reach this backend.
 
 The resulting `NSURL` stays internal to the backend. Callers cannot supply or receive an arbitrary
 native URL or absolute bundle path. A missing bundle URL maps to `ResourceError::Backend` with
@@ -54,4 +54,6 @@ and `.../src/generated/NSData.rs:365-371`. The iOS 26.5
 `/Applications/Xcode.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS26.5.sdk/SDKSettings.json`
 reports minimum deployment target 12.0, recommended deployment target 15.0, and default deployment
 target 26.5. These SDK target values are separate from the Foundation API floor. This crate declares
-no deployment target, and no shared repository deployment target is inferred.
+no deployment target, and no shared repository deployment target is inferred. The inspected SDK and
+device/simulator compile-lint evidence use Xcode 26.6; the shared `PLAN.md` requires Xcode 27.x, so
+that required toolchain baseline remains unmet.

@@ -15,8 +15,9 @@ struct AbiVersion final {
   }
 };
 
-/** Move-only release guard for the caller's original C ABI descriptor.
- * The descriptor must outlive this object and have no other live release guard.
+/** Move-only guard for a live `FrameworkOwnedBuffer` from the framework.
+ * Do not change its fields or address; it must outlive this guard; use one
+ * guard per descriptor.
  */
 class OwnedBuffer final {
 public:

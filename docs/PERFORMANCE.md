@@ -117,6 +117,10 @@ requires at least 100 timed samples; reports include the integer-truncated media
 p95/p99. Each timed sample includes `Instant`/`black_box` overhead, so batch tiny operations when
 that overhead would dominate.
 
+`BenchmarkRecord` values come from `from_samples`; read-only accessors keep the sample count and
+percentiles tied to the retained raw sample vector. The caller still supplies workload metadata and
+any allocation/copy/energy counters.
+
 Optional allocation, copy, copied-byte, and energy counters are supplied explicitly by workload
 instrumentation. Unmeasured counters serialize as `null`; the harness does not infer or fabricate
 them. Host microbenchmarks are marked advisory. A caller may label a run as a representative Apple

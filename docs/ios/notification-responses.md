@@ -20,13 +20,16 @@ Apple marks `UNUserNotificationCenter.delegate` weak and non-atomic; the nil che
 
 The returned value strongly retains the Rust delegate. The delegate stores the response closure in `Arc` state and requires `Send + Sync + 'static`. The native API page does not name a callback queue, so the closure runs synchronously on the native callback thread with no main-thread promise. Do not use UIKit from this closure unless the app has a separate main-thread handoff
 
+The bridge takes a strong self retain before it reads delegate state and keeps that retain through response conversion, the closure call, and native completion. The closure may drop the public handle or replace the center delegate without freeing this delegate mid-call
+
 ## Value map
 
 - Apple's `UNNotificationDefaultActionIdentifier` maps to `NotificationResponseKind::Default`
 - Apple's `UNNotificationDismissActionIdentifier` maps to `NotificationResponseKind::Dismiss`
-- Non-system action IDs map to `NotificationResponseKind::CustomAction`
 - `UNTextInputNotificationResponse.userText` maps to `NotificationResponseKind::TextInput` with its exact action ID and owned text
 - The notification request's exact `identifier` maps to D3's `NotificationId`
+
+The bridge maps Apple's default and dismiss IDs first; all other action IDs map to `CustomAction` unless the native response is `UNTextInputNotificationResponse`
 
 The bridge copies UTF-16 code units into owned Rust UTF-8 without normalization; an unpaired surrogate cannot form a Rust `String`, so that response is dropped; D9 rejects empty notification IDs or action IDs and IDs with NUL, so a response with one of those values is dropped; empty text is kept, as D9 permits it
 
@@ -38,7 +41,7 @@ The crate uses `objc2-user-notifications` 0.3.2 with default features off and on
 
 Apple requires the native completion block after response work; the bridge invokes it exactly once for each native method call, even after it drops an invalid or remote value or catches a Rust panic; Rust panic payloads are discarded at this boundary
 
-The closure call is synchronous and runs before native completion. Do not block for long work. This crate has no event queue, async callback, foreground presentation method, action/category setup, app-settings hook, APNs path, or delivery promise. The callback may only occur when iOS reports a notification action to the app
+The closure call is synchronous and runs before native completion. Do not block for long work. This crate has no event queue, async callback, foreground presentation method, action/category setup, app-settings hook, APNs path, delivery promise, or response-order guarantee across app states. It adds no serial callback queue; app code must protect any state shared with the closure. The callback may only occur when iOS reports a notification action to the app
 
 ## Availability
 

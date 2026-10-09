@@ -129,6 +129,9 @@ impl LocationFix {
 }
 
 /// Options for one one-shot request for the current location.
+///
+/// The portable request carries no timeout or completion deadline. A caller that needs a deadline
+/// must impose it externally and drop the pending future under the backend's cancellation contract.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct LocationRequest {
     accuracy_target: AccuracyTarget,
@@ -213,7 +216,10 @@ impl LocationError {
 /// caller drops the future first, the result is suppressed. Duplicate or late native completions
 /// are ignored. No executor or Send requirement is imposed.
 pub trait LocationBackend {
-    /// Reports whether location is usable in the current context without prompting.
+    /// Reports non-prompting backend availability, separately from authorization state.
+    ///
+    /// This signal does not imply that permission is granted or that a request will succeed; use
+    /// [`LocationBackend::authorization`] to query the normalized authorization state.
     fn availability(&self) -> Availability;
 
     /// The future type for a non-prompting authorization-state query.
@@ -248,7 +254,9 @@ pub trait LocationBackend {
     /// The target is a preference, not a required accuracy guarantee. The backend may return a
     /// valid fix with a larger horizontal-accuracy estimate or fail if its own policy requires
     /// another outcome. The timestamp must describe the measurement time, including when a cached
-    /// fix is returned.
+    /// fix is returned. The portable contract defines no timeout or completion deadline; a
+    /// backend-reported timeout is returned as a backend error with its category and optional
+    /// native code preserved.
     fn current<'a>(&'a mut self, request: LocationRequest) -> Self::CurrentFuture<'a>;
 }
 
@@ -454,6 +462,14 @@ mod tests {
             Err(LocationError::InvalidCoordinate)
         );
         assert_eq!(
+            Coordinate::new(90.000_001, 0.0),
+            Err(LocationError::InvalidCoordinate)
+        );
+        assert_eq!(
+            Coordinate::new(0.0, -180.000_001),
+            Err(LocationError::InvalidCoordinate)
+        );
+        assert_eq!(
             Coordinate::new(0.0, 180.000_001),
             Err(LocationError::InvalidCoordinate)
         );
@@ -490,6 +506,10 @@ mod tests {
             AccuracyTarget::new(f64::INFINITY),
             Err(LocationError::InvalidAccuracy)
         );
+        assert_eq!(
+            AccuracyTarget::new(f64::NEG_INFINITY),
+            Err(LocationError::InvalidAccuracy)
+        );
 
         let timestamp = LocationTimestamp::from_unix_millis(1_700_000_000_000);
         let fix = LocationFix::new(coordinate(), 4.25, timestamp).unwrap();
@@ -498,6 +518,18 @@ mod tests {
         assert_eq!(fix.timestamp().unix_millis(), 1_700_000_000_000);
         assert_eq!(
             LocationFix::new(coordinate(), f64::NEG_INFINITY, timestamp),
+            Err(LocationError::InvalidAccuracy)
+        );
+        assert_eq!(
+            LocationFix::new(coordinate(), -1.0, timestamp),
+            Err(LocationError::InvalidAccuracy)
+        );
+        assert_eq!(
+            LocationFix::new(coordinate(), f64::NAN, timestamp),
+            Err(LocationError::InvalidAccuracy)
+        );
+        assert_eq!(
+            LocationFix::new(coordinate(), f64::INFINITY, timestamp),
             Err(LocationError::InvalidAccuracy)
         );
     }

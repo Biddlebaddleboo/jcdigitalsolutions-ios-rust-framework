@@ -13,6 +13,8 @@ Workstream B adds `ios-runtime` as a narrow native adapter, plus the `ios-minima
 
 The UIKit slice is intentionally a single-window app-delegate launch, not a general scene-aware app lifecycle. It does not add a portable UI contract, view tree, custom renderer, share/pasteboard API, layout system, accessibility facade, or broad native wrapper surface. Apple owns the UIKit hierarchy and compositor; framework-owned UI state remains ordinary Rust state.
 
+The example sets `UIColor::systemBackgroundColor` and `UIColor::labelColor` for the root view and label, plus `UIColor::systemBlueColor` for the button title, so the visible content adapts to light and dark appearance.
+
 ## Build and toolchain record
 
 Execution host: macOS 26.6.2, build 25G83, x86_64. Xcode 26.6, build 17F113. `xcodebuild -showsdks` reports iOS 26.5 and iOS Simulator 26.5. Rust 1.94.1 (`e408947bfd200af42db322daf0fadfe7e26d3bd1`, LLVM 21.1.8), Cargo 1.94.1. This is below the Xcode 27.x assumption in `PLAN.md`; no Xcode 27 claim is made.
@@ -29,7 +31,14 @@ Build and bundle for iOS device (arm64), unsigned:
 ./examples/ios-minimal/build.sh device
 ```
 
-The device command proves only compile/link/package on the selected SDK. It does not sign, provision, install, or launch on a device. `cargo xtask archive-smoke` separately creates an unsigned Xcode archive for the minimal app; it does not validate signing, provisioning, archive export, installation, or runtime behavior. No simulator launch is claimed: this x86_64 host cannot run the arm64 simulator executable produced by the required `aarch64-apple-ios-sim` target. The bundle contains no `.swift` file; the application executable is Rust.
+For a supplemental Intel-host simulator build, add the x86_64 Apple target and run:
+
+```sh
+rustup target add x86_64-apple-ios
+./examples/ios-minimal/build.sh simulator-x86
+```
+
+The local `.app` then needs an ad-hoc signature before `simctl install`. On 2026-10-08 this x86_64 bundle launched on the iOS 18.0 iPhone 16 Pro simulator; the initial label and button were visible in light and dark appearance. This does not validate arm64 simulator execution or the button callback; no tap was made. The standard arm64 device command proves only compile/link/package on the selected SDK. It does not sign, provision, install, or launch on a device. `cargo xtask archive-smoke` separately creates an unsigned Xcode archive; it does not validate archive signing, provisioning, export, installation, or runtime behavior. The bundle contains no `.swift` file; the application executable is Rust.
 
 ## Ownership and callback contract
 

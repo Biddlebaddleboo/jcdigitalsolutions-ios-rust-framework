@@ -1,0 +1,13 @@
+[package]
+name = "framework-vpn"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "Portable Personal VPN status and native load-error values"
+
+[dependencies]
+
+[lints]
+workspace = true

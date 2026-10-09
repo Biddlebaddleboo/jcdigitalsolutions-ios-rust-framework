@@ -1,0 +1,15 @@
+[package]
+name = "ios-core-ml-status"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "Core ML compute-device availability status query for iOS"
+
+[target.'cfg(target_os = "ios")'.dependencies]
+objc2 = { workspace = true, features = ["std"] }
+objc2-core-ml = { workspace = true, features = ["MLModel", "MLModel_MLComputeDevice", "MLComputeDeviceProtocol"] }
+
+[lints]
+workspace = true

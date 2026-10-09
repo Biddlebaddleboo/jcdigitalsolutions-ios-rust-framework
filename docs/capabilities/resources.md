@@ -30,14 +30,18 @@ Resources::new(backend: B) -> Resources<B>
 Resources::availability(&self) -> Availability
 Resources::read(&mut self, path: ResourcePath<'_>) -> Result<Vec<u8>, ResourceError>
 Resources::read_string(&mut self, path: ResourcePath<'_>) -> Result<String, ResourceError>
+Resources::backend(&self) -> &B
+Resources::backend_mut(&mut self) -> &mut B
 Resources::into_backend(self) -> B
+ResourceError::kind(self) -> ErrorKind
+ResourceError::platform_code(self) -> Option<PlatformErrorCode>
 ```
 
-`ResourcePath::new` rejects an empty or absolute path, empty path components, `.` or `..`
-components, backslashes, and NUL bytes. It preserves the supplied text: it does not normalize
-names, and no Unicode normalization or case-folding behavior is promised. A backend reports a
-missing resource with `ErrorKind::NotFound`; `ResourceError` preserves the backend's `ErrorKind`
-and optional platform error code.
+`ResourcePath::new` rejects an empty or absolute path, Windows drive-prefixed paths, empty path
+components, `.` or `..` components, backslashes, and NUL bytes. It preserves the supplied text: it
+does not normalize names, and no Unicode normalization or case-folding behavior is promised. A
+backend reports a missing resource with `ErrorKind::NotFound`; `ResourceError` preserves the
+backend's `ErrorKind` and optional platform error code.
 
 Lookup is synchronous and may block. The backend defines platform availability, bundle location,
 file-system security, and resource-copy costs. The contract does not define cancellation, directory

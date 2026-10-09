@@ -4,7 +4,7 @@ set -eu
 root=$(CDPATH= cd -- "$(dirname -- "$0")/../.." && pwd)
 cd "$root"
 
-cargo build --release -p framework-c-api
+cargo build --locked --release -p framework-c-api
 
 format_tool=$(xcrun -f clang-format)
 "$format_tool" --dry-run --Werror bindings/cpp/include/framework.hpp bindings/cpp/tests/consumer.cpp bindings/cpp/tests/owner-consumer.cpp bindings/cpp/tests/ownership.cpp
@@ -25,6 +25,8 @@ cat > target/framework-cpp-owner-consumer-expected-symbols.txt <<'EOF'
 framework_owned_buffer_destroy
 EOF
 diff -u target/framework-cpp-owner-consumer-expected-symbols.txt target/framework-cpp-owner-consumer-symbols.txt
+clang++ $flags -nostdlib++ bindings/cpp/tests/owner-consumer.cpp target/release/libframework_c_api.a -o target/framework-cpp-owner-consumer
+target/framework-cpp-owner-consumer
 
 clang++ $flags -c bindings/cpp/tests/ownership.cpp -o target/framework-cpp-ownership.o
 nm -u target/framework-cpp-ownership.o | awk '{ name=$NF; sub(/^_/, "", name); print name }' | sort -u > target/framework-cpp-ownership-symbols.txt

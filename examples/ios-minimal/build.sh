@@ -10,12 +10,16 @@ case "$kind" in
         target=aarch64-apple-ios-sim
         sdk=iphonesimulator
         ;;
+    simulator-x86)
+        target=x86_64-apple-ios
+        sdk=iphonesimulator
+        ;;
     device)
         target=aarch64-apple-ios
         sdk=iphoneos
         ;;
     *)
-        echo "usage: $0 [simulator|device]" >&2
+        echo "usage: $0 [simulator|simulator-x86|device]" >&2
         exit 2
         ;;
 esac

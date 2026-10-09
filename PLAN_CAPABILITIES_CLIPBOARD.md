@@ -1,5 +1,17 @@
 # PLAN_CAPABILITIES_CLIPBOARD.md — Workstream D5: Portable Clipboard Contract
 
+## Status
+
+D5's portable clipboard contract and guide are implemented in `framework-sharing`. Availability is
+backend-reported, may be `Unknown`, does not guarantee a later operation will succeed, and has no
+portable permission/privacy semantics. Six fake-backend tests cover owned reads/errors, writes,
+clear, no work before first poll, read start on first poll, and pending read/write/clear result
+suppression. Validation passes:
+`cargo fmt --all -- --check`, `cargo test --locked --offline -p framework-sharing`,
+`cargo check --locked --offline -p framework-sharing --no-default-features`,
+`cargo doc --locked --offline -p framework-sharing --no-deps --no-default-features`, and
+`git diff --check`.
+
 ## Objective
 
 Add a small platform-agnostic Rust contract for plain-text clipboard read, write, and clear operations. This is one capability slice in `framework-sharing`; it does not implement native iOS access or share-sheet presentation.

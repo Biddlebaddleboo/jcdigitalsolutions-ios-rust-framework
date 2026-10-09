@@ -37,6 +37,9 @@ pub type IosScheduleFuture = IosNotificationsFuture<(), Notification>;
 /// iOS pending-notification cancellation future.
 pub type IosCancelFuture = IosNotificationsFuture<bool, NotificationId>;
 
+/// iOS future for a pending-request count.
+pub type IosPendingRequestCountFuture = IosNotificationsFuture<u64, ()>;
+
 /// A lazy UserNotifications operation that owns safe callback state until one terminal result.
 pub struct IosNotificationsFuture<T, O> {
     center: Retained<UNUserNotificationCenter>,
@@ -131,6 +134,14 @@ impl IosNotificationsBackend {
     /// portable backend and can race with its pending-request query/removal sequence.
     pub fn native_notification_center(&self) -> &UNUserNotificationCenter {
         &self.center
+    }
+
+    /// Return this app's local-request queue count at native callback time
+    ///
+    /// A native add or cancel can alter the queue at once. The callback may run on a background
+    /// thread. This count has no ID or content and proves no authorization, delivery, or readiness
+    pub fn pending_request_count(&self) -> IosPendingRequestCountFuture {
+        IosNotificationsFuture::new(&self.center, (), start_pending_request_count)
     }
 }
 
@@ -328,6 +339,30 @@ fn start_cancel(
         },
     );
     // UserNotifications snapshots current pending requests asynchronously for this app.
+    center.getPendingNotificationRequestsWithCompletionHandler(&handler);
+}
+
+fn start_pending_request_count(
+    center: Retained<UNUserNotificationCenter>,
+    (): (),
+    completion: Completion<u64>,
+) {
+    let handler = RcBlock::new(
+        move |requests: core::ptr::NonNull<NSArray<UNNotificationRequest>>| {
+            let result = catch_unwind(AssertUnwindSafe(|| {
+                autoreleasepool(|_| {
+                    // SAFETY: This non-null array stays valid for this callback call.
+                    let requests = unsafe { requests.as_ref() };
+                    u64::try_from(requests.count()).map_err(|_| {
+                        NotificationError::Backend(Error::new(ErrorKind::ResourceExhausted))
+                    })
+                })
+            }))
+            .unwrap_or_else(|_| Err(internal_error()));
+            completion.complete(result);
+        },
+    );
+    // Apple may use a background thread for this callback; this path reads only the array.
     center.getPendingNotificationRequestsWithCompletionHandler(&handler);
 }
 

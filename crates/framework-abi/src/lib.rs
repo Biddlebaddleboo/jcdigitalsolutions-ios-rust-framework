@@ -506,6 +506,18 @@ mod tests {
     }
 
     #[test]
+    fn handles_reserve_zero_and_options_set_the_v1_header() {
+        assert_eq!(FrameworkOperationHandle::new(0), None);
+        assert_eq!(FrameworkErrorHandle::new(0), None);
+
+        let options = FrameworkOptionsV1::new(0x25);
+        assert_eq!(options.struct_size, 16);
+        assert_eq!(options.abi_version, ABI_VERSION_MAJOR);
+        assert_eq!(options.flags, 0x25);
+        assert_eq!(options.reserved, 0);
+    }
+
+    #[test]
     fn pointer_length_views_preserve_utf8_and_explicit_lengths() {
         let text = "café";
         let value = FrameworkStr::from_utf8(text).unwrap();
@@ -520,6 +532,11 @@ mod tests {
 
     #[test]
     fn owned_buffer_round_trips_and_c_destructor_resets_the_descriptor() {
+        let empty = FrameworkOwnedBuffer::try_from_vec(vec![]).unwrap();
+        assert!(empty.data().is_null());
+        assert_eq!(empty.length(), 0);
+        assert_eq!(empty.capacity(), 0);
+
         let buffer = FrameworkOwnedBuffer::try_from_vec(vec![4, 5, 6]).unwrap();
         assert_eq!(buffer.as_bytes(), Some(&[4, 5, 6][..]));
         let bytes = buffer.into_vec();
@@ -534,18 +551,51 @@ mod tests {
         assert_eq!(buffer.capacity(), 0);
         assert!(buffer.data().is_null());
         drop(buffer);
+
+        // SAFETY: the destructor accepts a null buffer pointer.
+        unsafe {
+            framework_owned_buffer_destroy(core::ptr::null_mut());
+        }
     }
 
     #[test]
     fn portable_errors_map_to_stable_c_statuses() {
-        assert_eq!(
-            FrameworkStatus::from_error(Error::new(ErrorKind::Cancelled)),
-            FrameworkStatus::CANCELLED
-        );
-        assert_eq!(
-            FrameworkStatus::from_error(Error::new(ErrorKind::InvalidInput)),
-            FrameworkStatus::INVALID_ARGUMENT
-        );
+        for (kind, expected) in [
+            (ErrorKind::Unknown, FrameworkStatus::INTERNAL_ERROR),
+            (ErrorKind::InvalidInput, FrameworkStatus::INVALID_ARGUMENT),
+            (ErrorKind::Unsupported, FrameworkStatus::UNSUPPORTED),
+            (ErrorKind::Unavailable, FrameworkStatus::UNAVAILABLE),
+            (
+                ErrorKind::PermissionDenied,
+                FrameworkStatus::PERMISSION_DENIED,
+            ),
+            (ErrorKind::Cancelled, FrameworkStatus::CANCELLED),
+            (ErrorKind::Timeout, FrameworkStatus::TIMEOUT),
+            (ErrorKind::NotFound, FrameworkStatus::NOT_FOUND),
+            (ErrorKind::AlreadyExists, FrameworkStatus::ALREADY_EXISTS),
+            (
+                ErrorKind::ResourceExhausted,
+                FrameworkStatus::RESOURCE_EXHAUSTED,
+            ),
+            (ErrorKind::Platform, FrameworkStatus::PLATFORM_ERROR),
+            (ErrorKind::Internal, FrameworkStatus::INTERNAL_ERROR),
+        ] {
+            assert_eq!(FrameworkStatus::from_error(Error::new(kind)), expected);
+        }
+
+        assert_eq!(FrameworkStatus::OK.code(), 0);
+        assert_eq!(FrameworkStatus::INVALID_ARGUMENT.code(), 1);
+        assert_eq!(FrameworkStatus::UNSUPPORTED.code(), 2);
+        assert_eq!(FrameworkStatus::UNAVAILABLE.code(), 3);
+        assert_eq!(FrameworkStatus::PERMISSION_DENIED.code(), 4);
+        assert_eq!(FrameworkStatus::CANCELLED.code(), 5);
+        assert_eq!(FrameworkStatus::TIMEOUT.code(), 6);
+        assert_eq!(FrameworkStatus::NOT_FOUND.code(), 7);
+        assert_eq!(FrameworkStatus::ALREADY_EXISTS.code(), 8);
+        assert_eq!(FrameworkStatus::RESOURCE_EXHAUSTED.code(), 9);
+        assert_eq!(FrameworkStatus::PLATFORM_ERROR.code(), 10);
+        assert_eq!(FrameworkStatus::INTERNAL_ERROR.code(), 11);
+        assert_eq!(FrameworkStatus::PANIC.code(), 12);
     }
 
     unsafe extern "C" fn count_callback(

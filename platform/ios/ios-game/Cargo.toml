@@ -1,0 +1,18 @@
+[package]
+name = "ios-game"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "Non-prompting Game Center local-player status read for iOS"
+
+[dependencies]
+framework-core.workspace = true
+framework-game = { path = "../../../crates/framework-game" }
+
+[target.'cfg(target_os = "ios")'.dependencies]
+objc2-game-kit = { workspace = true, features = ["GKBasePlayer", "GKLocalPlayer", "GKPlayer"] }
+
+[lints]
+workspace = true

@@ -2,7 +2,6 @@ use crate::conversion::{
     NativeAccuracy, authorization_from_native, error_from_native, fix_from_native, native_accuracy,
 };
 use crate::operation::CompletionCell;
-use core::cell::Cell;
 use core::future::Future;
 use core::marker::PhantomData;
 use core::pin::Pin;
@@ -36,7 +35,7 @@ enum DelegateRole {
 struct DelegateState {
     completion: Completion,
     role: DelegateRole,
-    authorization_requested: Cell<bool>,
+    authorization_baseline: Option<i32>,
 }
 
 define_class!(
@@ -144,11 +143,16 @@ define_class!(
 );
 
 impl LocationDelegate {
-    fn new(marker: MainThreadMarker, completion: Completion, role: DelegateRole) -> Retained<Self> {
+    fn new(
+        marker: MainThreadMarker,
+        completion: Completion,
+        role: DelegateRole,
+        authorization_baseline: Option<i32>,
+    ) -> Retained<Self> {
         let state = DelegateState {
             completion,
             role,
-            authorization_requested: Cell::new(false),
+            authorization_baseline,
         };
         let allocated: Allocated<Self> = marker.alloc::<Self>();
         let allocated = allocated.set_ivars(state);
@@ -159,14 +163,12 @@ impl LocationDelegate {
 
     fn complete_authorization_change(&self, raw_status: i32) {
         let ivars = self.ivars();
-        if ivars.role != DelegateRole::RequestAuthorization || !ivars.authorization_requested.get()
+        if ivars.role != DelegateRole::RequestAuthorization
+            || ivars.authorization_baseline == Some(raw_status)
         {
             return;
         }
         let authorization = authorization_from_native(raw_status);
-        if authorization == LocationAuthorization::NotDetermined {
-            return;
-        }
         ivars
             .completion
             .complete(Ok(NativeOutcome::Authorization(authorization)));
@@ -253,22 +255,10 @@ impl<'a, T> IosLocationFuture<'a, T> {
 
     fn start_authorization_request(&mut self) {
         let status = native_authorization_status();
-        if status != 0 {
-            self.completion
-                .complete(Ok(NativeOutcome::Authorization(authorization_from_native(
-                    status,
-                ))));
-            return;
-        }
-        let (manager, delegate) = self.new_operation_objects(DelegateRole::RequestAuthorization);
+        let (manager, delegate) =
+            self.new_operation_objects(DelegateRole::RequestAuthorization, Some(status));
         self.manager = Some(manager);
         self.delegate = Some(delegate);
-        self.delegate
-            .as_ref()
-            .expect("delegate set above")
-            .ivars()
-            .authorization_requested
-            .set(true);
         let manager = self.manager.as_ref().expect("manager set above");
         // SAFETY: The backend marker keeps this future on the main thread and the manager was
         // created on that thread with its callback delegate retained by this future.
@@ -276,7 +266,7 @@ impl<'a, T> IosLocationFuture<'a, T> {
     }
 
     fn start_current(&mut self, request: LocationRequest) {
-        let (manager, delegate) = self.new_operation_objects(DelegateRole::Current);
+        let (manager, delegate) = self.new_operation_objects(DelegateRole::Current, None);
         self.manager = Some(manager);
         self.delegate = Some(delegate);
         let manager = self.manager.as_ref().expect("manager set above");
@@ -298,13 +288,18 @@ impl<'a, T> IosLocationFuture<'a, T> {
     fn new_operation_objects(
         &self,
         role: DelegateRole,
+        authorization_baseline: Option<i32>,
     ) -> (Retained<CLLocationManager>, Retained<LocationDelegate>) {
         autoreleasepool(|_| {
             // SAFETY: CLLocationManager's initializer is public and this backend supplies the
             // main-thread/run-loop context required for its delegate callbacks.
             let manager = unsafe { CLLocationManager::new() };
-            let delegate =
-                LocationDelegate::new(self.backend.marker, self.completion.clone(), role);
+            let delegate = LocationDelegate::new(
+                self.backend.marker,
+                self.completion.clone(),
+                role,
+                authorization_baseline,
+            );
             let delegate_object = ProtocolObject::from_ref(&*delegate);
             // SAFETY: CLLocationManager's delegate is a zero-ownership weak property; this future
             // retains the delegate until it is finished or dropped.

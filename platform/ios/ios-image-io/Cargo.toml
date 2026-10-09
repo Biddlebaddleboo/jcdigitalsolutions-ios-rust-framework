@@ -1,0 +1,27 @@
+[package]
+name = "ios-image-io"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "Metadata-only iOS ImageIO backend for framework-image"
+
+[dependencies]
+framework-image = { path = "../../../crates/framework-image" }
+framework-core.workspace = true
+
+[target.'cfg(target_os = "ios")'.dependencies]
+objc2-core-foundation = { version = "=0.3.2", default-features = false, features = [
+    "CFData",
+    "CFDictionary",
+    "CFNumber",
+    "CFString",
+] }
+objc2-image-io = { version = "=0.3.2", default-features = false, features = [
+    "CGImageProperties",
+    "CGImageSource",
+] }
+
+[lints]
+workspace = true

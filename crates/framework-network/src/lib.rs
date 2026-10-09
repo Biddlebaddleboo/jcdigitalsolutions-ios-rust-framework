@@ -398,11 +398,15 @@ mod tests {
         let method = HttpMethod::new("POST").unwrap();
         let url = HttpUrl::new("https://example.test/v1").unwrap();
         let header = Header::new("X-Mode", b"fast").unwrap();
-        let headers = [header];
+        let duplicate_header = Header::new("x-mode", b"slow").unwrap();
+        let headers = [header, duplicate_header];
         let request = HttpRequest::new(method, url, &headers, Some(b"body"));
         assert_eq!(request.method().as_str(), "POST");
         assert_eq!(request.url().as_str(), "https://example.test/v1");
+        assert_eq!(request.headers()[0].name(), "X-Mode");
         assert_eq!(request.headers()[0].value(), b"fast");
+        assert_eq!(request.headers()[1].name(), "x-mode");
+        assert_eq!(request.headers()[1].value(), b"slow");
         assert_eq!(request.body(), Some(&b"body"[..]));
     }
 
@@ -445,5 +449,36 @@ mod tests {
             }
             _ => panic!("ready test backend did not complete"),
         }
+    }
+
+    #[test]
+    fn non_success_response_keeps_duplicate_headers_and_owned_body() {
+        let response = HttpResponse::new(
+            StatusCode::new(404).unwrap(),
+            vec![
+                ResponseHeader::new(String::from("Set-Cookie"), vec![b'a', b'=', b'1']).unwrap(),
+                ResponseHeader::new(String::from("Set-Cookie"), vec![b'b', b'=', b'2']).unwrap(),
+            ],
+            vec![b'n', b'o', b't', b' ', b'f', b'o', b'u', b'n', b'd'],
+        );
+
+        assert_eq!(response.status().get(), 404);
+        assert_eq!(response.headers()[0].value(), b"a=1");
+        assert_eq!(response.headers()[1].value(), b"b=2");
+        assert_eq!(response.body_utf8(), Ok("not found"));
+        assert_eq!(response.into_body_string(), Ok(String::from("not found")));
+    }
+
+    #[test]
+    fn invalid_utf8_views_return_the_stable_error() {
+        let header = ResponseHeader::new(String::from("X-Data"), vec![0xff]).unwrap();
+        let response = HttpResponse::new(StatusCode::new(200).unwrap(), vec![header], vec![0xff]);
+
+        assert_eq!(
+            response.headers()[0].value_utf8(),
+            Err(NetworkError::InvalidUtf8)
+        );
+        assert_eq!(response.body_utf8(), Err(NetworkError::InvalidUtf8));
+        assert_eq!(response.into_body_string(), Err(NetworkError::InvalidUtf8));
     }
 }

@@ -17,7 +17,7 @@ async fn read_one_fix<B: LocationBackend>(
 }
 ~~~
 
-**Location<B>** owns the caller-supplied backend value. The concrete **LocationBackend** type is selected statically; associated future types use **core::future::Future**, with no boxed trait object, executor, **Send** requirement, registry, or hidden initialization. Availability is a non-prompting query. Authorization query is non-prompting; only an explicit **request_authorization** call may ask a native backend to prompt. That request is for foreground one-shot use and does not silently request background authorization.
+**Location<B>** owns the caller-supplied backend value. The concrete **LocationBackend** type is selected statically; associated future types use **core::future::Future**, with no boxed trait object, executor, **Send** requirement, registry, or hidden initialization. Availability is a non-prompting backend service/context signal, not an authorization result or a guarantee that a request will succeed. Use **authorization** for normalized grant status. Authorization query is non-prompting; only an explicit **request_authorization** call may ask a native backend to prompt. That request is for foreground one-shot use and does not silently request background authorization.
 
 **LocationAuthorization** is framework-owned and distinguishes unknown, not-determined, denied, restricted, foreground, and background grant status. A background grant also allows foreground use, but this value is status only: the portable contract exposes no background-location operation. It does not encode every permission detail offered by every platform.
 
@@ -34,6 +34,8 @@ Coordinates, requests, timestamps, fixes, authorization values, and errors are R
 ## Operation and cancellation semantics
 
 A current-location request starts on first poll. Dropping it before its first poll starts no backend work. Dropping a pending request asks the backend to cancel its native one-shot operation when its native API supports cancellation. A native completion racing with cancellation is ignored after the Rust future is dropped. If the native operation cannot be cancelled, the backend must detach its callback safely, discard its eventual result, and release callback state exactly once. Each started operation has one terminal success or error; if the future remains live through that terminal state, it yields that result once. If the caller drops the future first, the result is suppressed. Duplicate or late native completions are ignored.
+
+The request has no portable timeout field or completion deadline. A caller-imposed deadline is external; dropping the pending request follows the cancellation and callback-detachment rules above. A backend-reported timeout is returned through **LocationError::Backend** with its selected **ErrorKind** and optional native code preserved; **ErrorKind::Timeout** may be used when appropriate.
 
 Dropping an authorization-request future abandons interest in its result but cannot be assumed to dismiss a permission prompt already shown. A backend must keep any callback state safe until completion. Each completed authorization operation yields one result if its future remains live, and no result if that future has been dropped. A non-prompting authorization query must not change permission state. Errors preserve the framework **ErrorKind** and optional signed native code through **LocationError::Backend**.
 

@@ -54,16 +54,29 @@ platform code. The portable crate has no platform availability probe; the suppli
 
 `framework-files` exposes `AppDirectory`, validated `AppPath`, `Files<B>`, and `FileBackend`. An
 `AppPath` is a UTF-8, slash-separated path under one semantic app directory. It rejects an empty or
-absolute path, empty/dot/parent segments, backslashes, and NUL bytes. It does not resolve symlinks,
-normalize Unicode, or prove sandbox containment; every backend must enforce containment under its
-selected app directory, including its symlink policy. The facade does not return absolute host
-paths.
+absolute path, Windows drive-prefixed paths, empty/dot/parent segments, backslashes, and NUL bytes.
+It does not resolve symlinks, normalize Unicode, or prove sandbox containment. A backend must
+resolve paths relative to its selected app directory under a documented symlink policy and state
+any containment limits caused by concurrent native namespace mutation; descriptor-relative access
+alone may not prevent an already-open directory from being moved outside that root. The facade does
+not return absolute host paths.
 
 `create_directory` creates one path and does not imply parent creation. `remove_file` only removes a
 file; `remove_directory` only removes an empty directory and is not recursive. `read_directory`
-returns owned names; entry order is unspecified. The semantic roots are
+returns owned names; entry order is unspecified. Names must fit the portable UTF-8 single-segment
+contract: empty, `.` or `..` names and names containing `/`, a backslash, or NUL cannot be
+represented. A backend must return an error with kind `ErrorKind::InvalidInput` rather than silently
+omit an unrepresentable entry. A POSIX filename containing a backslash or bytes that are not valid
+UTF-8 cannot appear in the portable listing. The semantic roots are
 `Documents`, `Caches`, `Temporary`, and `ApplicationSupport`; a backend defines each root's native
 mapping and must document platform backup/eviction policy before making such claims.
+
+`exists` is a metadata-only probe: it returns `true` for any present final directory entry,
+including a regular file, directory, symlink, or other entry kind. It does not follow the final
+symlink or read file contents. It returns `false` when the backend confirms the final path component
+is absent; errors resolving parent components or inspecting the entry remain errors. Backends apply
+their documented path and symlink policy while resolving parent components and state any limits to
+containment under concurrent native namespace mutation.
 
 `read` and `read_directory` return caller-owned `Vec` storage. A platform adapter may need to copy
 native data into those vectors; the facade adds no copy after the backend returns them. `write`
@@ -92,6 +105,12 @@ fn read<B: FileBackend>(files: &mut Files<B>) -> Result<alloc::vec::Vec<u8>, Fil
 File methods are synchronous and may block. The contract defines no cancellation operation. An
 adapter must state its threading and blocking behavior. `FileError` maps invalid paths and invalid
 UTF-8 to `InvalidInput`; backend errors retain their `ErrorKind` and optional platform code.
+
+The iOS adapter also exposes the platform-only `IosFiles::adopt_url_session_download` operation:
+it synchronously copies a URLSession download callback's temporary file into an `AppPath` and
+commits it with a same-directory atomic rename. This is an additive sandbox-file operation, not a
+`FileBackend` method or support for arbitrary, user-selected, or provider URLs; see the [iOS
+adoption guide](../ios/file-adoption.md) for source ownership, copy cost, and race limits.
 
 ## Preferences
 

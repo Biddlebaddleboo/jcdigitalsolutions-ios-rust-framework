@@ -1,0 +1,19 @@
+[package]
+name = "ios-roomplan"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "RoomPlan device-support status query for iOS"
+build = "build.rs"
+
+[dependencies]
+framework-roomplan = { path = "../../../crates/framework-roomplan", version = "0.1.0" }
+
+[[example]]
+name = "roomplan_link_probe"
+path = "examples/roomplan_link_probe.rs"
+
+[lints]
+workspace = true

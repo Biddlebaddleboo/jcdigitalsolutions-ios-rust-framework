@@ -135,9 +135,9 @@ pub trait PreferencesBackend {
 
     /// Sets one key and reports the atomicity the backend can guarantee.
     ///
-    /// If `RequireAtomic` is set but unsupported, the backend must return `Unsupported`. A
-    /// successful set makes this key's value visible to a later get through the same backend,
-    /// unless another writer changes it. Persistence across a crash is not promised.
+    /// If `RequireAtomic` is set but unsupported, the backend must return `Unsupported` before
+    /// mutation. A successful set makes this key's value visible to a later get through the same
+    /// backend, unless another writer changes it. Persistence across a crash is not promised.
     fn set_bytes(
         &mut self,
         key: PreferenceKey<'_>,

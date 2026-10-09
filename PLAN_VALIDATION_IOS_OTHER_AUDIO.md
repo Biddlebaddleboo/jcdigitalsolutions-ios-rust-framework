@@ -1,0 +1,27 @@
+# PLAN_VALIDATION_IOS_OTHER_AUDIO.md — Workstream G41: Other-Audio Snapshot Gate
+
+## Objective
+
+Gate D42/B47's portable scalar contract and iOS `AVAudioSession.isOtherAudioPlaying` adapter
+
+## Checks
+
+`sh platform/ios/ios-media/check-audio-playback.sh` runs format, portable no-default check and
+strict Clippy, device/Simulator check and strict Clippy, rustdoc, dependency-feature audit, a Release
+link/import probe, docs-index check, zero-Swift-source check, and `git diff --check`. The probe
+requires AVFAudio, Foundation, libobjc, and libSystem imports; checks for the singleton/getter
+selectors; rejects audio-operation, capture, permission, and Swift-runtime symbols; and audits
+deployment metadata. It links but does not run
+
+## Evidence limits
+
+These gates do not query live audio state, determine source identity, test mixing policy, establish
+behavior under audio-session changes, or provide Apple parity/performance evidence. The host Xcode
+26.6 / iOS SDK 26.5 remains below the Xcode 27.x plan baseline
+
+## Status
+
+The package gate and exact Release import allowlist are wired in CI. The local gate passed on Xcode
+26.6 / iOS SDK 26.5 for device and Simulator targets. Both linked probes import exactly AVFoundation,
+CoreFoundation, CoreMedia, Foundation, libobjc, and libSystem; their deployment versions are 12.0
+and 14.0. They were not executed, and no CI workflow run is recorded

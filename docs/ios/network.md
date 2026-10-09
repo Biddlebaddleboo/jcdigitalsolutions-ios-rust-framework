@@ -34,7 +34,7 @@ These conversions preserve method, body bytes, and representable single header v
 
 ## Errors, completion, and drop
 
-`NSURLSession` completion runs on its delegate queue, not necessarily the main thread. The callback copies the response body and header strings before returning. It catches Rust panics before returning through the Objective-C block boundary. The block captures only a synchronized Rust completion cell; it captures no Objective-C object or borrowed request data.
+`NSURLSession` completion runs on its delegate queue, not necessarily the main thread. The callback copies the response body and header strings before it returns. A completion may arrive during the first poll, before that poll saves a waker; the cell keeps the result for that poll. The cell unlocks before a wake, so a reentrant poll can read the result without a lock cycle. Panics in native request setup or response conversion within `catch_unwind` map to `NetworkError::Backend` with `ErrorKind::Internal`; no panic crosses the Objective-C block boundary. The block captures only `Arc<CompletionCell<...>>`; the cell uses a mutex and the block holds no Objective-C object or borrowed request data.
 
 The completion cell accepts one terminal result, wakes the currently registered Rust task after releasing its lock, and ignores any later completion. Dropping the future detaches its waker and result interest, then calls `NSURLSessionTask.cancel()` when a task has started. Cancellation is a request, not proof the transfer stopped immediately; URLSession can finish cancellation asynchronously and may deliver its cancellation completion after the Rust future is gone. The callback-owned state remains alive until the native block is released. Dropping an unpolled future creates no task. Dropping after native completion but before polling the result discards that result and requests task cancellation if the task handle remains.
 
@@ -57,6 +57,17 @@ The installed iOS 26.5 SDK headers mark `NSURLSession` and `NSURLSessionConfigur
 
 ## Validation status
 
-The crate unit fixtures cover owned request copies, duplicate request header order before Foundation conversion, non-ASCII/reserved request header rejection, response status/body/header conversion, native error category/code conversion, exactly-once completion, and detach/completion races. Apple device/simulator compile, Clippy, link checks, and linked-import inspection are part of the B3 handoff. No iOS device/simulator URLSession runtime request or local-server differential test was run; this crate has no integration-test app/runner. No live external endpoint is used. No Apple HTTP differential or parity claim is made; a consuming app's ATS, local-network authorization, server trust, and URLSession defaults remain observable platform behavior. Performance has not been measured.
+| Gate | Recorded result | Evidence supports | Does not establish |
+| --- | --- | --- | --- |
+| Host unit tests | 10 deterministic tests passed | Owned request conversion, response conversion/error mapping, and completion/detach races | Foundation/URLSession runtime behavior, HTTP parity, or performance |
+| iOS device and Simulator `cargo check` / strict Clippy | Pass in the recorded Xcode 26.6 / iOS 26.5 SDK environment | Generated Apple bindings type-check for both Rust targets | A task starts, sends a request, or receives a callback |
+| Release link/import probe | Pass; probes are link-only and not executed | Direct imports `Foundation`, `libSystem.B.dylib`, and `libobjc.A.dylib`; the script's selected Swift/Python/runtime and unrelated capability symbol patterns are rejected | URLSession runtime behavior, local-server parity, or performance |
+| URLSession local-fixture differential | Not run; this crate has no integration-test app/runner | No Apple reference result is available | HTTP parity |
+| Representative-device Release measurement | Not run; E1 found no replacement candidate | No performance result is available | A performance win or default change |
+
+The recorded Xcode version is below the repository's Xcode 27.x baseline. No live external endpoint
+is used. A future parity record must follow the artifact requirements in
+[`PLAN_VALIDATION_IOS_NETWORK.md`](../../PLAN_VALIDATION_IOS_NETWORK.md); compile and link results do
+not substitute for an Apple runtime reference.
 
 References: [URLSession completion handler and delegate queue](https://developer.apple.com/documentation/foundation/urlsession/datatask%28with%3Acompletionhandler%3A%29-e6xv), [URLSession invalidation lifecycle](https://developer.apple.com/documentation/foundation/urlsession/finishtasksandinvalidate%28%29?language=objc), [NSURLRequest reserved headers](https://developer.apple.com/documentation/foundation/nsurlrequest), [NSMutableURLRequest duplicate header behavior](https://developer.apple.com/documentation/foundation/nsmutableurlrequest/addvalue%28_%3Aforhttpheaderfield%3A), [NSHTTPURLResponse headers](https://developer.apple.com/documentation/foundation/httpurlresponse/allheaderfields), [default session configuration](https://developer.apple.com/documentation/foundation/urlsessionconfiguration/default), [App Transport Security](https://developer.apple.com/documentation/bundleresources/information-property-list/nsapptransportsecurity), and [local network privacy](https://developer.apple.com/documentation/technotes/tn3179-understanding-local-network-privacy).

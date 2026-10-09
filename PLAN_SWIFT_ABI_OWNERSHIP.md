@@ -1,5 +1,12 @@
 # PLAN_SWIFT_ABI_OWNERSHIP.md — Workstream C1: Swift Class Ownership Proof
 
+## Status
+
+C1 passes `sh interop/swift-abi-core/tests/check-retained-ownership.sh`: the host oracle completed
+64 exact Swift class deinit cycles across retain, clone, drop, and re-adoption. Device/simulator
+compiler checks passed but did not run. The default feature path has no `swiftCore` linkage or
+retain/release imports. Xcode 26.6 / SDK 26.5 remains below the Xcode 27.x plan baseline.
+
 ## Objective
 
 Establish executable evidence for the existing opt-in `SwiftRetained` wrapper: a Swift class instance created by a transient compiler-oracle fixture remains alive across Rust retain/clone/drop operations and is destroyed after the final release. Preserve the zero-shipping-Swift-source rule and the no-runtime-linkage default.

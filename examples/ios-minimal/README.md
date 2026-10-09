@@ -16,7 +16,27 @@ The script builds an arm64 iOS Simulator Release executable with Cargo and packa
 ./build.sh device
 ```
 
-The device command only builds and bundles an unsigned app. Device installation, signing, provisioning, and physical-device validation are not verified here. The simulator command is a build/package path; no simulator launch is claimed because this x86_64 host cannot run the arm64 simulator executable produced by the required `aarch64-apple-ios-sim` target.
+The device command only builds and bundles an unsigned app. Device installation, signing, provisioning, and physical-device validation are not verified here. The standard simulator command builds the required arm64 `aarch64-apple-ios-sim` target; this Intel host cannot run that executable.
+
+For a supplemental Intel-host simulator run, install the `x86_64-apple-ios` Rust target and build its separate bundle:
+
+```sh
+rustup target add x86_64-apple-ios
+./build.sh simulator-x86
+codesign --force --sign - --timestamp=none ../../target/ios-minimal/simulator-x86/ios-minimal.app
+xcrun simctl install booted ../../target/ios-minimal/simulator-x86/ios-minimal.app
+xcrun simctl launch booted dev.jcdigitalsolutions.ios-minimal
+```
+
+This host launched that bundle on the iOS 18.0 iPhone 16 Pro simulator. The label and button were legible in both light and dark appearance. The supplemental x86_64 run does not validate the required arm64 simulator target or a user touch.
+
+To exercise the Rust target/action callback without a user tap, launch the simulator bundle with this argument:
+
+```sh
+xcrun simctl launch --terminate-running-process booted dev.jcdigitalsolutions.ios-minimal --exercise-rust-button-callback
+```
+
+The app then calls `UIControl::sendActionsForControlEvents(UIControlEvents::TouchUpInside)`, and the Rust callback changes the label to `Rust callback: 1 tap(s)`. This verifies programmatic UIKit target/action dispatch only; it does not simulate a physical touch or establish arm64/device behavior.
 
 The Rust target components are `aarch64-apple-ios-sim` and `aarch64-apple-ios`. The current execution host recorded by the backend guide is macOS 26.6.2, Xcode 26.6 (17F113), iOS and Simulator SDK 26.5. The planning baseline assumes Xcode 27.x; that toolchain is not present on this host.
 

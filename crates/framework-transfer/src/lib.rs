@@ -21,7 +21,7 @@ pub enum TransferError {
     NotFound,
     /// The task is not terminal and cannot be forgotten.
     NotTerminal,
-    /// The backend returned a framework error.
+    /// The backend returned a framework error whose kind and optional platform code are preserved.
     Backend(Error),
 }
 
@@ -131,7 +131,8 @@ pub enum TransferStatus {
         /// Owned response header values as observed by the backend.
         headers: Vec<ResponseHeader>,
     },
-    /// The task reached a backend-reported failure.
+    /// The task reached a backend-reported failure; its framework error kind and optional
+    /// platform code are retained in the durable status.
     Failed(Error),
     /// The backend confirmed cancellation before destination commit.
     Cancelled,
@@ -179,19 +180,25 @@ impl TransferSnapshot {
 /// does not imply crash durability. A failed or cancelled task leaves the prior whole file or no
 /// file at the destination. A backend that cannot meet these guarantees reports
 /// `Availability::Unsupported`; a request-specific limit may return `ErrorKind::Unsupported`
-/// before task acceptance.
+/// before task acceptance. The control API is synchronous and has no callback or future; clients
+/// observe task state through `status`.
 pub trait TransferBackend {
     /// Reports whether durable downloads are usable in the current context.
     fn availability(&self) -> Availability;
 
     /// Persists one task and requests GET download work.
     ///
-    /// An ID with a stored or retained record returns `TransferError::DuplicateId` without
-    /// a change to that task. Success means durable acceptance, not immediate network activity. The
-    /// backend must retain the request data it needs after this call.
+    /// An ID with a stored or retained record returns `TransferError::DuplicateId` without a
+    /// change to that task. Any other error means this call did not accept a new task record.
+    /// Outcomes after acceptance are observed through `status`; a retained terminal failure uses
+    /// `TransferStatus::Failed`. Success means durable acceptance, not immediate network activity.
+    /// The backend must retain the request data it needs after this call.
     fn start_download(&mut self, request: DownloadRequest<'_>) -> Result<(), TransferError>;
 
     /// Returns the last durable task snapshot, or `None` when no record has this ID.
+    ///
+    /// The backend preserves terminal status metadata across app relaunch until `forget` removes
+    /// the record.
     fn status(&mut self, id: TransferId) -> Result<Option<TransferSnapshot>, TransferError>;
 
     /// Records a durable stop request for a queued or active task.

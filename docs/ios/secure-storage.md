@@ -2,8 +2,10 @@
 
 `ios-secure-storage` implements the portable `framework-secure-storage` contract with public
 Keychain Services generic-password items. The backend is the zero-sized, caller-owned
-`IosSecureStorage` value; it has no global registration or initialization step. Rust callers use
-`SecureStorage<IosSecureStorage>` directly and remain on the Rust-native API path.
+`IosSecureStorage` value; it has no global registration or initialization step. `SecItemAdd`
+uses the app's default Keychain access group when no group is supplied, while lookup, update, and
+delete queries without a group filter search all access groups available to the app. Rust callers
+use `SecureStorage<IosSecureStorage>` directly and remain on the Rust-native API path.
 
 ```rust
 use framework_secure_storage::{
@@ -27,8 +29,18 @@ fn save_and_read() -> Result<(), SecureStorageError> {
 
 The adapter maps `ServiceId` to `kSecAttrService` and `ItemId` to `kSecAttrAccount`, and limits
 items to `kSecClassGenericPassword`. Identifiers are passed as UTF-8 Core Foundation strings
-without normalization or prefixing. The OS supplies the app's default Keychain access group; the
-adapter does not set `kSecAttrAccessGroup` or `kSecAttrSynchronizable`.
+without normalization or prefixing. The adapter does not set `kSecAttrAccessGroup` or
+`kSecAttrSynchronizable`. For `SecItemAdd`, omitting `kSecAttrAccessGroup` selects the app's
+default group. For `SecItemCopyMatching`, `SecItemUpdate`, and `SecItemDelete`, Apple documents
+that omitting the group searches all groups available to the app; updates and deletes affect all
+matching items. Therefore this backend does not select or configure a shared group, but it is not
+isolated to the default group when the host app belongs to multiple access groups. A matching
+service/account identity in another available group may be read, updated, or deleted. Hosts that
+use multiple groups must ensure these identifiers do not collide with items managed outside this
+backend. See Apple's [`kSecAttrAccessGroup`](https://developer.apple.com/documentation/security/ksecattraccessgroup),
+[`SecItemCopyMatching`](https://developer.apple.com/documentation/security/secitemcopymatching%28_%3A_%3A%29),
+[`SecItemUpdate`](https://developer.apple.com/documentation/security/secitemupdate%28_%3A_%3A%29),
+and [`SecItemDelete`](https://developer.apple.com/documentation/security/secitemdelete%28_%3A%29) documentation.
 
 `read` calls `SecItemCopyMatching` with `kSecReturnData`. `store` first calls `SecItemUpdate` for
 the exact class/service/account identity and adds a missing item with `SecItemAdd`; a duplicate
@@ -65,11 +77,12 @@ are unavailable while the device is locked. Keychain errors such as `errSecInter
 remain visible as their original native status. These availability meanings follow Apple's
 [accessibility value definitions](https://developer.apple.com/documentation/security/item-attribute-keys-and-values#Accessibility-Values).
 
-This backend does not provide biometric or per-access authentication, shared access groups,
-iCloud Keychain synchronization, secure deletion, explicit zeroization, crash durability, or
-hardware-backed custom-key APIs. It stores only opaque generic-password bytes and does not add
-cryptography. No Security object or native handle is returned or retained; there is no native
-escape-handle API in this adapter. Applications that need custom access groups or other Keychain
+This backend does not provide biometric or per-access authentication or shared-access-group
+selection. It does not provide iCloud Keychain synchronization, secure deletion, explicit
+zeroization, crash durability, or hardware-backed custom-key APIs. It stores only opaque
+generic-password bytes and does not add cryptography. No Security object or native handle is
+returned or retained; this adapter exposes no native escape-handle API. Applications that need
+custom access groups or other Keychain
 attributes must use a separately scoped platform integration with the required signing
 configuration.
 
@@ -77,15 +90,19 @@ The used `SecItemAdd`, `SecItemCopyMatching`, `SecItemUpdate`, and `SecItemDelet
 the installed Security SDK are marked available from iOS 2.0. The four selected accessibility
 constants are marked available from iOS 4.0 in the installed iOS 26.5 SDK. The crate does not set
 or test an application deployment target; iOS 4.0 is the lowest SDK-annotated availability among
-these symbols, not a claim that this application has been tested on that OS release. This adapter
-does not require a custom `Info.plist` key or shared-access-group entitlement. The app uses the
-default Keychain access group provided by its platform signing configuration; a non-default
-shared group requires a matching entitlement and is not implemented here.
+these symbols, not a claim that this application has been tested on that OS release. Default-group
+adds do not require a custom `Info.plist` key or shared-access-group entitlement. The host app's
+signed entitlements determine which groups unfiltered searches can see; this backend does not
+select or configure a non-default group. Strict default-group isolation is not provided by this
+implementation. If required, it remains an open design item: the backend needs a public, reliable
+way to select the signed app's default group for each lookup, update, and delete.
 
 ## Binding and dependency boundary
 
 The backend uses `objc2-security` 0.3.2 with only `SecBase` and `SecItem` features and
 `objc2-core-foundation` 0.3.2 with `CFData`, `CFDictionary`, `CFNumber`, `CFString`, and `alloc`.
+The crate's `CFNumber` feature is needed to expose the generated `kCFBooleanTrue` singleton used
+with `kSecReturnData`; the adapter does not construct or consume a `CFNumber` value.
 These generated bindings cover the exact Security declarations used here: `SecItemAdd`,
 `SecItemCopyMatching`, `SecItemUpdate`, `SecItemDelete`, generic-password class/service/account,
 return-data/value-data, and `kSecAttrAccessible` plus the four selected classes. Core Foundation
@@ -106,16 +123,20 @@ its Objective-C runtime feature are not enabled, since these APIs are C/Core Fou
 The binding layer remains private to this crate; neither Security nor Core Foundation types enter
 the portable API. These dependencies are target-scoped to iOS and do not affect portable
 `no_std` crates. The only enabled transitive helper is `bitflags` for generated Core Foundation
-feature definitions; this dependency path has no build scripts or proc macros. At link time the
-calls require `Security.framework` and `CoreFoundation`, with no Objective-C runtime, Swift
-runtime, or unrelated capability framework. The generated bindings avoid duplicating ABI types,
+feature definitions; this dependency path has no build scripts or proc macros. The repository's
+opt-in C link probe calls read, store, and remove, then checks device and simulator Mach-O imports.
+For those probe binaries only, the exact direct import set is `CoreFoundation` from
+`CoreFoundation.framework`, `Security` from `Security.framework`, and `libSystem.B.dylib`; the
+`nm -u` scan rejects Swift, Objective-C, and network symbols. This is not a claim about the full
+imports of an app that links the backend. The generated bindings avoid duplicating ABI types,
 ownership annotations, and framework symbol declarations by hand. Replacing them later is
-localized to `keychain.rs` and `Cargo.toml`, behind the same `SecureStorageBackend` implementation.
+localized to `keychain.rs` and `Cargo.toml`, behind the same `SecureStorageBackend` implementation
 
 The selected native symbols are public `Security.framework` and `CoreFoundation` APIs. The
 backend does not call Objective-C methods, use private APIs, or require Swift runtime support.
-The app's default Keychain group is selected by signing; custom group setup, entitlements, and
-`Info.plist` changes are outside this adapter.
+Signing selects the app's default group for adds; unfiltered searches retain the all-entitled-groups
+behavior described above. This adapter does not configure group membership or expose a group
+selector; custom group setup and entitlements remain the host app's responsibility.
 
 ## Validation scope
 

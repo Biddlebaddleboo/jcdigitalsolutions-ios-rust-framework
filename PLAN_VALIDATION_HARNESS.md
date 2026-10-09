@@ -43,7 +43,16 @@ Both tools packages must be local Cargo members matched by the existing `tools/*
 
 - Run `sh bindings/c/check.sh` on macOS so C11/C++17 headers, C layout, symbols, and a linked C consumer remain checked.
 - Keep parity and device-performance suites advisory/manual until concrete adapters and hardware are available; do not add fake passing fixtures.
-- Run format, Clippy, tests, `no_std` checks, dependency/ABI audits, docs, and zero-Swift-source checks for the added tools packages.
+- Run format, Clippy, tests, dependency/ABI audits, docs, and zero-Swift-source checks for the added tools packages; run `no_std` checks for portable crates, not the std-based parity/benchmark harness packages
+
+## Current status
+
+- The fixed-case parity API and benchmark record API exist in `tools/parity-harness/**` and `tools/bench-harness/**`; their unit fixtures use fake adapters and fixed sample vectors
+- `BenchmarkRecord` summary fields are private and built by `from_samples`; read-only accessors keep the sample count and percentiles tied to the retained raw sample vector
+- CI config includes workspace format, Clippy, and test gates, plus dependency/ABI audits, rustdoc, docs-check, and zero-Swift-source checks. This records configured gates, not a pass on the current tree
+- G3 checks pass on this tree: `cargo fmt --all -- --check`; `cargo clippy --locked -p parity-harness -p bench-harness -p xtask --all-targets --all-features -- -D warnings`; `cargo test --locked -p parity-harness -p bench-harness -p xtask` (19 unit tests: 5 bench, 7 parity, 7 xtask); `cargo doc --locked -p parity-harness -p bench-harness -p xtask --no-deps`; `cargo xtask no-std-check` (20 portable crates, default and no-default features; no link proof); `cargo xtask dependency-audit` (inventory only); `cargo xtask abi-audit --output target/xtask/abi-audit.json` (source inventory only); `cargo xtask docs-check` (docs index and zero-Swift checks); and `sh bindings/c/check.sh` (`framework ABI 1.0`)
+- `cargo xtask parity` exits with `xtask: parity is unavailable until a real Apple reference adapter and Rust candidate suite exist`; this is the expected no-suite gate, not parity evidence
+- No real Apple reference adapter or Rust candidate suite exists, no framework workload exists, and no parity or performance result exists. `cargo xtask parity` remains unavailable; representative-device Release measurements and optimized-code inspection remain open
 
 ## Handoff
 

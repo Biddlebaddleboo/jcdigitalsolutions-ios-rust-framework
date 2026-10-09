@@ -1,0 +1,26 @@
+[package]
+name = "ios-auth"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "Local Authentication and App Tracking Transparency backends for iOS"
+
+[dependencies]
+framework-auth = { path = "../../../crates/framework-auth" }
+framework-core.workspace = true
+
+[target.'cfg(target_os = "ios")'.dependencies]
+block2 = { workspace = true, features = ["alloc"] }
+objc2 = { workspace = true, features = ["std"] }
+objc2-foundation = { workspace = true, features = ["NSError", "NSString"] }
+objc2-app-tracking-transparency.workspace = true
+objc2-local-authentication = { version = "0.3.2", default-features = false, features = [
+    "LAContext",
+    "LAPublicDefines",
+    "block2",
+] }
+
+[lints]
+workspace = true

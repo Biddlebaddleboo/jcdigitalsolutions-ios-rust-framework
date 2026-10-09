@@ -1,0 +1,15 @@
+[package]
+name = "framework-payments"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "Platform-exclusive payment capability queries"
+
+[target.'cfg(target_os = "ios")'.dependencies]
+objc2 = { workspace = true, features = ["std"] }
+objc2-pass-kit = { workspace = true, features = ["PKPaymentAuthorizationController"] }
+
+[lints]
+workspace = true

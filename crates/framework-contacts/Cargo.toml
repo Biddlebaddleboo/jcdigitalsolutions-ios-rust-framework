@@ -1,0 +1,14 @@
+[package]
+name = "framework-contacts"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "Portable Contacts authorization values and static backend contract"
+
+[dependencies]
+framework-core.workspace = true
+
+[lints]
+workspace = true

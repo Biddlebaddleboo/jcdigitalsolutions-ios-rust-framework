@@ -4,7 +4,10 @@ Research date: 2026-10-07
 
 ## Conclusion
 
-Apple's Translation framework is a useful second Swift-ABI proof after StoreKit 2.
+Apple's Translation framework is a useful end-to-end Swift-ABI proof. The current roadmap in
+`PLAN_SWIFT_ABI.md` schedules Translation before full StoreKit 2 purchase flows. D58/B63 adds a
+narrow synchronous `AppStore.canMakePayments` adapter; its link probes were not executed, and it
+does not complete the StoreKit 2 value, purchase, or async path discussed in this research.
 
 It is genuinely Swift-facing, but the core non-UI capability is much simpler than App Intents or SwiftUI:
 
@@ -86,7 +89,7 @@ An initial Rust Translation implementation appears to require:
 
 Compared with StoreKit product lookup, this avoids an immediately generic collection input.
 
-That makes it a valuable second validation that the ABI layer is not overfitted specifically to StoreKit generics.
+That makes it a valuable validation that the ABI layer is not overfitted specifically to StoreKit generics.
 
 ## Class representation question
 
@@ -300,6 +303,6 @@ Using the public Swift ABI to invoke a documented public Translation API is the 
 
 ## Preliminary priority
 
-**P1, immediately after StoreKit ABI primitives.**
+**P1, once the shared Layer-1 primitives and a supported C6 task-entry contract exist; ahead of full StoreKit 2 purchase flows.**
 
-Translation should probably be the second real Swift-only framework implementation because it is useful, non-UI-capable, and exercises a smaller ABI surface than App Intents.
+The current roadmap schedules Translation as the first end-to-end Swift value/async framework proof because it is useful, non-UI-capable, and exercises a smaller ABI surface than App Intents.

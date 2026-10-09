@@ -1,0 +1,14 @@
+[package]
+name = "ios-mps-status"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "Narrow iOS Metal Performance Shaders preferred-device presence query"
+
+[target.'cfg(target_os = "ios")'.dependencies]
+objc2-metal-performance-shaders = { workspace = true, features = ["MPSCore"] }
+
+[lints]
+workspace = true

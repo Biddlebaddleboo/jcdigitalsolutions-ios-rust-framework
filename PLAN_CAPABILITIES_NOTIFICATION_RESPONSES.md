@@ -1,5 +1,17 @@
 # PLAN_CAPABILITIES_NOTIFICATION_RESPONSES.md — Workstream D9: Notification Response Values
 
+## Status
+
+D9 is implemented as the owned `framework_notifications::response` values and documented in
+`docs/notification-responses.md`. The contract/accessor audit found no mismatch: action identifiers
+reject empty/NUL values without normalization, text input preserves exact owned UTF-8 including
+empty/NUL text, and response construction/accessors preserve the specified borrow/move behavior.
+`cargo check -p framework-notifications --no-default-features`,
+`cargo clippy -p framework-notifications --no-default-features -- -D warnings`,
+`cargo fmt --all -- --check`, `cargo xtask docs-check`, and `git diff --check` pass. No tests were
+added or run, as required. This evidence does not validate B12 native response delivery or runtime
+iOS behavior.
+
 ## Objective
 
 Add portable owned values for the kind and data of a local-notification interaction response. This is a value-only extension to D3; B12 owns native response delivery.

@@ -6,6 +6,18 @@ Implement the smallest reusable zero-Swift-source interoperability layer require
 
 The framework must consume Apple's Swift ABI/runtime; it must not build a Swift runtime clone.
 
+## Current status
+
+C1–C6 compiler proofs and C7's App Intents metadata audit have reports and reproducible commands.
+The 2026-10-08 rerun passed C1 ownership, C2 `String`, C3 `Optional<String>`, C5 async-thunk
+lowering, and C6's expected no-go audit; C4 again confirmed that generated C++ headers omit Swift
+async entries. These are compiler/runtime boundary proofs, not a general production Swift value or
+async adapter. C6 found no documented public task-entry/context/resume contract, and C7 found no
+documented stable Rust/C App Intents metadata input on the audited Xcode 26.6 toolchain. Translation,
+StoreKit 2 async flows, Phase 3, and App Intents Stage 1 remain open; do not use private task symbols
+or undocumented metadata to claim completion. The local Xcode 26.6 / SDK 26.5 host remains below
+the Xcode 27.x plan baseline.
+
 ## Dependencies
 
 Requires `PLAN_FOUNDATION.md`.
@@ -138,7 +150,7 @@ Current C6 result: the inspected Xcode 26.6/SDK 26.5 public C/C++ interfaces exp
 
 ## Phase 4 — Translation proof
 
-Implement first real framework proof:
+Implement the first end-to-end Swift value/async framework proof, beyond the separate D58/B63 synchronous `AppStore.canMakePayments` status slice:
 - `TranslationSession` ownership;
 - session initialization for supported installed-language path;
 - `translate(String) async throws -> Response`;

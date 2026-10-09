@@ -1,0 +1,18 @@
+[package]
+name = "ios-device-integrity"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "Non-prompting DeviceCheck and App Attest support queries for iOS"
+
+[dependencies]
+framework-device-integrity = { path = "../../../crates/framework-device-integrity", version = "0.1.0" }
+
+[target.'cfg(target_os = "ios")'.dependencies]
+objc2 = { workspace = true, features = ["std"] }
+objc2-device-check = { workspace = true, features = ["DCAppAttestService", "DCDevice"] }
+
+[lints]
+workspace = true

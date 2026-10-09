@@ -1,0 +1,18 @@
+[package]
+name = "ios-playback"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "Bounded AVFoundation playback capability queries for iOS"
+
+[dependencies]
+framework-audio = { path = "../../../crates/framework-audio" }
+
+[target.'cfg(target_os = "ios")'.dependencies]
+objc2 = { workspace = true, features = ["std"] }
+objc2-av-foundation = { workspace = true, features = ["AVPlayer"] }
+
+[lints]
+workspace = true

@@ -1,0 +1,19 @@
+[package]
+name = "ios-connectivity"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "One-shot iOS Network.framework path snapshots"
+build = "build.rs"
+
+[dependencies]
+framework-connectivity = { path = "../../../crates/framework-connectivity" }
+framework-core.workspace = true
+
+[build-dependencies]
+cc = { version = "1.2", default-features = false }
+
+[lints]
+workspace = true

@@ -1,0 +1,20 @@
+[package]
+name = "ios-ui"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "Bounded native UIKit view, label, and button controls"
+
+[target.'cfg(target_os = "ios")'.dependencies]
+framework-core.workspace = true
+framework-ui = { path = "../../../crates/framework-ui" }
+ios-runtime = { path = "../ios-runtime" }
+objc2 = { workspace = true, features = ["std"] }
+objc2-core-foundation = { workspace = true, features = ["CFCGTypes"] }
+objc2-foundation = { workspace = true, features = ["NSString"] }
+objc2-ui-kit = { workspace = true, features = ["std", "UIButton", "UIControl", "UILabel", "UIResponder", "UIView", "objc2-core-foundation"] }
+
+[lints]
+workspace = true

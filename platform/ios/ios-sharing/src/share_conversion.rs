@@ -38,11 +38,9 @@ mod tests {
         let mut request = ShareRequest::new(ShareItem::text("hello".to_string()));
         request.push(ShareItem::url("https://example.test/a".to_string()));
         request.push(ShareItem::text("tail".to_string()));
-        let items = map_request(
-            request,
-            |value| FakeNativeItem::Text(value),
-            |value| Ok(FakeNativeItem::Url(value)),
-        )
+        let items = map_request(request, FakeNativeItem::Text, |value| {
+            Ok(FakeNativeItem::Url(value))
+        })
         .unwrap();
         assert_eq!(
             items,

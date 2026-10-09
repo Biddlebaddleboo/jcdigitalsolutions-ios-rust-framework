@@ -1,5 +1,30 @@
 # PLAN_IOS_LOCATION.md — Workstream B5: iOS Current-Location Backend
 
+## Status
+
+B5's `ios-location` backend and guide are integrated. Device/simulator `cargo check`, strict
+all-target Clippy, and link/import probes pass; exact direct imports are `CoreLocation`,
+`Foundation`, `libSystem.B.dylib`, and `libobjc.A.dylib`, with Swift/Python and selected unrelated
+capability imports rejected. Six host tests pass for authorization, accuracy, and native-error
+mapping. Probe binaries were linked, not run; no live authorization prompt, GPS fix, cancellation
+race, or device runtime is claimed. The host has Xcode 26.6 / SDK 26.5, below the Xcode 27.x plan
+baseline. The follow-up's `sh platform/ios/ios-location/check-link-imports.sh` passed and checks the
+locked device and Simulator Cargo trees for exactly `CLLocation`, `CLLocationManager`, and
+`CLLocationManagerDelegate`, plus the direct-import allowlist. Probe binaries were inspected, not
+executed. The gate emitted a rustc warning that `IPHONEOS_DEPLOYMENT_TARGET` was 9.0 while rustc
+supports a minimum of 10.0; final device probe minos is 10.0 and Simulator minos is 14.0.
+
+Row `037-sensors-connectivity-location-geofencing-significant-change-where-supported` remains
+partial beyond B5/F15's one-shot current-location surface. `PLAN.md` lists the portable location
+crate and iOS backend but has no scoped geofencing or significant-change task. D4 explicitly
+excludes both, and the current Rust API has no region value, transition event, or event lifecycle.
+Adding only Rust types would leave the shared contract undefined for region geometry,
+permission scope, platform limits, registration replacement/persistence, event delivery across
+app suspension or termination, and per-region cancellation. These are contract decisions, not a
+bounded backend plumbing gap; do not extend B5/F15 or claim these operations until a separate plan
+defines their portable semantics and iOS policy. Existing compile, feature-tree, and link/import
+checks establish only the one-shot API boundary and do not validate monitoring behavior.
+
 ## Objective
 
 Implement the iOS backend for the integrated D4 one-shot location contract with public Core Location APIs. Do not add continuous location or background behavior.
@@ -32,6 +57,7 @@ Do not edit the portable D4 crate, root workspace configuration, capability stat
 - Use public Core Location Objective-C APIs through the smallest supported binding surface; keep dependency types out of the portable API
 - Use the native one-shot location request path and preserve its returned accuracy/error semantics; do not promise a requested accuracy target
 - Query authorization without prompting; request only the portable contract's explicit foreground authorization level
+- Complete an explicit foreground authorization future only after Core Location reports an authorization-status change; if a request yields no change, document that the future can remain pending and may be dropped
 - Contain delegate callbacks with exact-once terminal completion and safe retained ownership; handle callback reentrancy and future drop per the D4 contract
 - Respect Core Location's delegate run-loop requirements; document the callback thread and main-thread/run-loop requirements
 - Do not request temporary full accuracy, Always authorization, background location, or unrelated location services
@@ -42,6 +68,6 @@ Do not edit the portable D4 crate, root workspace configuration, capability stat
 
 - Run `cargo check` and Clippy for `ios-location` on `aarch64-apple-ios` and `aarch64-apple-ios-sim`
 - Add deterministic tests for pure authorization, accuracy, and native-error mappings that do not need a live permission prompt
-- Inspect device and simulator imports for CoreLocation and absence of unrelated capability frameworks and Swift runtime
-- Document minimum iOS version only from installed SDK metadata, permission text, callback/run-loop behavior, location age/accuracy semantics, cancellation, native handles, and live-device test limits
+- Inspect device and simulator imports for CoreLocation and absence of unrelated capability frameworks and Swift runtime; audit both target Cargo feature trees to require exactly `CLLocation`, `CLLocationManager`, and `CLLocationManagerDelegate` from `objc2-core-location`
+- Document minimum iOS version only from installed SDK metadata, permission text, authorization-status change and pending behavior, callback/run-loop behavior, location age/accuracy semantics, cancellation, native handles, and live-device test limits
 - Report changed files, commit SHA, exact checks, deviations, and unresolved assumptions

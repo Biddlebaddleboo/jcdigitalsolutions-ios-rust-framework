@@ -1,5 +1,14 @@
 # PLAN_CAPABILITIES_SHARE.md — Workstream D6: Portable Share Contract
 
+## Status
+
+D6's portable share contract and guide pass acceptance review. Fake-backend tests cover request
+values and order, pass-through URL text, both terminal outcomes, backend error preservation,
+first-poll start, and pre-/post-presentation drop behavior. The portable surface uses only `alloc`,
+`core`, and `framework-core`; D5 clipboard behavior remains unchanged. Validation passes:
+`cargo fmt --all -- --check`, `cargo test --locked --offline -p framework-sharing` (10 passed),
+`cargo check --locked --offline -p framework-sharing --no-default-features`, and `git diff --check`.
+
 ## Objective
 
 Add a small `no_std` portable contract for caller-provided outgoing share content and the result of a system-share operation. This contract does not present UI or implement an iOS backend.

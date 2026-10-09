@@ -1,0 +1,21 @@
+[package]
+name = "ios-contacts"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "Contacts authorization backend using public iOS Contacts APIs"
+
+[dependencies]
+framework-core.workspace = true
+framework-contacts = { path = "../../../crates/framework-contacts" }
+
+[target.'cfg(target_os = "ios")'.dependencies]
+block2 = { workspace = true, features = ["alloc"] }
+objc2 = { workspace = true, features = ["std"] }
+objc2-contacts = { workspace = true, features = ["block2", "CNContactStore"] }
+objc2-foundation = { workspace = true, features = ["NSError"] }
+
+[lints]
+workspace = true

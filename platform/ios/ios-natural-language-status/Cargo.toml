@@ -1,0 +1,15 @@
+[package]
+name = "ios-natural-language-status"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "iOS Natural Language contextual-model asset status query"
+
+[target.'cfg(target_os = "ios")'.dependencies]
+objc2 = { workspace = true, features = ["std"] }
+objc2-natural-language = { workspace = true, features = ["NLContextualEmbedding", "NLLanguage"] }
+
+[lints]
+workspace = true

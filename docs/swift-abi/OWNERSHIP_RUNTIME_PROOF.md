@@ -17,7 +17,7 @@ The proof creates its Swift class fixture, Rust caller, objects, and temporary C
 Recorded local toolchain:
 
 - Xcode 26.6, build 17F113.
-- Swift 6.3.3, `swift-driver` 1.148.6 (`swiftlang-6.3.3.1.3 clang-2100.1.1.3`).
+- Swift 6.3.3, `swift-driver` 1.148.6 (`swiftlang-6.3.3.1.3 clang-2100.1.1.101`).
 - macOS 26.6.2; host target `x86_64-apple-darwin`.
 - Rust 1.94.1, LLVM 21.1.8.
 - iPhoneOS and iPhoneSimulator SDK 26.5.

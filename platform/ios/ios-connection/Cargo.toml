@@ -1,0 +1,18 @@
+[package]
+name = "ios-connection"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "Outbound secure TCP streams through public iOS Network.framework APIs"
+build = "build.rs"
+
+[dependencies]
+framework-connection = { path = "../../../crates/framework-connection" }
+
+[build-dependencies]
+cc = { version = "1.2", default-features = false }
+
+[lints]
+workspace = true

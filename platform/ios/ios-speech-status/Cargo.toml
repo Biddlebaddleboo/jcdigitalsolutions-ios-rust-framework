@@ -1,0 +1,15 @@
+[package]
+name = "ios-speech-status"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "iOS Speech authorization status query"
+
+[target.'cfg(target_os = "ios")'.dependencies]
+objc2 = { workspace = true, features = ["std"] }
+objc2-speech = { workspace = true, features = ["SFSpeechRecognizer"] }
+
+[lints]
+workspace = true

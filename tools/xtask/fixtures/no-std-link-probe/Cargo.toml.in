@@ -1,0 +1,64 @@
+[package]
+name = "no-std-link-probe"
+version = "0.0.0"
+edition = "2024"
+publish = false
+
+[workspace]
+
+[lib]
+crate-type = ["staticlib"]
+
+[dependencies]
+framework-core = { path = "__ROOT__/crates/framework-core", default-features = false }
+framework-alloc = { path = "__ROOT__/crates/framework-alloc", default-features = false }
+framework-async = { path = "__ROOT__/crates/framework-async", default-features = false }
+framework-abi = { path = "__ROOT__/crates/framework-abi", default-features = false }
+framework-platform = { path = "__ROOT__/crates/framework-platform", default-features = false }
+framework-background = { path = "__ROOT__/crates/framework-background", default-features = false }
+framework-background-execution = { path = "__ROOT__/crates/framework-background-execution", default-features = false }
+framework-accessory = { path = "__ROOT__/crates/framework-accessory", default-features = false }
+framework-contacts = { path = "__ROOT__/crates/framework-contacts", default-features = false }
+framework-calendar = { path = "__ROOT__/crates/framework-calendar", default-features = false }
+framework-bluetooth = { path = "__ROOT__/crates/framework-bluetooth", default-features = false }
+framework-health-authorization = { path = "__ROOT__/crates/framework-health-authorization", default-features = false }
+framework-cloud = { path = "__ROOT__/crates/framework-cloud", default-features = false }
+framework-game = { path = "__ROOT__/crates/framework-game", default-features = false }
+framework-maps = { path = "__ROOT__/crates/framework-maps", default-features = false }
+framework-vision = { path = "__ROOT__/crates/framework-vision", default-features = false }
+framework-roomplan = { path = "__ROOT__/crates/framework-roomplan", default-features = false }
+framework-web = { path = "__ROOT__/crates/framework-web", default-features = false }
+framework-nfc = { path = "__ROOT__/crates/framework-nfc", default-features = false }
+framework-data = { path = "__ROOT__/crates/framework-data", default-features = false }
+framework-app = { path = "__ROOT__/crates/framework-app", default-features = false }
+framework-files = { path = "__ROOT__/crates/framework-files", default-features = false }
+framework-preferences = { path = "__ROOT__/crates/framework-preferences", default-features = false }
+framework-resources = { path = "__ROOT__/crates/framework-resources", default-features = false }
+framework-format = { path = "__ROOT__/crates/framework-format", default-features = false }
+framework-key-support = { path = "__ROOT__/crates/framework-key-support", default-features = false }
+framework-spritekit = { path = "__ROOT__/crates/framework-spritekit", default-features = false }
+framework-image = { path = "__ROOT__/crates/framework-image", default-features = false }
+framework-network = { path = "__ROOT__/crates/framework-network", default-features = false }
+framework-connection = { path = "__ROOT__/crates/framework-connection", default-features = false }
+framework-connectivity = { path = "__ROOT__/crates/framework-connectivity", default-features = false }
+framework-transfer = { path = "__ROOT__/crates/framework-transfer", default-features = false }
+framework-secure-storage = { path = "__ROOT__/crates/framework-secure-storage", default-features = false }
+framework-auth = { path = "__ROOT__/crates/framework-auth", default-features = false }
+framework-notifications = { path = "__ROOT__/crates/framework-notifications", default-features = false }
+framework-location = { path = "__ROOT__/crates/framework-location", default-features = false }
+framework-motion = { path = "__ROOT__/crates/framework-motion", default-features = false }
+framework-photos = { path = "__ROOT__/crates/framework-photos", default-features = false }
+framework-sharing = { path = "__ROOT__/crates/framework-sharing", default-features = false }
+framework-audio = { path = "__ROOT__/crates/framework-audio", default-features = false }
+framework-ui = { path = "__ROOT__/crates/framework-ui", default-features = false }
+framework-media = { path = "__ROOT__/crates/framework-media", default-features = false }
+framework-media-authorization = { path = "__ROOT__/crates/framework-media-authorization", default-features = false }
+framework-nearby = { path = "__ROOT__/crates/framework-nearby", default-features = false }
+framework-metal = { path = "__ROOT__/crates/framework-metal", default-features = false }
+framework-device-integrity = { path = "__ROOT__/crates/framework-device-integrity", default-features = false }
+framework-watch-connectivity = { path = "__ROOT__/crates/framework-watch-connectivity", default-features = false }
+
+[profile.release]
+panic = "abort"
+codegen-units = 1
+lto = false

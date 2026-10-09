@@ -22,17 +22,63 @@
   },
   "targets": {
     "64-bit-pointer-and-u64-alignment-8": {
-      "FrameworkStatus": {"size": 4, "align": 4},
-      "FrameworkSlice": {"size": 16, "align": 8, "fields": {"data": 0, "length": 8}},
-      "FrameworkStr": {"size": 16, "align": 8, "fields": {"data": 0, "length": 8}},
-      "FrameworkOwnedBuffer": {"size": 24, "align": 8, "fields": {"data": 0, "length": 8, "capacity": 16}},
-      "FrameworkOperationHandle": {"size": 8, "align": 8},
-      "FrameworkErrorHandle": {"size": 8, "align": 8},
-      "FrameworkCompletionCallback": {"size": 8, "align": 8},
-      "FrameworkOptionsV1": {"size": 16, "align": 4, "fields": {"struct_size": 0, "abi_version": 4, "flags": 8, "reserved": 12}}
+      "FrameworkStatus": {
+        "size": 4,
+        "align": 4
+      },
+      "FrameworkSlice": {
+        "size": 16,
+        "align": 8,
+        "fields": {
+          "data": 0,
+          "length": 8
+        }
+      },
+      "FrameworkStr": {
+        "size": 16,
+        "align": 8,
+        "fields": {
+          "data": 0,
+          "length": 8
+        }
+      },
+      "FrameworkOwnedBuffer": {
+        "size": 24,
+        "align": 8,
+        "fields": {
+          "data": 0,
+          "length": 8,
+          "capacity": 16
+        }
+      },
+      "FrameworkOperationHandle": {
+        "size": 8,
+        "align": 8
+      },
+      "FrameworkErrorHandle": {
+        "size": 8,
+        "align": 8
+      },
+      "FrameworkCompletionCallback": {
+        "size": 8,
+        "align": 8
+      },
+      "FrameworkOptionsV1": {
+        "size": 16,
+        "align": 4,
+        "fields": {
+          "struct_size": 0,
+          "abi_version": 4,
+          "flags": 8,
+          "reserved": 12
+        }
+      }
     }
   },
-  "c_symbols": ["framework_abi_version", "framework_owned_buffer_destroy"],
+  "c_symbols": [
+    "framework_abi_version",
+    "framework_owned_buffer_destroy"
+  ],
   "optional_capabilities": {
     "ios_secure_storage": {
       "cargo_feature": "secure-storage",
@@ -58,6 +104,29 @@
         "store_effective_policy_flags": "uint32_t policy bits; zero on failure",
         "remove_removed": "uint8_t: 0 absent, 1 removed; zero on failure",
         "native_os_status": "optional int32_t; zero before work and for non-platform errors; exact nonzero native status on platform errors"
+      },
+      "status_mapping": {
+        "invalid_inputs": "FRAMEWORK_STATUS_INVALID_ARGUMENT for malformed spans, invalid UTF-8, empty or NUL-containing identifiers, unknown policy bits, or missing required output pointers",
+        "unsupported_policy": "FRAMEWORK_STATUS_UNSUPPORTED when the iOS backend cannot satisfy the required policy",
+        "non_ios_valid_inputs": "FRAMEWORK_STATUS_UNSUPPORTED after required output initialization and input validation",
+        "backend_error": "Map ErrorKind through FrameworkStatus::from_error",
+        "error_kind_codes": {
+          "InvalidInput": "FRAMEWORK_STATUS_INVALID_ARGUMENT",
+          "Unsupported": "FRAMEWORK_STATUS_UNSUPPORTED",
+          "Unavailable": "FRAMEWORK_STATUS_UNAVAILABLE",
+          "PermissionDenied": "FRAMEWORK_STATUS_PERMISSION_DENIED",
+          "Cancelled": "FRAMEWORK_STATUS_CANCELLED",
+          "Timeout": "FRAMEWORK_STATUS_TIMEOUT",
+          "NotFound": "FRAMEWORK_STATUS_NOT_FOUND",
+          "AlreadyExists": "FRAMEWORK_STATUS_ALREADY_EXISTS",
+          "ResourceExhausted": "FRAMEWORK_STATUS_RESOURCE_EXHAUSTED",
+          "Platform": "FRAMEWORK_STATUS_PLATFORM_ERROR",
+          "UnknownOrInternal": "FRAMEWORK_STATUS_INTERNAL_ERROR"
+        },
+        "platform_error": "FRAMEWORK_STATUS_PLATFORM_ERROR; preserve the exact nonzero OSStatus in the optional native output",
+        "non_platform_error": "Map ErrorKind through FrameworkStatus::from_error; optional native output remains zero",
+        "read_buffer_allocation_failure": "FRAMEWORK_STATUS_RESOURCE_EXHAUSTED; optional native output remains zero",
+        "panic": "FRAMEWORK_STATUS_PANIC; no panic unwinds across C"
       },
       "panic_boundary": "Each exported function catches Rust panics and returns FRAMEWORK_STATUS_PANIC; no panic unwinds across C.",
       "threading": "Synchronous and potentially blocking; caller chooses the calling thread.",
@@ -98,17 +167,1726 @@
       },
       "status_mapping": {
         "FRAMEWORK_STATUS_INVALID_ARGUMENT": "Malformed spans, invalid UTF-8 or IDs, unknown tags, non-empty unused fields, or null required outputs",
-        "FRAMEWORK_STATUS_RESOURCE_EXHAUSTED": "String reserve failure or view span length not representable as u64",
+        "FRAMEWORK_STATUS_INTERNAL_ERROR": "A future D9 response kind has no C tag",
+        "FRAMEWORK_STATUS_RESOURCE_EXHAUSTED": "String reserve failure or view span length that does not fit in u64",
         "FRAMEWORK_STATUS_PANIC": "Panic caught by create or get_view"
       },
       "panic_boundary": "Create and get_view catch Rust panics and return FRAMEWORK_STATUS_PANIC; destroy has no recoverable panic path; no panic unwinds across C.",
       "call_thread": "Synchronous; C selects the call thread",
       "ownership": {
         "inputs": "FrameworkStr spans are borrowed through create and copied into the owned response; no input span is retained",
-        "handle": "Destroy the original handle once through its writable pointer slot; destroy clears that slot before drop; do not copy or destroy an alias",
+        "output_slots": "create: out_response points to aligned storage with write access, is distinct from every input span and live handle slot, and must not hold a live handle on entry; set to NULL before input checks. get_view: out_view points to aligned storage with write access, is distinct from response, and is zeroed before response validation. destroy: a non-NULL response slot points to aligned storage with write access; clear the live original handle before drop",
+        "handle": "Destroy the original handle once through its writable pointer slot; accept a null pointer-to-pointer or null handle as a no-op; clear a live original slot before drop; do not copy or destroy an alias",
         "view": "View spans borrow from the handle and expire at destroy"
       },
       "limits": "Creates, views, and destroys values only; no delivery, delegate, callback, event queue, polling API, executor, native response object, or B12 lifecycle semantics"
+    },
+    "ios_transfer": {
+      "cargo_feature": "ios-transfer",
+      "header": "framework_ios_transfer.h",
+      "dependencies": [
+        "framework-core",
+        "framework-files",
+        "framework-network",
+        "framework-transfer",
+        "ios-transfer",
+        "objc2"
+      ],
+      "symbols": [
+        "framework_ios_transfer_client_create",
+        "framework_ios_transfer_client_destroy",
+        "framework_ios_transfer_availability",
+        "framework_ios_transfer_start_download",
+        "framework_ios_transfer_status",
+        "framework_ios_transfer_cancel",
+        "framework_ios_transfer_forget",
+        "framework_ios_transfer_snapshot_get_view",
+        "framework_ios_transfer_snapshot_get_header",
+        "framework_ios_transfer_snapshot_destroy",
+        "framework_ios_transfer_forward_background_events",
+        "framework_ios_transfer_finish_launch_without_background_events"
+      ],
+      "targets": {
+        "aarch64-apple-ios": "B13 IosTransferBackend over Foundation URLSession",
+        "aarch64-apple-ios-sim": "B13 IosTransferBackend over Foundation URLSession",
+        "non_ios": "Required outputs are initialized and null required pointers are rejected before UNSUPPORTED; client creation and event forwarding also validate session spans; request contents are not parsed; no transfer or Apple framework backend"
+      },
+      "availability_tags": {
+        "FRAMEWORK_TRANSFER_AVAILABILITY_UNKNOWN": 0,
+        "FRAMEWORK_TRANSFER_AVAILABILITY_AVAILABLE": 1,
+        "FRAMEWORK_TRANSFER_AVAILABILITY_UNSUPPORTED": 2,
+        "FRAMEWORK_TRANSFER_AVAILABILITY_REQUIRES_PERMISSION": 3,
+        "FRAMEWORK_TRANSFER_AVAILABILITY_REQUIRES_ENTITLEMENT": 4,
+        "FRAMEWORK_TRANSFER_AVAILABILITY_TEMPORARILY_UNAVAILABLE": 5
+      },
+      "directory_tags": {
+        "FRAMEWORK_TRANSFER_DIRECTORY_DOCUMENTS": 0,
+        "FRAMEWORK_TRANSFER_DIRECTORY_CACHES": 1,
+        "FRAMEWORK_TRANSFER_DIRECTORY_TEMPORARY": 2,
+        "FRAMEWORK_TRANSFER_DIRECTORY_APPLICATION_SUPPORT": 3
+      },
+      "state_tags": {
+        "FRAMEWORK_TRANSFER_STATE_QUEUED": 0,
+        "FRAMEWORK_TRANSFER_STATE_ACTIVE": 1,
+        "FRAMEWORK_TRANSFER_STATE_SUCCEEDED": 2,
+        "FRAMEWORK_TRANSFER_STATE_FAILED": 3,
+        "FRAMEWORK_TRANSFER_STATE_CANCELLED": 4
+      },
+      "error_kind_tags": {
+        "FRAMEWORK_TRANSFER_ERROR_KIND_UNKNOWN": 0,
+        "FRAMEWORK_TRANSFER_ERROR_KIND_INVALID_INPUT": 1,
+        "FRAMEWORK_TRANSFER_ERROR_KIND_UNSUPPORTED": 2,
+        "FRAMEWORK_TRANSFER_ERROR_KIND_UNAVAILABLE": 3,
+        "FRAMEWORK_TRANSFER_ERROR_KIND_PERMISSION_DENIED": 4,
+        "FRAMEWORK_TRANSFER_ERROR_KIND_CANCELLED": 5,
+        "FRAMEWORK_TRANSFER_ERROR_KIND_TIMEOUT": 6,
+        "FRAMEWORK_TRANSFER_ERROR_KIND_NOT_FOUND": 7,
+        "FRAMEWORK_TRANSFER_ERROR_KIND_ALREADY_EXISTS": 8,
+        "FRAMEWORK_TRANSFER_ERROR_KIND_RESOURCE_EXHAUSTED": 9,
+        "FRAMEWORK_TRANSFER_ERROR_KIND_PLATFORM": 10,
+        "FRAMEWORK_TRANSFER_ERROR_KIND_INTERNAL": 11
+      },
+      "layouts_64_bit_ios": {
+        "FrameworkTransferIdV1": {
+          "size": 16,
+          "align": 8,
+          "fields": {
+            "high": 0,
+            "low": 8
+          }
+        },
+        "FrameworkTransferHeaderV1": {
+          "size": 32,
+          "align": 8,
+          "fields": {
+            "name": 0,
+            "value": 16
+          }
+        },
+        "FrameworkTransferRequestV1": {
+          "size": 80,
+          "align": 8,
+          "fields": {
+            "struct_size": 0,
+            "abi_version": 4,
+            "id": 8,
+            "url": 24,
+            "headers": 40,
+            "header_count": 48,
+            "directory": 56,
+            "reserved": 60,
+            "relative_path": 64
+          }
+        },
+        "FrameworkTransferSnapshotViewV1": {
+          "size": 56,
+          "align": 8,
+          "fields": {
+            "struct_size": 0,
+            "abi_version": 4,
+            "id": 8,
+            "state": 24,
+            "failure_kind": 28,
+            "native_code": 32,
+            "http_status": 36,
+            "reserved": 40,
+            "reserved2": 44,
+            "response_header_count": 48
+          }
+        },
+        "FrameworkTransferHeaderViewV1": {
+          "size": 32,
+          "align": 8,
+          "fields": {
+            "name": 0,
+            "value": 16
+          }
+        }
+      },
+      "request": {
+        "id": "Two uint64_t words encode TransferId(u128); high has bits 127..64 and low has bits 63..0; all-zero is invalid",
+        "version_check": "Read only struct_size and abi_version first; require exact V1 size and the major from framework_abi_version; then read the full record and require reserved zero",
+        "method": "GET only",
+        "url": "D1 HttpUrl rules",
+        "headers": "D1 token/value rules; request order and duplicate names remain as supplied; B13 may reject non-UTF-8 values as Unsupported",
+        "destination": "D1 AppPath under one semantic application directory",
+        "span": "Inputs are borrowed for the call only; every zero-length span is {NULL, 0}; headers is NULL iff header_count is zero"
+      },
+      "snapshot": {
+        "output_only": "Never read caller bytes; write the full output record first, set exact struct_size and ABI major, and keep reserved and reserved2 zero",
+        "success": "http_status and response_header_count are meaningful only for Succeeded",
+        "failure": "failure_kind and native_code are meaningful only for Failed",
+        "header_view": "Indexed response field spans borrow from the snapshot until snapshot destroy; backend order and duplicate/order limits follow B13"
+      },
+      "status_mapping": {
+        "DuplicateId": "FRAMEWORK_STATUS_ALREADY_EXISTS",
+        "NotFound": "FRAMEWORK_STATUS_NOT_FOUND",
+        "NotTerminal": "FRAMEWORK_STATUS_INVALID_ARGUMENT",
+        "SessionIdentifierMismatch": "FRAMEWORK_STATUS_INVALID_ARGUMENT",
+        "LaunchAlreadyClassified": "FRAMEWORK_STATUS_INVALID_ARGUMENT",
+        "CompletionAlreadyPending": "FRAMEWORK_STATUS_ALREADY_EXISTS",
+        "unknown_transfer_status": "FRAMEWORK_STATUS_INTERNAL_ERROR with the initialized view's semantic fields zero",
+        "unknown_availability": "FRAMEWORK_TRANSFER_AVAILABILITY_UNKNOWN",
+        "unknown_error_kind": "FRAMEWORK_TRANSFER_ERROR_KIND_UNKNOWN",
+        "unknown_transfer_error": "Map by kind(); preserve an optional native code; unmapped kinds become FRAMEWORK_STATUS_INTERNAL_ERROR",
+        "unknown_background_event_error": "FRAMEWORK_STATUS_INTERNAL_ERROR"
+      },
+      "panic_boundary": "Every status-returning export catches Rust panics and returns FRAMEWORK_STATUS_PANIC; destroy exports have no recoverable panic path; no panic unwinds across C.",
+      "threading": "Client create, every call with a client, and client destroy run on the main thread; serialize client calls; synchronous task, journal, and file calls may block the main thread",
+      "ownership": {
+        "client": "One unique opaque handle owns one B13 IosTransferBackend; destroy the original pointer slot once and only after accepted event callbacks run; destroy clears the slot before drop and does not cancel or forget durable tasks",
+        "snapshot": "One opaque handle owns one D10 TransferSnapshot and may outlive its client; destroy the original pointer slot once; views expire at snapshot destroy",
+        "events": "Completion must be non-null and must not unwind; a successful event-forward call retains callback/context until one main-queue call after URLSession finish-events and initial reconciliation; host keeps context and client alive until callback; rejection takes no ownership",
+        "ordinary_launch": "Call framework_ios_transfer_finish_launch_without_background_events once after UIKit rules out a background-session event; do not call both launch paths"
+      },
+      "limits": "iOS background GET only; no global registry, fabricated backend, app-delegate replacement, upload, request body, response body view, progress, custom retry, redirect override, executor, permission API, force-quit continuation claim, or power-loss durability claim"
+    },
+    "ios_clipboard": {
+      "cargo_feature": "ios-clipboard",
+      "header": "framework_ios_clipboard.h",
+      "dependencies": [
+        "framework-core",
+        "framework-sharing",
+        "ios-sharing/clipboard",
+        "ios-runtime"
+      ],
+      "symbols": [
+        "framework_ios_clipboard_create",
+        "framework_ios_clipboard_destroy",
+        "framework_ios_clipboard_availability",
+        "framework_ios_clipboard_read",
+        "framework_ios_clipboard_write",
+        "framework_ios_clipboard_clear"
+      ],
+      "availability_tags": {
+        "FRAMEWORK_IOS_CLIPBOARD_AVAILABILITY_UNKNOWN": 0,
+        "FRAMEWORK_IOS_CLIPBOARD_AVAILABILITY_AVAILABLE": 1,
+        "FRAMEWORK_IOS_CLIPBOARD_AVAILABILITY_UNSUPPORTED": 2,
+        "FRAMEWORK_IOS_CLIPBOARD_AVAILABILITY_REQUIRES_PERMISSION": 3,
+        "FRAMEWORK_IOS_CLIPBOARD_AVAILABILITY_REQUIRES_ENTITLEMENT": 4,
+        "FRAMEWORK_IOS_CLIPBOARD_AVAILABILITY_TEMPORARILY_UNAVAILABLE": 5
+      },
+      "targets": {
+        "aarch64-apple-ios": "B6 IosClipboardBackend; UIKit calls are synchronous on the main thread",
+        "aarch64-apple-ios-sim": "B6 IosClipboardBackend; UIKit calls are synchronous on the main thread",
+        "non_ios": "Output-initializing UNSUPPORTED stubs; no fake clipboard backend or UIKit dependency"
+      },
+      "status_mapping": {
+        "invalid_utf8_or_malformed_span": "FRAMEWORK_STATUS_INVALID_ARGUMENT",
+        "missing_required_output": "Initialize every available output to its empty value before checks, then return FRAMEWORK_STATUS_INVALID_ARGUMENT",
+        "native_code_output": "Optional out_native_code may be null; initialize a non-null value to zero before input checks; current B6 errors supply no native code",
+        "off_main_thread": "For otherwise-valid iOS status calls, return FRAMEWORK_STATUS_UNAVAILABLE before handle dereference; malformed inputs may return FRAMEWORK_STATUS_INVALID_ARGUMENT first; destroy has no status and is a no-op off-main",
+        "unknown_availability": "FRAMEWORK_IOS_CLIPBOARD_AVAILABILITY_UNKNOWN",
+        "non_ios_availability": "FRAMEWORK_IOS_CLIPBOARD_AVAILABILITY_UNSUPPORTED and FRAMEWORK_STATUS_UNSUPPORTED",
+        "backend_error": "Known ClipboardError::Backend values map the preserved framework ErrorKind through FrameworkStatus::from_error; unknown non-exhaustive errors map to FRAMEWORK_STATUS_INTERNAL_ERROR; current B6 errors have no native code",
+        "unexpected_pending_first_poll": "FRAMEWORK_STATUS_INTERNAL_ERROR"
+      },
+      "panic_boundary": "Every status-returning export catches Rust panics and returns FRAMEWORK_STATUS_PANIC; destroy is null-safe and has no status return; no panic unwinds across C.",
+      "threading": "Create, availability, read, write, clear, and destroy require the iOS main thread; serialize calls on one client. Clipboard operations synchronously poll their B6 future once; no executor or callback is used.",
+      "ownership": {
+        "client": "One unique opaque handle owns one Clipboard<IosClipboardBackend>; destroy the original pointer slot once on the main thread and do not race operations",
+        "read": "B6 copies the first string from UIPasteboard.strings; out_has_value distinguishes None from Some(\"\"); when has_value is 1, release the FrameworkOwnedBuffer exactly once with framework_owned_buffer_destroy even at length zero; when zero, out_text is the default empty descriptor; out_text must be empty on entry",
+        "inputs": "FrameworkStr bytes are borrowed and must be valid UTF-8 for the call; empty spans are {NULL, 0}; embedded NUL is valid; B6 copies write input into NSString and UIKit copies the assigned string"
+      },
+      "limits": "Plain-text clipboard only; availability is Unknown because no current programmatic-read usability or approval query exists, and Unknown does not mean RequiresPermission; write assigns UIPasteboard.string and clear assigns an empty items array, so both replace all current pasteboard items including any rich/non-text representations; reads may trigger OS privacy UI, with no permission API or privacy-prompt control/guarantee; no live pasteboard claim"
+    },
+    "ios_share": {
+      "cargo_feature": "ios-share",
+      "header": "framework_ios_share.h",
+      "dependencies": [
+        "framework-core",
+        "framework-sharing",
+        "ios-sharing/share",
+        "ios-runtime",
+        "objc2",
+        "objc2-core-foundation",
+        "objc2-ui-kit"
+      ],
+      "symbols": [
+        "framework_ios_share_session_create",
+        "framework_ios_share_session_availability",
+        "framework_ios_share_start",
+        "framework_ios_share_cancel",
+        "framework_ios_share_session_destroy"
+      ],
+      "item_tags": {
+        "FRAMEWORK_IOS_SHARE_ITEM_TEXT": 0,
+        "FRAMEWORK_IOS_SHARE_ITEM_URL": 1
+      },
+      "outcome_tags": {
+        "FRAMEWORK_IOS_SHARE_OUTCOME_COMPLETED": 0,
+        "FRAMEWORK_IOS_SHARE_OUTCOME_DISMISSED": 1
+      },
+      "availability_tags": {
+        "FRAMEWORK_IOS_SHARE_AVAILABILITY_UNKNOWN": 0,
+        "FRAMEWORK_IOS_SHARE_AVAILABILITY_AVAILABLE": 1,
+        "FRAMEWORK_IOS_SHARE_AVAILABILITY_UNSUPPORTED": 2,
+        "FRAMEWORK_IOS_SHARE_AVAILABILITY_REQUIRES_PERMISSION": 3,
+        "FRAMEWORK_IOS_SHARE_AVAILABILITY_REQUIRES_ENTITLEMENT": 4,
+        "FRAMEWORK_IOS_SHARE_AVAILABILITY_TEMPORARILY_UNAVAILABLE": 5
+      },
+      "targets": {
+        "aarch64-apple-ios": "B7 IosShareSession with host-selected UIKit context",
+        "aarch64-apple-ios-sim": "B7 IosShareSession with host-selected UIKit context",
+        "non_ios": "Output-init and input-shape checks before UNSUPPORTED; no fake share session or UIKit dependency"
+      },
+      "direct_imports_64_bit_ios": {
+        "c": [
+          "Foundation",
+          "UIKit",
+          "libSystem.B.dylib",
+          "libobjc.A.dylib"
+        ],
+        "cpp": [
+          "Foundation",
+          "UIKit",
+          "libc++.1.dylib",
+          "libSystem.B.dylib",
+          "libobjc.A.dylib"
+        ]
+      },
+      "layouts_64_bit_ios": {
+        "FrameworkIosShareItemV1": {
+          "size": 24,
+          "align": 8,
+          "fields": {
+            "kind": 0,
+            "reserved": 4,
+            "text": 8
+          }
+        },
+        "FrameworkIosShareRequestV1": {
+          "size": 24,
+          "align": 8,
+          "fields": {
+            "struct_size": 0,
+            "abi_version": 4,
+            "items": 8,
+            "item_count": 16
+          }
+        },
+        "FrameworkIosShareAnchorV1": {
+          "size": 40,
+          "align": 8,
+          "fields": {
+            "struct_size": 0,
+            "abi_version": 4,
+            "x": 8,
+            "y": 16,
+            "width": 24,
+            "height": 32
+          }
+        }
+      },
+      "request": {
+        "version_check": "Require exact V1 size and the major from framework_abi_version; read the full record only after the prefix check",
+        "items": "At least one ordered item; item_count must fit usize; items is non-null; kind is TEXT or URL; reserved is zero",
+        "text": "UTF-8 spans are borrowed through start and copied to owned D6 values before return; each empty span is {NULL, 0}; embedded NUL is valid",
+        "url": "URL text passes through as D6 defines; B7 may reject or normalize it for UIKit"
+      },
+      "anchor": {
+        "version_check": "Require exact V1 size and the major from framework_abi_version before conversion to CGRect",
+        "coordinates": "Finite x, y, width, and height; width and height are nonnegative; coordinates use source_view space",
+        "context": "The host supplies live UIViewController and UIView objects; B7 requires a shared window and valid presentation context"
+      },
+      "status_mapping": {
+        "accepted_start": "Return FRAMEWORK_STATUS_OK; if UIKit later reports a terminal result, invoke one callback with the outcome or mapped error; accepted start does not guarantee a terminal callback",
+        "already_active": "FRAMEWORK_STATUS_ALREADY_EXISTS; callback and context remain with the host",
+        "cancel_inactive": "FRAMEWORK_STATUS_NOT_FOUND when no accepted operation remains active, including after a terminal callback or successful prior cancel",
+        "preflight_error": "Return the mapped status synchronously; Backend errors use FrameworkStatus::from_error and unknown non-exhaustive errors use FRAMEWORK_STATUS_INTERNAL_ERROR; do not call the C callback or take context ownership",
+        "share_error": "Backend errors map through FrameworkStatus::from_error; unknown non-exhaustive errors map to FRAMEWORK_STATUS_INTERNAL_ERROR; preserve a nonzero NSError code only when it fits int32_t",
+        "unknown_non_exhaustive_value": "FRAMEWORK_STATUS_INTERNAL_ERROR with zero outcome and native code",
+        "off_main_thread": "FRAMEWORK_STATUS_UNAVAILABLE before any session-handle read",
+        "unknown_availability": "FRAMEWORK_IOS_SHARE_AVAILABILITY_UNKNOWN",
+        "non_ios": "FRAMEWORK_STATUS_UNSUPPORTED after required output init and input-shape checks for valid operations; null-safe destroy returns FRAMEWORK_STATUS_OK for a null slot or null handle"
+      },
+      "callback": {
+        "success": "Completed maps to FRAMEWORK_STATUS_OK and COMPLETED; Dismissed maps to FRAMEWORK_STATUS_OK and DISMISSED; native code is zero",
+        "error": "Mapped status, outcome zero, and a signed NSError code when representable",
+        "lifetime": "If UIKit reports a terminal result after accepted start returns, the non-null callback runs once on main; UIKit may report no result, so host context stays live until callback, successful cancel, or destroy; rejected start does not take callback or context ownership",
+        "rules": "Callback must not unwind or reenter F7; B7 detaches callback state before notify; cancel and destroy suppress late callback"
+      },
+      "panic_boundary": "Status exports catch Rust panics and return FRAMEWORK_STATUS_PANIC; B7 contains panic from its Rust callback closure before UIKit return; the host C callback must not unwind across the extern C boundary; no Rust panic may cross C or Objective-C",
+      "threading": "Create, availability, start, cancel, destroy, and terminal callback run on the iOS main thread; serialize each session; off-main destroy returns UNAVAILABLE without slot read or write",
+      "ownership": {
+        "session": "One unique opaque handle owns one B7 IosShareSession; destroy the original slot once on main, clear it before drop, and do not race calls or destroy aliases",
+        "context": "On successful create, F7 retains the supplied UIViewController and UIView; host keeps each object live through create; B7 owns the retained objects and CGRect",
+        "request": "Text and URL text are copied before start returns; no request span is retained",
+        "cancel": "Successful cancel detaches callback and ends host context lifetime; UIKit share UI may remain visible",
+        "destroy": "On main, active callback state is cancelled before drop; null slot or null handle is OK; off-main call leaves the slot untouched"
+      },
+      "limits": "No recipient-delivery claim, UIKit presentation-success guarantee, global registry, executor, delegate replacement, permission API, fabricated backend, or share dismissal promise"
+    },
+    "ios_preferences": {
+      "cargo_feature": "ios-preferences",
+      "header": "framework_ios_preferences.h",
+      "dependencies": [
+        "framework-core",
+        "framework-preferences",
+        "ios-preferences"
+      ],
+      "symbols": [
+        "framework_ios_preferences_create",
+        "framework_ios_preferences_destroy",
+        "framework_ios_preferences_availability",
+        "framework_ios_preferences_get",
+        "framework_ios_preferences_set",
+        "framework_ios_preferences_remove"
+      ],
+      "availability_tags": {
+        "FRAMEWORK_IOS_PREFERENCES_AVAILABILITY_UNKNOWN": 0,
+        "FRAMEWORK_IOS_PREFERENCES_AVAILABILITY_AVAILABLE": 1,
+        "FRAMEWORK_IOS_PREFERENCES_AVAILABILITY_UNSUPPORTED": 2,
+        "FRAMEWORK_IOS_PREFERENCES_AVAILABILITY_REQUIRES_PERMISSION": 3,
+        "FRAMEWORK_IOS_PREFERENCES_AVAILABILITY_REQUIRES_ENTITLEMENT": 4,
+        "FRAMEWORK_IOS_PREFERENCES_AVAILABILITY_TEMPORARILY_UNAVAILABLE": 5
+      },
+      "update_requirement_tags": {
+        "FRAMEWORK_IOS_PREFERENCES_ALLOW_NON_ATOMIC": 0,
+        "FRAMEWORK_IOS_PREFERENCES_REQUIRE_ATOMIC": 1
+      },
+      "update_atomicity_tags": {
+        "FRAMEWORK_IOS_PREFERENCES_UPDATE_ATOMICITY_UNKNOWN": 0,
+        "FRAMEWORK_IOS_PREFERENCES_UPDATE_ATOMICITY_ATOMIC": 1,
+        "FRAMEWORK_IOS_PREFERENCES_UPDATE_ATOMICITY_NOT_GUARANTEED": 2
+      },
+      "targets": {
+        "aarch64-apple-ios": "B1 IosPreferences over the app's standard NSUserDefaults domain",
+        "aarch64-apple-ios-sim": "B1 IosPreferences over the app's standard NSUserDefaults domain",
+        "non_ios": "Validating UNSUPPORTED stubs; key/value shapes and required output pointers are checked; no fake preferences backend or Apple framework link"
+      },
+      "direct_imports_64_bit_ios": {
+        "c": [
+          "Foundation",
+          "libSystem.B.dylib",
+          "libobjc.A.dylib"
+        ],
+        "cpp": [
+          "Foundation",
+          "libSystem.B.dylib",
+          "libc++.1.dylib",
+          "libobjc.A.dylib"
+        ]
+      },
+      "link_probe_deployment_minimums": {
+        "aarch64-apple-ios": "10.0",
+        "aarch64-apple-ios-sim": "14.0"
+      },
+      "status_mapping": {
+        "invalid_inputs": "FRAMEWORK_STATUS_INVALID_ARGUMENT for null required outputs, inconsistent pointer/length span shapes, oversized spans, invalid UTF-8, empty or NUL-containing keys, or unknown atomicity requirement; non-null pointer validity, alignment, lifetime, and aliasing remain caller preconditions",
+        "backend_error": "Map PreferenceError::kind() through FrameworkStatus::from_error; the current B1 backend supplies no platform-native error code",
+        "require_atomic": "FRAMEWORK_STATUS_UNSUPPORTED before mutation because the current B1 backend reports NotGuaranteed",
+        "allocation_failure": "FRAMEWORK_STATUS_RESOURCE_EXHAUSTED; out_found remains zero and out_value remains the default descriptor",
+        "non_ios_valid_inputs": "FRAMEWORK_STATUS_UNSUPPORTED after required output initialization and key/value/atomicity validation"
+      },
+      "panic_boundary": "Each status-returning export catches Rust panics and returns FRAMEWORK_STATUS_PANIC; destroy has no status return; no panic unwinds across C.",
+      "threading": "Synchronous. Calls on one handle must be serialized and must not race destroy; serialized calls may use different threads; no main-thread requirement.",
+      "ownership": {
+        "handle": "One unique opaque handle owns one Preferences<IosPreferences>; destroy the original pointer slot once, clear it before drop, and do not copy or race calls through aliases",
+        "inputs": "FrameworkStr and FrameworkSlice spans are borrowed through each call and are not retained; non-null input memory must be readable and remain valid, and pointer lifetime/readability is not dynamically validated",
+        "get": "out_found distinguishes absent from present empty bytes; a present result transfers FrameworkOwnedBuffer ownership and must be destroyed exactly once with framework_owned_buffer_destroy; out_value must be empty on entry"
+      },
+      "semantics": {
+        "keys": "Exact, case-sensitive UTF-8; non-empty; no NUL byte; no normalization or prefixing",
+        "values": "Opaque bytes stored as Foundation NSData property-list values; empty value differs from absence",
+        "set": "AllowNonAtomic returns NOT_GUARANTEED on success; RequireAtomic returns UNSUPPORTED before mutation; no crash-durability or multi-key transaction guarantee",
+        "remove": "Reports whether a value was visible in the NSUserDefaults search list; removal affects the app domain, so a registered/global fallback can appear on a later get"
+      },
+      "limits": "Non-secure settings only; the consuming app must declare the required NSUserDefaults usage reason in PrivacyInfo.xcprivacy; no Keychain secrecy, permission prompt, entitlement, cross-device sync, durable-flush guarantee, multi-key transaction, or live defaults behavior claim"
+    },
+    "ios_media_library_status": {
+      "cargo_feature": "ios-media-library-status",
+      "header": "framework_ios_media_library_status.h",
+      "dependencies": [
+        "ios-media-library-status"
+      ],
+      "symbols": [
+        "framework_ios_media_library_authorization_status"
+      ],
+      "authorization_raw_values": {
+        "FRAMEWORK_IOS_MEDIA_LIBRARY_AUTHORIZATION_NOT_DETERMINED": 0,
+        "FRAMEWORK_IOS_MEDIA_LIBRARY_AUTHORIZATION_DENIED": 1,
+        "FRAMEWORK_IOS_MEDIA_LIBRARY_AUTHORIZATION_RESTRICTED": 2,
+        "FRAMEWORK_IOS_MEDIA_LIBRARY_AUTHORIZATION_AUTHORIZED": 3
+      },
+      "targets": {
+        "aarch64-apple-ios": "D65/B71 point-in-time MPMediaLibrary authorization status",
+        "aarch64-apple-ios-sim": "D65/B71 point-in-time MPMediaLibrary authorization status",
+        "non_ios": "Output-initializing UNSUPPORTED stub; no iOS backend or Apple framework link"
+      },
+      "direct_imports_64_bit_ios": {
+        "c": [
+          "Foundation",
+          "MediaPlayer",
+          "libSystem.B.dylib",
+          "libobjc.A.dylib"
+        ],
+        "cpp": [
+          "Foundation",
+          "MediaPlayer",
+          "libSystem.B.dylib",
+          "libc++.1.dylib",
+          "libobjc.A.dylib"
+        ]
+      },
+      "link_probe_deployment_minimums": {
+        "aarch64-apple-ios": "10.0",
+        "aarch64-apple-ios-sim": "14.0"
+      },
+      "status_mapping": {
+        "null_output": "FRAMEWORK_STATUS_INVALID_ARGUMENT; no output is written",
+        "success": "FRAMEWORK_STATUS_OK; output receives the native signed 64-bit raw value",
+        "unknown_native_value": "Preserve the unknown signed 64-bit value unchanged",
+        "non_ios": "Initialize output to zero and return FRAMEWORK_STATUS_UNSUPPORTED",
+        "panic": "FRAMEWORK_STATUS_PANIC with output left at zero"
+      },
+      "panic_boundary": "The status-returning export catches Rust panics and returns FRAMEWORK_STATUS_PANIC; no panic unwinds across C.",
+      "threading": "Synchronous point-in-time query; B71 makes no thread-safety promise and F10 adds none.",
+      "ownership": {
+        "output": "One required int64_t output is initialized to zero; inspect it only when status is FRAMEWORK_STATUS_OK; no native object or handle escapes"
+      },
+      "api": "+[MPMediaLibrary authorizationStatus], available from iOS 9.3",
+      "limits": "Authorization status only; no permission request, prompt, media object, item read, Apple Music catalog/service access, subscription check, or playback claim"
+    },
+    "ios_spritekit": {
+      "cargo_feature": "ios-spritekit",
+      "header": "framework_ios_spritekit.h",
+      "dependencies": [
+        "framework-spritekit",
+        "ios-spritekit",
+        "ios-runtime"
+      ],
+      "symbols": [
+        "framework_ios_spritekit_node_create",
+        "framework_ios_spritekit_node_destroy",
+        "framework_ios_spritekit_node_get_position",
+        "framework_ios_spritekit_node_set_position"
+      ],
+      "targets": {
+        "aarch64-apple-ios": "D64/B70 detached SKNode creation and parent-local position get/set",
+        "aarch64-apple-ios-sim": "D64/B70 detached SKNode creation and parent-local position get/set",
+        "non_ios": "Output-initializing UNSUPPORTED stubs; no SpriteKit backend or Apple framework link"
+      },
+      "direct_imports_64_bit_ios": {
+        "c": [
+          "CoreFoundation",
+          "Foundation",
+          "SpriteKit",
+          "UIKit",
+          "libSystem.B.dylib",
+          "libobjc.A.dylib"
+        ],
+        "cpp": [
+          "CoreFoundation",
+          "Foundation",
+          "SpriteKit",
+          "UIKit",
+          "libSystem.B.dylib",
+          "libc++.1.dylib",
+          "libobjc.A.dylib"
+        ]
+      },
+      "link_probe_deployment_minimums": {
+        "aarch64-apple-ios": "12.0",
+        "aarch64-apple-ios-sim": "14.0"
+      },
+      "status_mapping": {
+        "null_required_output": "FRAMEWORK_STATUS_INVALID_ARGUMENT; initialize every non-null output first",
+        "non_finite_coordinate": "FRAMEWORK_STATUS_INVALID_ARGUMENT; create leaves out_node null",
+        "success": "FRAMEWORK_STATUS_OK; create returns one unique opaque handle and get writes both finite coordinates",
+        "off_main_thread": "FRAMEWORK_STATUS_UNAVAILABLE; position calls do not dereference the handle, and destroy does not read or change its slot",
+        "null_handle": "FRAMEWORK_STATUS_INVALID_ARGUMENT for get/set on iOS; main-thread destroy accepts null slot or handle as FRAMEWORK_STATUS_OK",
+        "non_ios": "Valid operations return FRAMEWORK_STATUS_UNSUPPORTED; create initializes out_node null, get initializes coordinates to zero, and destroy does not inspect or change its slot",
+        "backend_error": "Map ErrorKind through FrameworkStatus::from_error",
+        "panic": "FRAMEWORK_STATUS_PANIC; output slots remain initialized and no panic unwinds across C"
+      },
+      "panic_boundary": "Each status-returning export catches Rust panics; no panic unwinds across C.",
+      "threading": "Every iOS entry is main-thread-only. Create checks before calling SpriteKit; get/set check before dereferencing the C handle; destroy checks before reading or changing the caller slot and requires retry on main after an off-main rejection.",
+      "ownership": {
+        "handle": "One Box-owned IosSpriteNode per successful create; the C pointer is unique, opaque, and must not be copied or used concurrently. All handle operations and destruction run on main; destroy clears the original slot before drop.",
+        "native_node": "NativeSkNode and Objective-C pointers do not appear in the C header or escape the Rust wrapper.",
+        "get_outputs": "Required distinct writable double outputs initialized to 0.0; values are valid only on FRAMEWORK_STATUS_OK"
+      },
+      "api": "SKNode init, position, and setPosition:; API floor iOS 7.0 per B70's audited unannotated declarations and SpriteKit framework introduction",
+      "limits": "Detached node position only; no scene, view, rendering, hierarchy, animation, physics, asset, permission, parity, or performance claim"
+    },
+    "ios_call_observer": {
+      "cargo_feature": "ios-call-observer",
+      "header": "framework_ios_call_observer.h",
+      "dependencies": [
+        "ios-call-observer"
+      ],
+      "symbols": [
+        "framework_ios_call_observer_active_call_snapshot"
+      ],
+      "state_flags": {
+        "FRAMEWORK_IOS_CALL_OBSERVER_STATE_OUTGOING": 1,
+        "FRAMEWORK_IOS_CALL_OBSERVER_STATE_CONNECTED": 2,
+        "FRAMEWORK_IOS_CALL_OBSERVER_STATE_ON_HOLD": 4,
+        "FRAMEWORK_IOS_CALL_OBSERVER_STATE_ENDED": 8
+      },
+      "targets": {
+        "aarch64-apple-ios": "D76 one-shot CXCallObserver.calls count and aggregate state flags",
+        "aarch64-apple-ios-sim": "D76 one-shot CXCallObserver.calls count and aggregate state flags",
+        "non_ios": "Output-initializing UNSUPPORTED stub; no CallKit backend or Apple framework link"
+      },
+      "direct_imports_64_bit_ios": {
+        "c": [
+          "CallKit",
+          "Foundation",
+          "libSystem.B.dylib",
+          "libobjc.A.dylib"
+        ],
+        "cpp": [
+          "CallKit",
+          "Foundation",
+          "libSystem.B.dylib",
+          "libc++.1.dylib",
+          "libobjc.A.dylib"
+        ]
+      },
+      "link_probe_deployment_minimums": {
+        "aarch64-apple-ios": "12.0",
+        "aarch64-apple-ios-sim": "14.0"
+      },
+      "status_mapping": {
+        "null_required_output": "FRAMEWORK_STATUS_INVALID_ARGUMENT; initialize every non-null output first",
+        "success": "FRAMEWORK_STATUS_OK; return CXCallObserver.calls count as uint64_t and aggregate state flags as uint32_t",
+        "unknown_state_bits": "Preserve any state bits returned by D76 unchanged",
+        "non_ios": "Initialize both outputs to zero and return FRAMEWORK_STATUS_UNSUPPORTED",
+        "panic": "FRAMEWORK_STATUS_PANIC with both outputs left zero"
+      },
+      "panic_boundary": "The status-returning export catches Rust panics; no panic unwinds across C.",
+      "threading": "Synchronous on the caller's thread with no main-thread rule; the CallKit calls-list read may block while CallKit retrieves initial state, so keep it off UI-critical work.",
+      "ownership": {
+        "outputs": "Two required, distinct writable outputs initialized to zero; inspect only when status is FRAMEWORK_STATUS_OK",
+        "native_objects": "D76 creates and releases CXCallObserver/CXCall values within the call; no native handle or object crosses C"
+      },
+      "api": "CXCallObserver init and calls with CXCall scalar state accessors; API floor iOS 10.0 per D76 header audit",
+      "limits": "Call-list count and four aggregate state flags only; no CallKit object, UUID, caller data, callback, history, permission request, provider/controller, audio, PushKit, or call control"
+    },
+    "ios_maps": {
+      "cargo_feature": "ios-maps",
+      "header": "framework_ios_maps.h",
+      "dependencies": [
+        "framework-maps",
+        "ios-maps"
+      ],
+      "symbols": [
+        "framework_ios_maps_coordinate_for_map_point",
+        "framework_ios_maps_map_point_for_coordinate",
+        "framework_ios_maps_meters_between_map_points"
+      ],
+      "targets": {
+        "aarch64-apple-ios": "D77 finite coordinate/map-point conversion and MapKit surface distance",
+        "aarch64-apple-ios-sim": "D77 finite coordinate/map-point conversion and MapKit surface distance",
+        "non_ios": "Output-initializing UNSUPPORTED stubs for valid inputs; no MapKit result or Apple framework link"
+      },
+      "direct_imports_64_bit_ios": {
+        "c": [
+          "MapKit",
+          "libSystem.B.dylib"
+        ],
+        "cpp": [
+          "MapKit",
+          "libSystem.B.dylib",
+          "libc++.1.dylib"
+        ]
+      },
+      "link_probe_deployment_minimums": {
+        "aarch64-apple-ios": "12.0",
+        "aarch64-apple-ios-sim": "14.0"
+      },
+      "status_mapping": {
+        "null_required_output": "FRAMEWORK_STATUS_INVALID_ARGUMENT; initialize every non-null output first",
+        "aliased_coordinate_outputs": "FRAMEWORK_STATUS_INVALID_ARGUMENT; two-output functions require distinct writable outputs",
+        "invalid_coordinate_or_map_point": "FRAMEWORK_STATUS_INVALID_ARGUMENT; non-finite inputs and out-of-range geographic coordinates are rejected before backend access",
+        "success": "FRAMEWORK_STATUS_OK; write finite map-point values, a valid geographic coordinate, or a finite non-negative MapKit distance",
+        "unavailable": "FRAMEWORK_STATUS_UNAVAILABLE; MapKit API floor is not met or the native result fails finite/range validation; outputs remain zero",
+        "non_ios": "Valid inputs return FRAMEWORK_STATUS_UNSUPPORTED with outputs zero",
+        "panic": "FRAMEWORK_STATUS_PANIC with outputs left zero"
+      },
+      "panic_boundary": "Each status-returning export catches Rust panics; no panic unwinds across C.",
+      "threading": "Synchronous by-value MapKit geometry calls on the caller thread; no main-thread rule or retained state.",
+      "ownership": {
+        "inputs": "Scalar doubles copied by value; no borrowed input buffer or native object",
+        "outputs": "Required writable double outputs initialized to zero; paired outputs must be distinct and non-overlapping; inspect only on FRAMEWORK_STATUS_OK",
+        "native_objects": "No Objective-C object, MapKit object, handle, callback, or retained state crosses C"
+      },
+      "api": "MKMapPointForCoordinate, MKCoordinateForMapPoint, and MKMetersBetweenMapPoints; API floor iOS 4.0 per D77 public SDK header audit",
+      "limits": "Caller-supplied coordinate/map-point conversion and MapKit surface distance only; no map UI, map data/network service, location service, permission, route, search, geocoding, parity, or performance claim"
+    },
+    "ios_classkit_deep_link": {
+      "cargo_feature": "ios-classkit-deep-link",
+      "header": "framework_ios_classkit_deep_link.h",
+      "dependencies": [
+        "ios-system-services",
+        "objc2",
+        "objc2-foundation"
+      ],
+      "symbols": [
+        "framework_ios_classkit_is_deep_link"
+      ],
+      "targets": {
+        "aarch64-apple-ios": "D81 reads only the isClassKitDeepLink marker from a caller-owned NSUserActivity",
+        "aarch64-apple-ios-sim": "D81 reads only the isClassKitDeepLink marker from a caller-owned NSUserActivity",
+        "non_ios": "A non-null opaque pointer returns UNSUPPORTED without dereference; no ClassKit backend or Apple framework link"
+      },
+      "direct_imports_64_bit_ios": {
+        "c": [
+          "ClassKit",
+          "Foundation",
+          "libSystem.B.dylib",
+          "libobjc.A.dylib"
+        ],
+        "cpp": [
+          "ClassKit",
+          "Foundation",
+          "libSystem.B.dylib",
+          "libc++.1.dylib",
+          "libobjc.A.dylib"
+        ]
+      },
+      "link_probe_deployment_minimums": {
+        "aarch64-apple-ios": "11.3",
+        "aarch64-apple-ios-sim": "14.0"
+      },
+      "status_mapping": {
+        "null_activity_or_output": "FRAMEWORK_STATUS_INVALID_ARGUMENT; initialize a non-null output to zero first",
+        "success": "FRAMEWORK_STATUS_OK; write exactly 0 or 1 from NSUserActivity.isClassKitDeepLink",
+        "runtime_before_api_floor": "FRAMEWORK_STATUS_UNAVAILABLE with output left zero",
+        "non_ios": "A non-null activity pointer returns FRAMEWORK_STATUS_UNSUPPORTED without dereference and with output zero",
+        "panic": "FRAMEWORK_STATUS_PANIC with output left zero"
+      },
+      "panic_boundary": "The status-returning export catches Rust panics; no panic unwinds across C.",
+      "threading": "Synchronous getter on the caller thread; no queue hop or main-thread rule is added, and the host must honor its NSUserActivity lifecycle and thread requirements.",
+      "ownership": {
+        "activity": "One caller-owned, borrowed NSUserActivity pointer valid for the full call; the wrapper does not retain, store, release, or consume it",
+        "output": "One required writable uint8_t output initialized to zero; inspect only on FRAMEWORK_STATUS_OK; output must not overlap the activity object"
+      },
+      "api": "NSUserActivity.isClassKitDeepLink via the ClassKit NSUserActivity category; API floor iOS 11.3 per D81 generated binding and availability audit",
+      "limits": "Deep-link marker only; no context identifier path, ClassKit context, assignment data, student identity, authorization, prompt, or data-store access"
+    },
+    "ios_location": {
+      "cargo_feature": "ios-location",
+      "header": "framework_ios_location.h",
+      "dependencies": [
+        "framework-core",
+        "framework-location",
+        "ios-location",
+        "ios-runtime"
+      ],
+      "symbols": [
+        "framework_ios_location_availability",
+        "framework_ios_location_authorization_query_start",
+        "framework_ios_location_authorization_request_start",
+        "framework_ios_location_current_start",
+        "framework_ios_location_operation_poll",
+        "framework_ios_location_operation_cancel",
+        "framework_ios_location_operation_destroy"
+      ],
+      "targets": {
+        "aarch64-apple-ios": "B5 caller-scoped Core Location authorization and one-shot current-location operations",
+        "aarch64-apple-ios-sim": "B5 caller-scoped Core Location authorization and one-shot current-location operations",
+        "non_ios": "Valid operations initialize outputs and return UNSUPPORTED; no mock handle or Apple framework dependency"
+      },
+      "direct_imports_64_bit_ios": {
+        "c": [
+          "CoreLocation",
+          "Foundation",
+          "libSystem.B.dylib",
+          "libobjc.A.dylib"
+        ],
+        "cpp": [
+          "CoreLocation",
+          "Foundation",
+          "libSystem.B.dylib",
+          "libc++.1.dylib",
+          "libobjc.A.dylib"
+        ]
+      },
+      "link_probe_deployment_minimums": {
+        "aarch64-apple-ios": "10.0",
+        "aarch64-apple-ios-sim": "14.0"
+      },
+      "availability_tags": {
+        "FRAMEWORK_IOS_LOCATION_AVAILABILITY_UNKNOWN": 0,
+        "FRAMEWORK_IOS_LOCATION_AVAILABILITY_AVAILABLE": 1,
+        "FRAMEWORK_IOS_LOCATION_AVAILABILITY_UNSUPPORTED": 2,
+        "FRAMEWORK_IOS_LOCATION_AVAILABILITY_REQUIRES_PERMISSION": 3,
+        "FRAMEWORK_IOS_LOCATION_AVAILABILITY_REQUIRES_ENTITLEMENT": 4,
+        "FRAMEWORK_IOS_LOCATION_AVAILABILITY_TEMPORARILY_UNAVAILABLE": 5
+      },
+      "authorization_tags": {
+        "FRAMEWORK_IOS_LOCATION_AUTHORIZATION_UNKNOWN": 0,
+        "FRAMEWORK_IOS_LOCATION_AUTHORIZATION_NOT_DETERMINED": 1,
+        "FRAMEWORK_IOS_LOCATION_AUTHORIZATION_DENIED": 2,
+        "FRAMEWORK_IOS_LOCATION_AUTHORIZATION_RESTRICTED": 3,
+        "FRAMEWORK_IOS_LOCATION_AUTHORIZATION_FOREGROUND": 4,
+        "FRAMEWORK_IOS_LOCATION_AUTHORIZATION_BACKGROUND": 5
+      },
+      "operation_kinds": {
+        "FRAMEWORK_IOS_LOCATION_OPERATION_AUTHORIZATION_QUERY": 0,
+        "FRAMEWORK_IOS_LOCATION_OPERATION_AUTHORIZATION_REQUEST": 1,
+        "FRAMEWORK_IOS_LOCATION_OPERATION_CURRENT": 2
+      },
+      "FrameworkIosLocationResultV1": {
+        "size": 64,
+        "align": 8,
+        "fields": {
+          "struct_size": 0,
+          "abi_version": 4,
+          "operation_kind": 8,
+          "status": 12,
+          "authorization": 16,
+          "reserved": 20,
+          "latitude_degrees": 24,
+          "longitude_degrees": 32,
+          "horizontal_accuracy_meters": 40,
+          "timestamp_unix_millis": 48,
+          "native_code": 56,
+          "reserved2": 60
+        }
+      },
+      "status_mapping": {
+        "start_rejection": "FRAMEWORK_STATUS_INVALID_ARGUMENT for a null callback, null or misaligned output slot, or non-finite/negative accuracy; FRAMEWORK_STATUS_UNAVAILABLE for an otherwise-valid start called off-main; no callback ownership on rejection",
+        "pointer_validation": "All caller-provided output storage must be valid, aligned, and writable. A start slot must not contain a live handle on entry or overlap live operation storage. Poll outputs must not overlap each other; on iOS they must not overlap the live unique operation handle. On iOS, availability output must not overlap a live handle, poll/cancel use a live unique handle, and destroy uses the original writable slot. Handle aliasing and concurrent calls are forbidden.",
+        "pending_poll": "FRAMEWORK_STATUS_OK with out_ready 0 and initialized result record",
+        "terminal_poll": "FRAMEWORK_STATUS_OK with out_ready 1; result.status is the operation outcome and the result may be consumed once",
+        "cancel": "FRAMEWORK_STATUS_OK only when a pending future is dropped before its readiness signal; FRAMEWORK_STATUS_NOT_FOUND after readiness or terminal result",
+        "current_error": "Map LocationError::Backend through FrameworkStatus::from_error; invalid accuracy maps to FRAMEWORK_STATUS_INVALID_ARGUMENT",
+        "native_code": "Preserve a nonzero representable Core Location platform code in result.native_code; otherwise zero",
+        "cancelled_poll": "A successful cancellation produces one ready result with FRAMEWORK_STATUS_CANCELLED",
+        "non_ios": "FRAMEWORK_STATUS_UNSUPPORTED after required output initialization and input validation",
+        "panic": "FRAMEWORK_STATUS_PANIC; no panic unwinds across C"
+      },
+      "panic_boundary": "Every status-returning export catches Rust panics; no panic unwinds across C. The host readiness callback must not unwind.",
+      "threading": "The host must call all iOS exports on the main thread and keep the main run loop active. Otherwise-valid calls return FRAMEWORK_STATUS_UNAVAILABLE off-main, though argument validation may reject malformed inputs first; destroy returns unavailable before reading or changing its slot. Futures and readiness callbacks run on the manager creation run loop; the host must poll again on the main thread after readiness notification.",
+      "ownership": {
+        "operation": "One unique opaque handle owns one pinned future and its B5 backend; destroy the original slot once, clear it before drop, and drop on main; pending current drop requests native cancellation",
+        "readiness_callback": "One nonterminal readiness notification at most once; callback and context are host-owned and remain live until callback return, successful cancel, ready poll, or destroy; rejected start takes neither",
+        "result": "Output-only V1 record; every poll initializes it; ready results are copied to C and consumed once; no Objective-C object crosses C"
+      },
+      "api": "CLLocationManager.requestLocation() is available from iOS 9.0 and defines the Core Location API floor; requestWhenInUseAuthorization() is available from iOS 8.0. Authorization request is explicit and status-change based.",
+      "limits": "The installed Rust arm64 iOS target builds objects with minos 10.0, so the device link gate uses 10.0 despite the iOS 9.0 Core Location API floor; no full-library iOS 9.0 runtime claim. One-shot foreground requests and authorization only; no continuous or background location, timeout, location-age guarantee, target-accuracy guarantee, permission-prompt dismissal guarantee, shared executor, process-global registry, fabricated host backend, live permission UI, physical location, or runtime claim"
+    },
+    "ios_file_provider": {
+      "cargo_feature": "ios-file-provider",
+      "header": "framework_ios_file_provider.h",
+      "dependencies": [
+        "ios-file-provider",
+        "block2",
+        "objc2",
+        "objc2-file-provider",
+        "objc2-foundation"
+      ],
+      "symbols": [
+        "framework_ios_file_provider_registered_domain_presence_start",
+        "framework_ios_file_provider_operation_poll",
+        "framework_ios_file_provider_operation_destroy"
+      ],
+      "targets": {
+        "aarch64-apple-ios": "B75 asynchronous registered-domain presence query for the calling app's own File Provider extension",
+        "aarch64-apple-ios-sim": "B75 asynchronous registered-domain presence query for the calling app's own File Provider extension",
+        "non_ios": "Valid starts and polls initialize outputs and return UNSUPPORTED; no mock handle or Apple framework dependency"
+      },
+      "direct_imports_64_bit_ios": {
+        "c": [
+          "FileProvider",
+          "Foundation",
+          "libSystem.B.dylib",
+          "libobjc.A.dylib"
+        ],
+        "cpp": [
+          "FileProvider",
+          "Foundation",
+          "libSystem.B.dylib",
+          "libc++.1.dylib",
+          "libobjc.A.dylib"
+        ]
+      },
+      "link_probe_deployment_minimums": {
+        "aarch64-apple-ios": "11.0",
+        "aarch64-apple-ios-sim": "14.0"
+      },
+      "FrameworkIosFileProviderResultV1": {
+        "size": 48,
+        "align": 8,
+        "fields": {
+          "struct_size": 0,
+          "abi_version": 4,
+          "status": 8,
+          "has_registered_domains": 12,
+          "reserved": 13,
+          "native_error_domain": 16,
+          "native_error_code": 40
+        }
+      },
+      "status_mapping": {
+        "start_rejection": "FRAMEWORK_STATUS_INVALID_ARGUMENT for null callback/output; valid non-iOS start returns FRAMEWORK_STATUS_UNSUPPORTED without a handle; accepted iOS start returns FRAMEWORK_STATUS_OK even when the API-floor result will be UNAVAILABLE",
+        "pending_poll": "FRAMEWORK_STATUS_OK with out_ready 0 and an initialized empty result record",
+        "terminal_poll": "FRAMEWORK_STATUS_OK with out_ready 1; result.status carries the query outcome and the result is consumed once",
+        "native_error": "result.status is FRAMEWORK_STATUS_PLATFORM_ERROR; preserve NSError.domain as an owned UTF-8 byte buffer and NSError.code as exact int64_t",
+        "api_unavailable": "result.status is FRAMEWORK_STATUS_UNAVAILABLE when the iOS runtime is below the iOS 11.0 API floor",
+        "callback_panic": "result.status is FRAMEWORK_STATUS_PANIC after B75 contains a native callback panic",
+        "consumed_poll": "FRAMEWORK_STATUS_NOT_FOUND after a ready result is consumed",
+        "destroy": "FRAMEWORK_STATUS_OK after clearing and dropping a live iOS handle; native request continues without Rust interest; valid non-iOS non-null handle returns UNSUPPORTED unchanged",
+        "panic": "FRAMEWORK_STATUS_PANIC; no panic unwinds across C"
+      },
+      "panic_boundary": "Every status-returning export catches Rust panics; B75 contains native callback panics as a terminal PANIC result; no panic unwinds across C. The host readiness callback must not unwind.",
+      "threading": "No main-thread guarantee is imposed. The host serializes calls on a handle and never re-enters F16 from its readiness callback. The callback may run inline before start returns or on Apple's unspecified callback queue; destroy waits for an in-flight callback and suppresses later notification.",
+      "ownership": {
+        "operation": "One unique handle owns one B75 future and readiness signal; destroy clears the original slot, closes the signal, waits for any in-flight C callback, drops the future, and detaches Rust interest",
+        "native_request": "Apple exposes no cancellation path for getDomainsWithCompletionHandler; the native request and its private per-request callback state may remain alive until Apple's callback returns",
+        "readiness_callback": "One nonterminal notification at most once; callback/context remain host-owned and live through callback return, ready-result poll, or destroy return; rejected start takes neither",
+        "result": "Output-only V1 record; initialize an empty native_error_domain before poll; destroy returned domain bytes exactly once with framework_owned_buffer_destroy; no FileProvider object or domain ID crosses C"
+      },
+      "api": "NSFileProviderManager.getDomainsWithCompletionHandler: reports registered domains for the calling app's own File Provider extension; iOS 11.0 API floor",
+      "limits": "Presence only; no domain IDs, labels, URLs, file access, picker UI, provider enablement, reachability, sync, domain mutation, extension lifecycle, native request cancellation, global registry, or runtime claim"
+    },
+    "ios_vision": {
+      "cargo_feature": "ios-vision",
+      "header": "framework_ios_vision.h",
+      "dependencies": [
+        "ios-vision"
+      ],
+      "symbols": [
+        "framework_ios_vision_text_recognition_revision_is_supported"
+      ],
+      "targets": {
+        "aarch64-apple-ios": "B57 queries only whether the runtime lists a text-recognition request revision as supported",
+        "aarch64-apple-ios-sim": "B57 queries only whether the runtime lists a text-recognition request revision as supported",
+        "non_ios": "Valid input with non-null output returns UNSUPPORTED after initializing output to zero; no Vision dependency or Apple framework link"
+      },
+      "direct_imports_64_bit_ios": {
+        "c": [
+          "Vision",
+          "Foundation",
+          "libSystem.B.dylib",
+          "libobjc.A.dylib"
+        ],
+        "cpp": [
+          "Vision",
+          "Foundation",
+          "libSystem.B.dylib",
+          "libc++.1.dylib",
+          "libobjc.A.dylib"
+        ]
+      },
+      "link_probe_deployment_minimums": {
+        "aarch64-apple-ios": "13.0",
+        "aarch64-apple-ios-sim": "14.0"
+      },
+      "status_mapping": {
+        "null_output": "FRAMEWORK_STATUS_INVALID_ARGUMENT; initialize a non-null output to zero first",
+        "success": "FRAMEWORK_STATUS_OK; write exactly 0 or 1 according to runtime membership in VNRecognizeTextRequest.supportedRevisions",
+        "unknown_revision": "A valid uint32_t revision not listed by the runtime returns FRAMEWORK_STATUS_OK with output zero",
+        "runtime_before_api_floor": "FRAMEWORK_STATUS_UNAVAILABLE with output zero",
+        "non_ios": "FRAMEWORK_STATUS_UNSUPPORTED with output zero",
+        "panic": "FRAMEWORK_STATUS_PANIC with output zero; no panic unwinds across C"
+      },
+      "panic_boundary": "The status-returning export catches Rust panics; no panic unwinds across C.",
+      "threading": "Synchronous on the caller's thread; no main-thread rule or thread-safety guarantee is added.",
+      "ownership": {
+        "input": "revision is copied by value",
+        "output": "One required caller-owned aligned writable uint8_t memory for the full synchronous call; initialized to zero before query; caller prevents unsynchronized access; output address is not retained",
+        "native_objects": "No Vision object, request, handler, callback, or native pointer crosses C"
+      },
+      "api": "+[VNRecognizeTextRequest supportedRevisions] and NSIndexSet.containsIndex; effective API floor iOS 13.0",
+      "limits": "Revision membership only; no request or handler creation, image or user-data access, permission, UI, recognition, language support, model readiness, or recognition-success claim"
+    },
+    "ios_proximity_reader": {
+      "cargo_feature": "ios-proximity-reader",
+      "header": "framework_ios_proximity_reader.h",
+      "dependencies": [
+        "ios-proximity-reader"
+      ],
+      "symbols": [
+        "framework_ios_proximity_reader_tap_to_pay_device_model_supported"
+      ],
+      "targets": {
+        "aarch64-apple-ios": "B76 queries only PaymentCardReader.isSupported through its compiler-checked Swift-call thunk; this is the current iPhone device-model predicate",
+        "aarch64-apple-ios-sim": "B76 queries only PaymentCardReader.isSupported through its compiler-checked Swift-call thunk; this is the current iPhone device-model predicate",
+        "non_ios": "Valid input with non-null output returns UNSUPPORTED after initializing output to zero; no ProximityReader framework or Swift/Objective-C runtime link"
+      },
+      "direct_imports_64_bit_ios": {
+        "c": [
+          "ProximityReader",
+          "libSystem.B.dylib"
+        ],
+        "cpp": [
+          "ProximityReader",
+          "libSystem.B.dylib",
+          "libc++.1.dylib"
+        ]
+      },
+      "link_probe_deployment_minimums": {
+        "aarch64-apple-ios": "15.4",
+        "aarch64-apple-ios-sim": "15.4"
+      },
+      "status_mapping": {
+        "null_output": "FRAMEWORK_STATUS_INVALID_ARGUMENT; initialize a non-null output to zero first",
+        "success": "FRAMEWORK_STATUS_OK; write exactly 0 or 1 according to PaymentCardReader.isSupported",
+        "backend_none": "FRAMEWORK_STATUS_UNAVAILABLE with output zero",
+        "non_ios": "FRAMEWORK_STATUS_UNSUPPORTED with output zero",
+        "panic": "FRAMEWORK_STATUS_PANIC with output zero; no panic unwinds across C"
+      },
+      "panic_boundary": "The status-returning export catches Rust panics; no panic unwinds across C.",
+      "threading": "Synchronous on the caller's thread; no main-thread rule or thread-safety guarantee is added.",
+      "ownership": {
+        "output": "One required caller-owned aligned writable uint8_t memory for the full synchronous call; initialized to zero before query; caller prevents unsynchronized access; output address is not retained",
+        "native_objects": "No reader, session, callback, native object, or native pointer crosses C"
+      },
+      "api": "PaymentCardReader.isSupported; iOS 15.4 API floor and C device/Simulator link minimum",
+      "limits": "Current iPhone device-model predicate only; no OS, entitlement, merchant/account, region, provider, reader, NFC, session, UI, transaction, or Tap to Pay readiness claim"
+    },
+    "ios_crypto": {
+      "cargo_feature": "ios-crypto",
+      "header": "framework_ios_crypto.h",
+      "dependencies": [
+        "ios-crypto"
+      ],
+      "symbols": [
+        "framework_ios_crypto_sha256"
+      ],
+      "targets": {
+        "aarch64-apple-ios": "B66 computes one synchronous CommonCrypto SHA-256 digest for caller-borrowed bytes",
+        "aarch64-apple-ios-sim": "B66 computes one synchronous CommonCrypto SHA-256 digest for caller-borrowed bytes",
+        "non_ios": "Valid input with non-null output returns UNSUPPORTED after initializing output to zero; no CommonCrypto dependency or Apple framework link"
+      },
+      "direct_imports_64_bit_ios": {
+        "c": [
+          "libSystem.B.dylib"
+        ],
+        "cpp": [
+          "libSystem.B.dylib",
+          "libc++.1.dylib"
+        ]
+      },
+      "link_probe_deployment_minimums": {
+        "aarch64-apple-ios": "10.0",
+        "aarch64-apple-ios-sim": "14.0"
+      },
+      "status_mapping": {
+        "null_output": "FRAMEWORK_STATUS_INVALID_ARGUMENT; initialize output only after validating its pointer and input/output disjointness",
+        "success": "FRAMEWORK_STATUS_OK; write the 32-byte CommonCrypto SHA-256 digest",
+        "invalid_input": "FRAMEWORK_STATUS_INVALID_ARGUMENT for malformed spans, overlap, or input longer than UINT32_MAX",
+        "native_failure": "FRAMEWORK_STATUS_PLATFORM_ERROR if CC_SHA256 does not return the supplied digest buffer",
+        "non_ios": "FRAMEWORK_STATUS_UNSUPPORTED with output zero",
+        "panic": "FRAMEWORK_STATUS_PANIC with output zero; no panic unwinds across C"
+      },
+      "panic_boundary": "The status-returning export catches Rust panics; no panic unwinds across C.",
+      "threading": "Synchronous on the caller's thread; no main-thread rule or thread-safety guarantee is added.",
+      "ownership": {
+        "input": "FrameworkSlice is borrowed, readable, and immutable for the full synchronous call; caller prevents unsynchronized input access; null is valid only for zero length",
+        "output": "One required writable 32-byte digest region for the full synchronous call, initialized to zero after structural and disjointness checks; caller-owned and not retained; caller must prevent unsynchronized output access",
+        "native_objects": "No allocation, native object, callback, or native pointer crosses C"
+      },
+      "api": "CC_SHA256; CC_LONG is uint32_t; iOS 2.0 API floor and C device/Simulator link minima 10.0/14.0",
+      "limits": "One-shot SHA-256 only; no portable crypto contract, digest-parity, certification, security-review, replacement/default, key-operation, other-algorithm, or performance claim"
+    },
+    "ios_modelio_status": {
+      "cargo_feature": "ios-modelio-status",
+      "header": "framework_ios_modelio_status.h",
+      "dependencies": [
+        "ios-modelio-status"
+      ],
+      "symbols": [
+        "framework_ios_modelio_can_import_file_extension"
+      ],
+      "targets": {
+        "aarch64-apple-ios": "B67 asks whether MDLAsset can import files with one supplied extension string",
+        "aarch64-apple-ios-sim": "B67 asks whether MDLAsset can import files with one supplied extension string",
+        "non_ios": "Valid UTF-8 input with non-null output returns UNSUPPORTED after initializing output to zero; no ModelIO dependency or Apple framework link"
+      },
+      "direct_imports_64_bit_ios": {
+        "c": [
+          "Foundation",
+          "ModelIO",
+          "libSystem.B.dylib",
+          "libobjc.A.dylib"
+        ],
+        "cpp": [
+          "Foundation",
+          "ModelIO",
+          "libSystem.B.dylib",
+          "libc++.1.dylib",
+          "libobjc.A.dylib"
+        ]
+      },
+      "link_probe_deployment_minimums": {
+        "aarch64-apple-ios": "10.0",
+        "aarch64-apple-ios-sim": "14.0"
+      },
+      "status_mapping": {
+        "null_output": "FRAMEWORK_STATUS_INVALID_ARGUMENT; initialize output only after validating its pointer and input/output disjointness",
+        "success": "FRAMEWORK_STATUS_OK; write exactly 0 or 1 according to MDLAsset.canImportFileExtension",
+        "invalid_input": "FRAMEWORK_STATUS_INVALID_ARGUMENT for malformed spans, overlap, or invalid UTF-8",
+        "non_ios": "FRAMEWORK_STATUS_UNSUPPORTED with output zero",
+        "panic": "FRAMEWORK_STATUS_PANIC with output zero; no panic unwinds across C"
+      },
+      "panic_boundary": "The status-returning export catches Rust panics; no panic unwinds across C.",
+      "threading": "Synchronous on the caller's thread; no main-thread rule or thread-safety guarantee is added.",
+      "ownership": {
+        "input": "FrameworkStr UTF-8 bytes are borrowed, readable, and immutable only through the synchronous call",
+        "output": "One required caller-owned valid, aligned writable byte for the full synchronous call and disjoint from nonempty input; initialized to zero after structural and disjointness checks; caller prevents unsynchronized access to both regions; wrapper checks range arithmetic and input/output overlap but cannot prove that memory is valid, aligned, writable, or live; neither pointer is retained",
+        "native_objects": "No ModelIO object, asset, URL, callback, native object, or pointer crosses C"
+      },
+      "api": "+[MDLAsset canImportFileExtension:]; iOS 9.0 API floor and C device/Simulator link minima 10.0/14.0",
+      "limits": "Extension support only; no asset creation/loading, URL/file-data access, parsing, rendering, GPU, parity, or performance claim"
+    },
+    "ios_accelerate": {
+      "cargo_feature": "ios-accelerate",
+      "header": "framework_ios_accelerate.h",
+      "dependencies": [
+        "ios-accelerate"
+      ],
+      "symbols": [
+        "framework_ios_accelerate_vector_add"
+      ],
+      "targets": {
+        "aarch64-apple-ios": "B65 performs equal-length f32 unit-stride vector addition through vDSP_vadd",
+        "aarch64-apple-ios-sim": "B65 performs equal-length f32 unit-stride vector addition through vDSP_vadd",
+        "non_ios": "Valid ranges return UNSUPPORTED without reading or changing array contents; no Accelerate dependency or Apple framework link"
+      },
+      "direct_imports_64_bit_ios": {
+        "c": [
+          "Accelerate",
+          "libSystem.B.dylib"
+        ],
+        "cpp": [
+          "Accelerate",
+          "libSystem.B.dylib",
+          "libc++.1.dylib"
+        ]
+      },
+      "link_probe_deployment_minimums": {
+        "aarch64-apple-ios": "10.0",
+        "aarch64-apple-ios-sim": "14.0"
+      },
+      "status_mapping": {
+        "success": "FRAMEWORK_STATUS_OK; all output elements are overwritten; empty input succeeds on iOS without calling Accelerate",
+        "length_mismatch": "FRAMEWORK_STATUS_INVALID_ARGUMENT before reading inputs or changing output",
+        "invalid_range": "FRAMEWORK_STATUS_INVALID_ARGUMENT for unrepresentable counts, invalid pointer/alignment/range, or output overlap with either input",
+        "non_ios": "FRAMEWORK_STATUS_UNSUPPORTED without reading inputs or changing output",
+        "panic": "FRAMEWORK_STATUS_PANIC; output contents are unspecified if Rust panics"
+      },
+      "panic_boundary": "The status-returning export catches Rust panics; no panic unwinds across C.",
+      "threading": "Synchronous on the caller's thread; no main-thread rule or thread-safety guarantee is added.",
+      "ownership": {
+        "inputs": "Two borrowed readable f32 arrays immutable for the full synchronous call; their ranges may overlap; neither pointer is retained; caller prevents unsynchronized input access",
+        "output": "One borrowed writable f32 array for the full synchronous call; caller-owned and not retained; caller prevents unsynchronized output access; overwritten only on successful iOS return and required to be disjoint from both inputs",
+        "native_objects": "No Accelerate object, callback, allocation, or native pointer crosses C"
+      },
+      "api": "vDSP_vadd; iOS 4.0 API floor and C device/Simulator link minima 10.0/14.0",
+      "limits": "Equal-length f32 single-precision unit-stride addition only; no portable math facade, parity, certification, or performance claim"
+    },
+    "ios_sign_in_with_apple_status": {
+      "cargo_feature": "ios-sign-in-with-apple-status",
+      "header": "framework_ios_sign_in_with_apple_status.h",
+      "dependencies": [
+        "ios-sign-in-with-apple-status"
+      ],
+      "symbols": [
+        "framework_ios_sign_in_with_apple_credential_state_start"
+      ],
+      "targets": {
+        "aarch64-apple-ios": "B78 queries one prior Sign in with Apple user ID and reports signed credential-state plus separate NSError presence",
+        "aarch64-apple-ios-sim": "B78 queries one prior Sign in with Apple user ID and reports signed credential-state plus separate NSError presence",
+        "non_ios": "Valid input with non-null completion returns UNSUPPORTED and does not call completion; no AuthenticationServices dependency or Apple framework link"
+      },
+      "direct_imports_64_bit_ios": {
+        "c": [
+          "AuthenticationServices",
+          "Foundation",
+          "libSystem.B.dylib",
+          "libobjc.A.dylib"
+        ],
+        "cpp": [
+          "AuthenticationServices",
+          "Foundation",
+          "libSystem.B.dylib",
+          "libc++.1.dylib",
+          "libobjc.A.dylib"
+        ]
+      },
+      "link_probe_deployment_minimums": {
+        "aarch64-apple-ios": "13.0",
+        "aarch64-apple-ios-sim": "14.0"
+      },
+      "status_mapping": {
+        "null_completion": "FRAMEWORK_STATUS_INVALID_ARGUMENT; callback is required",
+        "invalid_user_id": "FRAMEWORK_STATUS_INVALID_ARGUMENT for null, empty, malformed, or invalid UTF-8 input; no callback occurs",
+        "success": "FRAMEWORK_STATUS_OK after accepted iOS start; one callback reports a signed credential-state and independent 0/1 NSError-presence bit",
+        "known_states": "REVOKED=0, AUTHORIZED=1, NOT_FOUND=2, TRANSFERRED=3; other signed raw values pass through unchanged",
+        "native_error": "Preserve the returned credential state and set had_error to 1 when NSError is present; NotFound may coexist with an error",
+        "non_ios": "FRAMEWORK_STATUS_UNSUPPORTED with no callback",
+        "panic": "FRAMEWORK_STATUS_PANIC for a caught synchronous Rust panic; no panic unwinds across C"
+      },
+      "panic_boundary": "The status-returning start export catches synchronous Rust panics; the host callback must not unwind across C.",
+      "threading": "The callback may run inline before start returns or later on Apple's unspecified queue; the C caller must be valid on any callback queue.",
+      "ownership": {
+        "input": "FrameworkStr must be non-empty valid UTF-8 and is borrowed only through start; B78 copies it to NSString before return",
+        "completion": "One required caller-owned function pointer and context; both must remain valid through callback return; neither is returned by a handle or retained by the C ABI after callback",
+        "native_objects": "No Objective-C object, NSError detail, identity token, authorization code, or native pointer crosses C"
+      },
+      "api": "ASAuthorizationAppleIDProvider.getCredentialStateForUserID:completion:; iOS 13.0 API floor in AuthenticationServices.framework",
+      "limits": "One prior-user credential-state query only; conservative host entitlement com.apple.developer.applesignin with Default; no documented entitlement exemption, passkeys, authorization UI, general readiness, token/server-session validation, error detail, or cancellation"
+    },
+    "ios_key_support": {
+      "cargo_feature": "ios-key-support",
+      "header": "framework_ios_key_support.h",
+      "dependencies": [
+        "framework-key-support",
+        "ios-key-support"
+      ],
+      "symbols": [
+        "framework_ios_key_support_p256_ecdsa_sha256_message_supported"
+      ],
+      "targets": {
+        "aarch64-apple-ios": "B69 reports whether Security accepts one caller-supplied P-256 public key for ECDSA/SHA-256 message verification",
+        "aarch64-apple-ios-sim": "B69 reports whether Security accepts one caller-supplied P-256 public key for ECDSA/SHA-256 message verification",
+        "non_ios": "Valid input returns UNSUPPORTED; no Security dependency or Apple framework link"
+      },
+      "direct_imports_64_bit_ios": {
+        "c": [
+          "CoreFoundation",
+          "Security",
+          "libSystem.B.dylib"
+        ],
+        "cpp": [
+          "CoreFoundation",
+          "Security",
+          "libSystem.B.dylib",
+          "libc++.1.dylib"
+        ]
+      },
+      "link_probe_deployment_minimums": {
+        "aarch64-apple-ios": "10.0",
+        "aarch64-apple-ios-sim": "14.0"
+      },
+      "status_mapping": {
+        "success": "FRAMEWORK_STATUS_OK and one output byte of exactly 0 or 1",
+        "invalid_input": "FRAMEWORK_STATUS_INVALID_ARGUMENT for null pointers, wrong 65-byte X9.63 length, address-range overflow, overlap, or invalid uncompressed-key marker",
+        "resource_exhausted": "FRAMEWORK_STATUS_RESOURCE_EXHAUSTED for temporary Core Foundation allocation failure",
+        "platform_error": "FRAMEWORK_STATUS_PLATFORM_ERROR when Security cannot import the key or query algorithm support",
+        "non_ios": "FRAMEWORK_STATUS_UNSUPPORTED with zero output",
+        "panic": "FRAMEWORK_STATUS_PANIC; output is initialized to zero before the caught query"
+      },
+      "panic_boundary": "The status-returning export catches Rust panics; no panic unwinds across C.",
+      "threading": "Synchronous on the caller's thread; no main-thread rule or thread-safety guarantee is added.",
+      "ownership": {
+        "input": "One borrowed readable 65-byte uncompressed P-256 public key, immutable through the call and disjoint from output; not retained",
+        "output": "One required caller-owned writable uint8_t initialized to zero after structural and disjointness checks; not retained",
+        "native_objects": "Temporary Security/Core Foundation values only; no key, object, callback, or pointer crosses C"
+      },
+      "api": "SecKeyCreateWithData and SecKeyIsAlgorithmSupported; iOS 10.0 API floor and C device/Simulator link minima 10.0/14.0",
+      "limits": "Suitability query only; does not verify a signature, create/use private key material, persist a key, access Keychain/Secure Enclave, or guarantee a later operation"
+    },
+    "ios_mps_status": {
+      "cargo_feature": "ios-mps-status",
+      "header": "framework_ios_mps_status.h",
+      "dependencies": [
+        "ios-mps-status"
+      ],
+      "symbols": [
+        "framework_ios_mps_status_preferred_device_available"
+      ],
+      "targets": {
+        "aarch64-apple-ios": "B68 reports whether MPS returns a preferred device with default options",
+        "aarch64-apple-ios-sim": "B68 reports whether MPS returns a preferred device with default options",
+        "non_ios": "A valid call returns UNSUPPORTED with output zero; no MPS dependency or Apple framework link"
+      },
+      "direct_imports_64_bit_ios": {
+        "c": [
+          "Foundation",
+          "Metal",
+          "MetalPerformanceShaders",
+          "libSystem.B.dylib",
+          "libobjc.A.dylib"
+        ],
+        "cpp": [
+          "Foundation",
+          "Metal",
+          "MetalPerformanceShaders",
+          "libSystem.B.dylib",
+          "libc++.1.dylib",
+          "libobjc.A.dylib"
+        ]
+      },
+      "link_probe_deployment_minimums": {
+        "aarch64-apple-ios": "12.2",
+        "aarch64-apple-ios-sim": "14.0"
+      },
+      "status_mapping": {
+        "success": "FRAMEWORK_STATUS_OK and one output byte of exactly 0 or 1 for default-options preferred-device presence",
+        "null_output": "FRAMEWORK_STATUS_INVALID_ARGUMENT",
+        "non_ios": "FRAMEWORK_STATUS_UNSUPPORTED with output zero",
+        "panic": "FRAMEWORK_STATUS_PANIC with output initialized to zero; no panic unwinds across C"
+      },
+      "panic_boundary": "The status-returning export catches Rust panics; no panic unwinds across C.",
+      "threading": "Synchronous on the caller's thread; no main-thread rule or thread-safety guarantee is added; runtime cost and thread affinity are unspecified.",
+      "ownership": {
+        "output": "When non-null, out_available must address valid, properly aligned writable memory for one byte during the synchronous call; the API checks nullness only. The client must prevent unsynchronized concurrent access. The API does not retain the output address; the byte is initialized to zero before platform handling",
+        "native_objects": "No MPS device, GPU resource, callback, or native pointer crosses C; B68 drops the retained preferred device before return"
+      },
+      "api": "MPSGetPreferredDevice(MPSDeviceOptions::Default); iOS 12.2 API floor and C device/Simulator link minima 12.2/14.0",
+      "limits": "Preferred-device presence only; no GPU work, operation/model/workload support, parity, or performance claim"
+    },
+    "ios_videotoolbox": {
+      "cargo_feature": "ios-videotoolbox",
+      "header": "framework_ios_videotoolbox.h",
+      "dependencies": [
+        "framework-media",
+        "ios-media"
+      ],
+      "symbols": [
+        "framework_ios_videotoolbox_hardware_decode_supported"
+      ],
+      "targets": {
+        "aarch64-apple-ios": "B50 reports the VideoToolbox hardware-decode predicate for one caller-supplied FourCC",
+        "aarch64-apple-ios-sim": "B50 reports the VideoToolbox hardware-decode predicate for one caller-supplied FourCC",
+        "non_ios": "A valid call returns UNSUPPORTED with output zero; no VideoToolbox framework link"
+      },
+      "direct_imports_64_bit_ios": {
+        "c": [
+          "VideoToolbox",
+          "libSystem.B.dylib"
+        ],
+        "cpp": [
+          "VideoToolbox",
+          "libSystem.B.dylib"
+        ]
+      },
+      "link_probe_deployment_minimums": {
+        "aarch64-apple-ios": "11.0",
+        "aarch64-apple-ios-sim": "14.0"
+      },
+      "status_mapping": {
+        "success": "FRAMEWORK_STATUS_OK and one output byte of exactly 0 or 1",
+        "null_output": "FRAMEWORK_STATUS_INVALID_ARGUMENT without a write",
+        "backend_unavailable": "FRAMEWORK_STATUS_UNAVAILABLE with output zero if the B50 runtime guard reports the API unavailable",
+        "non_ios": "FRAMEWORK_STATUS_UNSUPPORTED with output zero",
+        "panic": "FRAMEWORK_STATUS_PANIC with output initialized to zero; no panic unwinds across C"
+      },
+      "panic_boundary": "The status-returning export catches Rust panics; no panic unwinds across C.",
+      "threading": "Synchronous on the caller's thread; no main-thread rule or thread-safety guarantee is added.",
+      "ownership": {
+        "input": "A by-value FourCC uint32_t; no pointer or codec object is retained",
+        "output": "When non-null, out_supported must address one valid, aligned writable byte for the full call; the API checks nullness only. The client must avoid unsynchronized concurrent access. No output address persists after return; the API writes zero before platform code",
+        "native_objects": "No decoder, session, frame, or native pointer crosses C"
+      },
+      "api": "VTIsHardwareDecodeSupported(CMVideoCodecType); iOS 11.0 API floor and C device/Simulator link minima 11.0/14.0",
+      "limits": "Hardware-decode support predicate only; no session, media processing, software-decode report, resource reservation, parity, or performance claim"
+    },
+    "ios_camera_device_status": {
+      "cargo_feature": "ios-camera-device-status",
+      "header": "framework_ios_camera_device_status.h",
+      "dependencies": [
+        "ios-camera-device-status"
+      ],
+      "symbols": [
+        "framework_ios_camera_device_status_has_default_video_capture_device"
+      ],
+      "targets": {
+        "aarch64-apple-ios": "B62 reports whether AVFoundation returns a current default video capture device",
+        "aarch64-apple-ios-sim": "B62 reports whether AVFoundation returns a current default video capture device",
+        "non_ios": "A valid call returns UNSUPPORTED with output zero; no AVFoundation dependency or Apple framework link"
+      },
+      "direct_imports_64_bit_ios": {
+        "c": [
+          "AVFoundation",
+          "libSystem.B.dylib",
+          "libobjc.A.dylib"
+        ],
+        "cpp": [
+          "AVFoundation",
+          "libSystem.B.dylib",
+          "libobjc.A.dylib"
+        ]
+      },
+      "link_probe_deployment_minimums": {
+        "aarch64-apple-ios": "10.0",
+        "aarch64-apple-ios-sim": "14.0"
+      },
+      "status_mapping": {
+        "success": "FRAMEWORK_STATUS_OK and one output byte of exactly 0 or 1",
+        "null_output": "FRAMEWORK_STATUS_INVALID_ARGUMENT without a write",
+        "non_ios": "FRAMEWORK_STATUS_UNSUPPORTED with output zero",
+        "panic": "FRAMEWORK_STATUS_PANIC with output initialized to zero; no panic unwinds across C"
+      },
+      "panic_boundary": "The status-returning export catches Rust panics; no panic unwinds across C.",
+      "threading": "Synchronous on the caller's thread; no queue guarantee is added.",
+      "ownership": {
+        "output": "One required caller-owned writable uint8_t initialized to zero before platform handling; nullness is checked only, so a non-null pointer must address valid properly aligned writable memory for the synchronous call and must not be accessed concurrently without synchronization; not retained",
+        "native_objects": "No AVFoundation object, authorization state, session, input, callback, or native pointer crosses C"
+      },
+      "api": "AVCaptureDevice.defaultDeviceWithMediaType(AVMediaTypeVideo); iOS 4.0 API floor and C device/Simulator link minima 10.0/14.0",
+      "limits": "Default video-device presence only; no authorization, capture readiness, input/session creation, media access, future availability, parity, or performance claim"
+    },
+    "ios_core_ml_status": {
+      "cargo_feature": "ios-core-ml-status",
+      "header": "framework_ios_core_ml_status.h",
+      "dependencies": [
+        "ios-core-ml-status"
+      ],
+      "symbols": [
+        "framework_ios_core_ml_status_has_available_compute_device"
+      ],
+      "targets": {
+        "aarch64-apple-ios": "B56 reports whether Core ML returns a nonempty available compute-device list",
+        "aarch64-apple-ios-sim": "B56 reports whether Core ML returns a nonempty available compute-device list",
+        "non_ios": "A valid call returns UNSUPPORTED with output zero; no CoreML dependency or Apple framework link"
+      },
+      "direct_imports_64_bit_ios": {
+        "c": [
+          "CoreML",
+          "Foundation",
+          "libSystem.B.dylib",
+          "libobjc.A.dylib"
+        ],
+        "cpp": [
+          "CoreML",
+          "Foundation",
+          "libSystem.B.dylib",
+          "libobjc.A.dylib"
+        ]
+      },
+      "link_probe_deployment_minimums": {
+        "aarch64-apple-ios": "11.0",
+        "aarch64-apple-ios-sim": "14.0"
+      },
+      "status_mapping": {
+        "success": "FRAMEWORK_STATUS_OK and one output byte of exactly 0 or 1; B56 returns false below iOS 17.0",
+        "null_output": "FRAMEWORK_STATUS_INVALID_ARGUMENT without a write",
+        "non_ios": "FRAMEWORK_STATUS_UNSUPPORTED with output zero",
+        "panic": "FRAMEWORK_STATUS_PANIC with output initialized to zero; no panic unwinds across C"
+      },
+      "panic_boundary": "The status-returning export catches Rust panics; no panic unwinds across C.",
+      "threading": "Synchronous on the caller's thread; no queue guarantee is added.",
+      "ownership": {
+        "output": "One required caller-owned writable uint8_t initialized to zero before platform handling; nullness is checked only, so a non-null pointer must address valid properly aligned writable memory for the synchronous call and must not be accessed concurrently without synchronization; not retained",
+        "native_objects": "No Core ML object, compute-device list, or native pointer crosses C"
+      },
+      "api": "MLModel.availableComputeDevices; iOS 17.0 API floor; C device/Simulator link minima 11.0/14.0",
+      "limits": "Nonempty compute-device-list snapshot only; no model compatibility, prediction success, device-object exposure, model load, or inference claim"
+    },
+    "ios_speech_status": {
+      "cargo_feature": "ios-speech-status",
+      "header": "framework_ios_speech_status.h",
+      "dependencies": [
+        "ios-speech-status"
+      ],
+      "symbols": [
+        "framework_ios_speech_status_authorization_status"
+      ],
+      "authorization_raw_values": {
+        "FRAMEWORK_IOS_SPEECH_AUTHORIZATION_STATUS_NOT_DETERMINED": 0,
+        "FRAMEWORK_IOS_SPEECH_AUTHORIZATION_STATUS_DENIED": 1,
+        "FRAMEWORK_IOS_SPEECH_AUTHORIZATION_STATUS_RESTRICTED": 2,
+        "FRAMEWORK_IOS_SPEECH_AUTHORIZATION_STATUS_AUTHORIZED": 3
+      },
+      "targets": {
+        "aarch64-apple-ios": "B58 reports the current signed Speech authorization code",
+        "aarch64-apple-ios-sim": "B58 reports the current signed Speech authorization code",
+        "non_ios": "A valid call returns UNSUPPORTED with output zero; no Speech dependency or Apple framework link"
+      },
+      "direct_imports_64_bit_ios": {
+        "c": [
+          "Foundation",
+          "Speech",
+          "libSystem.B.dylib",
+          "libobjc.A.dylib"
+        ],
+        "cpp": [
+          "Foundation",
+          "Speech",
+          "libSystem.B.dylib",
+          "libobjc.A.dylib"
+        ]
+      },
+      "link_probe_deployment_minimums": {
+        "aarch64-apple-ios": "10.0",
+        "aarch64-apple-ios-sim": "14.0"
+      },
+      "status_mapping": {
+        "success": "FRAMEWORK_STATUS_OK and the signed native authorization code unchanged",
+        "unavailable": "FRAMEWORK_STATUS_UNAVAILABLE with output zero below iOS 10.0",
+        "null_output": "FRAMEWORK_STATUS_INVALID_ARGUMENT without a write",
+        "non_ios": "FRAMEWORK_STATUS_UNSUPPORTED with output zero",
+        "panic": "FRAMEWORK_STATUS_PANIC with output initialized to zero; no panic unwinds across C",
+        "unknown_native_value": "Written unchanged as signed int64_t"
+      },
+      "panic_boundary": "The status-returning export catches Rust panics; no panic unwinds across C.",
+      "threading": "Synchronous on the caller's thread; Apple documents no main-thread rule for this class method; no broader thread-safety promise is added.",
+      "ownership": {
+        "output": "One required caller-owned writable int64_t initialized to zero before platform handling; nullness is checked only, so a non-null pointer must address valid properly aligned writable memory for the synchronous call and must not be accessed concurrently without synchronization; not retained",
+        "native_objects": "No Speech object, recognizer, audio data, callback, or native pointer crosses C"
+      },
+      "api": "+[SFSpeechRecognizer authorizationStatus]; iOS 10.0 API floor; C device/Simulator link minima 10.0/14.0",
+      "limits": "Saved authorization status only; no permission request, prompt, recognizer, audio input, recognition task, service-availability result, or recognition-success claim"
+    },
+    "ios_natural_language_status": {
+      "cargo_feature": "ios-natural-language-status",
+      "header": "framework_ios_natural_language_status.h",
+      "dependencies": [
+        "ios-natural-language-status"
+      ],
+      "symbols": [
+        "framework_ios_natural_language_english_contextual_embedding_assets"
+      ],
+      "status_codes": {
+        "FRAMEWORK_IOS_NATURAL_LANGUAGE_ASSET_STATUS_UNAVAILABLE": 0,
+        "FRAMEWORK_IOS_NATURAL_LANGUAGE_ASSET_STATUS_LANGUAGE_UNAVAILABLE": 1,
+        "FRAMEWORK_IOS_NATURAL_LANGUAGE_ASSET_STATUS_NO_MODEL": 2,
+        "FRAMEWORK_IOS_NATURAL_LANGUAGE_ASSET_STATUS_ASSETS_NOT_AVAILABLE": 3,
+        "FRAMEWORK_IOS_NATURAL_LANGUAGE_ASSET_STATUS_ASSETS_AVAILABLE": 4
+      },
+      "targets": {
+        "aarch64-apple-ios": "B59 reads the English contextual-model asset status",
+        "aarch64-apple-ios-sim": "B59 reads the English contextual-model asset status",
+        "non_ios": "A valid call returns UNSUPPORTED with output zero; no NaturalLanguage dependency or Apple framework link"
+      },
+      "direct_imports_64_bit_ios": {
+        "c": [
+          "Foundation",
+          "NaturalLanguage",
+          "libSystem.B.dylib",
+          "libobjc.A.dylib"
+        ],
+        "cpp": [
+          "Foundation",
+          "NaturalLanguage",
+          "libSystem.B.dylib",
+          "libobjc.A.dylib"
+        ]
+      },
+      "link_probe_deployment_minimums": {
+        "aarch64-apple-ios": "17.0",
+        "aarch64-apple-ios-sim": "17.0"
+      },
+      "status_mapping": {
+        "success": "FRAMEWORK_STATUS_OK with one F29 fixed-width status code matching B59's five Rust enum variants",
+        "null_output": "FRAMEWORK_STATUS_INVALID_ARGUMENT without a write",
+        "non_ios": "FRAMEWORK_STATUS_UNSUPPORTED with output zero",
+        "panic": "FRAMEWORK_STATUS_PANIC with output initialized to zero; no panic unwinds across C",
+        "unavailable_api_floor": "FRAMEWORK_STATUS_OK and UNAVAILABLE output code below iOS 17.0"
+      },
+      "panic_boundary": "The status-returning export catches Rust panics; no panic unwinds across C.",
+      "threading": "Synchronous on the caller's thread; the inspected NaturalLanguage headers state no main-thread rule; no broader thread-safety promise is added.",
+      "ownership": {
+        "output": "One required caller-owned writable uint32_t initialized to zero before platform handling; nullness is checked only, so a non-null pointer must address valid properly aligned writable memory for the synchronous call and must not be accessed concurrently without synchronization; not retained",
+        "native_objects": "B59 creates and releases a temporary NLContextualEmbedding object within the call; no object, text, result, callback, or native pointer crosses C"
+      },
+      "api": "NLContextualEmbedding.contextualEmbeddingWithLanguage(NLLanguageEnglish) and hasAvailableAssets; iOS 17.0 API floor; C device/Simulator link minima 17.0/17.0",
+      "limits": "Apple's English contextual-model asset state only; no model load/unload, text input, vector calculation, asset request/download, future load/result, or general Natural Language support claim"
+    },
+    "ios_extension_support": {
+      "cargo_feature": "ios-extension-support",
+      "header": "framework_ios_extension_support.h",
+      "dependencies": [
+        "ios-extension-support"
+      ],
+      "symbols": [
+        "framework_ios_extension_support_read_extension_point_identifier"
+      ],
+      "metadata_error_codes": {
+        "FRAMEWORK_IOS_EXTENSION_METADATA_ERROR_NONE": 0,
+        "FRAMEWORK_IOS_EXTENSION_METADATA_ERROR_INVALID_BUNDLE_PATH": 1,
+        "FRAMEWORK_IOS_EXTENSION_METADATA_ERROR_BUNDLE_UNAVAILABLE": 2,
+        "FRAMEWORK_IOS_EXTENSION_METADATA_ERROR_INFO_DICTIONARY_UNAVAILABLE": 3,
+        "FRAMEWORK_IOS_EXTENSION_METADATA_ERROR_MISSING_EXTENSION_DICTIONARY": 4,
+        "FRAMEWORK_IOS_EXTENSION_METADATA_ERROR_INVALID_EXTENSION_DICTIONARY_TYPE": 5,
+        "FRAMEWORK_IOS_EXTENSION_METADATA_ERROR_MISSING_POINT_IDENTIFIER": 6,
+        "FRAMEWORK_IOS_EXTENSION_METADATA_ERROR_INVALID_POINT_IDENTIFIER_TYPE": 7,
+        "FRAMEWORK_IOS_EXTENSION_METADATA_ERROR_EMPTY_POINT_IDENTIFIER": 8
+      },
+      "targets": {
+        "aarch64-apple-ios": "B77 reads the caller-selected .appex NSExtension.NSExtensionPointIdentifier value",
+        "aarch64-apple-ios-sim": "B77 reads the caller-selected .appex NSExtension.NSExtensionPointIdentifier value",
+        "non_ios": "A valid call returns UNSUPPORTED with both outputs initialized to zero; no Foundation dependency or Apple framework link"
+      },
+      "direct_imports_64_bit_ios": {
+        "c": [
+          "Foundation",
+          "libSystem.B.dylib",
+          "libobjc.A.dylib"
+        ],
+        "cpp": [
+          "Foundation",
+          "libSystem.B.dylib",
+          "libobjc.A.dylib"
+        ]
+      },
+      "link_probe_deployment_minimums": {
+        "aarch64-apple-ios": "12.0",
+        "aarch64-apple-ios-sim": "14.0"
+      },
+      "status_mapping": {
+        "success": "FRAMEWORK_STATUS_OK, NONE error code, and one caller-owned FrameworkOwnedBuffer with copied UTF-8 identifier bytes",
+        "metadata_error": "FRAMEWORK_STATUS_OK, one exact B77 metadata error code, and an empty output buffer",
+        "invalid_argument": "FRAMEWORK_STATUS_INVALID_ARGUMENT for null outputs, malformed pointer/length metadata, invalid UTF-8, or overlapping input/output ranges",
+        "non_ios": "FRAMEWORK_STATUS_UNSUPPORTED with both outputs initialized to zero",
+        "resource_exhausted": "FRAMEWORK_STATUS_RESOURCE_EXHAUSTED if the identifier cannot be represented by FrameworkOwnedBuffer",
+        "panic": "FRAMEWORK_STATUS_PANIC with outputs initialized to zero; no panic unwinds across C"
+      },
+      "panic_boundary": "The status-returning export catches Rust panics; no panic unwinds across C.",
+      "threading": "Synchronous on the caller's thread; no main-thread rule or broader thread-safety promise is added.",
+      "ownership": {
+        "input": "Caller-owned FrameworkStr borrowed only through the synchronous call; valid immutable UTF-8; null is permitted only with zero length",
+        "output": "Required caller-owned error scalar and FrameworkOwnedBuffer storage, initialized before platform handling; outputs must be valid, aligned, disjoint from each other and input; buffer output must be empty of a live framework allocation on entry; not retained",
+        "native_objects": "B77 releases all temporary Foundation objects before return; no bundle, dictionary, NSString, callback, or native pointer crosses C"
+      },
+      "api": "NSBundle.bundleWithURL and infoDictionary; iOS 4.0 API floor; C device/Simulator link minima 12.0/14.0",
+      "limits": "One caller-selected .appex metadata key only; no extension loading, registration, installation, approval, entitlement, launch, host-compatibility, App Intents, build-host plist, or .appext claim"
+    },
+    "ios_roomplan_status": {
+      "cargo_feature": "ios-roomplan-status",
+      "header": "framework_ios_roomplan_status.h",
+      "dependencies": [
+        "ios-roomplan"
+      ],
+      "symbols": [
+        "framework_ios_roomplan_status_is_supported"
+      ],
+      "targets": {
+        "aarch64-apple-ios": "B61 calls only RoomCaptureSession.isSupported through its compiler-checked Swift-call thunk; the required deployment floor is iOS 16.0",
+        "aarch64-apple-ios-sim": "B61 calls only RoomCaptureSession.isSupported through its compiler-checked Swift-call thunk; the required deployment floor is iOS 16.0",
+        "non_ios": "A valid call returns UNSUPPORTED with output zero; no RoomPlan dependency or Apple framework link"
+      },
+      "status_mapping": {
+        "success": "FRAMEWORK_STATUS_OK and one caller-owned uint8_t set to exactly 0 or 1 from B61's RoomPlan support result",
+        "null_output": "FRAMEWORK_STATUS_INVALID_ARGUMENT without a write",
+        "non_ios": "FRAMEWORK_STATUS_UNSUPPORTED with output initialized to zero",
+        "panic": "FRAMEWORK_STATUS_PANIC with output initialized to zero; no panic unwinds across C",
+        "below_api_floor": "The consumer must use an iOS 16.0 or later deployment target; no weak-symbol fallback is provided"
+      },
+      "panic_boundary": "The status-returning export catches Rust panics; no panic unwinds across C.",
+      "threading": "Synchronous on the caller's thread; no main-thread or broader thread-safety promise is added.",
+      "ownership": {
+        "output": "One required caller-owned valid, properly aligned writable uint8_t for the full synchronous call; initialized to zero before platform handling; caller prevents unsynchronized access; output address is not retained",
+        "native_objects": "B61 returns an owned Rust support value; no RoomPlan session, Swift object, callback, or native pointer crosses C"
+      },
+      "direct_imports_64_bit_ios": {
+        "c": [
+          "RoomPlan",
+          "libSystem.B.dylib"
+        ],
+        "cpp": [
+          "RoomPlan",
+          "libSystem.B.dylib"
+        ]
+      },
+      "link_probe_deployment_minimums": {
+        "aarch64-apple-ios": "16.0",
+        "aarch64-apple-ios-sim": "16.0"
+      },
+      "api": "RoomCaptureSession.isSupported through ios-roomplan::device_support; iOS 16.0 API and required deployment floor; F31 C/C++ imports RoomPlan and libSystem with device/Simulator link minos 16.0/16.0",
+      "limits": "One RoomPlan support Boolean only; no session creation/run/stop, camera or LiDAR frame access, permission request, UI, scan result, readiness, parity, or performance claim"
+    },
+    "ios_storekit2_status": {
+      "cargo_feature": "ios-storekit2-status",
+      "header": "framework_ios_storekit2_status.h",
+      "dependencies": [
+        "ios-storekit2-status"
+      ],
+      "symbols": [
+        "framework_ios_storekit2_status_can_make_payments"
+      ],
+      "targets": {
+        "aarch64-apple-ios": "B63 reads AppStore.canMakePayments through a weakly imported Swift-call thunk; API/symbol floor iOS 15.0; B63 Release link probes use minos 10.0",
+        "aarch64-apple-ios-sim": "B63 reads AppStore.canMakePayments through a weakly imported Swift-call thunk; API/symbol floor iOS 15.0; B63 Release link probes use minos 14.0",
+        "non_ios": "A valid call returns UNSUPPORTED with output zero; no StoreKit 2 dependency or Apple framework link"
+      },
+      "direct_imports_64_bit_ios": {
+        "c": [
+          "StoreKit",
+          "libSystem.B.dylib"
+        ],
+        "cpp": [
+          "StoreKit",
+          "libSystem.B.dylib"
+        ]
+      },
+      "weak_imports_64_bit_ios": {
+        "c": [
+          "StoreKit.framework",
+          "_$s8StoreKit03AppA0O15canMakePaymentsSbvgZ"
+        ],
+        "cpp": [
+          "StoreKit.framework",
+          "_$s8StoreKit03AppA0O15canMakePaymentsSbvgZ"
+        ]
+      },
+      "link_probe_deployment_minimums": {
+        "aarch64-apple-ios": "10.0",
+        "aarch64-apple-ios-sim": "14.0"
+      },
+      "status_mapping": {
+        "success": "FRAMEWORK_STATUS_OK and one caller-owned uint8_t set to exactly 0 or 1 by B63; false may mean purchase restrictions or an absent weak symbol",
+        "null_output": "FRAMEWORK_STATUS_INVALID_ARGUMENT without a write",
+        "non_ios": "FRAMEWORK_STATUS_UNSUPPORTED with output initialized to zero",
+        "panic": "FRAMEWORK_STATUS_PANIC with output initialized to zero; no panic unwinds across C",
+        "below_api_floor": "B63's weak-symbol null check returns false without a call; static compiler/link evidence only, not runtime-tested below iOS 15.0"
+      },
+      "panic_boundary": "The status-returning export catches Rust panics; no panic unwinds across C.",
+      "threading": "Synchronous on the caller's thread; no main-thread or broader thread-safety promise is added.",
+      "ownership": {
+        "output": "One required caller-owned valid, properly aligned writable uint8_t for the full synchronous call; initialized to zero before platform handling; caller prevents unsynchronized access; output address is not retained",
+        "native_objects": "B63 returns a Rust Boolean; no StoreKit object, Swift object, product, transaction, callback, or native pointer crosses C"
+      },
+      "api": "AppStore.canMakePayments via ios-storekit2-status::can_make_payments and B63's compiler-checked weak swiftcall thunk; API/symbol floor iOS 15.0; C link minima device/Simulator 10.0/14.0",
+      "limits": "Purchase-ability Boolean only; false may include the weak-symbol-absent fallback; no product availability, account identity, entitlement state, successful transaction, StoreKit 1, purchase, restore, payment UI, or network claim"
+    },
+    "ios_game_status": {
+      "cargo_feature": "ios-game-status",
+      "header": "framework_ios_game_status.h",
+      "dependencies": [
+        "framework-game",
+        "ios-game"
+      ],
+      "symbols": [
+        "framework_ios_game_status_is_local_player_authenticated"
+      ],
+      "targets": {
+        "aarch64-apple-ios": "B55 reads GKLocalPlayer.localPlayer and isAuthenticated; iOS API floor 4.1; F33 C link probe minos 10.0",
+        "aarch64-apple-ios-sim": "B55 reads GKLocalPlayer.localPlayer and isAuthenticated; iOS API floor 4.1; F33 C link probe minos 14.0",
+        "non_ios": "A valid call returns UNSUPPORTED with output zero; no GameKit or framework-game dependency is active in the host feature graph"
+      },
+      "direct_imports_64_bit_ios": {
+        "c": [
+          "Foundation",
+          "GameKit",
+          "libSystem.B.dylib",
+          "libobjc.A.dylib"
+        ],
+        "cpp": [
+          "Foundation",
+          "GameKit",
+          "libSystem.B.dylib",
+          "libobjc.A.dylib"
+        ]
+      },
+      "link_probe_deployment_minimums": {
+        "aarch64-apple-ios": "10.0",
+        "aarch64-apple-ios-sim": "14.0"
+      },
+      "status_mapping": {
+        "authenticated": "FRAMEWORK_STATUS_OK and output one",
+        "not_authenticated": "FRAMEWORK_STATUS_OK and output zero; this does not prove that no account exists",
+        "unknown_future_portable_status": "FRAMEWORK_STATUS_UNAVAILABLE and output zero",
+        "null_output": "FRAMEWORK_STATUS_INVALID_ARGUMENT without a write",
+        "non_ios": "FRAMEWORK_STATUS_UNSUPPORTED with output initialized to zero",
+        "panic": "FRAMEWORK_STATUS_PANIC with output initialized to zero; no panic unwinds across C"
+      },
+      "panic_boundary": "The status-returning export catches Rust panics; no panic unwinds across C.",
+      "threading": "Synchronous on the caller's thread; no main-thread or broader thread-safety promise is added.",
+      "ownership": {
+        "output": "One required caller-owned valid, properly aligned writable uint8_t for the full synchronous call; initialized to zero before platform handling; caller prevents unsynchronized access; output address is not retained",
+        "native_objects": "B55 retains GKLocalPlayer only within its synchronous read and drops it before return; no GameKit object, player data, callback, or native pointer crosses C"
+      },
+      "api": "GKLocalPlayer.localPlayer and isAuthenticated through ios-game::IosGameCenterBackend; iOS 4.1 API floor; C link minima device/Simulator 10.0/14.0; configured apps require the signed com.apple.developer.game-center entitlement",
+      "limits": "Point-in-time local-player authentication Boolean only; false may reflect an offline temporary player or uninitialized Game Center service; no auth initialization, handler, UI, status observer, identity, profile, game data, or entitlement validation"
     }
   },
   "ownership": {
@@ -116,7 +1894,13 @@
     "FrameworkStr": "borrowed UTF-8 bytes; source must outlive each foreign use",
     "FrameworkOwnedBuffer": {
       "creator_in_core_f1": false,
-      "optional_capability_creators": ["framework_ios_secure_storage_read"],
+      "optional_capability_creators": [
+        "framework_ios_secure_storage_read",
+        "framework_ios_clipboard_read",
+        "framework_ios_preferences_get",
+        "framework_ios_file_provider_operation_poll",
+        "framework_ios_extension_support_read_extension_point_identifier"
+      ],
       "destroyer": "framework_owned_buffer_destroy",
       "rule": "destroy the original unchanged framework-created descriptor once; NULL is a no-op; copied or modified descriptors are invalid"
     },
@@ -129,6 +1913,6 @@
     "reserved_must_be_zero": true,
     "future_sized_struct_check": "an accepting API must check struct_size and abi_version before reading fields; no options-accepting API is exported by this slice"
   },
-  "panic_boundary": "No panic may unwind across C ABI. F1 core exports are arithmetic-only/destructor-only and have no recoverable panic path; optional ios_secure_storage and notification_responses exports catch Rust panics and return FRAMEWORK_STATUS_PANIC where they have a status return.",
-  "static_library_runtime": "framework-abi/std is enabled in this opt-in static library to provide the allocator and panic runtime needed by owned C buffers, notification-response values, and panic containment; framework-abi remains no_std by default for Rust consumers."
+  "panic_boundary": "No panic may unwind across C ABI. F1 core exports are arithmetic-only/destructor-only and have no recoverable panic path; optional ios_secure_storage, notification_responses, ios_transfer, ios_clipboard, ios_share, ios_preferences, ios_media_library_status, ios_spritekit, ios_call_observer, ios_maps, ios_classkit_deep_link, ios_location, ios_file_provider, ios_vision, ios_proximity_reader, ios_crypto, ios_modelio_status, ios_sign_in_with_apple_status, ios_accelerate, ios_key_support, ios_mps_status, ios_videotoolbox, ios_camera_device_status, ios_core_ml_status, ios_speech_status, ios_natural_language_status, ios_extension_support, ios_roomplan_status, ios_storekit2_status, and ios_game_status exports catch Rust panics and return FRAMEWORK_STATUS_PANIC where they have a status return.",
+  "static_library_runtime": "framework-abi/std is enabled in this opt-in static library to provide the allocator and panic runtime needed by owned C buffers, transfer snapshots, clipboard buffers, preferences handles and values, share requests, notification-response values, SpriteKit node handles, location-operation futures and readiness signals, File Provider query futures and callback gates, extension metadata results, RoomPlan status calls, StoreKit 2 status calls, Game Center local-player objects within a synchronous read, and panic containment; framework-abi remains no_std by default for Rust consumers."
 }

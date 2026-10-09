@@ -1,5 +1,12 @@
 # PLAN_SWIFT_ABI_ASYNC_THUNK.md — Workstream C5: Clang Swift Async Thunk Feasibility
 
+## Status
+
+C5 passes `sh interop/swift-abi-core/tests/check-swift-async-thunk.sh`: Clang's host, device, and
+simulator lowering matches the compiler-derived `swifttailcc` entry. The probe does not invoke an
+async entry or establish task-context, executor, resume, or error ownership; no Rust async adapter
+is claimed. Xcode 26.6 / SDK 26.5 remains below the Xcode 27.x plan baseline.
+
 ## Objective
 
 After C4 found that generated C++ headers omit public Swift `async throws` functions, determine whether Clang `swiftasynccall` can reproduce a Swift-compiler-derived async entry lowering for a minimal scalar API

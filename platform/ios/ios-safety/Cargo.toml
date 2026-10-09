@@ -1,0 +1,15 @@
+[package]
+name = "ios-safety"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "iOS Crash Detection availability status query"
+
+[target.'cfg(target_os = "ios")'.dependencies]
+objc2 = { workspace = true, features = ["std"] }
+objc2-safety-kit = { workspace = true, features = ["SACrashDetectionManager"] }
+
+[lints]
+workspace = true

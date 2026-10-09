@@ -1,9 +1,10 @@
 # Outgoing share contract
 
 `framework-sharing` defines portable values and a statically selected backend contract for one
-outgoing share operation. It provides a backend-reported availability query but does not present
-UI or define platform presentation behavior. Lifecycle, privacy, permission, and presentation
-context requirements belong in a platform backend guide.
+outgoing share operation. Its backend-reported, non-presenting availability query may return
+`Availability::Unknown` and does not guarantee that a particular request can be presented or
+completed. This contract does not present UI or define platform presentation behavior. Lifecycle,
+privacy, permission, and presentation context requirements belong in a platform backend guide.
 
 ## Items and ownership
 
@@ -32,25 +33,13 @@ inert, and release callback state exactly once. Rust future drop does not guaran
 dismissal of native work; system share UI may remain visible.
 
 `ShareOutcome::Completed` means the backend reported completion, not that a recipient received or
-used the content. `ShareOutcome::Dismissed` means the backend reported that the user dismissed or
-cancelled the operation. No platform activity identifier or recipient detail is exposed.
+used the content. `ShareOutcome::Dismissed` means the backend reported that the operation was
+dismissed or cancelled without completion; it does not identify an actor or platform-specific
+cause. No platform activity identifier or recipient detail is exposed.
 `ShareError` preserves the framework `ErrorKind` and optional signed native error code.
 
-## iOS backend
-
-The `ios-sharing` crate's `IosShareBackend` uses UIKit `UIActivityViewController` for owned text
-and URL-text items. The caller supplies a live `UIViewController`, a `UIView`, and a `CGRect`
-anchor; the presenter and source view must belong to the same window. Construct, poll, and drop the
-backend on the main thread. iPad presentation uses the explicit popover anchor; other device idioms
-use modal presentation.
-
-The effective API floor is iOS 8.0.
-
-The backend rejects file URLs, and accepted URL text may be normalized by the linked OS. Known
-invalid presentation contexts return bounded errors, but UIKit's presentation call has no error
-callback for an unforeseen refusal or race. Dropping an active future detaches Rust callback state
-but does not dismiss native UI. No live share-sheet behavior, recipient delivery, or parity claim
-is recorded. See the [iOS sharing guide](../ios/sharing.md) for the full API and evidence limits.
+The iOS backend, native presentation requirements, and evidence limits are documented in the
+[iOS sharing guide](../ios/sharing.md).
 
 ## Non-goals
 

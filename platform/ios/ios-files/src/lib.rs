@@ -18,11 +18,19 @@ use std::{
     fs::File,
     io::{self, Read, Write},
     os::{
-        fd::{AsRawFd, FromRawFd},
-        unix::ffi::OsStrExt,
+        fd::{AsRawFd, FromRawFd, IntoRawFd},
+        unix::{ffi::OsStrExt, fs::MetadataExt},
     },
     path::PathBuf,
 };
+
+mod coordination;
+mod path_validation;
+mod security_scope;
+
+pub use coordination::IosFileCoordinator;
+use path_validation::path_parts;
+pub use security_scope::{IosSecurityScopedAccess, SecurityScopeStartError};
 
 /// A caller-owned set of open iOS application-sandbox directory roots.
 ///
@@ -82,32 +90,46 @@ impl IosFiles {
     /// Call this synchronous operation before the URLSession download delegate callback returns.
     /// It validates the destination with the same descriptor-relative, no-follow rules as other
     /// file operations, copies without a payload-sized `Vec` into a private same-directory
-    /// staging file, then commits with one atomic `renameat`. It creates or replaces the final entry;
-    /// a final symlink is replaced rather than followed. The operation does not retain the URL or
-    /// remove the URLSession-owned source file. Only pass the URLSession callback URL; this method
-    /// does not establish containment for arbitrary source file URLs. Atomic visibility does not
-    /// imply crash durability.
+    /// staging file, then commits with one atomic `renameat` after a checked close. It creates or
+    /// replaces the final entry; a final symlink is replaced rather than followed. An existing
+    /// destination that names the same file as the source is rejected. The operation does not
+    /// retain the URL or remove the URLSession-owned source file. Only pass the URLSession callback
+    /// URL; this method does not establish containment for arbitrary source file URLs. It reads
+    /// from one opened source descriptor without coordinating or snapshotting the source, so
+    /// concurrent source mutation through another handle can affect the copied bytes. Atomic
+    /// visibility does not imply crash durability. The alias check is repeated before commit, but
+    /// concurrent destination mutation through another handle is not serialized.
     ///
     /// # Errors
     ///
-    /// Returns an error for an invalid destination, unsafe/missing parent, invalid source URL,
-    /// non-regular source, copy failure, or failed atomic rename. POSIX errors preserve their
-    /// native code. Staging-file cleanup after a copy or rename failure is best-effort.
+    /// Returns an error for an invalid destination, unsafe/missing parent, source/destination
+    /// alias, invalid source URL, non-regular source, copy or close failure, or failed atomic
+    /// rename. POSIX errors preserve their native code. Staging-file cleanup after a copy, close,
+    /// alias-check, or rename failure is best-effort.
     pub fn adopt_url_session_download(
         &mut self,
         temporary_file_url: &NSURL,
         destination: AppPath<'_>,
     ) -> Result<WriteOutcome, FileError> {
-        let parts = path_parts(destination)?;
+        let parts = path_parts(destination.relative())?;
         let root = self.root(destination.directory())?;
         let (parent, leaf) = open_parent(root, &parts)?;
         let mut source = open_url_session_temporary_file(temporary_file_url)?;
+        reject_source_alias(&source, &parent, &leaf)?;
         let (staging_name, mut staging_file) = self.temporary_file(&parent)?;
         let copy_result = io::copy(&mut source, &mut staging_file);
-        drop(staging_file);
+        let close_result = close_file(staging_file);
         if let Err(error) = copy_result {
             unlink_if_present(&parent, &staging_name);
             return Err(file_error(error));
+        }
+        if let Err(error) = close_result {
+            unlink_if_present(&parent, &staging_name);
+            return Err(file_error(error));
+        }
+        if let Err(error) = reject_source_alias(&source, &parent, &leaf) {
+            unlink_if_present(&parent, &staging_name);
+            return Err(error);
         }
         if let Err(error) = rename_at(&parent, &staging_name, &leaf) {
             unlink_if_present(&parent, &staging_name);
@@ -177,7 +199,7 @@ impl FileBackend for IosFiles {
     }
 
     fn read(&mut self, path: AppPath<'_>) -> Result<Vec<u8>, FileError> {
-        let parts = path_parts(path)?;
+        let parts = path_parts(path.relative())?;
         let (parent, leaf) = open_parent(self.root(path.directory())?, &parts)?;
         // SAFETY: `parent` is an open directory descriptor and `leaf` is one validated component.
         let fd = unsafe {
@@ -206,9 +228,12 @@ impl FileBackend for IosFiles {
         bytes: &[u8],
         options: WriteOptions,
     ) -> Result<WriteOutcome, FileError> {
-        let parts = path_parts(path)?;
+        let parts = path_parts(path.relative())?;
         let (parent, leaf) = open_parent(self.root(path.directory())?, &parts)?;
         let mode = options.mode();
+        if mode == FileWriteMode::ReplaceExisting {
+            require_regular_file(&parent, &leaf)?;
+        }
         let atomic_supported = match mode {
             FileWriteMode::CreateOrReplace => true,
             FileWriteMode::CreateNew => self.volume_supports_exclusive_rename(path.directory()),
@@ -233,6 +258,13 @@ impl FileBackend for IosFiles {
             return Err(file_error(error));
         }
         drop(temporary_file);
+
+        if mode == FileWriteMode::ReplaceExisting {
+            if let Err(error) = require_regular_file(&parent, &leaf) {
+                unlink_if_present(&parent, &temporary_name);
+                return Err(error);
+            }
+        }
 
         let rename_result = match mode {
             FileWriteMode::CreateOrReplace => rename_at(&parent, &temporary_name, &leaf),
@@ -260,7 +292,7 @@ impl FileBackend for IosFiles {
     }
 
     fn create_directory(&mut self, path: AppPath<'_>) -> Result<(), FileError> {
-        let parts = path_parts(path)?;
+        let parts = path_parts(path.relative())?;
         let (parent, leaf) = open_parent(self.root(path.directory())?, &parts)?;
         // SAFETY: `parent` is an open directory descriptor and `leaf` is one validated component.
         let result = unsafe { libc::mkdirat(parent.as_raw_fd(), leaf.as_ptr(), 0o700) };
@@ -272,7 +304,7 @@ impl FileBackend for IosFiles {
     }
 
     fn read_directory(&mut self, path: AppPath<'_>) -> Result<Vec<DirectoryEntry>, FileError> {
-        let parts = path_parts(path)?;
+        let parts = path_parts(path.relative())?;
         let directory = open_directory(self.root(path.directory())?, &parts).map_err(file_error)?;
         // `fdopendir` takes ownership of its descriptor, so duplicate the borrowed directory fd.
         // SAFETY: `directory` is a valid open descriptor.
@@ -331,7 +363,7 @@ impl FileBackend for IosFiles {
     }
 
     fn remove_file(&mut self, path: AppPath<'_>) -> Result<(), FileError> {
-        let parts = path_parts(path)?;
+        let parts = path_parts(path.relative())?;
         let (parent, leaf) = open_parent(self.root(path.directory())?, &parts)?;
         // SAFETY: `parent` is open and `leaf` is a single validated component. `unlinkat` does not
         // follow a final symlink.
@@ -344,7 +376,7 @@ impl FileBackend for IosFiles {
     }
 
     fn remove_directory(&mut self, path: AppPath<'_>) -> Result<(), FileError> {
-        let parts = path_parts(path)?;
+        let parts = path_parts(path.relative())?;
         let (parent, leaf) = open_parent(self.root(path.directory())?, &parts)?;
         // SAFETY: `parent` is open and `leaf` is a single validated component. `AT_REMOVEDIR`
         // removes one empty directory and does not follow a final symlink.
@@ -358,7 +390,7 @@ impl FileBackend for IosFiles {
     }
 
     fn exists(&mut self, path: AppPath<'_>) -> Result<bool, FileError> {
-        let parts = path_parts(path)?;
+        let parts = path_parts(path.relative())?;
         let (parent, leaf) = open_parent(self.root(path.directory())?, &parts)?;
         let mut metadata = std::mem::MaybeUninit::<libc::stat>::uninit();
         // SAFETY: `parent` is open, `leaf` is one validated component, and `metadata` is writable.
@@ -479,25 +511,6 @@ fn open_url_session_temporary_file(url: &NSURL) -> Result<File, FileError> {
     })
 }
 
-fn path_parts(path: AppPath<'_>) -> Result<Vec<CString>, FileError> {
-    let text = path.relative();
-    if text.is_empty()
-        || text.starts_with('/')
-        || text.ends_with('/')
-        || text.bytes().any(|byte| byte == 0 || byte == b'\\')
-    {
-        return Err(FileError::InvalidPath);
-    }
-    text.split('/')
-        .map(|part| {
-            if part.is_empty() || part == "." || part == ".." {
-                return Err(FileError::InvalidPath);
-            }
-            CString::new(part).map_err(|_| FileError::InvalidPath)
-        })
-        .collect()
-}
-
 fn open_parent(root: &File, parts: &[CString]) -> Result<(File, CString), FileError> {
     let (leaf, parents) = parts.split_last().ok_or(FileError::InvalidPath)?;
     Ok((
@@ -548,6 +561,43 @@ fn entry_kind(parent_fd: libc::c_int, name: &CStr) -> io::Result<FileKind> {
         libc::S_IFDIR => FileKind::Directory,
         _ => FileKind::Other,
     })
+}
+
+fn require_regular_file(parent: &File, name: &CStr) -> Result<(), FileError> {
+    match entry_kind(parent.as_raw_fd(), name).map_err(file_error)? {
+        FileKind::File => Ok(()),
+        _ => Err(backend_error(ErrorKind::InvalidInput, None)),
+    }
+}
+
+fn reject_source_alias(source: &File, parent: &File, target: &CStr) -> Result<(), FileError> {
+    let source_metadata = source.metadata().map_err(file_error)?;
+    let mut target_metadata = std::mem::MaybeUninit::<libc::stat>::uninit();
+    // SAFETY: `parent` is open, `target` is one validated component, and the output is writable.
+    let result = unsafe {
+        libc::fstatat(
+            parent.as_raw_fd(),
+            target.as_ptr(),
+            target_metadata.as_mut_ptr(),
+            libc::AT_SYMLINK_NOFOLLOW,
+        )
+    };
+    if result < 0 {
+        let error = io::Error::last_os_error();
+        if error.raw_os_error() == Some(libc::ENOENT) {
+            return Ok(());
+        }
+        return Err(file_error(error));
+    }
+    // SAFETY: successful `fstatat` initialized the structure.
+    let target_metadata = unsafe { target_metadata.assume_init() };
+    if u64::try_from(target_metadata.st_dev).ok() == Some(source_metadata.dev())
+        && source_metadata.ino() == target_metadata.st_ino
+    {
+        Err(backend_error(ErrorKind::InvalidInput, None))
+    } else {
+        Ok(())
+    }
 }
 
 fn write_create_new(
@@ -627,6 +677,16 @@ fn rename_at(parent: &File, source: &CString, target: &CString) -> io::Result<()
     }
 }
 
+fn close_file(file: File) -> io::Result<()> {
+    let fd = file.into_raw_fd();
+    // SAFETY: ownership of this descriptor was transferred from `File` and it is closed once.
+    if unsafe { libc::close(fd) } < 0 {
+        Err(io::Error::last_os_error())
+    } else {
+        Ok(())
+    }
+}
+
 fn rename_atx(
     parent: &File,
     source: &CString,
@@ -680,6 +740,7 @@ fn file_error(error: io::Error) -> FileError {
         Some(value)
             if value == libc::EINVAL
                 || value == libc::ENOTDIR
+                || value == libc::EISDIR
                 || value == libc::ELOOP
                 || value == libc::ENAMETOOLONG =>
         {

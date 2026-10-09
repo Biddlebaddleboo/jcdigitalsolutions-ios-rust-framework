@@ -1,0 +1,17 @@
+[package]
+name = "ios-watch-connectivity"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "Status-only Watch Connectivity support query for iOS"
+
+[dependencies]
+framework-watch-connectivity = { path = "../../../crates/framework-watch-connectivity" }
+
+[target.'cfg(target_os = "ios")'.dependencies]
+objc2-watch-connectivity = { workspace = true, features = ["WCSession"] }
+
+[lints]
+workspace = true

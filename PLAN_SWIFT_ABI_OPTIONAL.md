@@ -1,5 +1,12 @@
 # PLAN_SWIFT_ABI_OPTIONAL.md — Workstream C3: Swift Optional String Boundary Proof
 
+## Status
+
+C3 passes `sh interop/swift-abi-core/tests/check-swift-optional-cxx.sh`. The host path distinguishes
+`none` from `some` empty and preserves exact UTF-8 fixtures; device/simulator Swift, C++, and Rust
+object checks pass without target execution or link. This is not a production Optional adapter or a
+stable cross-toolchain C++ ABI. Xcode 26.6 / SDK 26.5 remains below the Xcode 27.x plan baseline.
+
 ## Objective
 
 Determine whether the active Swift compiler can expose `Optional<String>` through a generated C++ header, then reach it from Rust through a fixed-width C ABI shim

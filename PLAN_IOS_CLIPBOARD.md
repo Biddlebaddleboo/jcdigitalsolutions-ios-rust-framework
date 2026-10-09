@@ -1,5 +1,66 @@
 # PLAN_IOS_CLIPBOARD.md — Workstream B6: iOS Plain-Text Clipboard Backend
 
+## Status
+
+B6's UIKit clipboard backend and deterministic host seam are implemented. The backend retains a
+typed `MainThread` proof, uses `PhantomData<Rc<()>>` to remain `!Send`, and performs read, write, and
+clear only on first future poll. Read checks `hasStrings`, copies the first `strings` value into an
+owned Rust `String`, returns `None` only for no string type, and maps conversion or native races to
+`ClipboardError::Backend`. Write assigns `string`; clear assigns an empty `items` array, replacing
+all pasteboard items. `availability()` is `Unknown`: UIKit exposes no query for current
+programmatic-read usability or approval, and `Unknown` does not mean `RequiresPermission`. The B6
+backend has no callback, queue, executor, or worker-thread path.
+
+Deterministic host tests passed with
+`cargo test --locked --offline -p ios-sharing --no-default-features --features clipboard` (four
+clipboard tests). The full crate tests passed with `cargo test --locked --offline -p ios-sharing`
+(fourteen tests across the clipboard and separate share module, including two later B7 callback
+completion-state tests). The clipboard tests cover UTF-8
+conversion, backend-error propagation, unpolled drop, first-poll start, and single execution; they
+never access the developer's pasteboard. `cargo fmt --all -- --check` and `git diff --check` pass.
+
+Default crate device and simulator checks passed with
+`cargo check --locked --offline -p ios-sharing --target aarch64-apple-ios` and
+`cargo check --locked --offline -p ios-sharing --target aarch64-apple-ios-sim`. Strict Clippy passed
+with `cargo clippy --locked --offline --all-targets -p ios-sharing --target aarch64-apple-ios -- -D warnings`
+and
+`cargo clippy --locked --offline --all-targets -p ios-sharing --target aarch64-apple-ios-sim -- -D warnings`.
+The isolated clipboard-only feature also passed device and simulator checks with
+`cargo check --locked --offline -p ios-sharing --no-default-features --features clipboard --target aarch64-apple-ios` and
+`cargo check --locked --offline -p ios-sharing --no-default-features --features clipboard --target aarch64-apple-ios-sim`; its strict Clippy checks also passed on both targets.
+
+A temporary link-only consumer under ignored `target/b6-link-probe` used
+`default-features = false, features = ["clipboard"]`. Device and simulator Release builds passed
+with `IPHONEOS_DEPLOYMENT_TARGET=10.0 cargo build --offline --manifest-path target/b6-link-probe/Cargo.toml --release --target aarch64-apple-ios` and
+`IPHONEOS_DEPLOYMENT_TARGET=10.0 cargo build --offline --manifest-path target/b6-link-probe/Cargo.toml --release --target aarch64-apple-ios-sim`. `otool -L` on each binary showed UIKit, Foundation, `libobjc.A`, and `libSystem.B`, with no Swift runtime or unrelated framework. The device binary records minos 10.0; the simulator records minos 14.0. Binary strings include `UIPasteboard`, `hasStrings`, `setString:`, and `setItems:`; no `UIActivityViewController` or `UIActivity` symbol appears in this clipboard-only consumer. These binaries were not run.
+
+The Xcode 26.6 / iPhoneOS and iPhoneSimulator SDK 26.5 headers mark `UIPasteboard` and its `items`
+property available from iOS 3.0 and `hasStrings` from iOS 10.0; B6's effective floor is iOS 10.0.
+Apple documents a notice from iOS 14 when another app's general-pasteboard content is read without
+user intent, and an approval alert for programmatic pasting in iOS 16 and later; `UIPasteControl`
+is out of scope. Public headers and reviewed Apple docs specify no usage-description key or
+entitlement for this path; that is not a query for, or guarantee about, OS privacy UI. No device or
+simulator clipboard action, privacy prompt, or live pasteboard behavior was tested. The host Xcode
+26.6 / SDK 26.5 is below the planned Xcode 27.x baseline.
+
+The B6-only Release link/import/minos gate `sh platform/ios/ios-sharing/check-clipboard-link-imports.sh`
+is wired into macOS CI; it disables default features and selects only `clipboard`, then links a
+Release probe for device minos 10.0 and
+simulator minos 14.0. It checks exact direct imports `Foundation`, `UIKit`, `libSystem.B.dylib`, and
+`libobjc.A.dylib`, plus `UIPasteboard`, `generalPasteboard`, `hasStrings`, `strings`, `firstObject`,
+`dataUsingEncoding:`, `setString:`, and `setItems:` markers; it rejects
+share-only and Swift/Python symbols and verifies minos with `vtool`. The gate builds and inspects but
+does not execute the probe. The updated gate passed in the integrated checkout; direct imports are
+exactly Foundation, UIKit, `libSystem.B.dylib`, and `libobjc.A.dylib`, with minos 10.0 on device and
+14.0 on Simulator. It asserts `generalPasteboard`, `strings`, `firstObject`, and
+`dataUsingEncoding:` along with the type-preflight/write/clear markers. The CI step is present, but
+no passing workflow run is recorded.
+
+The package default feature set also includes the separate B7 `share` backend; both the B6 gate and
+F6 C ABI gate disable default features and select `clipboard`. No live pasteboard action, privacy
+prompt, or user-facing clipboard behavior was tested. G113 records this compile/link/import gate;
+the probes were not executed. No commit was created, per task scope.
+
 ## Objective
 
 Implement `framework-sharing::ClipboardBackend` on iOS with public UIKit `UIPasteboard` APIs, no Swift source, no global registry, and no mandatory executor.
@@ -28,8 +89,9 @@ Implement `framework-sharing::ClipboardBackend` on iOS with public UIKit `UIPast
 - `platform/ios/ios-sharing/**`
 - `docs/ios/sharing.md`
 - capability-specific tests owned by `ios-sharing`
+- `platform/ios/ios-sharing/examples/clipboard_link_check.rs` and `platform/ios/ios-sharing/check-clipboard-link-imports.sh`
 
-Do not edit portable clipboard semantics, root workspace files, `Cargo.lock`, the shared capability manifest, global CI, C bindings, Swift ABI, or share-sheet APIs. The orchestrator owns workspace dependency features, lockfile resolution, capability manifest, and CI integration.
+Do not edit portable clipboard semantics, root workspace files, `Cargo.lock`, the shared capability manifest, C bindings, Swift ABI, or share-sheet APIs. The orchestrator owns workspace dependency features, lockfile resolution, capability manifest, and CI integration; it may wire this package-local validation gate into CI as a separate root integration step.
 
 ## Backend requirements
 
@@ -55,7 +117,7 @@ Do not edit portable clipboard semantics, root workspace files, `Cargo.lock`, th
 
 - Add deterministic host tests for conversion and operation/future behavior with a fake or isolated seam; do not rely on the live system pasteboard.
 - Run `cargo fmt --all -- --check`, `cargo test -p ios-sharing`, `cargo check --locked -p ios-sharing --target aarch64-apple-ios`, the matching simulator check, Clippy with `-D warnings` for both targets, and `git diff --check` where the SDK is available.
-- Link minimal device and simulator consumers and inspect imports; confirm UIKit/Foundation only as required, with no Swift runtime or unrelated framework.
+- Run `sh platform/ios/ios-sharing/check-clipboard-link-imports.sh` to build and inspect the clipboard-only Release probes, direct imports, selectors, and device/simulator minos; do not execute the probes.
 - Record exact compile/link evidence separately from any simulator privacy prompt or manual paste check. Do not claim live user-pasteboard behavior, permission UX, parity, or performance without direct evidence.
 
 ## Handoff

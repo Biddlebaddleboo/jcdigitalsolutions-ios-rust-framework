@@ -14,6 +14,39 @@ Planning set generated against repository:
 
 This plan is authoritative for V1 implementation. At the planning baseline, the repository held architecture and research docs only. The current checkout has a Cargo workspace, portable foundation, tooling, selected capability contracts and iOS backends, bindings, and validation. Unimplemented paths remain proposed additions; see the workstream plans and capability status manifest for current scope.
 
+In the capability manifest, `X` means no supported Rust facade and iOS backend exist in the current workstream for that row. It does not mean Apple's API is unavailable or that Rust cannot call it; some rows await a bounded contract, an implementation, or platform evidence. The row's `status_reason` records the known gap.
+
+Current integrated matrix: 85 of 113 rows are partial (`B`) (75.2% row coverage); 28 remain `X`, all with specific scope or toolchain gaps. This is row coverage, not whole-plan completion: no capability family is fully complete. HealthKit exposes only availability and explicit authorization-request flow; Bluetooth exposes authorization status and bounded foreground central discovery; camera exposes authorization status and default-video-device presence only, while microphone exposes authorization status only; NFC exposes reader support only; Nearby Interaction exposes one device-capability query; App Tracking Transparency exposes calling-app authorization status only; Metal exposes system-default device-object presence only; MPS exposes preferred-device presence only; Accelerate exposes single-precision vector addition through vDSP only; ModelIO exposes the extension-level `MDLAsset.canImportFileExtension` query only; Security/auth exposes CommonCrypto SHA-256, P-256 public-key algorithm suitability, and prior-user Sign in with Apple credential state only; DeviceCheck/App Attest expose API support only; WatchConnectivity exposes session-object support only; ExternalAccessory exposes app-visible connected-list presence only; ReplayKit exposes legacy recorder availability only; SoundAnalysis exposes built-in classifier recognition only; Core ML exposes compute-device-list non-emptiness only; Vision exposes one text-recognition revision-support query only; Speech exposes a saved authorization-status snapshot only; NaturalLanguage exposes one English contextual-model asset-status query only; other-audio status exposes only whether any other app is playing audio; HDR playback exposes only system eligibility; MessageUI and SharedWithYou expose status bits only; Apple Pay exposes general device capability only; VideoToolbox exposes hardware-decode support by codec only; CloudKit exposes a one-shot account-status snapshot only; CallKit exposes call count and aggregate state flags only; ClassKit exposes an incoming-activity deep-link marker only; MapKit exposes finite point conversion and distance only; SafetyKit exposes Crash Detection device support only; ARKit exposes one world-tracking configuration-support query only; GameKit exposes a local-player authentication snapshot only; StoreKit exposes a deprecated legacy purchase-ability bit and the StoreKit 2 `AppStore.canMakePayments` status; RoomPlan exposes only its iOS device-support predicate; ProximityReader exposes only the Tap to Pay device-model predicate; WebKit exposes one bounded HTTPS view/navigation slice; SafariServices exposes one host-presented `SFSafariViewController` constructor for HTTPS only; Apple Music exposes MediaPlayer library authorization status only; iCloud exposes iCloud Drive identity-token presence only; SpriteKit exposes finite parent-local `SKNode.position` get/set only; FileProvider exposes only registered-domain presence for the caller app's own extension. B79 implements a narrow Personal VPN profile-status snapshot after preference load, preserving all six states and native load errors under `com.apple.developer.networking.vpn.api = ["allow-vpn"]`; provider and system-wide VPN support remain unsupported. See `PLAN_IOS_VPN_STATUS.md`. B78 implements an entitlement-scoped credential-state query for one prior Sign in with Apple user ID; passkeys, general sign-in readiness, and the original non-entitled scope remain unsupported; see `PLAN_CAPABILITIES_PASSKEYS.md`. FamilyControls exposes a main-queue-only Swift authorization-status property, but no supported Rust binding or clear query-only entitlement semantics are established; see `PLAN_CAPABILITIES_FAMILY_CONTROLS_STATUS.md`. Foundation Models has only a Swift status property with no C/Objective-C entry point; DeviceActivity has a callable Objective-C authorization getter whose meaning and entitlement semantics are undocumented. See `PLAN_CAPABILITIES_FOUNDATION_MODELS.md` and `PLAN_CAPABILITIES_DEVICE_ACTIVITY.md`. TipKit exposes only Swift per-tip eligibility, not a global readiness or presentation result; see `PLAN_CAPABILITIES_TIPKIT.md`. AdAttributionKit has a Swift-only status query and AdServices token generation is network-dependent; see `PLAN_CAPABILITIES_AD_ATTRIBUTION.md`. Thread has only an entitlement-gated preferred-network query, not local-radio or border-router status; see `PLAN_CAPABILITIES_THREAD.md`. DockKit has Swift-only setting and event surfaces without an integrated Swift ABI path; see `PLAN_CAPABILITIES_DOCKKIT.md`. WeatherKit native calls are Swift-only and its REST route needs trusted server-signed tokens plus a typed response/attribution contract; RealityKit view construction alone exposes no useful scene/entity operations. See `PLAN_CAPABILITIES_WEATHERKIT.md` and `PLAN_CAPABILITIES_REALITYKIT.md`. B79 implements only a read-only caller-app Personal VPN profile-status snapshot with the `allow-vpn` entitlement; provider, tunnel-control, and global VPN surfaces remain unsupported; see `PLAN_CAPABILITIES_NETWORK_EXTENSION.md`. PushToTalk has no standalone support query and needs entitlement, APNs, microphone, channel, and audio lifecycle; CarPlay has no general availability query outside an entitled scene/session. See `PLAN_CAPABILITIES_PUSHTOTALK.md` and `PLAN_CAPABILITIES_CARPLAY.md`. HomeKit's authorization status is an instance query whose first manager use can prompt, so no prompt-free status facade is claimed. None is full capability-family support.
+
+B78 implements a narrow, entitlement-scoped Sign in with Apple credential-state query for one prior user ID; row 021 is now partial (`B`), not passkey or general sign-in support. See `PLAN_CAPABILITIES_SIGN_IN_WITH_APPLE_STATUS.md`. B77 reads one extension point identifier from an explicit caller-supplied `.appex` path; row 113 is now partial (`B`), not build-host plist or App Intents support. See `PLAN_IOS_EXTENSION_SUPPORT.md`. D85/B75 implements a narrow caller-app FileProvider registered-domain snapshot in `ios-file-provider`; its host/device/Simulator checks, strict Clippy, rustdoc, and link/import gate passed, while probes were inspected but not executed. Row 099 is now partial (`B`), not full FileProvider support. See `PLAN_CAPABILITIES_FILEPROVIDER.md`. D86 found the ExtensionFoundation inventory query is Swift-only and host-scoped, while ExtensionKit UI needs host and extension lifecycle; row 100 remains `X`. D87 found ContactProvider status is Swift-only, and enablement plus extension setup do not form a bounded Rust-callable query; row 102 remains `X`. D88 found BrowserEngineKit bindings exist, but useful browser processes need approved regional entitlements, extension lifecycles, and XPC; row 101 remains `X`. D89 found ManagedApp/ManagedAppDistribution are Swift-only and provide no generic managed-device status; row 103 remains `X`. D90 found MarketplaceKit installation-source and region queries are async Swift-only and do not establish entitlement, approval, or distribution readiness; row 104 remains `X`. D91 found MatterSupport’s narrow API-support query is Swift-only and does not establish setup readiness; row 105 remains `X`. D92 found SecureElementCredential’s Swift-only eligibility check requires the same entitlement it would need to assess and is not generic Secure Element or NFC support; row 106 remains `X`. D93 found no generic CarKey support query and its Swift API requires an MFi-limited entitlement and active Wallet vehicle session; row 107 remains `X`. D94 found no pre-existing Rust route for the Swift-only ProximityReader getter; B76 now calls only that iPhone model predicate through a compiler-derived C `swiftcall` thunk, without claiming payment-readiness. Row 108 is partial (`B`). D95 found LockedCameraCapture exposes extension session and content handoff lifecycle, not a general support or readiness query; row 109 remains `X`. D96 identified public Foundation/CoreFoundation Info.plist readers; B77 now implements only a caller-selected runtime read of `NSExtension.NSExtensionPointIdentifier`, so row 113 is partial (`B`) while build-host plist generation and `.appext` remain unsupported. D97 found no proven WidgetKit Rust call path, D98 matched ActivityKit compiler ABI signatures but not the owned-value link/runtime boundary, and D99 reconfirmed C7 has no documented stable App Intents metadata input or processor contract; rows 110–112 remain `X`. See `PLAN_CAPABILITIES_EXTENSIONKIT.md`, `PLAN_CAPABILITIES_CONTACTPROVIDER.md`, `PLAN_CAPABILITIES_BROWSERENGINEKIT.md`, `PLAN_CAPABILITIES_MANAGEDAPP.md`, `PLAN_CAPABILITIES_MARKETPLACEKIT.md`, `PLAN_CAPABILITIES_MATTERSUPPORT.md`, and `PLAN_CAPABILITIES_SECURE_ELEMENT_CREDENTIAL.md`, `PLAN_CAPABILITIES_CARKEY.md`, and `PLAN_CAPABILITIES_PROXIMITYREADER.md`, `PLAN_CAPABILITIES_LOCKED_CAMERA_CAPTURE.md`, `PLAN_CAPABILITIES_EXTENSION_BUNDLE_METADATA.md`, `PLAN_CAPABILITIES_WIDGETKIT.md`, `PLAN_CAPABILITIES_ACTIVITYKIT.md`, and `PLAN_CAPABILITIES_APP_INTENTS.md`. B76 is implemented in `platform/ios/ios-proximity-reader`; its focused gate passed and it reports only the device-model predicate. F25 now exposes B50's `VTIsHardwareDecodeSupported` predicate through the opt-in `ios-videotoolbox` C ABI. This adds no capability row or decoder-session support; device and Simulator links require minos 11.0 and 14.0, and no linked consumer/probe or live query ran. F26 now exposes B62's default video-capture-device presence through the opt-in `ios-camera-device-status` C ABI. This adds no capability row and does not query authorization, configure capture, or establish readiness; its runtime-guarded API floor is iOS 4.0, while device and Simulator probe minima are 10.0 and 14.0. No linked consumer, probe, or camera query ran. F27 now exposes B56's nonempty Core ML available-compute-device list through the opt-in `ios-core-ml-status` C ABI. This adds no capability row and does not load models, run inference, or guarantee operation support; the API floor is iOS 17.0, while measured device and Simulator link minima are 11.0 and 14.0. Static/build and native link/import gates passed; no linked consumer or probe ran.
+
+F28 exposes B58's saved Speech authorization code through the opt-in `ios-speech-status` C ABI. It preserves signed unknown values, does not request permission or process audio, and adds no capability row. Its API floor and device link minos are iOS 10.0; Simulator minos is 14.0. The C11/C++17 link/import gates passed locally, but consumers and probes were not executed. See `PLAN_BINDINGS_F28.md`.
+
+F29 exposes B59's English contextual-model asset state through the opt-in `ios-natural-language-status` C ABI. It maps five Rust states to fixed `uint32_t` codes; it does not load a model, accept text, calculate vectors, or request assets. The API floor and device/Simulator link minos are iOS 17.0. C11/C++17 link/import gates passed locally; consumers and probes were not executed. See `PLAN_BINDINGS_F29.md`.
+
+F30 exposes B77's caller-selected `.appex` extension-point metadata read through the opt-in
+`ios-extension-support` C ABI. Host/device/Simulator C11/C++17 link/import gates passed; the API
+floor is iOS 4.0 and measured link minos are 12.0/14.0. No extension load or launch is exposed.
+F31 exposes B61's `RoomCaptureSession.isSupported` result through an opt-in `ios-roomplan-status`
+C ABI with an iOS 16.0 deployment floor. Its host/device/Simulator static/build and C/C++
+link/import gates passed: host imports only libSystem, while device/Simulator import RoomPlan and
+libSystem at minos 16.0 with the required public RoomCaptureSession symbols. Consumers and probes
+were not executed. Neither binding changes capability-row coverage. See `PLAN_BINDINGS_F30.md` and
+`PLAN_BINDINGS_F31.md`.
+
+F32 exposes B63's StoreKit 2 `AppStore.canMakePayments` value through one opt-in C Boolean. Its API and
+weak-symbol floor is iOS 15.0; Release C/C++ links pass with weak StoreKit and `libSystem.B.dylib` imports
+and minos 10.0/14.0. The absent-symbol fallback has no runtime check below iOS 15.0. F33 exposes B55's
+momentary Game Center local-player authentication value; its SDK API floor is iOS 4.1, with Foundation,
+GameKit, `libSystem.B.dylib`, and `libobjc.A.dylib` imports at minos 10.0/14.0. The signed app needs the
+`com.apple.developer.game-center` entitlement. Both gates pass locally; consumers were not executed, and
+neither binding changes capability-row coverage. See `PLAN_BINDINGS_F32.md` and `PLAN_BINDINGS_F33.md`.
+
+The app-data follow-up adds `IosSecurityScopedAccess` to balance one successful Foundation
+security-scope start/stop pair for an already-scoped file URL. It adds no picker, bookmark
+resolution, arbitrary file access, or provider lifecycle; row 014 remains partial. See
+`PLAN_IOS_SECURITY_SCOPED_ACCESS.md`.
+
 ## Objective
 
 Implement the first complete iOS backend of a reusable, high-level, platform-agnostic native application framework primarily in Rust, with:
@@ -106,11 +139,13 @@ crates/
   framework-abi/
   framework-platform/
   framework-app/
+  framework-data/
   framework-ui/
   framework-files/
   framework-preferences/
   framework-secure-storage/
   framework-network/
+  framework-connectivity/
   framework-notifications/
   framework-location/
   framework-bluetooth/
@@ -118,6 +153,7 @@ crates/
   framework-camera/
   framework-audio/
   framework-media/
+  framework-media-authorization/
   framework-photos/
   framework-contacts/
   framework-calendar/
@@ -139,6 +175,7 @@ crates/
   framework-nearby/
   framework-home/
   framework-accessory/
+  framework-watch-connectivity/
   framework-documents/
   framework-sharing/
   framework-payments/
@@ -156,18 +193,19 @@ platform/
   ios/
     ios-runtime/
     ios-ui/
-    ios-files/
+    ios-files/                          # B1 sandbox backend, B14 URLSession file adoption, B17 file coordination
     ios-preferences/
     ios-secure-storage/
     ios-network/
-    ios-transfer/                       # proposed B13; gated on D10
+    ios-transfer/                       # B13 background URLSession backend; D10 portable contract integrated
     ios-notifications/
     ios-location/
     ios-bluetooth/
-    ios-motion/
+    ios-motion/                         # B15 one-shot Core Motion backend; D11 portable contract integrated
     ios-camera/
     ios-audio/
     ios-media/
+    ios-media-authorization/
     ios-photos/
     ios-contacts/
     ios-calendar/
@@ -189,6 +227,7 @@ platform/
     ios-nearby/
     ios-home/
     ios-accessory/
+    ios-watch-connectivity/
     ios-documents/
     ios-sharing/
     ios-payments/
@@ -361,7 +400,187 @@ Owns:
 - capability-specific rustdoc/guides;
 - full capability coverage matrix.
 
-Capability modules may be implemented in parallel after their shared contracts are approved.
+Capability modules may be implemented in parallel after their shared contracts are approved. D15
+is the separate informational network-path snapshot contract in
+`PLAN_CAPABILITIES_CONNECTIVITY.md`; B18 implements its iOS backend in
+`PLAN_IOS_CONNECTIVITY.md`. It does not expand D1/B3 HTTP or promise endpoint reachability.
+D19 adds a bounded outbound TLS-over-TCP byte-stream contract in
+`PLAN_CAPABILITIES_CONNECTION.md`, and B24 implements it through Network.framework C APIs in
+`PLAN_IOS_CONNECTION.md`; listeners, UDP, and endpoint preflight remain out of scope. D20 adds a
+synchronous app-refresh contract in `PLAN_CAPABILITIES_BACKGROUND_TASKS.md`, and B25 implements
+one `BGAppRefreshTask` path in `PLAN_IOS_BACKGROUND_TASKS.md`; scheduling remains OS-controlled,
+and host task identifiers and background-mode metadata remain app-owned. D21/B26 adds portable
+image-source dimensions/count and a metadata-only ImageIO path; D22/B27 adds Photos read/write
+authorization only, with `Limited` distinct from `Authorized`. D23/B28 adds one UIKit
+background-execution lease with cooperative expiry and explicit end; it does not promise extra
+runtime, future launch, or work completion, and app extensions are unsupported. D24/B29 adds Contacts
+authorization status and request only, preserving `Limited` separately from full access and leaving
+enumeration, fetch, edits, and picker UI out of scope. D25/B30 adds EventKit Calendar event-authorization
+status and an explicit full-access request for iOS 17.0+, preserving `WriteOnly` separately from
+`FullAccess` and excluding event/reminder data operations. These bounded slices do not claim full
+platform parity.
+
+D28/B33 adds a platform-exclusive HTTPS URL contract and a bounded typed `WKWebView` adapter for
+navigation controls. It does not add browser parity, JavaScript, arbitrary file/HTML/data loading,
+subresource confinement, or a page-load guarantee. See `PLAN_CAPABILITIES_WEB.md` and
+`PLAN_IOS_WEB.md`.
+
+D29/B34 adds explicit unfiltered foreground central discovery, copied peer UUID/RSSI values, and a
+fixed 32-event queue; the scan may prompt, starts asynchronously, and has no background-delivery
+guarantee. No connection, advertisement, peripheral operations, or radio control are included. See
+`PLAN_CAPABILITIES_BLUETOOTH.md`, `PLAN_IOS_BLUETOOTH.md`, and
+`PLAN_IOS_BLUETOOTH_DISCOVERY.md`.
+
+D30/B35 adds a presence-only snapshot of
+`NSFileManager.ubiquityIdentityToken`; it does not expose the token or prove container access,
+synchronization, or CloudKit account status. See `PLAN_CAPABILITIES_ICLOUD_DRIVE_IDENTITY.md` and
+`PLAN_IOS_ICLOUD_DRIVE_IDENTITY.md`.
+
+D47/B52 exposes one owned CloudKit account-status snapshot from the app's default `CKContainer`. It
+does not return account identity, access records or databases, observe account changes, or prove
+configured container access. It requires the signed app's CloudKit container/service entitlements;
+dropping its Rust future abandons interest but cannot cancel the native query. See
+`PLAN_CAPABILITIES_CLOUDKIT_ACCOUNT_STATUS.md` and `PLAN_IOS_CLOUDKIT_ACCOUNT_STATUS.md`.
+
+D48/B53 exposes only SafetyKit's point-in-time Crash Detection device-support bit; it does not
+claim app entitlement or authorization, receive crash events, or provide emergency response. The
+getter-specific entitlement prerequisite remains unverified. D49/B54 exposes only the system's
+support result for an ARKit world-tracking configuration; it does not create a session, access the
+camera, request camera permission, or establish active tracking. D50/B55 exposes only a synchronous
+Game Center local-player authentication snapshot; it does not initialize authentication, show UI,
+observe status changes, or expose identity/game data. See the D48–D77 and B53–B73 plans for exact
+scope and evidence limits.
+
+D51/B56 exposes only whether Core ML's `MLModel.availableComputeDevices` list is nonempty on iOS
+17.0+. It loads no model, runs no inference, returns no compute-device objects, and does not
+guarantee that any particular model or operation can run. See
+`PLAN_CAPABILITIES_COREML.md` and `PLAN_IOS_COREML.md`.
+
+D52/B57 exposes whether a caller-supplied revision is present in
+`VNRecognizeTextRequest.supportedRevisions` from iOS 13.0. It creates no request, reads no image,
+and does not establish recognition success or model readiness. See `PLAN_CAPABILITIES_VISION.md`
+and `PLAN_IOS_VISION.md`.
+
+D53/B58 reads only the app's saved Speech authorization status through
+`SFSpeechRecognizer::authorizationStatus` from iOS 10.0. It does not request permission, create a
+recognizer, accept audio, or start recognition; authorized status does not prove service availability
+or recognition success. See `PLAN_CAPABILITIES_SPEECH_STATUS.md` and
+`PLAN_IOS_SPEECH_STATUS.md`.
+
+D54/B59 checks only whether Apple’s built-in English contextual-model assets are on-device through
+`NLContextualEmbedding::hasAvailableAssets` from iOS 17.0. It does not load a model, accept text,
+compute vectors, request assets, or guarantee a later model operation. See
+`PLAN_CAPABILITIES_NATURALLANGUAGE_STATUS.md` and `PLAN_IOS_NATURALLANGUAGE_STATUS.md`.
+
+D55/B60 reads only the deprecated StoreKit 1 `SKPaymentQueue::canMakePayments` bit. It does not
+create a queue, inspect a product or account, show payment UI, or process a transaction. See
+`PLAN_CAPABILITIES_STOREKIT_STATUS.md` and `PLAN_IOS_STOREKIT_STATUS.md`.
+
+D56/B61 reads only `RoomCaptureSession.isSupported` from iOS 16.0 through a compiler-verified
+`swiftcall` thunk. It does not create a session, access camera or LiDAR frames, request permission, or
+claim scan success. See `PLAN_CAPABILITIES_ROOMPLAN.md` and `PLAN_IOS_ROOMPLAN.md`.
+
+D57/B62 adds only an iOS 4.0+ default-video-device presence query through
+`AVCaptureDevice.defaultDeviceWithMediaType(AVMediaTypeVideo)`. It does not query authorization,
+create a capture input/session, access media, or present UI. See
+`PLAN_CAPABILITIES_CAMERA_DEVICE_STATUS.md` and `PLAN_IOS_CAMERA_DEVICE_STATUS.md`.
+
+D58/B63 adds only the iOS 15.0+ `AppStore.canMakePayments` status through a compiler-verified
+weak-import `swiftcall` thunk. It does not retrieve products, access account/entitlement data, show
+purchase UI, or process transactions. See `PLAN_CAPABILITIES_STOREKIT2_STATUS.md` and
+`PLAN_IOS_STOREKIT2_STATUS.md`.
+
+D60/B66 adds only iOS 2.0+ one-shot SHA-256 through Apple's CommonCrypto `CC_SHA256`. Its safe Rust
+wrapper bounds input to the `CC_LONG` width and returns an owned 32-byte digest; there is no
+portable crypto contract, key operation, replacement/parity, or performance claim. See
+`PLAN_CAPABILITIES_CRYPTO.md`, `PLAN_IOS_CRYPTO.md`, and `PLAN_VALIDATION_IOS_CRYPTO.md`.
+
+D59/B65 adds only iOS 4.0+ single-precision vector addition through `vDSP_vadd`. The safe Rust
+wrapper requires equal input/output lengths, uses unit strides, and returns without a native call
+for empty slices. It adds no portable contract, other Accelerate operations, performance claim, or
+bitwise parity claim. See `PLAN_CAPABILITIES_ACCELERATE.md` and `PLAN_IOS_ACCELERATE.md`.
+
+B64 adds an HTTPS-only `SFSafariViewController` constructor using `SafariServices`; the host owns
+UIKit presentation and dismissal. It does not expose browser data, start an external URL handler,
+or claim a request/page load. See `PLAN_IOS_SAFARI.md`.
+
+D61/B67 adds only the iOS ModelIO extension-level `MDLAsset.canImportFileExtension` query. It does
+not access a URL or file data, parse an asset, render content, or claim GPU support. See
+`PLAN_CAPABILITIES_MODELIO_STATUS.md`, `PLAN_IOS_MODELIO_STATUS.md`, and
+`PLAN_VALIDATION_IOS_MODELIO_STATUS.md`.
+
+D62/B68 adds only whether the default-options `MPSGetPreferredDevice` call returns a device on
+iOS 12.2+. It submits no GPU work and does not establish support for any MPS operation, model, or
+workload. See `PLAN_CAPABILITIES_MPS_STATUS.md`, `PLAN_IOS_MPS_STATUS.md`, and
+`PLAN_VALIDATION_IOS_MPS_STATUS.md`.
+
+D63/B69 adds a portable borrowed value for one uncompressed P-256 public key and an iOS Security
+query for ECDSA/SHA-256 message-verification suitability. It does not verify a signature, use a
+private key, persist a key, or access the Secure Enclave. See `PLAN_CAPABILITIES_KEY_SUPPORT.md`,
+`PLAN_IOS_KEY_SUPPORT.md`, and `PLAN_VALIDATION_IOS_KEY_SUPPORT.md`.
+
+D64/B70 adds a portable finite `SpriteNodePosition` contract and a detached iOS `SKNode` create/get/set facade for parent-local `position` only. The public API floor is iOS 7.0; local device/Simulator link-probe minimums are 12.0/14.0. It does not add SceneKit, a scene/view/render loop, hierarchy, animation, physics, or assets. See `PLAN_CAPABILITIES_SPRITEKIT.md`, `PLAN_IOS_SPRITEKIT.md`, and `PLAN_VALIDATION_IOS_SPRITEKIT.md`.
+
+D65/B71 reads the current MediaPlayer library authorization status on iOS 9.3+. It does not request
+access, read media items, contact Apple Music services, or provide catalog/playback support. The
+host must supply `NSAppleMusicUsageDescription` before it requests library access or reads items;
+this status-only query does neither. See `PLAN_CAPABILITIES_MEDIA_LIBRARY_STATUS.md`,
+`PLAN_IOS_MEDIA_LIBRARY_STATUS.md`, and `PLAN_VALIDATION_IOS_MEDIA_LIBRARY_STATUS.md`.
+
+D76/B72 reads a synchronous CallKit call snapshot and copies only count plus aggregate state flags;
+it exposes no call objects, identifiers, caller data, callbacks, call control, provider, PushKit, or
+audio API. The initial native read may block. See `PLAN_CAPABILITIES_CALLKIT.md` and
+`PLAN_VALIDATION_IOS_CALL_OBSERVER.md`.
+
+D77/B73 adds finite portable map coordinates, map points, and distances plus MapKit conversion and
+distance calls. It does not add map UI, location, permissions, network service, search, or directions.
+See `PLAN_CAPABILITIES_MAPKIT.md` and `PLAN_VALIDATION_IOS_MAPKIT.md`.
+
+D81/B74 reads only the caller-owned `NSUserActivity.isClassKitDeepLink` Boolean on iOS 11.3+; it
+does not access the ClassKit store or assignment data. Schoolwork host adoption and the separate
+ClassKit environment entitlement remain outside this query. See `PLAN_CAPABILITIES_CLASSKIT.md` and `PLAN_VALIDATION_IOS_CLASSKIT.md`.
+
+D67 is a feasibility audit for row 074 ScreenTime/FamilyControls authorization. Its status property is Swift-only and main-queue-only; query-only entitlement semantics are not documented, and no generated Rust binding is available. Row 074 remains `X`; see `PLAN_CAPABILITIES_FAMILY_CONTROLS_STATUS.md`.
+
+D69 is a feasibility audit for row 067 Foundation Models. Its smallest status candidate is Swift-only and has no public C/Objective-C entry point or generated Rust binding; row 067 remains `X` until a supported wrapper boundary is integrated. See `PLAN_CAPABILITIES_FOUNDATION_MODELS.md`.
+
+D71 is a feasibility audit for row 075 DeviceActivity/ManagedSettings. A public iOS 17 Objective-C authorization getter is callable in principle, but Apple does not define its Boolean meaning, prompt behavior, thread guarantees, or query-only entitlement requirements; row 075 remains `X`. See `PLAN_CAPABILITIES_DEVICE_ACTIVITY.md`.
+
+D31/B36 adds camera and microphone authorization-status queries only; it does not request access,
+create capture/audio sessions, select devices, or access samples. The API floor is iOS 7.0; usage
+description keys apply before host access requests or capture. See
+`PLAN_CAPABILITIES_MEDIA_AUTHORIZATION.md` and `PLAN_IOS_MEDIA_AUTHORIZATION.md`.
+
+D32/B37 adds the Core NFC `readingAvailable` support snapshot only, with an iOS 11.0 API floor; no
+session or tag operation is included. `NFCReaderUsageDescription` is conservatively recorded
+because Apple does not state a property-only exception. See `PLAN_CAPABILITIES_NFC.md` and
+`PLAN_IOS_NFC.md`.
+
+D33's HomeKit status-only audit found that `HMHomeManager.authorizationStatus` requires an instance
+and first HomeKit use can prompt; no non-prompting static query or separate request API exists. Row
+072 remains `X` for the status-only scope.
+
+D34/B39 adds one iOS 16.0+ Nearby Interaction device-capability query. It reports only
+`supportsPreciseDistanceMeasurement`; it does not create a session, request permission, exchange
+tokens, discover peers, or start ranging. See `PLAN_CAPABILITIES_NEARBY_INTERACTION.md` and
+`PLAN_IOS_NEARBY_INTERACTION.md`.
+
+D35/B40 adds App Tracking Transparency status only through `ATTrackingManager` on iOS 14.0+.
+It does not request authorization, access IDFA, or represent other privacy permissions. See
+`PLAN_CAPABILITIES_PRIVACY_AUTHORIZATION.md` and `PLAN_IOS_TRACKING_AUTHORIZATION.md`.
+
+D36/B41 adds only a scalar report that `MTLCreateSystemDefaultDevice` returned a device object on
+iOS 8.0+. It drops the retained object and submits no GPU work; MetalKit, rendering, compute,
+features, and performance remain out of scope. See `PLAN_CAPABILITIES_METAL.md` and
+`PLAN_IOS_METAL.md`.
+
+D37/B42 reads only DeviceCheck support from iOS 11.0 and App Attest support from iOS 14.0. It does
+not create keys/tokens, attest/assert, contact a server, or establish integrity. D38/B43 reads only
+whether iOS 9.0+ can provide a Watch Connectivity session object; it does not inspect pairing or
+communicate. D39/B44 reports only whether the iOS ExternalAccessory connected-and-available list
+is empty at query time; it does not open a session or establish hardware communication. D40/B45 reads
+legacy ReplayKit availability only and does not start capture or recording; Apple marks this query
+deprecated and recommends ScreenCaptureKit. D41/B46 checks only whether the built-in SoundAnalysis classifier request is recognized; it does not analyze audio or establish microphone access. D42/B47 reads only the iOS other-audio Boolean; it does not identify the source, report this app's playback, or control media. D43/B48 adds only a main-thread, iOS 13.4+ `AVPlayer.eligibleForHDRPlayback` snapshot; it does not inspect an asset or start playback. D44/B49 adds `canSendMail`, `canSendText`, and the SharedWithYou software-support bit only; it does not create, present, or send messages or read collaboration/account data. D45/B50 adds only the VideoToolbox hardware-decode support predicate for a caller codec; it does not encode, create sessions, or process media frames. D46/B51 adds only PassKit general Apple Pay device capability; it does not inspect cards, merchant eligibility, or process a payment. D47/B52 adds one CloudKit account-status snapshot only; it does not access data or observe account changes. D48/B53 reads SafetyKit Crash Detection device support only; D49/B54 queries ARKit world-tracking configuration support only; D50/B55 reads Game Center's local-player authentication Boolean only; D51/B56 checks only for a nonempty Core ML compute-device list; D52/B57 checks only for a listed Vision text-recognition revision; D53/B58 reads saved Speech authorization status only and does not request permission or process audio; D54/B59 checks only the asset state of Apple’s built-in English contextual model and does not load a model or accept text. See the D37–D59 and B42–B65 plans for exact scope.
 
 ### Workstream E — Rust Replacement Candidates
 Plan: `PLAN_REPLACEMENTS.md`
