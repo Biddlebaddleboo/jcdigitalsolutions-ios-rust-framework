@@ -50,3 +50,17 @@ No new dependency, source code, runtime call, permission request, or device quer
 - [Enabling HomeKit in your app](https://developer.apple.com/documentation/homekit/enabling-homekit-in-your-app)
 - [Configuring HomeKit access](https://developer.apple.com/documentation/xcode/configuring-homekit-access)
 - [`objc2-home-kit` 0.3.2](https://docs.rs/objc2-home-kit/0.3.2/objc2_home_kit/struct.HMHomeManager.html)
+
+## B322 follow-up: `HMAccessory.isReachable` has no safe standalone Rust contract
+
+Audited the iOS 26.5 `HMAccessory.isReachable` Boolean as a distinct read-only HomeKit value. The iOS 8.0 `HMAccessory` header defines it as whether that accessory is currently reachable; Apple's docs sharpen this to whether it can be communicated with in the current network environment. This is a per-accessory, momentary network state, not HomeKit support, authorization, accessory discovery, or a guarantee that a later command succeeds.
+
+An `HMAccessory` is not constructed by the caller. Apple says an app obtains it from an `HMHome` or `HMRoom` accessory list, which in turn requires the HomeKit data path. Apple's HomeKit setup docs state that the first use of HomeKit, typically `HMHomeManager` creation, prompts for permission and requires the HomeKit entitlement and `NSHomeKitUsageDescription`. The accessory delegate has a reachability-change callback, but the Apple pages reviewed do not specify its delivery queue or a synchronization contract for concurrent reads.
+
+The public header declares `reachable` as `nonatomic`, `readonly`, and `getter=isReachable`. The local `objc2-home-kit` 0.3.2 generated binding exposes a typed `unsafe fn isReachable(&self) -> bool`; its safety docs repeat that the property is non-atomic and might not be thread-safe. The crate is cached locally but is not a workspace dependency or in `Cargo.lock`. A safe Rust facade cannot promise a race-free read without a documented serialized executor or another host-owned synchronization contract. Requiring only `MainThread` would not resolve the absent HomeKit queue guarantee.
+
+Decision: no B322 Rust facade or dependency change; keep row `072-personal-data-system-stores-homekit` at `X`. Revisit only inside a selected HomeKit host that owns the accessory lifetime and a documented serialized callback/queue contract. Evidence remains Xcode 26.6 build `17F113` / iOS SDK 26.5, below the repository's Xcode 27.x baseline.
+
+Evidence: `/Applications/Xcode.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS26.5.sdk/System/Library/Frameworks/HomeKit.framework/Headers/HMAccessory.h`; local `objc2-home-kit` 0.3.2 `src/generated/HMAccessory.rs`; Apple [`HMAccessory.isReachable`](https://developer.apple.com/documentation/homekit/hmaccessory/isreachable), [`HMAccessoryDelegate.accessoryDidUpdateReachability(_:)`](https://developer.apple.com/documentation/homekit/hmaccessorydelegate/accessorydidupdatereachability%28_%3A%29), and [Enabling HomeKit in your app](https://developer.apple.com/documentation/homekit/enabling-homekit-in-your-app).
+
+No dependency, source, manager creation, permission request, accessory read, build, link probe, test, app launch, Simulator run, or device query was performed for B322

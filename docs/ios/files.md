@@ -221,6 +221,17 @@ answer is point-in-time and does not reserve the path for a later operation. Thi
 helper, not a new portable `FileBackend` operation; it grants no URL or security-scope access and
 keeps the existing concurrent parent-directory rename limit. See the [B93 plan](../../PLAN_IOS_ENTRY_KIND.md).
 
+`IosFiles::entry_object_kind` gives a more detailed iOS-only classification through the same
+no-follow `fstatat` lookup. It returns `File`, `Directory`, `Symlink`, `Fifo`, `Socket`,
+`BlockDevice`, or `CharacterDevice`; an unrecognized mode type is `Unknown(raw_type_bits)`. Unlike
+`entry_kind`, it does not group symlinks and special files into `FileKind::Other`. The method does
+not open the entry, so it can classify a FIFO without blocking, and it does not follow a final
+symlink. This is only point-in-time metadata, not a later-operation guarantee; it keeps B1's
+concurrent opened-parent directory-rename limit and adds no portable `FileBackend` behavior. See
+the [B296 plan](../../PLAN_IOS_ENTRY_OBJECT_KIND.md). Apple lists `fstatat` in the File Timestamp
+required-reason API category; the host app must declare an applicable approved reason in its
+`PrivacyInfo.xcprivacy` for actual use.
+
 ## Direct directory-entry count
 
 `IosFiles::directory_entry_count` counts direct names in one validated sandbox directory, except
@@ -355,6 +366,58 @@ define timestamps belonging to the link itself. Treat the value as a filesystem-
 diagnostic, not an access log, content version, or reliable change token. It reads no target
 contents, grants no URL or security-scope access, and changes no portable `FileBackend` semantics.
 See the [B112 plan](../../PLAN_IOS_FILE_ACCESS_TIME.md).
+
+## Entry added-to-directory time
+
+`IosFiles::entry_added_time` returns the raw seconds and nanoseconds from Apple's
+`ATTR_CMN_ADDEDTIME` for one opened regular file. XNU defines this field as the time the object was
+created or renamed into its containing directory, and warns that values may be inconsistent for
+hard-linked items. It is not a reliable creation-time or path-history record; B101's
+`st_birthtime` no-go remains distinct. A final symlink or non-regular entry returns `InvalidInput`,
+and a filesystem that omits the attribute returns `Unsupported`. This iOS-only query reads no file
+contents, accepts no arbitrary URL, starts no security scope, and does not change portable
+`FileBackend` semantics. The host must declare an applicable approved File Timestamp reason in
+`PrivacyInfo.xcprivacy` for actual use. See the [B272 plan](../../PLAN_IOS_FILE_ADDED_TIME.md).
+
+## Stored backup-time marker
+
+`IosFiles::entry_stored_backup_time` reads the filesystem's stored `ATTR_CMN_BKUPTIME` marker for
+one opened regular file or directory and returns its seconds/nanoseconds pair. XNU documents the
+field for backup utilities but says the filesystem stores it without interpreting it. This result
+is not evidence that iOS or iCloud backup completed, included the object, or has a current copy;
+the method does not set the marker or perform a backup. Filesystem support and timestamp precision
+may vary. The query opens the final entry without following symlinks, reads no file contents, and
+retains B1's concurrent opened-parent directory-rename limit. Because it uses `fgetattrlist`, the
+host must declare an applicable approved File Timestamp reason in `PrivacyInfo.xcprivacy` for actual
+use. See the [B301 plan](../../PLAN_IOS_FILE_BACKUP_TIME_MARKER.md).
+
+## File data-generation snapshot
+
+`IosFiles::regular_file_data_generation_snapshot` returns an `IosFileDataGenerationSnapshot`
+from one opened regular-file descriptor. Its `identity()` pair comes from `fstat`; the optional
+`generation_count()` comes from `fgetattrlist` on that same descriptor. These are separate
+syscalls, so the method makes no atomic cross-field snapshot claim. XNU documents equality
+comparison only for the same filesystem object; zero is invalid and is returned for memory-mapped
+files, so the accessor returns `None` for zero. The `(st_dev, st_ino)`-style pair is a point-in-time
+identity, not a persistent identifier or protection from inode reuse. Do not treat the generation
+count as a general content-change token or compare it across different identity pairs. Filesystems may
+omit the attribute and then return `Unsupported`. This iOS-only query reads no content, accepts no
+arbitrary URL, starts no security scope, and does not change portable `FileBackend` semantics. The
+host must declare an applicable approved File Timestamp reason in `PrivacyInfo.xcprivacy` for
+actual use. See the [B275 plan](../../PLAN_IOS_FILE_DATA_GENERATION.md).
+
+## Raw data-protection-class code
+
+`IosFiles::entry_data_protection_class_code` returns an `IosFileDataProtectionClassCode` for an
+opened regular file or directory. Its `raw_value()` is the `u32` from
+`ATTR_CMN_DATA_PROTECT_FLAGS`. Apple documents that field as a data-protection class, but does not
+publish a numeric mapping to named levels. Callers may preserve or display the raw value only; do
+not map it to a named level, compare it across objects or OS versions, or infer current/future data
+access or security guarantees. The value is not an object identity or a cross-call stable-object
+snapshot. The query opens the final entry without following a symlink, reads no file contents, and
+may fail before the attribute query due to ordinary access or file-state rules. It uses
+`fgetattrlist`, so the host must declare an applicable approved File Timestamp reason in
+`PrivacyInfo.xcprivacy` for actual use. See the [B293 plan](../../PLAN_IOS_FILE_DATA_PROTECTION_CLASS_CODE.md).
 
 ## BSD file flags
 

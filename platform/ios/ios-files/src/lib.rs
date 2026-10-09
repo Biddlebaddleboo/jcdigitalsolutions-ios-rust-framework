@@ -128,6 +128,51 @@ impl IosFileStatusChangeTime {
     }
 }
 
+/// A point-in-time filesystem-reported added-to-directory timestamp for one regular iOS file.
+#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
+pub struct IosFileAddedTime {
+    seconds_since_unix_epoch: i64,
+    nanoseconds: u32,
+}
+
+impl IosFileAddedTime {
+    /// Returns whole seconds relative to the Unix epoch.
+    pub const fn seconds_since_unix_epoch(self) -> i64 {
+        self.seconds_since_unix_epoch
+    }
+
+    /// Returns the subsecond nanosecond field reported by the filesystem.
+    ///
+    /// The filesystem may store or report a coarser precision than one nanosecond.
+    pub const fn nanoseconds(self) -> u32 {
+        self.nanoseconds
+    }
+}
+
+/// A point-in-time filesystem-stored backup-time marker for one iOS sandbox file or directory.
+///
+/// This value is only the timestamp stored by the filesystem. It does not prove that an OS or
+/// iCloud backup completed or includes the object.
+#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
+pub struct IosFileBackupTimeMarker {
+    seconds_since_unix_epoch: i64,
+    nanoseconds: u32,
+}
+
+impl IosFileBackupTimeMarker {
+    /// Returns the stored marker's whole seconds relative to the Unix epoch.
+    pub const fn seconds_since_unix_epoch(self) -> i64 {
+        self.seconds_since_unix_epoch
+    }
+
+    /// Returns the stored marker's subsecond nanosecond field.
+    ///
+    /// The filesystem may store or report a coarser precision than one nanosecond.
+    pub const fn nanoseconds(self) -> u32 {
+        self.nanoseconds
+    }
+}
+
 /// A point-in-time set of Darwin BSD file flags from one iOS filesystem entry.
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
 pub struct IosBsdFileFlags(u32);
@@ -303,6 +348,21 @@ impl IosFileDocumentIdSnapshot {
     }
 }
 
+/// An opaque numeric code returned for a file or directory's data-protection class.
+///
+/// Apple documents the field as a `u32` class value but does not publish a numeric mapping to
+/// named protection levels. Preserve or display this raw value only; it does not identify a
+/// protection level or establish whether data can be accessed.
+#[derive(Clone, Copy, Debug)]
+pub struct IosFileDataProtectionClassCode(u32);
+
+impl IosFileDataProtectionClassCode {
+    /// Returns the opaque `u32` reported by `ATTR_CMN_DATA_PROTECT_FLAGS`.
+    pub const fn raw_value(self) -> u32 {
+        self.0
+    }
+}
+
 /// A point-in-time POSIX numeric owner and group pair for one iOS filesystem entry.
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
 pub struct IosFileOwnerIds {
@@ -414,6 +474,25 @@ impl IosFileIdentitySnapshot {
     }
 }
 
+/// A point-in-time file identity and optional XNU data-generation count from one open descriptor.
+#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
+pub struct IosFileDataGenerationSnapshot {
+    identity: IosFileIdentitySnapshot,
+    generation_count: Option<u32>,
+}
+
+impl IosFileDataGenerationSnapshot {
+    /// Returns the device and inode pair reported for the same open descriptor.
+    pub const fn identity(self) -> IosFileIdentitySnapshot {
+        self.identity
+    }
+
+    /// Returns the nonzero generation count, or `None` when XNU reports its invalid zero value.
+    pub const fn generation_count(self) -> Option<u32> {
+        self.generation_count
+    }
+}
+
 /// Point-in-time counts of direct directory entries by `FileKind` classification.
 #[derive(Clone, Copy, Debug, Default, Eq, Hash, PartialEq)]
 pub struct IosDirectoryEntryKindCounts {
@@ -437,6 +516,31 @@ impl IosDirectoryEntryKindCounts {
     pub const fn other(self) -> u64 {
         self.other
     }
+}
+
+/// A detailed point-in-time POSIX object kind for one iOS app-sandbox entry.
+///
+/// Unlike portable `FileKind`, this value distinguishes symbolic links and common special-file
+/// types. `Unknown` contains the raw `st_mode & S_IFMT` bits for an unrecognized type.
+#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
+#[non_exhaustive]
+pub enum IosEntryObjectKind {
+    /// A regular file.
+    File,
+    /// A directory.
+    Directory,
+    /// A symbolic link, not its target.
+    Symlink,
+    /// A FIFO (named pipe).
+    Fifo,
+    /// A local-domain or other socket entry.
+    Socket,
+    /// A block device entry.
+    BlockDevice,
+    /// A character device entry.
+    CharacterDevice,
+    /// An unrecognized raw `st_mode & S_IFMT` value.
+    Unknown(u32),
 }
 
 /// A point-in-time physical allocation size reported for one iOS directory object.
@@ -1562,6 +1666,207 @@ impl IosFiles {
         Ok(IosFileDocumentIdSnapshot(document_id))
     }
 
+    /// Returns the opaque data-protection-class code for one opened app-sandbox file or directory.
+    ///
+    /// The validated `AppPath` is resolved with the existing no-follow descriptor traversal. The
+    /// final entry is opened with `O_NOFOLLOW | O_NONBLOCK`; only regular files and directories
+    /// are accepted. The open descriptor is queried with `fgetattrlist(ATTR_CMN_DATA_PROTECT_FLAGS)`.
+    /// Apple documents the returned `u32` as the data-protection class, but does not publish a
+    /// numeric mapping to named protection levels. `raw_value()` is for preservation or display
+    /// only: do not compare it across objects or OS versions, map it to a named level, or infer
+    /// current/future data access from it. The value is not an identity and is not a cross-call
+    /// snapshot of a stable object.
+    ///
+    /// This query reads no file contents, accepts no arbitrary URL, starts no security scope, and
+    /// changes no portable `FileBackend` behavior. Opening the entry can still fail, including due
+    /// to access policy or current file state; such failure is not a class result. Apple lists
+    /// `fgetattrlist` in the File Timestamp required-reason API category; the host app must declare
+    /// an applicable approved reason in `PrivacyInfo.xcprivacy` for actual use.
+    ///
+    /// # Errors
+    ///
+    /// Returns `InvalidPath` for a malformed `AppPath`, `InvalidInput` for a final symlink, an
+    /// entry other than a regular file or directory, or a malformed attribute buffer, `NotFound`
+    /// for a missing source or parent, `Unsupported` when the filesystem omits or does not support
+    /// the attribute, or the mapped POSIX error for other failures.
+    pub fn entry_data_protection_class_code(
+        &self,
+        path: AppPath<'_>,
+    ) -> Result<IosFileDataProtectionClassCode, FileError> {
+        let parts = path_parts(path.relative())?;
+        let (parent, leaf) = open_parent(self.root(path.directory())?, &parts)?;
+        // SAFETY: `parent` is open and `leaf` is one validated component. `O_NOFOLLOW` rejects a
+        // final symlink, and `O_NONBLOCK` avoids blocking if the entry is concurrently replaced.
+        let source_fd = unsafe {
+            libc::openat(
+                parent.as_raw_fd(),
+                leaf.as_ptr(),
+                libc::O_RDONLY | libc::O_NOFOLLOW | libc::O_CLOEXEC | libc::O_NONBLOCK,
+            )
+        };
+        if source_fd < 0 {
+            return Err(file_error(io::Error::last_os_error()));
+        }
+        // SAFETY: `openat` returned a new owned descriptor.
+        let source_file = unsafe { File::from_raw_fd(source_fd) };
+        let metadata = source_file.metadata().map_err(file_error)?;
+        if !metadata.is_file() && !metadata.is_dir() {
+            return Err(backend_error(ErrorKind::InvalidInput, None));
+        }
+
+        let mut attributes = libc::attrlist {
+            bitmapcount: libc::ATTR_BIT_MAP_COUNT,
+            reserved: 0,
+            commonattr: libc::ATTR_CMN_DATA_PROTECT_FLAGS,
+            volattr: 0,
+            dirattr: 0,
+            fileattr: 0,
+            forkattr: 0,
+        };
+        let mut buffer = [0_u8; 8];
+        // SAFETY: `source_file` is an open regular file or directory. `attributes` requests one
+        // documented common u32 attribute, and `buffer` holds its u32 length and value. The
+        // descriptor binds the query to the opened entry without another path lookup.
+        let result = unsafe {
+            libc::fgetattrlist(
+                source_file.as_raw_fd(),
+                (&mut attributes as *mut libc::attrlist).cast(),
+                buffer.as_mut_ptr().cast(),
+                buffer.len(),
+                0,
+            )
+        };
+        if result < 0 {
+            let error = io::Error::last_os_error();
+            if matches!(error.raw_os_error(), Some(libc::EINVAL | libc::ENOTSUP)) {
+                return Err(backend_error(ErrorKind::Unsupported, error.raw_os_error()));
+            }
+            return Err(file_error(error));
+        }
+        let returned_length = u32::from_ne_bytes(
+            buffer[..4]
+                .try_into()
+                .map_err(|_| backend_error(ErrorKind::InvalidInput, None))?,
+        ) as usize;
+        if returned_length == std::mem::size_of::<u32>() {
+            return Err(backend_error(ErrorKind::Unsupported, None));
+        }
+        if returned_length != buffer.len() {
+            return Err(backend_error(ErrorKind::InvalidInput, None));
+        }
+        let code = u32::from_ne_bytes(
+            buffer[4..]
+                .try_into()
+                .map_err(|_| backend_error(ErrorKind::InvalidInput, None))?,
+        );
+        Ok(IosFileDataProtectionClassCode(code))
+    }
+
+    /// Returns one regular file's identity and XNU data-generation count from the same open
+    /// descriptor.
+    ///
+    /// The method opens the validated `AppPath` with no-follow descriptor traversal. It reads the
+    /// device/inode identity from `fstat` on that descriptor, then requests only
+    /// `ATTR_CMN_GEN_COUNT` through `fgetattrlist` on the same descriptor. The generation count is
+    /// an extended common attribute and requires `FSOPT_ATTR_CMN_EXTENDED`. XNU documents equality
+    /// comparison only for the same filesystem object; its count is invalid while a file is
+    /// memory-mapped and zero maps to `None`. The reported identity lets callers compare the
+    /// generation only when the device/inode pair matches. It is not persistent and does not
+    /// prevent inode reuse.
+    ///
+    /// This is a point-in-time metadata snapshot, not a general content-change token. The query
+    /// reads no contents, accepts no arbitrary URL, starts no security scope, and does not change
+    /// portable `FileBackend` behavior. Apple lists `fgetattrlist` in the File Timestamp
+    /// required-reason API category; the host app must declare an applicable approved reason in
+    /// `PrivacyInfo.xcprivacy` for actual use.
+    ///
+    /// # Errors
+    ///
+    /// Returns `InvalidPath` for a malformed `AppPath`, `InvalidInput` for a non-regular source or
+    /// malformed attribute buffer, `NotFound` for a missing source or parent, `Unsupported` when
+    /// the filesystem omits or does not support any requested attribute, or the mapped POSIX
+    /// error for other failures.
+    pub fn regular_file_data_generation_snapshot(
+        &self,
+        path: AppPath<'_>,
+    ) -> Result<IosFileDataGenerationSnapshot, FileError> {
+        let parts = path_parts(path.relative())?;
+        let (parent, leaf) = open_parent(self.root(path.directory())?, &parts)?;
+        // SAFETY: `parent` is open and `leaf` is one validated component. `O_NOFOLLOW` rejects a
+        // final symlink, and `O_NONBLOCK` avoids blocking if the entry is concurrently replaced.
+        let source_fd = unsafe {
+            libc::openat(
+                parent.as_raw_fd(),
+                leaf.as_ptr(),
+                libc::O_RDONLY | libc::O_NOFOLLOW | libc::O_CLOEXEC | libc::O_NONBLOCK,
+            )
+        };
+        if source_fd < 0 {
+            return Err(file_error(io::Error::last_os_error()));
+        }
+        // SAFETY: `openat` returned a new owned descriptor.
+        let source_file = unsafe { File::from_raw_fd(source_fd) };
+        let metadata = source_file.metadata().map_err(file_error)?;
+        if !metadata.is_file() {
+            return Err(backend_error(ErrorKind::InvalidInput, None));
+        }
+        let device_id = metadata.dev();
+        let inode_number = metadata.ino();
+
+        let mut attributes = libc::attrlist {
+            bitmapcount: libc::ATTR_BIT_MAP_COUNT,
+            reserved: 0,
+            commonattr: 0,
+            volattr: 0,
+            dirattr: 0,
+            fileattr: 0,
+            forkattr: libc::ATTR_CMN_GEN_COUNT,
+        };
+        let mut buffer = [0_u8; 8];
+        // SAFETY: `source_file` is an open regular file. The request contains one documented
+        // extended-common u32 attribute, and `buffer` holds its u32 length and value. The
+        // descriptor binds this query to the same object as the `fstat` identity above.
+        let result = unsafe {
+            libc::fgetattrlist(
+                source_file.as_raw_fd(),
+                (&mut attributes as *mut libc::attrlist).cast(),
+                buffer.as_mut_ptr().cast(),
+                buffer.len(),
+                libc::FSOPT_ATTR_CMN_EXTENDED,
+            )
+        };
+        if result < 0 {
+            let error = io::Error::last_os_error();
+            if matches!(error.raw_os_error(), Some(libc::EINVAL | libc::ENOTSUP)) {
+                return Err(backend_error(ErrorKind::Unsupported, error.raw_os_error()));
+            }
+            return Err(file_error(error));
+        }
+        let returned_length = u32::from_ne_bytes(
+            buffer[..4]
+                .try_into()
+                .map_err(|_| backend_error(ErrorKind::InvalidInput, None))?,
+        ) as usize;
+        if returned_length == std::mem::size_of::<u32>() {
+            return Err(backend_error(ErrorKind::Unsupported, None));
+        }
+        if returned_length != buffer.len() {
+            return Err(backend_error(ErrorKind::InvalidInput, None));
+        }
+        let generation_count = u32::from_ne_bytes(
+            buffer[4..8]
+                .try_into()
+                .map_err(|_| backend_error(ErrorKind::InvalidInput, None))?,
+        );
+        Ok(IosFileDataGenerationSnapshot {
+            identity: IosFileIdentitySnapshot {
+                device_id,
+                inode_number,
+            },
+            generation_count: (generation_count != 0).then_some(generation_count),
+        })
+    }
+
     /// Returns one regular file's current byte length without reading its contents.
     ///
     /// The path uses the same app-sandbox root and descriptor-relative, no-follow traversal as
@@ -2073,6 +2378,28 @@ impl IosFiles {
         self::entry_kind(parent.as_raw_fd(), leaf.as_c_str()).map_err(file_error)
     }
 
+    /// Returns the detailed no-follow POSIX object kind of one app-sandbox entry.
+    ///
+    /// This uses the same validated `AppPath` and parent traversal as `entry_kind`, then reads
+    /// `st_mode & S_IFMT` with one `fstatat(..., AT_SYMLINK_NOFOLLOW)` call. It distinguishes the
+    /// common special types that portable `FileKind::Other` groups together. `Unknown` preserves
+    /// the raw mode-type bits. The method does not open or follow the entry and reads no contents;
+    /// in particular, a FIFO is classified without opening it. The result is point-in-time and
+    /// does not reserve the path for a later operation. It keeps the documented concurrent
+    /// opened-parent directory-rename limit and adds no portable `FileBackend` behavior.
+    /// Apple lists `fstatat` under the File Timestamp required-reason API category; the host app
+    /// must declare an applicable approved reason in `PrivacyInfo.xcprivacy` for actual use.
+    ///
+    /// # Errors
+    ///
+    /// Returns `InvalidPath` for a malformed `AppPath`, `NotFound` for a missing final entry, or
+    /// the mapped POSIX error for parent traversal and metadata lookup failures.
+    pub fn entry_object_kind(&self, path: AppPath<'_>) -> Result<IosEntryObjectKind, FileError> {
+        let parts = path_parts(path.relative())?;
+        let (parent, leaf) = open_parent(self.root(path.directory())?, &parts)?;
+        self::entry_object_kind(parent.as_raw_fd(), leaf.as_c_str()).map_err(file_error)
+    }
+
     /// Returns one entry's no-follow data-modification timestamp.
     ///
     /// The timestamp is the POSIX seconds/nanoseconds pair from `fstatat(...,
@@ -2230,6 +2557,163 @@ impl IosFiles {
             return Err(backend_error(ErrorKind::InvalidInput, None));
         }
         Ok(IosFileAccessTime {
+            seconds_since_unix_epoch,
+            nanoseconds,
+        })
+    }
+
+    /// Returns the filesystem-reported time one regular file was created or renamed into its
+    /// containing directory.
+    ///
+    /// The query requests `ATTR_CMN_ADDEDTIME` with `fgetattrlist` on an opened regular-file
+    /// descriptor, after the usual validated `AppPath` and no-follow parent traversal. Apple's
+    /// XNU documentation warns that this attribute may be inconsistent for hard-linked items, so
+    /// the result is not a reliable path-history or creation-time record. It is a point-in-time
+    /// filesystem value; another handle may change or replace the entry before a later operation.
+    /// This method reads no contents, accepts no arbitrary URL, starts no security scope, and has
+    /// the documented concurrent directory-rename containment limit.
+    ///
+    /// Apple lists `fgetattrlist` in the File Timestamp required-reason API category. The host app
+    /// must declare an applicable approved reason in `PrivacyInfo.xcprivacy` for actual use.
+    ///
+    /// # Errors
+    ///
+    /// Returns `NotFound` for a missing source or parent, `InvalidInput` for a non-regular source
+    /// or malformed timestamp buffer, `Unsupported` when the filesystem does not report this
+    /// attribute, or the mapped POSIX error for other failures.
+    pub fn entry_added_time(&self, path: AppPath<'_>) -> Result<IosFileAddedTime, FileError> {
+        let parts = path_parts(path.relative())?;
+        let (parent, leaf) = open_parent(self.root(path.directory())?, &parts)?;
+        // SAFETY: `parent` is open and `leaf` is one validated component. `O_NOFOLLOW` rejects a
+        // final symlink, and `O_NONBLOCK` avoids blocking if the entry is concurrently replaced.
+        let source_fd = unsafe {
+            libc::openat(
+                parent.as_raw_fd(),
+                leaf.as_ptr(),
+                libc::O_RDONLY | libc::O_NOFOLLOW | libc::O_CLOEXEC | libc::O_NONBLOCK,
+            )
+        };
+        if source_fd < 0 {
+            return Err(file_error(io::Error::last_os_error()));
+        }
+        // SAFETY: `openat` returned a new owned descriptor.
+        let source_file = unsafe { File::from_raw_fd(source_fd) };
+        if !source_file.metadata().map_err(file_error)?.is_file() {
+            return Err(backend_error(ErrorKind::InvalidInput, None));
+        }
+
+        let mut attributes = libc::attrlist {
+            bitmapcount: libc::ATTR_BIT_MAP_COUNT,
+            reserved: 0,
+            commonattr: libc::ATTR_CMN_ADDEDTIME,
+            volattr: 0,
+            dirattr: 0,
+            fileattr: 0,
+            forkattr: 0,
+        };
+        let mut buffer = [0_u8; std::mem::size_of::<u32>() + std::mem::size_of::<libc::timespec>()];
+        // SAFETY: `source_file` is an open regular file. The request contains one documented
+        // common attribute, and `buffer` fits its u32 length plus a `timespec`. The descriptor
+        // binds the query to the open file, with no later path lookup or symlink traversal.
+        let result = unsafe {
+            libc::fgetattrlist(
+                source_file.as_raw_fd(),
+                (&mut attributes as *mut libc::attrlist).cast(),
+                buffer.as_mut_ptr().cast(),
+                buffer.len(),
+                0,
+            )
+        };
+        if result < 0 {
+            let error = io::Error::last_os_error();
+            if matches!(error.raw_os_error(), Some(libc::EINVAL | libc::ENOTSUP)) {
+                return Err(backend_error(ErrorKind::Unsupported, error.raw_os_error()));
+            }
+            return Err(file_error(error));
+        }
+        let (seconds_since_unix_epoch, nanoseconds) = parse_timespec_attribute(&buffer)?;
+        Ok(IosFileAddedTime {
+            seconds_since_unix_epoch,
+            nanoseconds,
+        })
+    }
+
+    /// Returns the filesystem-stored backup-time marker for one app-sandbox file or directory.
+    ///
+    /// The method requests `ATTR_CMN_BKUPTIME` with `fgetattrlist` on an opened descriptor after
+    /// validated `AppPath` and no-follow parent traversal. It reports only the filesystem's
+    /// stored `timespec`. XNU documents this field for backup utilities and says the filesystem
+    /// stores but does not interpret it; this value does not prove OS or iCloud backup completion,
+    /// inclusion, or freshness. The query does not set the marker or perform a backup. Filesystem
+    /// support and precision may vary, and the result is point-in-time. This method reads no file
+    /// contents, accepts no arbitrary URL, starts no security scope, and retains the documented
+    /// concurrent opened-parent directory-rename limit.
+    ///
+    /// Apple lists `fgetattrlist` in the File Timestamp required-reason API category. The host app
+    /// must declare an applicable approved reason in `PrivacyInfo.xcprivacy` for actual use.
+    ///
+    /// # Errors
+    ///
+    /// Returns `InvalidPath` for a malformed `AppPath`, `InvalidInput` for a final symlink, an
+    /// entry other than a regular file or directory, or a malformed attribute buffer, `NotFound`
+    /// for a missing entry or parent, `Unsupported` when the filesystem omits or does not support
+    /// the attribute, or the mapped POSIX error for other failures.
+    pub fn entry_stored_backup_time(
+        &self,
+        path: AppPath<'_>,
+    ) -> Result<IosFileBackupTimeMarker, FileError> {
+        let parts = path_parts(path.relative())?;
+        let (parent, leaf) = open_parent(self.root(path.directory())?, &parts)?;
+        // SAFETY: `parent` is open and `leaf` is one validated component. `O_NOFOLLOW` rejects a
+        // final symlink, and `O_NONBLOCK` avoids blocking if the entry is concurrently replaced.
+        let source_fd = unsafe {
+            libc::openat(
+                parent.as_raw_fd(),
+                leaf.as_ptr(),
+                libc::O_RDONLY | libc::O_NOFOLLOW | libc::O_CLOEXEC | libc::O_NONBLOCK,
+            )
+        };
+        if source_fd < 0 {
+            return Err(file_error(io::Error::last_os_error()));
+        }
+        // SAFETY: `openat` returned a new owned descriptor.
+        let source_file = unsafe { File::from_raw_fd(source_fd) };
+        let metadata = source_file.metadata().map_err(file_error)?;
+        if !metadata.is_file() && !metadata.is_dir() {
+            return Err(backend_error(ErrorKind::InvalidInput, None));
+        }
+
+        let mut attributes = libc::attrlist {
+            bitmapcount: libc::ATTR_BIT_MAP_COUNT,
+            reserved: 0,
+            commonattr: libc::ATTR_CMN_BKUPTIME,
+            volattr: 0,
+            dirattr: 0,
+            fileattr: 0,
+            forkattr: 0,
+        };
+        let mut buffer = [0_u8; std::mem::size_of::<u32>() + std::mem::size_of::<libc::timespec>()];
+        // SAFETY: `source_file` is an open regular file or directory. The request contains one
+        // documented common `timespec` attribute, and `buffer` fits its length and payload. The
+        // descriptor binds the query to the opened entry without another path lookup.
+        let result = unsafe {
+            libc::fgetattrlist(
+                source_file.as_raw_fd(),
+                (&mut attributes as *mut libc::attrlist).cast(),
+                buffer.as_mut_ptr().cast(),
+                buffer.len(),
+                0,
+            )
+        };
+        if result < 0 {
+            let error = io::Error::last_os_error();
+            if matches!(error.raw_os_error(), Some(libc::EINVAL | libc::ENOTSUP)) {
+                return Err(backend_error(ErrorKind::Unsupported, error.raw_os_error()));
+            }
+            return Err(file_error(error));
+        }
+        let (seconds_since_unix_epoch, nanoseconds) = parse_timespec_attribute(&buffer)?;
+        Ok(IosFileBackupTimeMarker {
             seconds_since_unix_epoch,
             nanoseconds,
         })
@@ -2964,6 +3448,37 @@ fn scan_directory_entries(directory: &File, stop_after_first: bool) -> Result<u6
     Ok(count)
 }
 
+fn parse_timespec_attribute(buffer: &[u8]) -> Result<(i64, u32), FileError> {
+    let header_length = std::mem::size_of::<u32>();
+    let expected_length = header_length + std::mem::size_of::<libc::timespec>();
+    if buffer.len() != expected_length {
+        return Err(backend_error(ErrorKind::InvalidInput, None));
+    }
+    let returned_length = u32::from_ne_bytes(
+        buffer[..header_length]
+            .try_into()
+            .map_err(|_| backend_error(ErrorKind::InvalidInput, None))?,
+    ) as usize;
+    if returned_length == header_length {
+        return Err(backend_error(ErrorKind::Unsupported, None));
+    }
+    if returned_length != expected_length {
+        return Err(backend_error(ErrorKind::InvalidInput, None));
+    }
+    // SAFETY: the exact returned length proves one complete `timespec` follows the u32 header.
+    // XNU aligns attribute payloads to four bytes, so use an unaligned read for this C type.
+    let timestamp = unsafe {
+        std::ptr::read_unaligned(buffer[header_length..].as_ptr().cast::<libc::timespec>())
+    };
+    let seconds = timestamp.tv_sec;
+    let nanoseconds = u32::try_from(timestamp.tv_nsec)
+        .map_err(|_| backend_error(ErrorKind::InvalidInput, None))?;
+    if nanoseconds >= 1_000_000_000 {
+        return Err(backend_error(ErrorKind::InvalidInput, None));
+    }
+    Ok((seconds, nanoseconds))
+}
+
 fn scan_directory_entry_kind_counts(
     directory: &File,
 ) -> Result<IosDirectoryEntryKindCounts, FileError> {
@@ -3024,7 +3539,7 @@ fn scan_directory_entry_kind_counts(
     Ok(counts)
 }
 
-fn entry_kind(parent_fd: libc::c_int, name: &CStr) -> io::Result<FileKind> {
+fn entry_mode_type(parent_fd: libc::c_int, name: &CStr) -> io::Result<libc::mode_t> {
     let mut metadata = std::mem::MaybeUninit::<libc::stat>::uninit();
     // SAFETY: the parent descriptor is open, name is NUL-terminated, and metadata is writable.
     let result = unsafe {
@@ -3039,11 +3554,28 @@ fn entry_kind(parent_fd: libc::c_int, name: &CStr) -> io::Result<FileKind> {
         return Err(io::Error::last_os_error());
     }
     // SAFETY: successful `fstatat` initialized the structure.
-    let mode = unsafe { metadata.assume_init() }.st_mode & libc::S_IFMT;
-    Ok(match mode {
+    Ok(unsafe { metadata.assume_init() }.st_mode & libc::S_IFMT)
+}
+
+fn entry_kind(parent_fd: libc::c_int, name: &CStr) -> io::Result<FileKind> {
+    Ok(match entry_mode_type(parent_fd, name)? {
         libc::S_IFREG => FileKind::File,
         libc::S_IFDIR => FileKind::Directory,
         _ => FileKind::Other,
+    })
+}
+
+fn entry_object_kind(parent_fd: libc::c_int, name: &CStr) -> io::Result<IosEntryObjectKind> {
+    let mode_type = entry_mode_type(parent_fd, name)?;
+    Ok(match mode_type {
+        libc::S_IFREG => IosEntryObjectKind::File,
+        libc::S_IFDIR => IosEntryObjectKind::Directory,
+        libc::S_IFLNK => IosEntryObjectKind::Symlink,
+        libc::S_IFIFO => IosEntryObjectKind::Fifo,
+        libc::S_IFSOCK => IosEntryObjectKind::Socket,
+        libc::S_IFBLK => IosEntryObjectKind::BlockDevice,
+        libc::S_IFCHR => IosEntryObjectKind::CharacterDevice,
+        _ => IosEntryObjectKind::Unknown(u32::from(mode_type)),
     })
 }
 

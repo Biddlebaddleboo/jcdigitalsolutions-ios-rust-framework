@@ -421,6 +421,16 @@ dependencies = [
  "objc2-external-accessory",
 ]
 
+[[package]]
+name = "ios-accessory-setup-status"
+version = "0.1.0"
+dependencies = [
+ "block2",
+ "dispatch2",
+ "objc2",
+ "objc2-accessory-setup-kit",
+ "objc2-foundation",
+]
 
 [[package]]
 name = "ios-activitykit-status"
@@ -432,6 +442,13 @@ dependencies = [
 [[package]]
 name = "ios-ad-attribution-status"
 version = "0.1.0"
+
+[[package]]
+name = "ios-alarmkit-status"
+version = "0.1.0"
+dependencies = [
+ "swift-abi-core",
+]
 
 [[package]]
 name = "ios-app-scenes"
@@ -863,6 +880,10 @@ dependencies = [
 ]
 
 [[package]]
+name = "ios-photogrammetry-status"
+version = "0.1.0"
+
+[[package]]
 name = "ios-photos"
 version = "0.1.0"
 dependencies = [
@@ -1170,6 +1191,18 @@ dependencies = [
  "objc2-encode",
 ]
 
+[[package]]
+name = "objc2-accessory-setup-kit"
+version = "0.3.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e9e04b662618122041300fd9424eeaa170d658c7346799266b24a4fb0a4f685c"
+dependencies = [
+ "bitflags",
+ "block2",
+ "dispatch2",
+ "objc2",
+ "objc2-foundation",
+]
 
 [[package]]
 name = "objc2-app-kit"

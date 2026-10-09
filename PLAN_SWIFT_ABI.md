@@ -51,7 +51,7 @@ External tiny Swift source is allowed only as ephemeral/compiler-oracle test inp
 
 C1 is `PLAN_SWIFT_ABI_OWNERSHIP.md`: end-to-end ownership evidence for the existing `SwiftRetained` wrapper and compiler-derived `swift_retain`/`swift_release` bindings. C1 does not implement general Swift values, direct Apple API calls, or async calls. C2 is [PLAN_SWIFT_ABI_STRING.md](PLAN_SWIFT_ABI_STRING.md): a compiler-authored C++ interoperability proof for a concrete Swift `String` round-trip, using only temporary Swift oracle input. C3 is [PLAN_SWIFT_ABI_OPTIONAL.md](PLAN_SWIFT_ABI_OPTIONAL.md): a compiler-authored C++ interoperability proof for `Optional<String>` with a fixed-width C boundary. C4 is [PLAN_SWIFT_ABI_ASYNC.md](PLAN_SWIFT_ABI_ASYNC.md): a compiler-header feasibility proof for Swift `async throws` functions and a fixed-width C caller path. C5 is [PLAN_SWIFT_ABI_ASYNC_THUNK.md](PLAN_SWIFT_ABI_ASYNC_THUNK.md): a compiler-derived Clang `swiftasynccall` lowering proof after C4's generated-header omission. C6 is [PLAN_SWIFT_ABI_ASYNC_RUNTIME.md](PLAN_SWIFT_ABI_ASYNC_RUNTIME.md): an audit for a supported public Swift task-entry interface and the task/context contract needed by a Rust caller. Each proof is bounded; async runtime machinery and concrete API proofs require separate implementation subplans.
 
-C7 is [PLAN_SWIFT_APP_INTENTS.md](PLAN_SWIFT_APP_INTENTS.md): an isolated Stage 0 audit of the normal public Xcode App Intents metadata pipeline and the supported zero-Swift-source boundary. It records whether the Stage 1 attempt has a documented, stable input path; it does not permit private metadata formats or runtime registration.
+C7 is [PLAN_SWIFT_APP_INTENTS.md](PLAN_SWIFT_APP_INTENTS.md): an isolated Stage 0 audit of the normal public Xcode App Intents metadata pipeline and the supported zero-Swift-source boundary. It records whether the Stage 1 attempt has a documented, stable input path; it does not permit private metadata formats or runtime registration. B280 is [PLAN_CAPABILITIES_ALARMKIT.md](PLAN_CAPABILITIES_ALARMKIT.md): a concrete Layer-1 consumer of the compiler-derived `swiftcall` boundary and enum value witnesses for the synchronous `AlarmManager.authorizationState` snapshot; alarm scheduling and async updates remain out of scope.
 
 ## Phase 0 — toolchain manifest and installed SDK inventory
 
@@ -190,6 +190,8 @@ Apply the Layer-1 substrate to current research-prioritized residuals when publi
 - WidgetCenter management Swift-only gaps
 - selective MusicKit residuals not covered by REST/MediaPlayer
 - AlarmKit basic flows if no additional Layer-2 nominal-type machinery is required
+
+B280 establishes only the iOS 26.0+ AlarmKit authorization-state snapshot with compiler-derived resilient-enum value witnesses. It does not complete the AlarmKit basic-flow work above; scheduling, list/cancel/pause/resume/stop, request authorization, and update streams remain open
 
 Each capability gets its own small module/crate and may not expand common ABI machinery without a concrete need.
 

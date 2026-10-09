@@ -107,3 +107,29 @@ and [custom RealityKit materials](https://developer.apple.com/documentation/real
 
 No tests, builds, ARView creation, app launch, camera access, AR session, scene mutation, render,
 or device query was performed for B194
+
+## B291 follow-up: one Photogrammetry hardware-support snapshot
+
+The iOS 26.5 `RealityFoundation.swiftinterface` declares `PhotogrammetrySession.isSupported` as a synchronous `static Bool` on the iOS 17.0+ `PhotogrammetrySession` class. The type is not `@MainActor`; its getter is a plain scalar read. Apple's documentation says this value reports whether current hardware supports Object Capture and advises clients to check it before use. This supports one precise point-in-time hardware-support query without `PhotogrammetrySession` construction, image input, reconstruction, capture, or UI.
+
+B291 adds `platform/ios/ios-photogrammetry-status` and `docs/ios/photogrammetry-status.md`. The native C thunk uses the compiler-derived class metadata accessor and `swiftcall` getter, with one `u8` result and no Rust-owned Swift value. The public Rust function returns only the native `isSupported` Boolean or a bridge/target error. The package links `RealityFoundation` and has an iOS 17.0 minimum.
+
+This is a narrow RealityFoundation partial only. `true` does not guarantee that particular images can be reconstructed or that a future session/process call will succeed. It does not add ObjectCaptureSession image capture, PhotogrammetrySession creation or processing, `ObjectCaptureView`, RealityKit scene/entity/render support, or ARView capability. D80/B194's full RealityKit scene/entity/render caveat remains. Root owns aggregate row `095`; no matrix/count edit is made here. Xcode 27.x remains the required repository baseline; local compiler evidence is Xcode 26.6 build `17F113` / iOS SDK 26.5.
+
+Primary evidence: iOS 26.5 `/Applications/Xcode.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS26.5.sdk/System/Library/Frameworks/RealityFoundation.framework/Modules/RealityFoundation.swiftmodule/arm64e-apple-ios.swiftinterface` and `RealityFoundation.tbd`; [Apple `PhotogrammetrySession.isSupported`](https://developer.apple.com/documentation/realitykit/photogrammetrysession/issupported), [Apple `PhotogrammetrySession`](https://developer.apple.com/documentation/realitykit/photogrammetrysession), and [Apple Object Capture overview](https://developer.apple.com/documentation/realitykit/realitykit-object-capture).
+
+No tests, session creation, image processing, capture, UI, app launch, Simulator run, or device query was performed for B291
+
+## B298 follow-up: Photogrammetry input-limit snapshot
+
+The iOS 26.5 `RealityFoundation.swiftinterface` declares `PhotogrammetrySession.Limits` and `static let limits` at iOS 17.0+, with two synchronous `Swift.Int` getters: `maximumInputImageDimension` and `maximumNumberOfInputImages`. The interface does not mark `Limits` `@frozen`, so the Rust boundary does not assume or copy its layout. Apple documents `limits` as device-specific constant hardware limits; the dimension value is the max allowed input width or height, and the image-count value is the max images or samples usable for reconstruction. Input beyond either limit is ignored with an `.invalidSample` output.
+
+B298 extends `platform/ios/ios-photogrammetry-status` with the Rust-owned `PhotogrammetrySessionLimits` snapshot and `photogrammetry_session_limits()`. It returns the two exact Swift `Int` values as signed `i64` fields. The C `swiftcall` thunk uses the public `Limits` metadata accessor and value-witness table to get dynamic size/alignment, allocates opaque storage, invokes the compiler-derived `sret` getter and both scalar getters, calls the value-witness destroy function, then frees the storage. It does not use guessed field offsets or add general resilient Swift value support.
+
+The scope adds only these two input-limit reads. It does not create a session, read images, start reconstruction, capture camera data, present UI, or guarantee successful reconstruction or quality. B291's separate `isSupported` result remains only a hardware support Boolean. Row `095` remains partial; full RealityKit scene/entity/render support, ARView, and Object Capture flows remain unsupported. Root owns aggregate status and matrix edits.
+
+Compiler-oracle checks match device and Simulator IR for the `Limits` metadata accessor, opaque indirect result, both `i64` getters, metadata-sized/aligned allocation, and value-witness destruction. Static link checks verify the public imports and iOS 17.0 deployment floor; the example is not run. No tests, session creation, image processing, reconstruction, capture, UI, app launch, Simulator run, or device query was performed for B298.
+
+Primary evidence: iOS 26.5 `/Applications/Xcode.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS26.5.sdk/System/Library/Frameworks/RealityFoundation.framework/Modules/RealityFoundation.swiftmodule/arm64e-apple-ios.swiftinterface` and `RealityFoundation.tbd`; [Apple `PhotogrammetrySession.Limits`](https://developer.apple.com/documentation/realitykit/photogrammetrysession/limits-swift.struct), [Apple `maximumInputImageDimension`](https://developer.apple.com/documentation/realitykit/photogrammetrysession/limits-swift.struct/maximuminputimagedimension), [Apple `maximumNumberOfInputImages`](https://developer.apple.com/documentation/realitykit/photogrammetrysession/limits-swift.struct/maximumnumberofinputimages), and [Apple `PhotogrammetrySession.limits`](https://developer.apple.com/documentation/realitykit/photogrammetrysession/limits-swift.type.property).
+
+The Xcode 27.x repository baseline caveat remains; local compiler evidence is Xcode 26.6 build `17F113` / iOS SDK 26.5

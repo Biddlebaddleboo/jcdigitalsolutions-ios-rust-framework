@@ -1,0 +1,15 @@
+[package]
+name = "ios-alarmkit-status"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "AlarmKit authorization-state snapshot for iOS"
+build = "build.rs"
+
+[target.'cfg(target_os = "ios")'.dependencies]
+swift-abi-core = { path = "../../../interop/swift-abi-core", version = "0.1.0", default-features = false, features = ["apple-runtime"] }
+
+[lints]
+workspace = true

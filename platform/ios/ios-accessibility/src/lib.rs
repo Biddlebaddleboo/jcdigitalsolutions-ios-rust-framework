@@ -31,10 +31,15 @@ mod platform;
 
 #[cfg(target_os = "ios")]
 pub use platform::{
-    AccessibilityApiUnavailable, AccessibilityMetadata, assistive_touch_is_enabled,
-    classic_invert_is_enabled, guided_access_is_enabled,
-    reduce_motion_is_enabled, reduce_transparency_is_enabled, speak_screen_is_enabled,
-    speak_selection_is_enabled, switch_control_is_running, voice_over_is_running,
+    AccessibilityApiUnavailable, AccessibilityMetadata, HearingDevicePairingStatus,
+    assistive_touch_is_enabled, bold_text_is_enabled, classic_invert_is_enabled,
+    closed_captioning_is_enabled, color_filters_or_grayscale_preference_is_enabled,
+    cross_fade_transitions_are_preferred, differentiate_without_color_is_enabled,
+    guided_access_is_enabled, hearing_device_paired_ear, increase_contrast_is_enabled,
+    mono_audio_is_enabled, on_off_switch_labels_are_enabled, reduce_motion_is_enabled,
+    reduce_transparency_is_enabled, shake_to_undo_is_enabled, speak_screen_is_enabled,
+    speak_selection_is_enabled, switch_control_is_running, video_autoplay_previews_are_enabled,
+    voice_over_is_running,
 };
 
 #[cfg(test)]

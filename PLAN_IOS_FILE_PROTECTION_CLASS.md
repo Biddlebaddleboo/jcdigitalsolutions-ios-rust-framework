@@ -1,8 +1,8 @@
-# B168: No-Go for a Descriptor-Bound File-Protection-Class Snapshot
+# B168: No-Go for a Named File-Protection-Class Snapshot
 
 ## Disposition
 
-Do not add a public `ios-files` file-protection-class query with the currently verified Rust/Foundation surfaces. iOS provides a descriptor-level `F_GETPROTECTIONCLASS` command, but the installed public header exposes only an integer result and no numeric mapping to Foundation's documented protection values. A raw integer would not be a useful or honest protection-class contract
+This B168 no-go covers a named protection-level API based on `F_GETPROTECTIONCLASS` or Foundation's URL/path values. It does not cover B293's separate opaque `u32` from `ATTR_CMN_DATA_PROTECT_FLAGS`. The installed public header exposes only an integer result for `F_GETPROTECTIONCLASS` and no numeric mapping to Foundation's documented protection values; B168 therefore does not translate that result into a named class
 
 ## Candidate and evidence
 
@@ -14,14 +14,14 @@ Do not add a public `ios-files` file-protection-class query with the currently v
 
 ## Decision
 
-Keep this API out of `ios-files` until a public descriptor-bound API documents the mapping from `F_GETPROTECTIONCLASS`'s result to stable protection values. Do not hard-code private numeric values or re-resolve paths through Foundation. A future implementation needs a verified public mapping and a descriptor-preserving safe query path
+Keep named protection-level mapping out of `ios-files` until a public descriptor-bound API documents the mapping from `F_GETPROTECTIONCLASS`'s result to stable protection values. B293 separately exposes the `ATTR_CMN_DATA_PROTECT_FLAGS` value as an opaque code only, with no level names or access/security inference. Do not hard-code private numeric mappings or re-resolve paths through Foundation
 
 ## Platform evidence
 
 - Apple's [Foundation `NSFileProtectionKey` documentation](https://developer.apple.com/documentation/foundation/fileattributekey/protectionkey?language=objc) says its corresponding value is an `NSString`; Apple's [`NSFileProtectionType` documentation](https://developer.apple.com/documentation/foundation/fileprotectiontype?language=objc) describes the named protection levels.
 - Apple's [`URLResourceValues.fileProtection` documentation](https://developer.apple.com/documentation/foundation/urlresourcevalues/fileprotection) exposes the URL resource's protection level. The inspected API is URL-based, not descriptor-based.
 - The installed iPhoneOS 26.5 SDK `sys/fcntl.h` contains the `F_GETPROTECTIONCLASS` macro. This confirms an SDK command definition, not a documented integer-to-protection-level mapping.
-- This is a no-go report only. It adds no source/API, framework, dependency, permission, deployment-floor claim, or capability-matrix status change.
+- B168 itself added no source/API, framework, dependency, permission, deployment-floor claim, or capability-matrix status change. B293 is documented separately in [`PLAN_IOS_FILE_DATA_PROTECTION_CLASS_CODE.md`](PLAN_IOS_FILE_DATA_PROTECTION_CLASS_CODE.md).
 
 ## Validation
 

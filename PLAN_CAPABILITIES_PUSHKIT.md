@@ -109,3 +109,38 @@ Decision: no implementation or dependency change. Keep row `033-notifications-ba
 Evidence: installed iOS 26.5 SDK headers `PKVoIPPushMetadata.h` and `PKPushRegistry.h`; [Apple `PKVoIPPushMetadata.mustReport`](https://developer.apple.com/documentation/pushkit/pkvoippushmetadata/mustreport?language=objc), [Apple `PKPushRegistryDelegate`](https://developer.apple.com/documentation/pushkit/pkpushregistrydelegate), [Apple `PKPushRegistry`](https://developer.apple.com/documentation/pushkit/pkpushregistry), and the [`objc2-push-kit` 0.3.2 API listing](https://docs.rs/objc2-push-kit/0.3.2/objc2_push_kit/).
 
 No source, dependency, build, link probe, test, app launch, Simulator run, device query, registry creation, push registration, callback, or live manager call was performed for B212
+
+## B285 follow-up: `desiredPushTypes` is local registration intent only
+
+Audited one distinct PushKit candidate beyond D70's status/token review and B212's callback-only
+`PKVoIPPushMetadata.mustReport`: reading `PKPushRegistry.desiredPushTypes` from an already-owned
+registry. The installed iOS 26.5 header declares a nullable read/write `NSSet<PKPushType> *`
+instance property. It is not a static API and does not expose a server registration result
+
+Apple documents the setter semantics: assigning `desiredPushTypes` asks the PushKit server to
+register those types asynchronously, and the success/failure result arrives through the registry's
+delegate. Apple also requires the app to set a valid delegate before modifying this property and
+normally to create and retain a registry at every app launch. Therefore a getter can report only
+the local set requested on that particular registry. It cannot establish successful PushKit
+registration, a current token, APNs reachability, delivery readiness, entitlement approval, or a
+working VoIP service. Creating a new registry solely to read the property does not recover another
+registry's state and introduces the launch/delegate lifecycle
+
+Decision: no B285 Rust API, dependency, or Cargo.lock change. Keep row
+`033-notifications-background-pushkit` at `X`. A Rust wrapper named for configured push types would
+still require a host-owned registry handle and would expose configuration rather than a useful
+system capability or readiness result. This is distinct from B212's per-incoming-push `mustReport`
+value and does not revise D70's status/token boundary
+
+Evidence: Xcode 26.6 build `17F113`, iPhoneOS SDK 26.5,
+`/Applications/Xcode.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS26.5.sdk/System/Library/Frameworks/PushKit.framework/Headers/PKPushRegistry.h`;
+[Apple `desiredPushTypes`](https://developer.apple.com/documentation/pushkit/pkpushregistry/desiredpushtypes?changes=_5_8&language=objc),
+[Apple `PKPushRegistry`](https://developer.apple.com/documentation/pushkit/pkpushregistry),
+[Apple PushKit registration guidance](https://developer.apple.com/documentation/pushkit/supporting-pushkit-notifications-in-your-app),
+and the existing [D70/B212 audit](PLAN_CAPABILITIES_PUSHKIT.md). The upstream `objc2-push-kit`
+0.3.2 API listing is documented at <https://docs.rs/objc2-push-kit/0.3.2/objc2_push_kit/>; this
+audit adds no crate dependency. Evidence is limited to Xcode 26.6 / SDK 26.5 and retains the
+repository's Xcode 27.x baseline caveat
+
+No source, dependency, build, link probe, test, app launch, Simulator run, device query, registry
+creation, push registration, or live manager call was performed for B285

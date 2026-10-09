@@ -7,15 +7,21 @@ use objc2_foundation::{NSArray, NSAttributedString, NSCopying, NSString};
 use objc2_ui_kit::{
     NSObjectUIAccessibility, NSObjectUIAccessibilityContainer, NSObjectUIAccessibilityFocus,
     UIAccessibilityContainerType as NativeAccessibilityContainerType,
-    UIAccessibilityDirectTouchOptions,
+    UIAccessibilityConvertFrameToScreenCoordinates, UIAccessibilityConvertPathToScreenCoordinates,
+    UIAccessibilityDarkerSystemColorsEnabled, UIAccessibilityDirectTouchOptions,
     UIAccessibilityExpandedStatus as NativeAccessibilityExpandedStatus,
-    UIAccessibilityIdentification, UIAccessibilityIsAssistiveTouchRunning,
+    UIAccessibilityHearingDeviceEar as NativeHearingDeviceEar,
+    UIAccessibilityHearingDevicePairedEar, UIAccessibilityIdentification,
+    UIAccessibilityIsAssistiveTouchRunning, UIAccessibilityIsBoldTextEnabled,
+    UIAccessibilityIsClosedCaptioningEnabled, UIAccessibilityIsGrayscaleEnabled,
     UIAccessibilityIsGuidedAccessEnabled, UIAccessibilityIsInvertColorsEnabled,
-    UIAccessibilityIsReduceMotionEnabled,
-    UIAccessibilityIsReduceTransparencyEnabled, UIAccessibilityIsSpeakScreenEnabled,
+    UIAccessibilityIsMonoAudioEnabled, UIAccessibilityIsOnOffSwitchLabelsEnabled,
+    UIAccessibilityIsReduceMotionEnabled, UIAccessibilityIsReduceTransparencyEnabled,
+    UIAccessibilityIsShakeToUndoEnabled, UIAccessibilityIsSpeakScreenEnabled,
     UIAccessibilityIsSpeakSelectionEnabled, UIAccessibilityIsSwitchControlRunning,
-    UIAccessibilityIsVoiceOverRunning,
+    UIAccessibilityIsVideoAutoplayEnabled, UIAccessibilityIsVoiceOverRunning,
     UIAccessibilityNavigationStyle as NativeAccessibilityNavigationStyle,
+    UIAccessibilityPrefersCrossFadeTransitions, UIAccessibilityShouldDifferentiateWithoutColor,
     UIAccessibilityTextualContext as NativeAccessibilityTextualContext,
     UIAccessibilityTextualContextConsole, UIAccessibilityTextualContextFileSystem,
     UIAccessibilityTextualContextMessaging, UIAccessibilityTextualContextNarrative,
@@ -42,6 +48,21 @@ use crate::traits::{AccessibilityTrait, fold_traits};
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct AccessibilityApiUnavailable;
 
+/// The current ear-side pairing status that UIKit reports for Made for iPhone hearing aids.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum HearingDevicePairingStatus {
+    /// UIKit reports neither ear as paired.
+    None,
+    /// UIKit reports the left ear as paired.
+    Left,
+    /// UIKit reports the right ear as paired.
+    Right,
+    /// UIKit reports both ears as paired.
+    Both,
+    /// UIKit returned bits not named by the SDK constants known to this crate.
+    Unknown(u64),
+}
+
 /// Read the current VoiceOver enabled/running state on UIKit's main actor.
 ///
 /// Pass a proof from `ios_runtime::main_thread::MainThread::current`. This is one synchronous
@@ -66,6 +87,55 @@ pub fn switch_control_is_running(_main_thread: &MainThread) -> bool {
 /// observe later status changes.
 pub fn guided_access_is_enabled(_main_thread: &MainThread) -> bool {
     UIAccessibilityIsGuidedAccessEnabled()
+}
+
+/// Read whether UIKit reports the Increase Contrast setting as enabled.
+///
+/// Pass a proof from `ios_runtime::main_thread::MainThread::current`, and call only on iOS 8.0 or
+/// later. This is one synchronous setting snapshot; it does not observe later status changes,
+/// mutate colors, or claim that UIKit applies contrast to app-owned custom drawing.
+pub fn increase_contrast_is_enabled(_main_thread: &MainThread) -> bool {
+    UIAccessibilityDarkerSystemColorsEnabled()
+}
+
+/// Read UIKit's reported Color Filters or Grayscale preference state.
+///
+/// Pass a proof from `ios_runtime::main_thread::MainThread::current`, and call only on iOS 8.0 or
+/// later. This is one synchronous setting snapshot; it does not identify the active filter, report
+/// rendered colors, observe later status changes, or alter display output.
+pub fn color_filters_or_grayscale_preference_is_enabled(_main_thread: &MainThread) -> bool {
+    UIAccessibilityIsGrayscaleEnabled()
+}
+
+/// Read whether UIKit reports Auto-Play Video Previews as enabled.
+///
+/// Pass a proof from `ios_runtime::main_thread::MainThread::current`, and call only on iOS 13.0 or
+/// later. This is one synchronous setting snapshot; it does not observe later status changes or
+/// report or control playback behavior for app video content.
+pub fn video_autoplay_previews_are_enabled(_main_thread: &MainThread) -> bool {
+    UIAccessibilityIsVideoAutoplayEnabled()
+}
+
+/// Read UIKit's current Made for iPhone hearing-aid ear-side pairing status.
+///
+/// Pass a proof from `ios_runtime::main_thread::MainThread::current`, and call only on iOS 10.0 or
+/// later. This is one synchronous status snapshot; it does not expose device identity, report
+/// connection, streaming, or audio-route state, prompt the user, observe notifications, or control
+/// audio. Unknown native bit patterns are preserved in `HearingDevicePairingStatus::Unknown`.
+pub fn hearing_device_paired_ear(_main_thread: &MainThread) -> HearingDevicePairingStatus {
+    let native = UIAccessibilityHearingDevicePairedEar();
+    let bits = native.bits();
+    if bits == NativeHearingDeviceEar::None.bits() {
+        HearingDevicePairingStatus::None
+    } else if bits == NativeHearingDeviceEar::Left.bits() {
+        HearingDevicePairingStatus::Left
+    } else if bits == NativeHearingDeviceEar::Right.bits() {
+        HearingDevicePairingStatus::Right
+    } else if bits == NativeHearingDeviceEar::Both.bits() {
+        HearingDevicePairingStatus::Both
+    } else {
+        HearingDevicePairingStatus::Unknown(bits as u64)
+    }
 }
 
 /// Read whether AssistiveTouch is enabled when UIKit can report it accurately.
@@ -124,6 +194,69 @@ pub fn speak_selection_is_enabled(_main_thread: &MainThread) -> bool {
 /// alter display colors.
 pub fn classic_invert_is_enabled(_main_thread: &MainThread) -> bool {
     UIAccessibilityIsInvertColorsEnabled()
+}
+
+/// Read whether UIKit reports the system On/Off Labels setting as enabled.
+///
+/// Pass a proof from `ios_runtime::main_thread::MainThread::current`, and call only on iOS 13.0 or
+/// later. This is one synchronous setting snapshot; it does not observe later status changes or
+/// alter switch labels.
+pub fn on_off_switch_labels_are_enabled(_main_thread: &MainThread) -> bool {
+    UIAccessibilityIsOnOffSwitchLabelsEnabled()
+}
+
+/// Read whether UIKit reports the system Bold Text setting as enabled.
+///
+/// Pass a proof from `ios_runtime::main_thread::MainThread::current`, and call only on iOS 8.0 or
+/// later. This is one synchronous setting snapshot; it does not observe later status changes or
+/// modify text rendering.
+pub fn bold_text_is_enabled(_main_thread: &MainThread) -> bool {
+    UIAccessibilityIsBoldTextEnabled()
+}
+
+/// Read whether UIKit reports the system Closed Captions + SDH setting as enabled.
+///
+/// Pass a proof from `ios_runtime::main_thread::MainThread::current`, and call only on iOS 5.0 or
+/// later. This is one synchronous setting snapshot; it does not observe later status changes or
+/// render captions.
+pub fn closed_captioning_is_enabled(_main_thread: &MainThread) -> bool {
+    UIAccessibilityIsClosedCaptioningEnabled()
+}
+
+/// Read whether UIKit reports the system Mono Audio setting as enabled.
+///
+/// Pass a proof from `ios_runtime::main_thread::MainThread::current`, and call only on iOS 5.0 or
+/// later. This is one synchronous setting snapshot; it does not observe later status changes or
+/// change audio output.
+pub fn mono_audio_is_enabled(_main_thread: &MainThread) -> bool {
+    UIAccessibilityIsMonoAudioEnabled()
+}
+
+/// Read whether UIKit reports the system Shake to Undo setting as enabled.
+///
+/// Pass a proof from `ios_runtime::main_thread::MainThread::current`, and call only on iOS 9.0 or
+/// later. This is one synchronous setting snapshot; it does not trigger an undo action, observe
+/// later status changes, or perform a UI action.
+pub fn shake_to_undo_is_enabled(_main_thread: &MainThread) -> bool {
+    UIAccessibilityIsShakeToUndoEnabled()
+}
+
+/// Read whether UIKit reports the Differentiate Without Color setting as enabled.
+///
+/// Pass a proof from `ios_runtime::main_thread::MainThread::current`, and call only on iOS 13.0 or
+/// later. This is one synchronous setting snapshot; it does not observe later status changes or
+/// change the app's visual presentation.
+pub fn differentiate_without_color_is_enabled(_main_thread: &MainThread) -> bool {
+    UIAccessibilityShouldDifferentiateWithoutColor()
+}
+
+/// Read whether UIKit reports Reduce Motion with Prefer Cross-Fade Transitions enabled.
+///
+/// Pass a proof from `ios_runtime::main_thread::MainThread::current`, and call only on iOS 14.0 or
+/// later. Apple defines this as a combined setting snapshot; it does not change app animations or
+/// observe later status changes.
+pub fn cross_fade_transitions_are_preferred(_main_thread: &MainThread) -> bool {
+    UIAccessibilityPrefersCrossFadeTransitions()
 }
 
 /// Synchronous accessibility metadata access to a caller-owned borrowed UIKit view.
@@ -202,6 +335,71 @@ impl<'view> AccessibilityMetadata<'view> {
     pub fn set_element(&self, is_element: bool) {
         self.view
             .setIsAccessibilityElement(is_element, self.main_thread);
+    }
+
+    /// Read whether UIKit exempts this view from accessibility-requested color inversion.
+    ///
+    /// The iOS 11.0 property is selector-checked. This returns the property only; it does not
+    /// report whether a color-inversion setting is enabled or which colors UIKit displays.
+    pub fn accessibility_ignores_invert_colors(&self) -> Result<bool, AccessibilityApiUnavailable> {
+        if !self
+            .view
+            .respondsToSelector(sel!(accessibilityIgnoresInvertColors))
+        {
+            return Err(AccessibilityApiUnavailable);
+        }
+        Ok(self.view.accessibilityIgnoresInvertColors())
+    }
+
+    /// Replace whether UIKit exempts this view subtree from accessibility-requested color inversion.
+    ///
+    /// Use `true` only when inversion damages this view's content. UIKit applies the property to
+    /// this view and all subviews. The iOS 11.0 setter is selector-checked; this changes UIKit
+    /// behavior but does not alter the user's accessibility setting.
+    pub fn set_accessibility_ignores_invert_colors(
+        &self,
+        ignores_invert_colors: bool,
+    ) -> Result<(), AccessibilityApiUnavailable> {
+        if !self
+            .view
+            .respondsToSelector(sel!(setAccessibilityIgnoresInvertColors:))
+        {
+            return Err(AccessibilityApiUnavailable);
+        }
+        self.view
+            .setAccessibilityIgnoresInvertColors(ignores_invert_colors);
+        Ok(())
+    }
+
+    /// Read whether UIKit marks this view to show in the Large Content Viewer.
+    ///
+    /// The iOS 13.0 property is selector-checked. This reads the property only; it does not report
+    /// whether the device viewer is enabled or an interaction is attached.
+    pub fn shows_large_content_viewer(&self) -> Result<bool, AccessibilityApiUnavailable> {
+        if !self.view.respondsToSelector(sel!(showsLargeContentViewer)) {
+            return Err(AccessibilityApiUnavailable);
+        }
+        Ok(self.view.showsLargeContentViewer())
+    }
+
+    /// Replace whether UIKit marks this view to show in the Large Content Viewer.
+    ///
+    /// The iOS 13.0 property defaults to `false` and is selector-checked. For this value to take
+    /// effect, this view or an ancestor must have a host-owned `UILargeContentViewerInteraction`.
+    /// This method does not add an interaction, present the viewer, or guarantee display.
+    pub fn set_shows_large_content_viewer(
+        &self,
+        shows_large_content_viewer: bool,
+    ) -> Result<(), AccessibilityApiUnavailable> {
+        if !self
+            .view
+            .respondsToSelector(sel!(setShowsLargeContentViewer:))
+        {
+            return Err(AccessibilityApiUnavailable);
+        }
+        self.view
+            .setShowsLargeContentViewer(shows_large_content_viewer);
+        Ok(())
     }
 
     /// Read whether UIKit marks accessible descendants of this view as hidden.
@@ -884,6 +1082,16 @@ impl<'view> AccessibilityMetadata<'view> {
         Ok(self.view.accessibilityFrame(self.main_thread))
     }
 
+    /// Convert a rectangle from this borrowed view's coordinate space to screen coordinates.
+    ///
+    /// Use the result as a screen-space `accessibilityFrame` value. The adapter's main-thread
+    /// proof is required, and callers must call only on iOS 7.0 or later. The generated direct C
+    /// import has no runtime availability or weak-link guard. This method does not mutate the view
+    /// or promise visibility or presentation.
+    pub fn convert_frame_to_screen_coordinates(&self, frame_in_view: CGRect) -> CGRect {
+        UIAccessibilityConvertFrameToScreenCoordinates(frame_in_view, self.view)
+    }
+
     /// Replace UIKit's accessibility frame with a caller-supplied screen-space rectangle.
     ///
     /// The rectangle is passed through unchanged; this method does not convert coordinates, alter
@@ -913,6 +1121,19 @@ impl<'view> AccessibilityMetadata<'view> {
         }
         self.view.setAccessibilityPath(path, self.main_thread);
         Ok(())
+    }
+
+    /// Convert a path from this borrowed view's coordinate space to screen coordinates.
+    ///
+    /// This returns a new path and leaves the input path and view unchanged. The adapter's
+    /// main-thread proof is required, and callers must call only on iOS 7.0 or later. The generated
+    /// direct C import has no runtime availability or weak-link guard. This does not render the
+    /// path or promise visibility or presentation.
+    pub fn convert_path_to_screen_coordinates(
+        &self,
+        path_in_view: &UIBezierPath,
+    ) -> Retained<UIBezierPath> {
+        UIAccessibilityConvertPathToScreenCoordinates(path_in_view, self.view)
     }
 
     /// Return whether UIKit's current accessibility-path property is non-nil.
