@@ -101,7 +101,7 @@ fn read_status(manager: &NEVPNManager) -> PersonalVpnStatus {
     let connection = unsafe { manager.connection() };
     // SAFETY: `connection` is retained and live; this reads only its current status.
     let status = unsafe { connection.status() };
-    PersonalVpnStatus::from_native_raw(status.0)
+    PersonalVpnStatus::from_native_raw(status.0 as i64)
 }
 
 fn read_configuration_flags(manager: &NEVPNManager) -> PersonalVpnConfigurationFlags {
@@ -134,7 +134,7 @@ fn start_request<T: Send + 'static>(
                 // Rust-owned domain and code values before the callback returns.
                 if let Some(error) = unsafe { native_error.as_ref() } {
                     return Err(PersonalVpnQueryError::PreferenceLoad(
-                        PersonalVpnLoadError::new(error.domain().to_string(), error.code()),
+                        PersonalVpnLoadError::new(error.domain().to_string(), error.code() as i64),
                     ));
                 }
 

@@ -9,9 +9,9 @@ and drop of the future on that thread. The future is `!Send` and `!Sync`. Apple 
 On successful preference load, the status callback reads `NEVPNManager.sharedManager().connection.status`
 and maps `Invalid`, `Disconnected`, `Connecting`, `Connected`, `Reasserting`, and `Disconnecting` to
 `PersonalVpnStatus`. Any raw status value not recognized by this crate is preserved as
-`PersonalVpnStatus::Unknown(isize)`. A failed load returns
+`PersonalVpnStatus::Unknown(i64)` after lossless widening from Apple's `NSInteger`. A failed load returns
 `PersonalVpnQueryError::PreferenceLoad(PersonalVpnLoadError)`, whose domain and native integer code
-are owned Rust values. Callback-thread mismatch and a Rust panic during callback processing remain
+are owned Rust values with a fixed-width `i64` code. Callback-thread mismatch and a Rust panic during callback processing remain
 separate query errors.
 
 `ios-vpn::request_personal_vpn_configuration(main_thread)` starts a separate preference load and

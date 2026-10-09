@@ -27,12 +27,12 @@ pub enum PersonalVpnStatus {
     /// The profile's VPN connection is disconnecting.
     Disconnecting,
     /// The system returned a status value unknown to this crate.
-    Unknown(isize),
+    Unknown(i64),
 }
 
 impl PersonalVpnStatus {
     /// Maps an `NEVPNStatus` raw value without discarding unrecognized values.
-    pub const fn from_native_raw(raw: isize) -> Self {
+    pub const fn from_native_raw(raw: i64) -> Self {
         match raw {
             0 => Self::Invalid,
             1 => Self::Disconnected,
@@ -45,7 +45,7 @@ impl PersonalVpnStatus {
     }
 
     /// Returns the corresponding `NEVPNStatus` raw value.
-    pub const fn native_raw(self) -> isize {
+    pub const fn native_raw(self) -> i64 {
         match self {
             Self::Invalid => 0,
             Self::Disconnected => 1,
@@ -100,12 +100,12 @@ impl PersonalVpnConfigurationFlags {
 #[derive(Clone, Debug, Eq, Hash, PartialEq)]
 pub struct PersonalVpnLoadError {
     domain: String,
-    code: isize,
+    code: i64,
 }
 
 impl PersonalVpnLoadError {
     /// Creates an owned error from the native error domain and `NSInteger` code.
-    pub fn new(domain: String, code: isize) -> Self {
+    pub fn new(domain: String, code: i64) -> Self {
         Self { domain, code }
     }
 
@@ -115,7 +115,7 @@ impl PersonalVpnLoadError {
     }
 
     /// Returns the native `NSInteger` error code.
-    pub const fn code(&self) -> isize {
+    pub const fn code(&self) -> i64 {
         self.code
     }
 }

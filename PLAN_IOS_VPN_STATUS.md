@@ -38,7 +38,7 @@ The workspace already uses `crates/*` and `platform/ios/*` member globs. Each cr
 
 ## Public contract
 
-`PersonalVpnStatus` is a non-exhaustive portable value matching Apple's six public `NEVPNStatus` cases and preserving a future raw value as `Unknown(isize)`. `Invalid` is preserved as the platform value; it is not a global "VPN off" claim. `PersonalVpnLoadError` preserves an owned domain string and native `NSInteger` code. `PersonalVpnQueryError` keeps that load error distinct from a callback-thread mismatch or a caught Rust panic. The iOS future returns `Result<PersonalVpnStatus, PersonalVpnQueryError>`
+`PersonalVpnStatus` is a non-exhaustive portable value matching Apple's six public `NEVPNStatus` cases and preserving a future raw value as `Unknown(i64)`. The portable contract uses fixed-width `i64`, not pointer-width `isize`; the iOS adapter losslessly widens the native `NSInteger` on supported 32-bit and 64-bit Darwin targets. `Invalid` is preserved as the platform value; it is not a global "VPN off" claim. `PersonalVpnLoadError` preserves an owned domain string and native `NSInteger` code widened to fixed-width `i64`. `PersonalVpnQueryError` keeps that load error distinct from a callback-thread mismatch or a caught Rust panic. The iOS future returns `Result<PersonalVpnStatus, PersonalVpnQueryError>`
 
 The request function requires `ios_runtime::main_thread::MainThread`, starts the native request as the function runs, and returns a future that retains the proof plus a `PhantomData<Rc<()>>` marker so it is `!Send` and `!Sync`. The callback uses an `Arc<Mutex<...>>` containing only owned Rust values and a waker; it verifies `MainThreadMarker::new()` before querying NetworkExtension. Dropping the future detaches its Rust result and waker but does not cancel the preference load
 
@@ -81,6 +81,12 @@ Do not add or run tests in this workstream. No entitlement, user authorization, 
 B200 adds a second narrow read-only query to the existing row 098 partial. `ios-vpn::request_personal_vpn_configuration(MainThread)` asynchronously loads the calling app's preferences and, only after a successful load, reads `NEVPNManager.isEnabled` and `NEVPNManager.isOnDemandEnabled`. It returns `PersonalVpnConfigurationFlags { enabled, on_demand_enabled }` through `IosPersonalVpnConfigurationFuture`; the existing status API and B79 behavior remain intact. Preference-load failures, callback-thread mismatch, and caught Rust panics use the existing `PersonalVpnQueryError` contract.
 
 The two Booleans report only the loaded configuration properties. Apple documents that only one Personal VPN configuration can be enabled at once; if another is enabled, `isEnabled` is set false in preferences and a reload is needed to observe a change. `isOnDemandEnabled` reports the Connect On Demand capability flag only; B200 does not read the rule list or claim automatic connection behavior. Neither accessor is called as a setter. The request keeps the `allow-vpn` entitlement, caller-main-thread, future-drop, and iOS API-floor constraints from B79.
+
+## B448 — fixed-width native VPN status/error values
+
+B448 corrects the portable API's pointer-width `isize` fields. `PersonalVpnStatus::Unknown`, `from_native_raw`, `native_raw`, and `PersonalVpnLoadError::code` now use `i64`. The iOS adapter widens `NEVPNStatus` and `NSError.code()` from native `NSInteger`; supported Darwin `NSInteger` widths (32 and 64 bits) fit without loss. The status semantics, error-domain ownership, iOS availability, future behavior, and capability-row coverage do not change. This aligns portable values with the fixed-width semantic-data invariant and avoids a pointer-width-dependent public contract.
+
+Focused non-test validation: locked/offline host, iOS device, and iOS Simulator checks; strict Clippy for the portable and iOS packages; iOS rustdoc with warnings denied; package format, docs-check, zero-Swift-source, and scoped diff gates. No tests, preference-load calls, runtime VPN queries, app launches, probes, or entitlement checks were run.
 
 ### B200 declaration and binding evidence
 

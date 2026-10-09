@@ -344,6 +344,31 @@ root, in bytes; it is not a total path limit and does not establish limits for n
 that a later create or rename succeeds. This query adds no portable `FileBackend` operation. See
 the [B164 plan](../../PLAN_IOS_APP_DIRECTORY_NAME_MAX.md).
 
+`IosFiles::app_directory_case_sensitivity` queries `_PC_CASE_SENSITIVE` on the retained
+descriptor for one semantic app-directory root. `Some(false)` is the zero result; `Some(true)`
+accepts Darwin's `1` result and legacy FSKit's errno-free `-1` Boolean-true encoding. `None` means
+the filesystem returned `EINVAL` because it does not associate the property with that descriptor.
+The result is a point-in-time filesystem property, not Unicode normalization/collation behavior,
+a guarantee about a particular name pair, or a guarantee that a later create/rename will succeed.
+It does not change portable `AppPath` comparison or validation and is distinct from B175's cached
+Foundation volume-support hint. See the
+[B431 plan](../../PLAN_IOS_APP_DIRECTORY_CASE_SENSITIVITY.md).
+
+`IosFiles::app_directory_truncates_long_names` queries `_PC_NO_TRUNC` on a retained app-directory
+descriptor. Per Apple's Darwin `fpathconf(2)` contract, `Some(true)` means the filesystem may
+truncate a component longer than its `_PC_NAME_MAX`; `Some(false)` means it preserves the name and
+the native path operation reports its error, normally `ENAMETOOLONG`, for an overlong component.
+`None` means the filesystem does not associate the property with that descriptor. A legacy FSKit
+errno-free `-1` Boolean-true
+encoding is treated as `Some(true)`. For actual `AppPath` operations, `ios-files` checks each
+opened parent descriptor. A truncating filesystem also queries `_PC_NAME_MAX` there; an overlong
+component returns `ENAMETOOLONG` before it can target a shorter, different name. A non-truncating
+filesystem gets the original component and its native syscall result. If `_PC_NO_TRUNC` is
+unsupported, or `_PC_NAME_MAX` is unsupported when truncation is reported, the backend returns
+`Unsupported` rather than guess. This does not alter portable path validation, Unicode normalization,
+or collation. See the
+[B446 plan](../../PLAN_IOS_APP_DIRECTORY_NAME_TRUNCATION.md).
+
 ## Entry modification time
 
 `IosFiles::entry_modification_time` returns the raw POSIX seconds and nanoseconds from one

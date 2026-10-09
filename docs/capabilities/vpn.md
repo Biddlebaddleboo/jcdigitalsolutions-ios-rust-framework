@@ -13,8 +13,9 @@ iOS deployment target is 10.0; this package does not claim a linked Rust app can
 
 The status result describes only the calling app's Personal VPN connection at one query time.
 `Invalid` is preserved as `NEVPNStatusInvalid`; it does not mean that no VPN is active device-wide.
-A preference load error keeps its native error domain and integer code and is not mapped to a
-disconnected status. Unknown future status values keep their raw integer.
+A preference load error keeps its native error domain and signed `i64` code and is not mapped to a
+disconnected status. Unknown future status values keep their raw integer as `i64`; the iOS adapter
+losslessly widens Apple's `NSInteger` to this fixed-width portable type.
 
 The adapter only loads preferences and reads connection status or the two configuration flags. It
 does not mutate flags, inspect Connect On Demand rules, save or remove a profile, start or stop a

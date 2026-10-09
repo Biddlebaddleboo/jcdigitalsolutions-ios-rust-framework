@@ -2194,6 +2194,85 @@ impl IosFiles {
             .map_err(|_| backend_error(ErrorKind::InvalidInput, None))
     }
 
+    /// Returns the filesystem's case-sensitivity property for one retained app-directory root.
+    ///
+    /// This queries `fpathconf` with `_PC_CASE_SENSITIVE` on the retained Documents, Caches,
+    /// Temporary, or Application Support descriptor. `Some(false)` represents a zero result;
+    /// `Some(true)` represents the Darwin filesystem Boolean encodings `1` or `-1` (legacy
+    /// FSKit uses `-1` for Boolean true). `None` means the filesystem does not associate this
+    /// property with the descriptor and returned `EINVAL`. The result is a point-in-time
+    /// filesystem property. It does not define Unicode normalization or collation, guarantee
+    /// whether any particular pair of names collides, reserve a name, or guarantee a later
+    /// create or rename. It does not change portable `AppPath` comparison or validation. This
+    /// iOS-only query reads no file contents, accepts no arbitrary URL, starts no security scope,
+    /// and adds no required-reason privacy API.
+    ///
+    /// # Errors
+    ///
+    /// Returns `Unsupported` for a semantic directory that this backend does not retain, the
+    /// mapped POSIX error for other `fpathconf` failures, or `InvalidInput` for an unexpected
+    /// result encoding.
+    pub fn app_directory_case_sensitivity(
+        &self,
+        directory: AppDirectory,
+    ) -> Result<Option<bool>, FileError> {
+        let root = self.root(directory)?;
+        // SAFETY: `__error` returns this thread's errno slot.
+        unsafe { *libc::__error() = 0 };
+        // SAFETY: `root` is an open directory descriptor and `_PC_CASE_SENSITIVE` is a valid
+        // Darwin query.
+        let value = unsafe { libc::fpathconf(root.as_raw_fd(), libc::_PC_CASE_SENSITIVE) };
+        match value {
+            0 => Ok(Some(false)),
+            1 => Ok(Some(true)),
+            -1 => {
+                // SAFETY: `__error` returns this thread's errno slot.
+                let code = unsafe { *libc::__error() };
+                if code == 0 {
+                    // Legacy FSKit pathconf encodes a Boolean true as -1; this selector is a
+                    // Boolean property, not a numeric limit with a no-limit sentinel.
+                    Ok(Some(true))
+                } else if code == libc::EINVAL {
+                    Ok(None)
+                } else {
+                    Err(file_error(io::Error::from_raw_os_error(code)))
+                }
+            }
+            _ => Err(backend_error(ErrorKind::InvalidInput, None)),
+        }
+    }
+
+    /// Reports whether a filesystem may truncate overlong names for one retained app root.
+    ///
+    /// This queries `fpathconf` with `_PC_NO_TRUNC` on the retained Documents, Caches,
+    /// Temporary, or Application Support descriptor. `Some(true)` means the filesystem may
+    /// truncate a component longer than its `_PC_NAME_MAX` value; `Some(false)` means the
+    /// filesystem preserves an overlong name so the path operation returns its native error,
+    /// normally `ENAMETOOLONG`. `None` means this filesystem does not associate the property with
+    /// the descriptor and returned `EINVAL`. A legacy FSKit Boolean `true` encoding of `-1` with
+    /// unchanged `errno` is also reported as `Some(true)`.
+    ///
+    /// AppPath traversal checks this property on each opened parent. If the property reports
+    /// possible truncation, traversal also queries that parent's `_PC_NAME_MAX` and rejects a
+    /// longer component before a syscall could target a different name. If `_PC_NO_TRUNC` is
+    /// unsupported, traversal fails closed with `Unsupported`. This snapshot is point-in-time,
+    /// does not define Unicode normalization or collation, and does not guarantee a later file
+    /// operation. It reads no file contents, accepts no arbitrary URL, starts no security scope,
+    /// and adds no required-reason privacy API.
+    ///
+    /// # Errors
+    ///
+    /// Returns `Unsupported` for a semantic directory that this backend does not retain,
+    /// `InvalidInput` for an unexpected result encoding, or the mapped POSIX error if `fpathconf`
+    /// fails.
+    pub fn app_directory_truncates_long_names(
+        &self,
+        directory: AppDirectory,
+    ) -> Result<Option<bool>, FileError> {
+        let root = self.root(directory)?;
+        query_name_truncation(root)
+    }
+
     /// Returns the cached rename-option support values for one semantic app-directory volume.
     ///
     /// `IosFiles::new` reads Foundation's `NSURLVolumeSupportsExclusiveRenamingKey` and
@@ -2345,7 +2424,7 @@ impl IosFiles {
     /// close failure, and `ResourceExhausted` if the count cannot fit in `u64`.
     pub fn directory_entry_count(&self, path: AppPath<'_>) -> Result<u64, FileError> {
         let parts = path_parts(path.relative())?;
-        let directory = open_directory(self.root(path.directory())?, &parts).map_err(file_error)?;
+        let directory = open_directory(self.root(path.directory())?, &parts)?;
         scan_directory_entries(&directory, false)
     }
 
@@ -2365,7 +2444,7 @@ impl IosFiles {
     /// close failure.
     pub fn directory_is_empty(&self, path: AppPath<'_>) -> Result<bool, FileError> {
         let parts = path_parts(path.relative())?;
-        let directory = open_directory(self.root(path.directory())?, &parts).map_err(file_error)?;
+        let directory = open_directory(self.root(path.directory())?, &parts)?;
         scan_directory_entries(&directory, true).map(|count| count == 0)
     }
 
@@ -2390,7 +2469,7 @@ impl IosFiles {
         path: AppPath<'_>,
     ) -> Result<IosDirectoryEntryKindCounts, FileError> {
         let parts = path_parts(path.relative())?;
-        let directory = open_directory(self.root(path.directory())?, &parts).map_err(file_error)?;
+        let directory = open_directory(self.root(path.directory())?, &parts)?;
         scan_directory_entry_kind_counts(&directory)
     }
 
@@ -2419,7 +2498,7 @@ impl IosFiles {
         path: AppPath<'_>,
     ) -> Result<IosDirectoryAllocatedSizeSnapshot, FileError> {
         let parts = path_parts(path.relative())?;
-        let directory = open_directory(self.root(path.directory())?, &parts).map_err(file_error)?;
+        let directory = open_directory(self.root(path.directory())?, &parts)?;
         let mut attributes = libc::attrlist {
             bitmapcount: libc::ATTR_BIT_MAP_COUNT,
             reserved: 0,
@@ -3254,6 +3333,7 @@ impl IosFiles {
             self.next_temporary_id = self.next_temporary_id.wrapping_add(1);
             let name = CString::new(format!(".ios-files-{}-{id}", std::process::id()))
                 .map_err(|_| FileError::InvalidPath)?;
+            ensure_component_name_is_preserved(parent, &name)?;
             // SAFETY: `parent` is an open directory descriptor and `name` is NUL-terminated.
             let fd = unsafe {
                 libc::openat(
@@ -3395,7 +3475,7 @@ impl FileBackend for IosFiles {
 
     fn read_directory(&mut self, path: AppPath<'_>) -> Result<Vec<DirectoryEntry>, FileError> {
         let parts = path_parts(path.relative())?;
-        let directory = open_directory(self.root(path.directory())?, &parts).map_err(file_error)?;
+        let directory = open_directory(self.root(path.directory())?, &parts)?;
         // `fdopendir` takes ownership of its descriptor, so duplicate the borrowed directory fd.
         // SAFETY: `directory` is a valid open descriptor.
         let duplicate = unsafe { libc::dup(directory.as_raw_fd()) };
@@ -3602,15 +3682,15 @@ fn open_url_session_temporary_file(url: &NSURL) -> Result<File, FileError> {
 
 fn open_parent(root: &File, parts: &[CString]) -> Result<(File, CString), FileError> {
     let (leaf, parents) = parts.split_last().ok_or(FileError::InvalidPath)?;
-    Ok((
-        open_directory(root, parents).map_err(file_error)?,
-        leaf.clone(),
-    ))
+    let parent = open_directory(root, parents)?;
+    ensure_component_name_is_preserved(&parent, leaf)?;
+    Ok((parent, leaf.clone()))
 }
 
-fn open_directory(root: &File, parts: &[CString]) -> io::Result<File> {
-    let mut directory = root.try_clone()?;
+fn open_directory(root: &File, parts: &[CString]) -> Result<File, FileError> {
+    let mut directory = root.try_clone().map_err(file_error)?;
     for part in parts {
+        ensure_component_name_is_preserved(&directory, part)?;
         // SAFETY: the current fd is a directory and `part` is one validated component. The flags
         // reject both final symlinks and non-directory entries.
         let fd = unsafe {
@@ -3621,12 +3701,65 @@ fn open_directory(root: &File, parts: &[CString]) -> io::Result<File> {
             )
         };
         if fd < 0 {
-            return Err(io::Error::last_os_error());
+            return Err(file_error(io::Error::last_os_error()));
         }
         // SAFETY: `openat` returned a newly owned descriptor.
         directory = unsafe { File::from_raw_fd(fd) };
     }
     Ok(directory)
+}
+
+fn raw_fpathconf(directory: &File, selector: libc::c_int) -> (libc::c_long, libc::c_int) {
+    // SAFETY: `__error` returns this thread's errno slot.
+    unsafe { *libc::__error() = 0 };
+    // SAFETY: `directory` is an open descriptor and `selector` is a public pathconf selector.
+    let value = unsafe { libc::fpathconf(directory.as_raw_fd(), selector) };
+    let error = if value == -1 {
+        // SAFETY: `__error` returns this thread's errno slot.
+        unsafe { *libc::__error() }
+    } else {
+        0
+    };
+    (value, error)
+}
+
+fn query_name_truncation(directory: &File) -> Result<Option<bool>, FileError> {
+    let (value, error) = raw_fpathconf(directory, libc::_PC_NO_TRUNC);
+    match value {
+        0 => Ok(Some(false)),
+        1 => Ok(Some(true)),
+        -1 if error == 0 => {
+            // Legacy FSKit can encode a Boolean true as -1 with unchanged errno.
+            Ok(Some(true))
+        }
+        -1 if error == libc::EINVAL => Ok(None),
+        -1 => Err(file_error(io::Error::from_raw_os_error(error))),
+        _ => Err(backend_error(ErrorKind::InvalidInput, None)),
+    }
+}
+
+fn ensure_component_name_is_preserved(directory: &File, component: &CStr) -> Result<(), FileError> {
+    match query_name_truncation(directory)? {
+        Some(false) => Ok(()),
+        Some(true) => {
+            let (name_max, error) = raw_fpathconf(directory, libc::_PC_NAME_MAX);
+            let name_max = match name_max {
+                -1 if error == 0 => return Ok(()),
+                -1 if error == libc::EINVAL => {
+                    return Err(backend_error(ErrorKind::Unsupported, Some(error)));
+                }
+                -1 => return Err(file_error(io::Error::from_raw_os_error(error))),
+                value => usize::try_from(value)
+                    .map_err(|_| backend_error(ErrorKind::InvalidInput, None))?,
+            };
+            if component.to_bytes().len() > name_max {
+                Err(file_error(io::Error::from_raw_os_error(libc::ENAMETOOLONG)))
+            } else {
+                Ok(())
+            }
+        }
+        None => Err(backend_error(ErrorKind::Unsupported, Some(libc::EINVAL))),
+    }
 }
 
 fn scan_directory_entries(directory: &File, stop_after_first: bool) -> Result<u64, FileError> {

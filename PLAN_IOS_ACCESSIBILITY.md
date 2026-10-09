@@ -367,6 +367,21 @@ generated `objc2-ui-kit` 0.3.2 function also requires `block2`. Keep it outside 
 adapter; no feature or source change was made. Source: active SDK `UIGuidedAccess.h` and [Apple
 API reference](https://developer.apple.com/documentation/uikit/uiaccessibility/configureforguidedaccess%28features%3Aenabled%3Acompletionhandler%3A).
 
+B434 adds `button_shapes_are_enabled(&MainThread)` through the generated typed
+`UIAccessibilityButtonShapesEnabled()` binding. The iOS 26.5 SDK declares the main-actor query at
+`UIAccessibility.h:554` with an iOS 14.0 floor; the caller must guard that availability because the
+generated binding has no runtime availability guard. This remains a point-in-time Button Shapes
+setting snapshot, not a claim about rendered button appearance. Apple deprecated this UIKit
+function from iOS 26.1 in favor of `AXShowBordersEnabled`; this slice keeps the existing iOS 4.0
+package floor and does not link the new Accessibility framework. Sources: active SDK
+`UIAccessibility.h` and [Apple API reference](https://developer.apple.com/documentation/uikit/uiaccessibilitybuttonshapesenabled?changes=l_3&language=objc).
+
+B434 non-test validation passed: locked/offline device and Simulator `cargo check`, strict Clippy
+for both targets, device-target rustdoc with warnings denied, package format check, docs-check,
+zero-Swift-source check, and scoped diff check. No tests, linked probes, runtime setting reads, or
+UI actions ran. The direct C binding has no runtime availability guard; only call after the host
+checks iOS 14.0 or later.
+
 B147 audited UIKit's `accessibilityDirectTouchOptions` property and did not add it. The iOS 26.5
 SDK declares the property at `UIAccessibility.h:230` and option flags at
 `UIAccessibilityConstants.h:237-244`, with an iOS 17.0 floor; `objc2-ui-kit` 0.3.2 generates typed
@@ -1915,6 +1930,183 @@ no-go, not a UIKit API-floor blocker. No implementation or feature change was ma
 and active SDK header `UIAccessibility.h`.
 
 The B370 audit changed no implementation and ran no build, test, or UIKit runtime call.
+
+B443 declines a point-in-time system Zoom-enabled query. The active iOS 26.5 SDK has no
+`UIAccessibilityIsZoomEnabled` function or equivalent setting-status property in UIKit, and
+`objc2-ui-kit` 0.3.2 generates no such binding. `UIAccessibilityZoom.h` exposes
+`UIAccessibilityZoomFocusChanged` and `UIAccessibilityRegisterGestureConflictWithZoom` at iOS 5.0;
+the first informs system Zoom of an app focus-frame change, and the second warns about conflicting
+app gestures, so neither reports setting state. `UIAccessibilityTraitSupportsZoom` is an element
+behavior trait at iOS 17.0 and requires app-owned `accessibilityZoomInAtPoint:` and
+`accessibilityZoomOutAtPoint:` implementations. `UIAccessibilityZoomType` supplies a kind for the
+focus-change notification; it is not a status query. This is an API-surface no-go, distinct from a
+system Zoom setting snapshot. No implementation or feature change was made. Sources: active SDK
+`UIAccessibility.h`, `UIAccessibilityZoom.h`, and `UIAccessibilityConstants.h`; [Apple
+`SupportsZoom`](https://developer.apple.com/documentation/uikit/uiaccessibilitytraits/supportszoom?changes=_5_1),
+[Apple `UIAccessibilityZoomFocusChanged`](https://developer.apple.com/documentation/uikit/uiaccessibility/zoomfocuschanged%28zoomtype%3Atoframe%3Ain%3A%29?changes=_2.&language=objc),
+and [Apple `UIAccessibility.ZoomType`](https://developer.apple.com/documentation/uikit/uiaccessibility/zoomtype).
+
+The B443 audit changed no implementation and ran no build, test, or UIKit runtime call.
+
+B444 audit GO: the active iOS 26.5 SDK declares `UIView.largeContentTitle` in
+`UILargeContentViewer.h:56` at iOS 13.0, with `NS_SWIFT_UI_ACTOR`, as a nullable copied `NSString`
+that describes the view in the Large Content Viewer. `UIView` conforms to
+`UILargeContentViewerItem`, and `objc2-ui-kit` 0.3.2 provides a typed `largeContentTitle()` getter
+under the already-enabled `UILargeContentViewer` feature. This is useful as a bounded owned-string
+snapshot of current view metadata, distinct from `accessibilityLabel`; UIKit can supply a default
+for standard controls, so a value does not prove caller assignment. A selector guard supports the
+package's iOS 4.0 floor while requiring an iOS 13.0+ caller guard. The API does not attach an
+interaction, present the viewer, or report whether UI appears. Sources: active SDK
+`UILargeContentViewer.h`, [Apple `UIView.largeContentTitle`](https://developer.apple.com/documentation/uikit/uiview/largecontenttitle),
+and [Apple `UILargeContentViewerItem.largeContentTitle`](https://developer.apple.com/documentation/uikit/uilargecontentvieweritem/largecontenttitle?language=_3).
+
+B444 implements `AccessibilityMetadata::large_content_title()` as a selector-guarded, main-thread
+getter. It copies the nullable native `NSString` into Rust-owned text and preserves `None` versus
+an empty string. The focused guide documents the iOS 13.0 caller guard, UIKit default-value caveat,
+and no interaction/presentation claim. Row 008 stays partial; this property adds no new row or
+family semantics, so no canonical capability-manifest change is needed.
+
+B444 non-test gates passed:
+
+- `cargo +1.94.1 check --locked --offline -p ios-accessibility --target aarch64-apple-ios`
+- `cargo +1.94.1 check --locked --offline -p ios-accessibility --target aarch64-apple-ios-sim`
+- `cargo +1.94.1 clippy --locked --offline -p ios-accessibility --lib --target aarch64-apple-ios -- -D warnings`
+- `cargo +1.94.1 clippy --locked --offline -p ios-accessibility --lib --target aarch64-apple-ios-sim -- -D warnings`
+- `RUSTDOCFLAGS='-D warnings' cargo +1.94.1 doc --locked --offline --no-deps -p ios-accessibility --target aarch64-apple-ios`
+- `cargo +1.94.1 fmt --package ios-accessibility -- --check`
+- `cargo +1.94.1 --locked --offline xtask docs-check`
+- `cargo +1.94.1 --locked --offline xtask zero-swift-source`
+- `git diff --check -- PLAN_IOS_ACCESSIBILITY.md docs/ios/accessibility.md platform/ios/ios-accessibility/src/platform.rs`
+
+No tests, UI actions, runtime reads, linked probes, or app executions ran.
+
+B447 audit GO: the active iOS 26.5 SDK declares `UIView.effectiveUserInterfaceLayoutDirection` as a
+readonly iOS 10.0 property in `UIView.h:182`. Apple defines it as the layout direction appropriate
+for arranging that view's immediate content and explicitly warns that its value need not propagate
+through the view subtree. The generated `objc2-ui-kit` 0.3.2 `UIView` binding exposes a typed getter
+returning `UIUserInterfaceLayoutDirection` when the `UIInterface` feature is enabled; that generated
+enum names `LeftToRight` and `RightToLeft` and retains the raw `NSInteger` payload. This is a useful
+read-only snapshot for host layout code distinct from the view's `semanticContentAttribute` input
+and from app-wide language direction. Sources: active SDK
+`UIKit.framework/Headers/UIView.h`, generated `objc2-ui-kit-0.3.2/src/generated/UIView.rs` and
+`UIInterface.rs`, [Apple `UIView.effectiveUserInterfaceLayoutDirection`](https://developer.apple.com/documentation/uikit/uiview/effectiveuserinterfacelayoutdirection?language=objc),
+and [Apple `UIUserInterfaceLayoutDirection`](https://developer.apple.com/documentation/uikit/uiuserinterfacelayoutdirection?changes=_1_7_1&language=objc).
+
+B447 implements `AccessibilityMetadata::effective_user_interface_layout_direction()` as a
+selector-guarded, main-thread getter. It maps the two named directions and preserves any other raw
+native value as `AccessibilityLayoutDirection::Unknown(isize)`. Callers must use iOS 10.0+; the
+selector check preserves the crate's iOS 4.0 deployment floor. The guide states that this reports
+the direction for this view's immediate content only, not descendants or the app-wide language
+direction, and does not perform layout or observe later changes. This adds no capability row or
+family semantic, so no global manifest update is required.
+
+B447 focused non-test gates passed after the root-owned lock refresh:
+
+- `cargo +1.94.1 check --locked --offline -p ios-accessibility --target aarch64-apple-ios`
+- `cargo +1.94.1 check --locked --offline -p ios-accessibility --target aarch64-apple-ios-sim`
+- `cargo +1.94.1 clippy --locked --offline -p ios-accessibility --lib --target aarch64-apple-ios -- -D warnings`
+- `cargo +1.94.1 clippy --locked --offline -p ios-accessibility --lib --target aarch64-apple-ios-sim -- -D warnings`
+- `RUSTDOCFLAGS='-D warnings' cargo +1.94.1 doc --locked --offline --no-deps -p ios-accessibility --target aarch64-apple-ios`
+- `cargo +1.94.1 fmt --package ios-accessibility -- --check`
+- `cargo +1.94.1 --locked --offline xtask docs-check`
+- `cargo +1.94.1 --locked --offline xtask zero-swift-source`
+- `git diff --check -- PLAN_IOS_ACCESSIBILITY.md docs/ios/accessibility.md platform/ios/ios-accessibility/Cargo.toml platform/ios/ios-accessibility/src/lib.rs platform/ios/ios-accessibility/src/platform.rs`
+
+No tests, runtime reads, UI actions, linked probes, or app executions ran.
+
+B450 audit GO: the active iOS 26.5 SDK makes the borrowed `UIView` available as a
+`UITraitEnvironment` with a `traitCollection` property from iOS 8.0, and declares
+`UITraitCollection.userInterfaceStyle` as a readonly iOS 12.0 trait. `UIView.h` explicitly warns
+that `overrideUserInterfaceStyle` is not the current style and directs callers to
+`traitCollection.userInterfaceStyle`. Generated `objc2-ui-kit` 0.3.2 exposes the typed
+`UITraitEnvironment::traitCollection()` and `UITraitCollection::userInterfaceStyle()` APIs plus
+`UIUserInterfaceStyle::{Unspecified, Light, Dark}`; the generated style getter is `unsafe` only
+because its binding documentation warns it may not be thread-safe. The existing adapter's
+main-thread proof bounds that call. This is a useful resolved-style snapshot for caller-owned
+appearance choices, distinct from the view's override request. Sources: active SDK
+`UITraitCollection.h:42,195`, `UIView.h:687-701`, generated
+`objc2-ui-kit-0.3.2/src/generated/UITraitCollection.rs:98-105,904-909` and
+`UIInterface.rs:58-69`, [Apple `UITraitCollection.userInterfaceStyle`](https://developer.apple.com/documentation/uikit/uitraitcollection/userinterfacestyle?changes=_4&language=objc),
+[Apple `UIView` trait environment](https://developer.apple.com/documentation/uikit/uitraitcollection?changes=_4&language=objc).
+
+B450 implements `AccessibilityMetadata::resolved_user_interface_style()` as a selector-guarded,
+main-thread snapshot from the borrowed view's `traitCollection`. It maps UIKit's named
+`Unspecified`, `Light`, and `Dark` values and preserves other raw values as
+`ResolvedUserInterfaceStyle::Unknown(isize)`. The public guide keeps the iOS 12.0 caller guard,
+distinguishes this resolved trait from `overrideUserInterfaceStyle`, and excludes rendered-color,
+configuration, and later-change claims. The extra `UITraitCollection` binding feature adds no new
+capability row or family semantic, so no global manifest update is required.
+
+B450 focused non-test gates passed:
+
+- `cargo +1.94.1 check --locked --offline -p ios-accessibility --target aarch64-apple-ios`
+- `cargo +1.94.1 check --locked --offline -p ios-accessibility --target aarch64-apple-ios-sim`
+- `cargo +1.94.1 clippy --locked --offline -p ios-accessibility --lib --target aarch64-apple-ios -- -D warnings`
+- `cargo +1.94.1 clippy --locked --offline -p ios-accessibility --lib --target aarch64-apple-ios-sim -- -D warnings`
+- `RUSTDOCFLAGS='-D warnings' cargo +1.94.1 doc --locked --offline --no-deps -p ios-accessibility --target aarch64-apple-ios`
+- `cargo +1.94.1 fmt --package ios-accessibility -- --check`
+- `cargo +1.94.1 --locked --offline xtask docs-check`
+- `cargo +1.94.1 --locked --offline xtask zero-swift-source`
+- `git diff --check -- PLAN_IOS_ACCESSIBILITY.md docs/ios/accessibility.md platform/ios/ios-accessibility/Cargo.toml platform/ios/ios-accessibility/src/lib.rs platform/ios/ios-accessibility/src/platform.rs`
+
+No tests, UIKit runtime reads, UI actions, linked probes, or app executions ran.
+
+B451 audit GO: the active iOS 26.5 SDK declares `UIView.overrideUserInterfaceStyle` as a
+`UIUserInterfaceStyle` property at iOS 13.0 in `UIView.h:687-701`. Apple documents its default as
+`Unspecified`, which inherits the style from a parent view or view controller; explicit `Light` or
+`Dark` values affect the view and its subviews, with `UIWindow` applying the override across its
+hierarchy and presentations. The SDK explicitly says reading this property does not return the
+current resolved style; B450's `traitCollection.userInterfaceStyle` is that distinct value. The
+generated `objc2-ui-kit` 0.3.2 getter is typed and safe under the already-enabled `UIInterface`
+feature, and `UIUserInterfaceStyle` provides `Unspecified`, `Light`, and `Dark` constants. A
+selector-guarded, main-thread getter is useful for a host that needs to inspect its own per-view
+override-versus-inheritance policy. Sources: active SDK `UIView.h:687-701`, generated
+`objc2-ui-kit-0.3.2/src/generated/UIView.rs:1775-1789` and `UIInterface.rs:58-69`, [Apple
+`UIView.overrideUserInterfaceStyle`](https://developer.apple.com/documentation/uikit/uiview/overrideuserinterfacestyle?changes=_2),
+and [Apple `UIUserInterfaceStyle`](https://developer.apple.com/documentation/uikit/uiuserinterfacestyle?changes=_9&language=objc).
+
+B451 implements `AccessibilityMetadata::override_user_interface_style()` as a selector-guarded,
+main-thread getter only. It maps `Unspecified`, `Light`, and `Dark` and preserves other raw values as
+`UserInterfaceStyleOverride::Unknown(isize)`. The guide explains that `Unspecified` means inherit,
+the getter is not the resolved style, and there is no setter or rendered-appearance claim. This is
+still the same partial UIKit row/family coverage, so no capability manifest update is required.
+
+B451 focused non-test gates passed:
+
+- `cargo +1.94.1 check --locked --offline -p ios-accessibility --target aarch64-apple-ios`
+- `cargo +1.94.1 check --locked --offline -p ios-accessibility --target aarch64-apple-ios-sim`
+- `cargo +1.94.1 clippy --locked --offline -p ios-accessibility --lib --target aarch64-apple-ios -- -D warnings`
+- `cargo +1.94.1 clippy --locked --offline -p ios-accessibility --lib --target aarch64-apple-ios-sim -- -D warnings`
+- `RUSTDOCFLAGS='-D warnings' cargo +1.94.1 doc --locked --offline --no-deps -p ios-accessibility --target aarch64-apple-ios`
+- `cargo +1.94.1 fmt --package ios-accessibility -- --check`
+- `cargo +1.94.1 --locked --offline xtask docs-check`
+- `cargo +1.94.1 --locked --offline xtask zero-swift-source`
+- `git diff --check -- PLAN_IOS_ACCESSIBILITY.md docs/ios/accessibility.md platform/ios/ios-accessibility/src/lib.rs platform/ios/ios-accessibility/src/platform.rs`
+
+No tests, UIKit runtime reads, UI actions, linked probes, or app executions ran.
+
+B453 audit GO: the active iOS 26.5 SDK declares `UITraitCollection.preferredContentSizeCategory`
+as a readonly copied `UIContentSizeCategory` at iOS 10.0 in `UITraitCollection.h:59-60`; a `UIView`
+exposes its collection through `UITraitEnvironment.traitCollection` from iOS 8.0. Apple describes
+the category as the font-sizing option preferred by the user and says hosts can use it to request
+matching fonts. Generated `objc2-ui-kit` 0.3.2 supplies `UITraitCollection::preferredContentSizeCategory`
+under the `UIContentSizeCategory` feature as a retained `NSString`-typed value, with a generated
+warning that the getter might not be thread-safe. The existing main-thread borrowed-view adapter
+can bound the call. This is a useful per-view Dynamic Type trait snapshot; it does not establish a
+device-global setting because a host trait environment can differ. Sources: active SDK
+`UITraitCollection.h:59-60,192-195`, `UIContentSizeCategory.h:14-18`, generated
+`objc2-ui-kit-0.3.2/src/generated/UITraitCollection.rs:193-201,606-609` and
+`UIContentSizeCategory.rs:9-15`, [Apple `UITraitCollection.preferredContentSizeCategory`](https://developer.apple.com/documentation/uikit/uitraitcollection/preferredcontentsizecategory?changes=_2__8&language=objc),
+and [Apple `UIContentSizeCategory`](https://developer.apple.com/documentation/uikit/uicontentsizecategory?language=objc).
+
+B453 implements `AccessibilityMetadata::preferred_content_size_category()` as a selector-guarded,
+main-thread getter that returns the retained native `UIContentSizeCategory` string unchanged. It
+checks both the view's `traitCollection` and the trait's `preferredContentSizeCategory` selector,
+then bounds the generated unsafe getter with the stored `MainThread` proof. The guide requires an
+iOS 10.0+ caller guard and limits the contract to one view-environment value; it does not claim a
+global setting, normalize category strings, scale fonts, subscribe to change notifications, or
+promise output. The `UIContentSizeCategory` feature closure adds no capability row or family
+semantic, so no global manifest update is required.
 
 ## Validation and handoff
 

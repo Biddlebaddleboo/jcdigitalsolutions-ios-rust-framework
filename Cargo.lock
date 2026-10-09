@@ -703,7 +703,31 @@ dependencies = [
 ]
 
 [[package]]
+name = "ios-homekit-category-description"
+version = "0.1.0"
+dependencies = [
+ "objc2",
+ "objc2-home-kit",
+]
+
+[[package]]
+name = "ios-homekit-category-type"
+version = "0.1.0"
+dependencies = [
+ "objc2",
+ "objc2-home-kit",
+]
+
+[[package]]
 name = "ios-homekit-identify-status"
+version = "0.1.0"
+dependencies = [
+ "objc2",
+ "objc2-home-kit",
+]
+
+[[package]]
+name = "ios-homekit-setup-result-count"
 version = "0.1.0"
 dependencies = [
  "objc2",

@@ -6,6 +6,7 @@ use objc2_core_foundation::{CGPoint, CGRect};
 use objc2_foundation::{NSArray, NSAttributedString, NSCopying, NSString};
 use objc2_ui_kit::{
     NSObjectUIAccessibility, NSObjectUIAccessibilityContainer, NSObjectUIAccessibilityFocus,
+    UIAccessibilityButtonShapesEnabled,
     UIAccessibilityContainerType as NativeAccessibilityContainerType,
     UIAccessibilityContentSizeCategoryImageAdjusting,
     UIAccessibilityConvertFrameToScreenCoordinates, UIAccessibilityConvertPathToScreenCoordinates,
@@ -36,7 +37,9 @@ use objc2_ui_kit::{
     UIAccessibilityTraitStartsMediaSession, UIAccessibilityTraitStaticText,
     UIAccessibilityTraitSummaryElement, UIAccessibilityTraitTabBar,
     UIAccessibilityTraitUpdatesFrequently, UIAccessibilityTraits, UIBezierPath, UIButton,
-    UIGuidedAccessRestrictionState as NativeGuidedAccessRestrictionState, UIImageView, UIView,
+    UIContentSizeCategory, UIGuidedAccessRestrictionState as NativeGuidedAccessRestrictionState,
+    UIImageView, UITraitEnvironment, UIUserInterfaceLayoutDirection as NativeLayoutDirection,
+    UIUserInterfaceStyle as NativeInterfaceStyle, UIView,
 };
 
 use crate::container_type::AccessibilityContainerType;
@@ -73,6 +76,43 @@ pub enum GuidedAccessRestrictionState {
     /// UIKit reports that the restriction denies the associated operation.
     Deny,
     /// UIKit returned a state value not named by the SDK constants known to this crate.
+    Unknown(isize),
+}
+
+/// UIKit's current effective direction for arranging one view's immediate content.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum AccessibilityLayoutDirection {
+    /// UIKit reports left-to-right layout direction.
+    LeftToRight,
+    /// UIKit reports right-to-left layout direction.
+    RightToLeft,
+    /// UIKit returned a direction value not named by the SDK constants known to this crate.
+    Unknown(isize),
+}
+
+/// UIKit's current resolved interface style for one view's trait collection.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum ResolvedUserInterfaceStyle {
+    /// UIKit reports no specific interface style.
+    Unspecified,
+    /// UIKit reports a light interface style.
+    Light,
+    /// UIKit reports a dark interface style.
+    Dark,
+    /// UIKit returned a style value not named by the SDK constants known to this crate.
+    Unknown(isize),
+}
+
+/// The override value UIKit stores on one view, distinct from its resolved trait style.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum UserInterfaceStyleOverride {
+    /// UIKit reports no local override; the view inherits from a parent view or view controller.
+    Unspecified,
+    /// UIKit reports a local light-style override.
+    Light,
+    /// UIKit reports a local dark-style override.
+    Dark,
+    /// UIKit returned a style value not named by the SDK constants known to this crate.
     Unknown(isize),
 }
 
@@ -248,6 +288,16 @@ pub fn on_off_switch_labels_are_enabled(_main_thread: &MainThread) -> bool {
 /// modify text rendering.
 pub fn bold_text_is_enabled(_main_thread: &MainThread) -> bool {
     UIAccessibilityIsBoldTextEnabled()
+}
+
+/// Read whether UIKit reports the system Button Shapes setting as enabled.
+///
+/// Pass a proof from `ios_runtime::main_thread::MainThread::current`, and call only on iOS 14.0 or
+/// later. This is one synchronous setting snapshot; it does not observe later status changes or
+/// promise rendered-button appearance. Apple deprecated this UIKit API in iOS 26.1 in favor of
+/// `AXShowBordersEnabled`.
+pub fn button_shapes_are_enabled(_main_thread: &MainThread) -> bool {
+    UIAccessibilityButtonShapesEnabled()
 }
 
 /// Read whether UIKit reports the system Closed Captions + SDH setting as enabled.
@@ -512,6 +562,126 @@ impl<'view> AccessibilityMetadata<'view> {
         self.view
             .setShowsLargeContentViewer(shows_large_content_viewer);
         Ok(())
+    }
+
+    /// Read UIKit's current nullable Large Content Viewer title as owned Rust text.
+    ///
+    /// Call only on iOS 13.0 or later. The selector is checked so the package keeps its iOS 4.0
+    /// floor; `None` preserves native `nil`, while `Some("")` preserves an empty title. UIKit may
+    /// supply a default value for standard controls, so this does not prove caller assignment. It
+    /// does not attach an interaction, present the viewer, or promise that UI appears.
+    pub fn large_content_title(&self) -> Result<Option<String>, AccessibilityApiUnavailable> {
+        if !self.view.respondsToSelector(sel!(largeContentTitle)) {
+            return Err(AccessibilityApiUnavailable);
+        }
+        Ok(self.view.largeContentTitle().map(|title| title.to_string()))
+    }
+
+    /// Read UIKit's current effective layout direction for this view's immediate content.
+    ///
+    /// Call only on iOS 10.0 or later. This selector-guarded snapshot preserves unknown native
+    /// values. UIKit warns that the direction does not necessarily propagate through the view's
+    /// subtree; query each view whose immediate content the host arranges. This method does not
+    /// perform layout, mutate the view, infer the app's general language direction, or observe
+    /// later changes.
+    pub fn effective_user_interface_layout_direction(
+        &self,
+    ) -> Result<AccessibilityLayoutDirection, AccessibilityApiUnavailable> {
+        if !self
+            .view
+            .respondsToSelector(sel!(effectiveUserInterfaceLayoutDirection))
+        {
+            return Err(AccessibilityApiUnavailable);
+        }
+        let native = self.view.effectiveUserInterfaceLayoutDirection();
+        Ok(if native == NativeLayoutDirection::LeftToRight {
+            AccessibilityLayoutDirection::LeftToRight
+        } else if native == NativeLayoutDirection::RightToLeft {
+            AccessibilityLayoutDirection::RightToLeft
+        } else {
+            AccessibilityLayoutDirection::Unknown(native.0)
+        })
+    }
+
+    /// Read UIKit's current resolved interface style from this view's trait collection.
+    ///
+    /// Call only on iOS 12.0 or later. The view's `traitCollection` and its
+    /// `userInterfaceStyle` selector are checked so the package keeps its iOS 4.0 floor. The
+    /// unsafe generated getter is called only while this adapter's `MainThread` proof remains
+    /// valid. This is a point-in-time trait value, not the view's `overrideUserInterfaceStyle`,
+    /// a guarantee about rendered colors, or an observer of later trait changes.
+    pub fn resolved_user_interface_style(
+        &self,
+    ) -> Result<ResolvedUserInterfaceStyle, AccessibilityApiUnavailable> {
+        if !self.view.respondsToSelector(sel!(traitCollection)) {
+            return Err(AccessibilityApiUnavailable);
+        }
+        let traits = self.view.traitCollection();
+        if !traits.respondsToSelector(sel!(userInterfaceStyle)) {
+            return Err(AccessibilityApiUnavailable);
+        }
+        // SAFETY: `AccessibilityMetadata` retains the constructor's main-thread proof and is
+        // neither Send nor Sync; this synchronous getter therefore runs on the UIKit main thread.
+        let native = unsafe { traits.userInterfaceStyle() };
+        Ok(if native == NativeInterfaceStyle::Unspecified {
+            ResolvedUserInterfaceStyle::Unspecified
+        } else if native == NativeInterfaceStyle::Light {
+            ResolvedUserInterfaceStyle::Light
+        } else if native == NativeInterfaceStyle::Dark {
+            ResolvedUserInterfaceStyle::Dark
+        } else {
+            ResolvedUserInterfaceStyle::Unknown(native.0)
+        })
+    }
+
+    /// Read this view's own `overrideUserInterfaceStyle` property.
+    ///
+    /// Call only on iOS 13.0 or later. The selector is checked so the package keeps its iOS 4.0
+    /// floor. `Unspecified` means UIKit inherits style from a parent view or view controller; it
+    /// does not report the effective style, which is available separately from
+    /// `resolved_user_interface_style()`. This getter does not mutate the view or promise rendered
+    /// colors; this crate provides no setter for the override.
+    pub fn override_user_interface_style(
+        &self,
+    ) -> Result<UserInterfaceStyleOverride, AccessibilityApiUnavailable> {
+        if !self
+            .view
+            .respondsToSelector(sel!(overrideUserInterfaceStyle))
+        {
+            return Err(AccessibilityApiUnavailable);
+        }
+        let native = self.view.overrideUserInterfaceStyle();
+        Ok(if native == NativeInterfaceStyle::Unspecified {
+            UserInterfaceStyleOverride::Unspecified
+        } else if native == NativeInterfaceStyle::Light {
+            UserInterfaceStyleOverride::Light
+        } else if native == NativeInterfaceStyle::Dark {
+            UserInterfaceStyleOverride::Dark
+        } else {
+            UserInterfaceStyleOverride::Unknown(native.0)
+        })
+    }
+
+    /// Read this view's current preferred content-size category as an owned native string.
+    ///
+    /// Call only on iOS 10.0 or later. The view's `traitCollection` and its
+    /// `preferredContentSizeCategory` selector are checked so the package keeps its iOS 4.0 floor.
+    /// This is the exact retained `UIContentSizeCategory` value in this view's trait environment;
+    /// it is not necessarily a device-global setting. The getter does not scale fonts, observe
+    /// Dynamic Type changes, or promise rendered text sizes.
+    pub fn preferred_content_size_category(
+        &self,
+    ) -> Result<Retained<UIContentSizeCategory>, AccessibilityApiUnavailable> {
+        if !self.view.respondsToSelector(sel!(traitCollection)) {
+            return Err(AccessibilityApiUnavailable);
+        }
+        let traits = self.view.traitCollection();
+        if !traits.respondsToSelector(sel!(preferredContentSizeCategory)) {
+            return Err(AccessibilityApiUnavailable);
+        }
+        // SAFETY: `AccessibilityMetadata` retains the constructor's main-thread proof and is
+        // neither Send nor Sync; this synchronous getter therefore runs on the UIKit main thread.
+        Ok(unsafe { traits.preferredContentSizeCategory() })
     }
 
     /// Read whether UIKit marks accessible descendants of this view as hidden.

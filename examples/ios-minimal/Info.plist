@@ -24,10 +24,5 @@
   <string>17.0</string>
   <key>UIApplicationSupportsIndirectInputEvents</key>
   <true/>
-  <key>UIDeviceFamily</key>
-  <array>
-    <integer>1</integer>
-    <integer>2</integer>
-  </array>
 </dict>
 </plist>

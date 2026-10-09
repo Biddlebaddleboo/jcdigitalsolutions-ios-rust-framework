@@ -12,7 +12,7 @@ ios-runtime = { path = "../ios-runtime" }
 objc2 = { workspace = true, features = ["std"] }
 objc2-core-foundation = { workspace = true, features = ["CFCGTypes"] }
 objc2-foundation = { workspace = true, features = ["NSArray", "NSAttributedString", "NSString"] }
-objc2-ui-kit = { workspace = true, features = ["UIButton", "UIAccessibility", "UIAccessibilityAdditions", "UIAccessibilityConstants", "UIAccessibilityContainer", "UIAccessibilityContentSizeCategoryImageAdjusting", "UIAccessibilityIdentification", "UIBezierPath", "UIControl", "UILargeContentViewer", "UIImageView", "UIGuidedAccess", "UIResponder", "UIView", "objc2-core-foundation"] }
+objc2-ui-kit = { workspace = true, features = ["UIButton", "UIAccessibility", "UIAccessibilityAdditions", "UIAccessibilityConstants", "UIAccessibilityContainer", "UIAccessibilityContentSizeCategoryImageAdjusting", "UIAccessibilityIdentification", "UIBezierPath", "UIContentSizeCategory", "UIControl", "UIInterface", "UITraitCollection", "UILargeContentViewer", "UIImageView", "UIGuidedAccess", "UIResponder", "UIView", "objc2-core-foundation"] }
 
 [lints]
 workspace = true

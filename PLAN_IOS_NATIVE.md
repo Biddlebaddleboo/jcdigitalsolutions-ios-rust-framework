@@ -11,6 +11,8 @@ through `UIControl::sendActionsForControlEvents`; the Rust callback changed the 
 dispatch only: it does not verify arm64 runtime or a user touch. Capability backends retain their
 own subplan status and limits.
 
+On 2026-10-09, `sh examples/ios-minimal/build.sh simulator` and `sh examples/ios-minimal/build.sh device` both passed. `file` confirms arm64 Mach-O executables; `xcrun vtool -show-build` reports `IOSSIMULATOR` and `IOS` respectively, each with minos 17.0 and SDK 26.5. These are Release build/package checks only; this run did not launch either app or create an archive.
+
 ## Objective
 
 Implement the native iOS runtime substrate and capability-scoped Apple C/CoreFoundation/Objective-C backends entirely from Rust/C/Objective-C ABI tooling, with no Swift application/source layer.

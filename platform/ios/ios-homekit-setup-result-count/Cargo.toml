@@ -1,0 +1,15 @@
+[package]
+name = "ios-homekit-setup-result-count"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "Host-supplied HomeKit setup-result accessory identifier count for iOS"
+
+[target.'cfg(all(target_os = "ios", not(target_abi = "macabi")))'.dependencies]
+objc2 = { workspace = true, features = ["std"] }
+objc2-home-kit = { version = "=0.3.2", default-features = false, features = ["HMAccessorySetupResult"] }
+
+[lints]
+workspace = true
