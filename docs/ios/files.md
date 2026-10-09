@@ -79,7 +79,7 @@ size and does not expose or read resource-fork contents. Filesystem support can 
 is a point-in-time snapshot. The query reads no contents, accepts no arbitrary URL, starts no
 security scope, and does not change portable file behavior. Apple lists `fgetattrlist` in the File
 Timestamp required-reason API category, so the host must declare an applicable approved reason in
-`PrivacyInfo.xcprivacy` for actual use. See the [B242 plan](../../PLAN_IOS_FILE_TOTAL_FORK_SIZE.md).
+`PrivacyInfo.xcprivacy` for actual use. See the [B242 plan](../../PLAN_IOS_FILES_COMPLETED_AND_DECISIONS.md).
 
 `IosFiles::regular_file_data_fork_allocated_size_snapshot` returns the filesystem-reported bytes
 allocated to the data fork only, using `ATTR_FILE_DATAALLOCSIZE` through `fgetattrlist` on an opened
@@ -108,7 +108,7 @@ and does not prove that a resource fork is absent. Filesystem support can vary, 
 point-in-time snapshot. The iOS-only query does not change portable file behavior. Apple lists
 `fgetattrlist` in the File Timestamp required-reason API category, so the host must declare an
 applicable approved reason in `PrivacyInfo.xcprivacy` for actual use. See the
-[B251 plan](../../PLAN_IOS_FILE_RESOURCE_FORK_SIZE.md).
+[B251 plan](../../PLAN_IOS_FILES_COMPLETED_AND_DECISIONS.md).
 
 `IosFiles::regular_file_document_id_snapshot` returns `IosFileDocumentIdSnapshot`; its
 `document_id()` accessor maps XNU's invalid zero value to `None` and returns nonzero IDs as
@@ -179,7 +179,7 @@ value for an opened regular file. XNU documents equal clone IDs as a way to find
 share a data stream. This value is not a path or peer identity, current block-sharing proof,
 content hash, persistent identifier, or change token. The query uses the same no-follow opened-file
 descriptor path and returns `Unsupported` when the filesystem does not support clone IDs. See the
-[B211 plan](../../PLAN_IOS_FILE_CLONE_ID.md).
+[B211 plan](../../PLAN_IOS_FILES_COMPLETED_AND_DECISIONS.md).
 
 `IosFiles::regular_file_full_clone_count_snapshot(path)` returns the current `u32` count of full
 clones reported for one opened regular file. XNU defines each counted clone as sharing all of its
@@ -228,7 +228,7 @@ no-follow `fstatat` lookup. It returns `File`, `Directory`, `Symlink`, `Fifo`, `
 not open the entry, so it can classify a FIFO without blocking, and it does not follow a final
 symlink. This is only point-in-time metadata, not a later-operation guarantee; it keeps B1's
 concurrent opened-parent directory-rename limit and adds no portable `FileBackend` behavior. See
-the [B296 plan](../../PLAN_IOS_ENTRY_OBJECT_KIND.md). Apple lists `fstatat` in the File Timestamp
+the [B296 plan](../../PLAN_IOS_FILES_COMPLETED_AND_DECISIONS.md). Apple lists `fstatat` in the File Timestamp
 required-reason API category; the host app must declare an applicable approved reason in its
 `PrivacyInfo.xcprivacy` for actual use.
 
@@ -241,14 +241,14 @@ required-reason API category; the host app must declare an applicable approved r
 directory stream itself may allocate libc memory, and time cost remains proportional to the entry
 count. Concurrent namespace changes can affect the observed count; it is not an atomic snapshot,
 reservation, or safe basis to remove the directory. It adds no portable `FileBackend` operation,
-file-content access, URL support, or security-scope access. See the [B128 plan](../../PLAN_IOS_DIRECTORY_ENTRY_COUNT.md).
+file-content access, URL support, or security-scope access. See the [B128 plan](../../PLAN_IOS_FILES_COMPLETED_AND_DECISIONS.md).
 
 `IosFiles::directory_is_empty` stops once it sees the first direct name other than `.` or `..`,
 so it can avoid a full scan when the directory is nonempty. It uses the same no-follow path rules
 and may use libc stream memory. Concurrent namespace changes can affect the result; `true` does not
 reserve the directory or guarantee a later removal. `remove_directory` remains authoritative. This
 iOS-only query adds no portable `FileBackend` operation, file-content access, URL support, or
-security-scope access. See the [B131 plan](../../PLAN_IOS_DIRECTORY_EMPTY_CHECK.md).
+security-scope access. See the [B131 plan](../../PLAN_IOS_FILES_COMPLETED_AND_DECISIONS.md).
 
 `IosFiles::directory_entry_kind_counts` returns fixed-width counts for regular files, directories,
 and `Other` entries. It applies the same no-follow `fstatat` classification as `read_directory` but
@@ -292,7 +292,7 @@ from total size minus free space. This is a point-in-time query; its separate su
 calls do not make it atomic with each other or with B137/B146. The host must declare an applicable
 approved File Timestamp required-reason entry for `fgetattrlist` in `PrivacyInfo.xcprivacy`. The
 method adds no permission, Info.plist key, or entitlement. See the
-[B365 plan](../../PLAN_IOS_VOLUME_USED_CAPACITY.md).
+[B365 plan](../../PLAN_IOS_FILES_COMPLETED_AND_DECISIONS.md).
 
 `IosFiles::volume_is_read_only` checks whether `fstatfs` reports the `MNT_RDONLY` mount flag for
 the volume that contains a retained semantic app-directory root. This is a volume-mount property,
@@ -352,7 +352,7 @@ The result is a point-in-time filesystem property, not Unicode normalization/col
 a guarantee about a particular name pair, or a guarantee that a later create/rename will succeed.
 It does not change portable `AppPath` comparison or validation and is distinct from B175's cached
 Foundation volume-support hint. See the
-[B431 plan](../../PLAN_IOS_APP_DIRECTORY_CASE_SENSITIVITY.md).
+[B431 plan](../../PLAN_IOS_FILES_COMPLETED_AND_DECISIONS.md).
 
 `IosFiles::app_directory_truncates_long_names` queries `_PC_NO_TRUNC` on a retained app-directory
 descriptor. Per Apple's Darwin `fpathconf(2)` contract, `Some(true)` means the filesystem may
@@ -412,7 +412,7 @@ hard-linked items. It is not a reliable creation-time or path-history record; B1
 and a filesystem that omits the attribute returns `Unsupported`. This iOS-only query reads no file
 contents, accepts no arbitrary URL, starts no security scope, and does not change portable
 `FileBackend` semantics. The host must declare an applicable approved File Timestamp reason in
-`PrivacyInfo.xcprivacy` for actual use. See the [B272 plan](../../PLAN_IOS_FILE_ADDED_TIME.md).
+`PrivacyInfo.xcprivacy` for actual use. See the [B272 plan](../../PLAN_IOS_FILES_COMPLETED_AND_DECISIONS.md).
 
 ## Stored creation-time attribute
 
@@ -452,7 +452,7 @@ count as a general content-change token or compare it across different identity 
 omit the attribute and then return `Unsupported`. This iOS-only query reads no content, accepts no
 arbitrary URL, starts no security scope, and does not change portable `FileBackend` semantics. The
 host must declare an applicable approved File Timestamp reason in `PrivacyInfo.xcprivacy` for
-actual use. See the [B275 plan](../../PLAN_IOS_FILE_DATA_GENERATION.md).
+actual use. See the [B275 plan](../../PLAN_IOS_FILES_COMPLETED_AND_DECISIONS.md).
 
 ## Raw data-protection-class code
 
@@ -512,7 +512,7 @@ point-in-time OS permission report, not a full access check or guarantee of a la
 traversal; app sandbox policy, file protection, mount state, namespace races, and other checks may
 still affect an operation. The query reads no contents and adds no portable `FileBackend`
 operation, arbitrary URL support, permission prompt, or security-scope access. See the
-[B170 plan](../../PLAN_IOS_ENTRY_EFFECTIVE_ACCESS.md).
+[B170 plan](../../PLAN_IOS_FILES_COMPLETED_AND_DECISIONS.md).
 
 ## Regular-file hard-link count
 
