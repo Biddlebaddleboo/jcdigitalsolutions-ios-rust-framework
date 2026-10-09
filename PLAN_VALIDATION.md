@@ -16,3 +16,13 @@ Follow `PLAN_REUSE_VALIDATION.md`: shared deterministic command harness; preserv
 
 ## Scope ownership and tests
 R2 exclusively owns xtask/CI; capability workstreams own their package-level semantic tests. Run `cargo +1.94.1 fmt --all -- --check`, workspace locked check/tests/strict Clippy, no-std checks and link probe, docs-check, zero-swift-source, target-linked checks, examples and archive smoke as available. Final independent audit reviews current main, feature isolation, linked frameworks, unsafe assumptions, unsupported rows, full diff and physical-device evidence. Report commands, platform, checks, skips, blockers and SHA; no fabricated successes.
+
+## Closed bounded validation workstreams (G14–G16)
+
+These three package-specific *static-gate implementation* objectives have been integrated. Their original complete contracts and test evidence remain in Git at `bf4e3be4f2072d34b5c0d62f76ba6405e692a352`; preserve the existing scripts, CI coverage and reported limitations. Their closure does not establish runtime behavior, Xcode 27 qualification, or physical-device execution.
+
+- **G14** `PLAN_VALIDATION_IOS_URL.md`: `ios-url` strict Foundation URL compile/lint, device/simulator framework-import inspection and CI wiring; exact URL selector checks, minimum iOS 17, link-only evidence. Baseline: `bf4e3be4f2072d34b5c0d62f76ba6405e692a352:PLAN_VALIDATION_IOS_URL.md`.
+- **G15** `PLAN_VALIDATION_IOS_GEOMETRY.md`: `framework-ui::Frame::intersection` and `ios-ui::geometry::intersection` CoreGraphics link/layout checks; device/simulator static checks passed. Baseline: `bf4e3be4f2072d34b5c0d62f76ba6405e692a352:PLAN_VALIDATION_IOS_GEOMETRY.md`.
+- **G16** `PLAN_VALIDATION_IOS_MEDIA.md`: `framework-media::MediaTime` and `ios-media::IosMediaTime` CoreMedia `CMTime` ABI layout/link/import and CI gates; linked artifacts not executed. Baseline: `bf4e3be4f2072d34b5c0d62f76ba6405e692a352:PLAN_VALIDATION_IOS_MEDIA.md`.
+
+Keep running the existing focused scripts and relevant CI as currently configured. Any behavioral/runtime/parity coverage remains in this active cross-cutting validation plan and `PLAN_REUSE_VALIDATION.md` rather than reopened as a duplicate G14/G15/G16 implementation task.
