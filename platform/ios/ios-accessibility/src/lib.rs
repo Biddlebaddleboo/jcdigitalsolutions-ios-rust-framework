@@ -1,12 +1,24 @@
 #![deny(missing_docs)]
 #![deny(unsafe_op_in_unsafe_fn)]
-#![doc = "Bounded synchronous accessibility metadata setters for caller-owned iOS UIKit views."]
+#![doc = "Bounded synchronous accessibility metadata access for caller-owned iOS UIKit views."]
 
+#[cfg(any(target_os = "ios", test))]
+mod container_type;
+#[cfg(any(target_os = "ios", test))]
+mod navigation_style;
 #[cfg(any(target_os = "ios", test))]
 mod text;
 #[cfg(any(target_os = "ios", test))]
+mod textual_context;
+#[cfg(any(target_os = "ios", test))]
 mod traits;
 
+#[cfg(any(target_os = "ios", test))]
+pub use container_type::AccessibilityContainerType;
+#[cfg(any(target_os = "ios", test))]
+pub use navigation_style::AccessibilityNavigationStyle;
+#[cfg(any(target_os = "ios", test))]
+pub use textual_context::AccessibilityTextualContext;
 #[cfg(any(target_os = "ios", test))]
 pub use traits::AccessibilityTrait;
 
@@ -14,7 +26,7 @@ pub use traits::AccessibilityTrait;
 mod platform;
 
 #[cfg(target_os = "ios")]
-pub use platform::AccessibilityMetadata;
+pub use platform::{AccessibilityApiUnavailable, AccessibilityMetadata};
 
 #[cfg(test)]
 mod tests {

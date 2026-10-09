@@ -10,8 +10,9 @@ description = "Bounded UIKit accessibility metadata setters for iOS"
 [target.'cfg(target_os = "ios")'.dependencies]
 ios-runtime = { path = "../ios-runtime" }
 objc2 = { workspace = true, features = ["std"] }
-objc2-foundation = { workspace = true, features = ["NSString"] }
-objc2-ui-kit = { workspace = true, features = ["UIAccessibility", "UIAccessibilityConstants", "UIResponder", "UIView"] }
+objc2-core-foundation = { workspace = true, features = ["CFCGTypes"] }
+objc2-foundation = { workspace = true, features = ["NSArray", "NSAttributedString", "NSString"] }
+objc2-ui-kit = { workspace = true, features = ["UIAccessibility", "UIAccessibilityConstants", "UIAccessibilityContainer", "UIResponder", "UIView", "objc2-core-foundation"] }
 
 [lints]
 workspace = true

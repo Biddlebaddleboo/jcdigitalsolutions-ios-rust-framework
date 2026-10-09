@@ -89,6 +89,73 @@ answer is point-in-time and does not reserve the path for a later operation. Thi
 helper, not a new portable `FileBackend` operation; it grants no URL or security-scope access and
 keeps the existing concurrent parent-directory rename limit. See the [B93 plan](../../PLAN_IOS_ENTRY_KIND.md).
 
+## Direct directory-entry count
+
+`IosFiles::directory_entry_count` counts direct names in one validated sandbox directory, except
+`.` and `..`. It counts all entry kinds and byte names, including symbolic links and names that
+`read_directory` cannot represent as UTF-8. The method scans with `readdir` but does not build a
+`Vec<DirectoryEntry>`, copy each name to a `String`, or run a kind lookup for every entry. The
+directory stream itself may allocate libc memory, and time cost remains proportional to the entry
+count. Concurrent namespace changes can affect the observed count; it is not an atomic snapshot,
+reservation, or safe basis to remove the directory. It adds no portable `FileBackend` operation,
+file-content access, URL support, or security-scope access. See the [B128 plan](../../PLAN_IOS_DIRECTORY_ENTRY_COUNT.md).
+
+`IosFiles::directory_is_empty` stops once it sees the first direct name other than `.` or `..`,
+so it can avoid a full scan when the directory is nonempty. It uses the same no-follow path rules
+and may use libc stream memory. Concurrent namespace changes can affect the result; `true` does not
+reserve the directory or guarantee a later removal. `remove_directory` remains authoritative. This
+iOS-only query adds no portable `FileBackend` operation, file-content access, URL support, or
+security-scope access. See the [B131 plan](../../PLAN_IOS_DIRECTORY_EMPTY_CHECK.md).
+
+`IosFiles::directory_entry_kind_counts` returns fixed-width counts for regular files, directories,
+and `Other` entries. It applies the same no-follow `fstatat` classification as `read_directory` but
+does not decode or copy names or build a `Vec<DirectoryEntry>`. A name can disappear or change
+between `readdir` and its kind lookup; in that case the query may return the mapped POSIX error
+rather than partial counts. Concurrent namespace mutation also means the result is not an atomic
+snapshot or delete guard. The method adds no portable `FileBackend` operation, file-content
+access, URL support, or security-scope access. See the [B134 plan](../../PLAN_IOS_DIRECTORY_KIND_COUNTS.md).
+
+## Volume available capacity
+
+`IosFiles::volume_available_capacity_bytes` reports `f_bavail * f_bsize` from `fstatfs` on the
+retained root descriptor for a semantic app directory. It is volume-wide free space available to
+non-superusers, not an app-specific quota, reservation, or guarantee that a later write will
+succeed. Apple classifies `fstatfs` as a required-reason Disk Space API. The app or SDK that uses
+it must declare `NSPrivacyAccessedAPICategoryDiskSpace` in its privacy manifest with an approved
+reason that matches actual behavior. For display to the person, Apple lists reason `85F4.1` and
+limits off-device transfer; reason `E174.1` applies only when the app checks whether space is
+sufficient/low and changes user-observable behavior. The library selects no reason on behalf of a
+host app. See the [B137 plan](../../PLAN_IOS_VOLUME_CAPACITY.md).
+
+`IosFiles::volume_total_capacity_bytes` reports `f_blocks * f_bsize` from the same retained root
+descriptor. This is total data capacity reported for that mounted volume, not physical device
+capacity or an app-container limit. It is another point-in-time volume value, not a storage
+reservation. It has the same required-reason Disk Space privacy-manifest obligation as B137 and
+does not add an Info.plist key or entitlement. See the [B146 plan](../../PLAN_IOS_VOLUME_TOTAL_CAPACITY.md).
+
+`IosFiles::volume_is_read_only` checks whether `fstatfs` reports the `MNT_RDONLY` mount flag for
+the volume that contains a retained semantic app-directory root. This is a volume-mount property,
+not an effective-write-access check: a writable mount does not bypass sandbox policy, directory
+permissions, file protection, file flags, quotas, or low space. The result can change after the
+snapshot, and a real write remains authoritative. The query has the same required-reason Disk
+Space privacy-manifest obligation as B137; it adds no Info.plist key or entitlement. See the
+[B152 plan](../../PLAN_IOS_VOLUME_READ_ONLY.md).
+
+`IosFiles::volume_optimal_io_block_size_bytes` returns `f_iosize` from `fstatfs` for the volume
+containing a retained semantic app-directory root. Apple describes this as the filesystem's
+optimal transfer block size; callers may use it as a sizing hint for their own I/O, but it is not
+an alignment requirement, buffer-size mandate, or performance guarantee. A nonpositive native
+value maps to `InvalidInput`. This query has the same required-reason Disk Space privacy-manifest
+obligation as B137 and adds no Info.plist key or entitlement. See the
+[B155 plan](../../PLAN_IOS_VOLUME_IO_SIZE.md).
+
+`IosFiles::app_directory_name_max_bytes` queries `_PC_NAME_MAX` on the retained descriptor for
+one semantic app-directory root. The result applies to direct child filename components in that
+root, in bytes; it is not a total path limit and does not establish limits for nested directories.
+`None` represents the POSIX no-limit sentinel. A returned limit does not guarantee
+that a later create or rename succeeds. This query adds no portable `FileBackend` operation. See
+the [B164 plan](../../PLAN_IOS_APP_DIRECTORY_NAME_MAX.md).
+
 ## Entry modification time
 
 `IosFiles::entry_modification_time` returns the raw POSIX seconds and nanoseconds from one
@@ -110,6 +177,32 @@ Apple documents that `lstat` does not provide timestamps belonging to the link i
 is a point-in-time snapshot with filesystem-dependent precision, not a content version or reliable
 change token. It reads no contents, grants no URL or security-scope access, and changes no
 portable `FileBackend` semantics. See the [B107 plan](../../PLAN_IOS_FILE_STATUS_CHANGE_TIME.md).
+
+## Entry access time
+
+`IosFiles::entry_access_time` returns the raw POSIX seconds and nanoseconds from
+`st_atime`/`st_atime_nsec` in one `fstatat(..., AT_SYMLINK_NOFOLLOW)` lookup. Apple defines this
+as the time file data was last accessed, but it can also be set explicitly; the query cannot prove
+that every data access refreshed it. A final symlink returns `InvalidInput` because Apple does not
+define timestamps belonging to the link itself. Treat the value as a filesystem-reported
+diagnostic, not an access log, content version, or reliable change token. It reads no target
+contents, grants no URL or security-scope access, and changes no portable `FileBackend` semantics.
+See the [B112 plan](../../PLAN_IOS_FILE_ACCESS_TIME.md).
+
+## BSD file flags
+
+`IosFiles::entry_bsd_file_flags` returns the raw `st_flags` bits for one non-symlink entry. The
+`IosBsdFileFlags` value exposes known Apple masks such as `UF_IMMUTABLE`, `UF_APPEND`, and
+`UF_HIDDEN`, preserves unknown bits through `bits()`, and supports mask checks with `contains()`.
+Flags may explain a restriction or display hint, but are not a full access check; the query does
+not change flags or add portable `FileBackend` behavior. See the [B115 plan](../../PLAN_IOS_BSD_FILE_FLAGS.md).
+
+## Entry owner IDs
+
+`IosFiles::entry_owner_ids` returns the numeric POSIX `st_uid`/`st_gid` pair for one non-symlink
+entry. The values are fixed-width `u32`s, not account names or stable user identities, and do not
+establish effective access. The query uses one no-follow metadata lookup, reads no contents, and
+adds no portable `FileBackend` behavior. See the [B118 plan](../../PLAN_IOS_FILE_OWNER_IDS.md).
 
 ## Entry identity snapshot
 

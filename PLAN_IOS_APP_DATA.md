@@ -104,6 +104,50 @@ B109 adds `IosFiles::regular_file_allocated_blocks_512` for regular files only. 
 `st_blocks` units of 512 bytes and does not claim exact physical storage use or exclusive
 allocation. See [`PLAN_IOS_FILE_ALLOCATED_BLOCKS.md`](PLAN_IOS_FILE_ALLOCATED_BLOCKS.md).
 
+B112 adds `IosFiles::entry_access_time` as a no-follow POSIX access-time snapshot. It rejects final
+symlinks; `st_atime` may be set and a read need not update it on every filesystem, so this is not a
+guaranteed access log or reliable change token. See
+[`PLAN_IOS_FILE_ACCESS_TIME.md`](PLAN_IOS_FILE_ACCESS_TIME.md).
+
+B115 adds `IosFiles::entry_bsd_file_flags` with raw `st_flags` bits and named `UF_*`/`SF_*`
+mask accessors. It preserves unknown bits, rejects final symlinks, and does not determine effective
+access. See [`PLAN_IOS_BSD_FILE_FLAGS.md`](PLAN_IOS_BSD_FILE_FLAGS.md).
+
+B118 adds `IosFiles::entry_owner_ids` with raw `u32` `st_uid`/`st_gid` values from one no-follow
+lookup. It rejects final symlinks and does not map IDs to account names, membership, stable identity,
+or effective access. See [`PLAN_IOS_FILE_OWNER_IDS.md`](PLAN_IOS_FILE_OWNER_IDS.md).
+
+B121 audits `st_blksize` and records a no-go: it is an optimal I/O-size hint, but this facade has
+no streaming descriptor, caller buffer, or I/O policy hook to use it. Publishing the value alone
+risks a false size/performance claim. See [`PLAN_IOS_FILE_IO_BLOCK_SIZE.md`](PLAN_IOS_FILE_IO_BLOCK_SIZE.md).
+
+B122 audits `st_rdev` and records a no-go: it describes special-file device metadata, but the
+facade cannot read or write these `FileKind::Other` entries, so the number enables no supported
+operation. See [`PLAN_IOS_FILE_SPECIAL_DEVICE_NUMBER.md`](PLAN_IOS_FILE_SPECIAL_DEVICE_NUMBER.md).
+
+B125 audits `st_gen` and records a no-go: Apple documents it as superuser-only; a local SDK or
+binding field does not establish app-sandbox access or persistent identity semantics. See
+[`PLAN_IOS_FILE_GENERATION_NUMBER.md`](PLAN_IOS_FILE_GENERATION_NUMBER.md).
+
+B128 adds `IosFiles::directory_entry_count` for direct names other than `.` and `..`, including all
+entry kinds and non-UTF-8 names, without a Rust-owned listing or per-entry metadata lookup. It is
+synchronous and O(n); libc may allocate a directory stream, and concurrent changes can affect the
+count. It is not an atomic snapshot, reservation, or delete guard. See
+[`PLAN_IOS_DIRECTORY_ENTRY_COUNT.md`](PLAN_IOS_DIRECTORY_ENTRY_COUNT.md).
+
+B131 adds `IosFiles::directory_is_empty` for a best-effort early-exit check of direct names other than `.` and `..`. It may stop after the first child, but concurrent changes can affect the result; `true` is not a reservation or proof that a later removal will succeed. `remove_directory` remains authoritative. See [`PLAN_IOS_DIRECTORY_EMPTY_CHECK.md`](PLAN_IOS_DIRECTORY_EMPTY_CHECK.md).
+
+B134 adds `IosFiles::directory_entry_kind_counts` and fixed-width `files()`, `directories()`, and `other()` totals using existing no-follow `FileKind` classification. It counts non-UTF-8 names but does not copy names or build a listing; if a name vanishes during metadata lookup, it returns an error rather than partial totals. It is not an atomic snapshot or deletion guard. See [`PLAN_IOS_DIRECTORY_KIND_COUNTS.md`](PLAN_IOS_DIRECTORY_KIND_COUNTS.md).
+
+B137 adds `IosFiles::volume_available_capacity_bytes(AppDirectory)` using checked `f_bavail * f_bsize` from `fstatfs` on the retained root descriptor. This is volume-wide free space available to non-superusers, not an app quota, reservation, or write guarantee. Apple requires an approved `NSPrivacyAccessedAPICategoryDiskSpace` reason in the final `PrivacyInfo.xcprivacy` that matches actual host use; the library does not select a reason or modify a root manifest. See [`PLAN_IOS_VOLUME_CAPACITY.md`](PLAN_IOS_VOLUME_CAPACITY.md).
+
+B146 adds `IosFiles::volume_total_capacity_bytes(AppDirectory)` using checked `f_blocks * f_bsize` from `fstatfs` on the retained semantic-root descriptor. It reports mounted-volume capacity only, not physical-device capacity or an app quota. As with B137, the final host `PrivacyInfo.xcprivacy` must declare a Disk Space reason matching actual use. See [`PLAN_IOS_VOLUME_TOTAL_CAPACITY.md`](PLAN_IOS_VOLUME_TOTAL_CAPACITY.md).
+
+B140 audits `NSURLDirectoryEntryCountKey` and `ATTR_DIR_ENTRYCOUNT` as a possible cheap-count path and records a no-go: the key is optional, `getattrlist(2)` does not guarantee low cost, the count is 32-bit, and not every volume format supports it. B128/B131 already provide deterministic count/empty-query behavior. See [`PLAN_IOS_FAST_DIRECTORY_COUNT.md`](PLAN_IOS_FAST_DIRECTORY_COUNT.md). B143 audits `f_bfree` and records a no-go: it includes reserved filesystem blocks, which the sandbox cannot consume; B137 already exposes the useful `f_bavail` non-superuser value. See [`PLAN_IOS_VOLUME_FREE_BLOCKS.md`](PLAN_IOS_VOLUME_FREE_BLOCKS.md).
+
+B149 audits `f_files`/`f_ffree` and records a no-go: both are volume-wide node counts, not an app/container budget, and `f_ffree` does not establish whether a later sandbox create will succeed. Actual creation remains authoritative. See [`PLAN_IOS_VOLUME_FILE_NODE_COUNTS.md`](PLAN_IOS_VOLUME_FILE_NODE_COUNTS.md).
+B152 adds `IosFiles::volume_is_read_only(AppDirectory)` using `fstatfs` on the retained semantic root. It reports only `MNT_RDONLY`; `false` does not establish effective path or app write access. B155 adds `IosFiles::volume_optimal_io_block_size_bytes(AppDirectory)` using `fstatfs.f_iosize`, a filesystem sizing hint only—not an alignment mandate or performance guarantee. B155 is a distinct volume-level field from B121’s per-entry `st_blksize` audit. Both query Disk Space required-reason APIs, so host `PrivacyInfo.xcprivacy` must use an approved reason matching actual use. See [`PLAN_IOS_VOLUME_READ_ONLY.md`](PLAN_IOS_VOLUME_READ_ONLY.md) and [`PLAN_IOS_VOLUME_IO_SIZE.md`](PLAN_IOS_VOLUME_IO_SIZE.md). B158 declines `f_fsid`, `f_owner`, `f_type`, `f_fssubtype`, and `f_fstypename` as app-facing volume identity because they do not define a persistent/container identity or stable iOS filesystem mapping. B161 declines `MNT_NOEXEC`, `MNT_NOSUID`, `MNT_NODEV`, `MNT_QUOTA`, and `MNT_DONTBROWSE` as effective path/app authorization signals; B152 exposes only the read-only mount bit. B164 adds `IosFiles::app_directory_name_max_bytes(AppDirectory)` using `fpathconf(_PC_NAME_MAX)` on the retained root. `Some(n)` is a direct-child component limit in bytes; `None` is the POSIX no-limit sentinel, and neither total/nested path limits nor later create/rename success are promised. See [`PLAN_IOS_APP_DIRECTORY_NAME_MAX.md`](PLAN_IOS_APP_DIRECTORY_NAME_MAX.md).
+
 ## Objective
 
 Implement the iOS backends for the D1 `framework-files` and `framework-preferences` contracts using public iOS filesystem/Foundation APIs. Keep the portable crates `no_std`; platform code may use the platform runtime but must not change portable semantics.
