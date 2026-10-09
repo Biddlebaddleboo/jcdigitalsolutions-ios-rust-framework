@@ -107,6 +107,59 @@ and keeps the existing concurrent opened-parent directory-rename limit. The publ
 available from iOS 10.0 in the SDK; the no-follow/beneath flags are passed on every call, with no
 weaker fallback. See the [B196 plan](../../PLAN_IOS_FILE_CLONING.md#b196-implementation).
 
+## Regular-file extended flags
+
+`IosFiles::regular_file_extended_flags_snapshot(path)` returns raw `ATTR_CMNEXT_EXT_FLAGS` for one
+regular sandbox file through `IosFileExtendedFlags`. It opens the final entry with `O_NOFOLLOW`,
+checks the opened descriptor is regular, then uses `fgetattrlist` on that descriptor. The raw `u64`
+preserves unnamed bits. Named SDK flags include `EF_MAY_SHARE_BLOCKS`, `EF_SHARES_ALL_BLOCKS`, and
+`EF_IS_SPARSE`; the first two report whether this file may share blocks or shares all blocks with
+another file, not whether it shares with a particular `clone_regular_file` source. They are not
+stable sharing or allocation guarantees. `EF_IS_SPARSE` reports a sparse-region flag and is distinct
+from allocated-block count. `EF_NO_XATTRS` reports no extended attributes; `EF_IS_PURGEABLE` means
+the filesystem may delete the file when asked to free space, not that it will or should.
+
+The descriptor binds the metadata query to the opened inode; no URL or path lookup occurs after
+open. Unsupported filesystem attributes return `Unsupported`. The query reads no file contents,
+accepts no arbitrary URL, starts no security scope, and does not change portable `FileBackend`
+behavior. See the [B208 plan](../../PLAN_IOS_FILE_EXTENDED_FLAGS.md).
+
+`IosFiles::regular_file_clone_id_snapshot(path)` returns the opaque 64-bit `ATTR_CMNEXT_CLONEID`
+value for an opened regular file. XNU documents equal clone IDs as a way to find pure clones that
+share a data stream. This value is not a path or peer identity, current block-sharing proof,
+content hash, persistent identifier, or change token. The query uses the same no-follow opened-file
+descriptor path and returns `Unsupported` when the filesystem does not support clone IDs. See the
+[B211 plan](../../PLAN_IOS_FILE_CLONE_ID.md).
+
+`IosFiles::regular_file_full_clone_count_snapshot(path)` returns the current `u32` count of full
+clones reported for one opened regular file. XNU defines each counted clone as sharing all of its
+blocks with this file. The count omits partial block-sharing peers and does not expose clone paths,
+IDs, or durable identity; it can change as files are cloned or removed. This is distinct from
+B208's per-file flags and B211's per-file clone ID. The query uses the same no-follow descriptor
+path and returns `Unsupported` when the filesystem lacks the attribute. `fgetattrlist` is listed
+by Apple under the File Timestamp required-reason API category, so a host app must declare an
+applicable approved reason in `PrivacyInfo.xcprivacy` for actual use. This operation adds no
+permission, usage-description key, or entitlement. See the
+[B214 plan](../../PLAN_IOS_FILE_FULL_CLONE_COUNT.md).
+
+`IosFiles::regular_file_private_size_snapshot(path)` returns the current `ATTR_CMNEXT_PRIVATESIZE`
+byte count for one opened regular file. XNU defines this as bytes not trapped in a clone or snapshot
+that would be freed immediately if the file were deleted. This is distinct from allocated size and
+B214's count of full clone peers; it is not a space reservation or a guarantee for a later delete
+or write. The method uses the no-follow descriptor path and returns `Unsupported` when the
+filesystem lacks the attribute. Like other `fgetattrlist` calls, the host app must declare an
+applicable approved File Timestamp required-reason API entry in `PrivacyInfo.xcprivacy` for actual
+use. See the [B223 plan](../../PLAN_IOS_FILE_PRIVATE_SIZE.md).
+
+`IosFiles::regular_file_link_id_snapshot(path)` returns the opaque `ATTR_CMNEXT_LINKID` value for
+one opened regular-file entry. XNU scopes uniqueness to the mounted volume; it describes persistent
+values only on volumes that support `VOL_CAP_FMT_PERSISTENTOBJECTIDS`. On HFS+ and APFS, hard-link
+entries can have distinct link IDs, so this is not the same identity as `(st_dev, st_ino)` and is
+not a content or clone identity. The API does not query persistent-ID volume support, so callers
+must limit comparison to the current mount. `fgetattrlist` also requires an applicable approved
+File Timestamp reason in the host `PrivacyInfo.xcprivacy`. See the
+[B226 plan](../../PLAN_IOS_FILE_LINK_ID.md).
+
 ## Single-entry kind
 
 `IosFiles::entry_kind` classifies one validated sandbox `AppPath` with the same `FileKind` values

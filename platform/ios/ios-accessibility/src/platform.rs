@@ -1,7 +1,7 @@
 use core::marker::PhantomData;
 use ios_runtime::main_thread::MainThread;
 use objc2::runtime::NSObjectProtocol;
-use objc2::{MainThreadMarker, sel};
+use objc2::{MainThreadMarker, rc::Retained, sel};
 use objc2_core_foundation::{CGPoint, CGRect};
 use objc2_foundation::{NSArray, NSAttributedString, NSString};
 use objc2_ui_kit::{
@@ -257,6 +257,20 @@ impl<'view> AccessibilityMetadata<'view> {
             .setAccessibilityLabel(value.as_deref(), self.main_thread);
     }
 
+    /// Read UIKit's current nullable `accessibilityLabel` property as an owned Rust string.
+    ///
+    /// The getter is selector-checked and preserves `nil` versus an empty string. It does not
+    /// invoke the iOS 17 `accessibilityLabelBlock` or report assistive-application output.
+    pub fn accessibility_label(&self) -> Result<Option<String>, AccessibilityApiUnavailable> {
+        if !self.view.respondsToSelector(sel!(accessibilityLabel)) {
+            return Err(AccessibilityApiUnavailable);
+        }
+        Ok(self
+            .view
+            .accessibilityLabel(self.main_thread)
+            .map(|label| label.to_string()))
+    }
+
     /// Return UIKit's current accessibility identifier as an owned Rust string.
     ///
     /// This iOS 5.0 property is selector-checked. The value is identifier metadata for uses such
@@ -312,11 +326,41 @@ impl<'view> AccessibilityMetadata<'view> {
         Ok(())
     }
 
+    /// Read UIKit's current attributed accessibility label as an owned immutable value.
+    ///
+    /// The iOS 11.0 getter is selector-checked. This returns UIKit's attributed property only; it
+    /// does not invoke the iOS 17 `accessibilityAttributedLabelBlock` or claim speech output.
+    pub fn accessibility_attributed_label(
+        &self,
+    ) -> Result<Option<Retained<NSAttributedString>>, AccessibilityApiUnavailable> {
+        if !self
+            .view
+            .respondsToSelector(sel!(accessibilityAttributedLabel))
+        {
+            return Err(AccessibilityApiUnavailable);
+        }
+        Ok(self.view.accessibilityAttributedLabel(self.main_thread))
+    }
+
     /// Replace the hint; `None` clears it and `Some("")` assigns an empty string.
     pub fn set_hint(&self, value: Option<&str>) {
         let value = map_optional_text(value, NSString::from_str);
         self.view
             .setAccessibilityHint(value.as_deref(), self.main_thread);
+    }
+
+    /// Read UIKit's current nullable `accessibilityHint` property as an owned Rust string.
+    ///
+    /// The getter is selector-checked and preserves `nil` versus an empty string. It does not
+    /// invoke the iOS 17 `accessibilityHintBlock` or report assistive-application output.
+    pub fn accessibility_hint(&self) -> Result<Option<String>, AccessibilityApiUnavailable> {
+        if !self.view.respondsToSelector(sel!(accessibilityHint)) {
+            return Err(AccessibilityApiUnavailable);
+        }
+        Ok(self
+            .view
+            .accessibilityHint(self.main_thread)
+            .map(|hint| hint.to_string()))
     }
 
     /// Replace UIKit's attributed accessibility hint; `None` clears it.
@@ -339,11 +383,41 @@ impl<'view> AccessibilityMetadata<'view> {
         Ok(())
     }
 
+    /// Read UIKit's current attributed accessibility hint as an owned immutable value.
+    ///
+    /// The iOS 11.0 getter is selector-checked. This returns UIKit's attributed property only; it
+    /// does not invoke the iOS 17 `accessibilityAttributedHintBlock` or claim speech output.
+    pub fn accessibility_attributed_hint(
+        &self,
+    ) -> Result<Option<Retained<NSAttributedString>>, AccessibilityApiUnavailable> {
+        if !self
+            .view
+            .respondsToSelector(sel!(accessibilityAttributedHint))
+        {
+            return Err(AccessibilityApiUnavailable);
+        }
+        Ok(self.view.accessibilityAttributedHint(self.main_thread))
+    }
+
     /// Replace the value; `None` clears it and `Some("")` assigns an empty string.
     pub fn set_value(&self, value: Option<&str>) {
         let value = map_optional_text(value, NSString::from_str);
         self.view
             .setAccessibilityValue(value.as_deref(), self.main_thread);
+    }
+
+    /// Read UIKit's current nullable `accessibilityValue` property as an owned Rust string.
+    ///
+    /// The getter is selector-checked and preserves `nil` versus an empty string. It does not
+    /// invoke the iOS 17 `accessibilityValueBlock` or report assistive-application output.
+    pub fn accessibility_value(&self) -> Result<Option<String>, AccessibilityApiUnavailable> {
+        if !self.view.respondsToSelector(sel!(accessibilityValue)) {
+            return Err(AccessibilityApiUnavailable);
+        }
+        Ok(self
+            .view
+            .accessibilityValue(self.main_thread)
+            .map(|value| value.to_string()))
     }
 
     /// Replace UIKit's attributed accessibility value; `None` clears it.
@@ -366,6 +440,22 @@ impl<'view> AccessibilityMetadata<'view> {
         Ok(())
     }
 
+    /// Read UIKit's current attributed accessibility value as an owned immutable value.
+    ///
+    /// The iOS 11.0 getter is selector-checked. This returns UIKit's attributed property only; it
+    /// does not invoke the iOS 17 `accessibilityAttributedValueBlock` or claim speech output.
+    pub fn accessibility_attributed_value(
+        &self,
+    ) -> Result<Option<Retained<NSAttributedString>>, AccessibilityApiUnavailable> {
+        if !self
+            .view
+            .respondsToSelector(sel!(accessibilityAttributedValue))
+        {
+            return Err(AccessibilityApiUnavailable);
+        }
+        Ok(self.view.accessibilityAttributedValue(self.main_thread))
+    }
+
     /// Replace UIKit's `accessibilityLanguage` property with a caller-supplied BCP 47 tag.
     ///
     /// `None` clears the property. The iOS SDK declares no explicit minimum version for this
@@ -385,6 +475,20 @@ impl<'view> AccessibilityMetadata<'view> {
         self.view
             .setAccessibilityLanguage(language_tag.as_deref(), self.main_thread);
         Ok(())
+    }
+
+    /// Read UIKit's nullable `accessibilityLanguage` property as an owned Rust string.
+    ///
+    /// The property getter is selector-checked and its text is copied without validation or
+    /// normalization. This does not invoke `accessibilityLanguageBlock` or report spoken output.
+    pub fn accessibility_language(&self) -> Result<Option<String>, AccessibilityApiUnavailable> {
+        if !self.view.respondsToSelector(sel!(accessibilityLanguage)) {
+            return Err(AccessibilityApiUnavailable);
+        }
+        Ok(self
+            .view
+            .accessibilityLanguage(self.main_thread)
+            .map(|language| language.to_string()))
     }
 
     /// Replace UIKit's `accessibilityUserInputLabels` property with caller-owned alternatives.
@@ -415,6 +519,29 @@ impl<'view> AccessibilityMetadata<'view> {
                 .setAccessibilityUserInputLabels(Some(&native_labels), self.main_thread);
         }
         Ok(())
+    }
+
+    /// Read UIKit's current plain user-input labels as Rust-owned strings in native order.
+    ///
+    /// The iOS 13.0 getter is selector-checked. UIKit controls may provide defaults, and this reads
+    /// the property only; it does not invoke `accessibilityUserInputLabelsBlock` or normalize text.
+    pub fn accessibility_user_input_labels(
+        &self,
+    ) -> Result<Option<Vec<String>>, AccessibilityApiUnavailable> {
+        if !self
+            .view
+            .respondsToSelector(sel!(accessibilityUserInputLabels))
+        {
+            return Err(AccessibilityApiUnavailable);
+        }
+        let Some(native_labels) = self.view.accessibilityUserInputLabels(self.main_thread) else {
+            return Ok(None);
+        };
+        let mut labels = Vec::with_capacity(native_labels.count());
+        for index in 0..native_labels.count() {
+            labels.push(native_labels.objectAtIndex(index).to_string());
+        }
+        Ok(Some(labels))
     }
 
     /// Replace UIKit's `accessibilityAttributedUserInputLabels` with caller-ordered labels.
@@ -455,6 +582,25 @@ impl<'view> AccessibilityMetadata<'view> {
         self.view
             .setAccessibilityTextualContext(context, self.main_thread);
         Ok(())
+    }
+
+    /// Read UIKit's nullable `accessibilityTextualContext` property as an owned Rust string.
+    ///
+    /// The iOS 13.0 getter is selector-checked. The value is copied without mapping, validation, or
+    /// normalization; this does not invoke `accessibilityTextualContextBlock` or claim spoken output.
+    pub fn accessibility_textual_context(
+        &self,
+    ) -> Result<Option<String>, AccessibilityApiUnavailable> {
+        if !self
+            .view
+            .respondsToSelector(sel!(accessibilityTextualContext))
+        {
+            return Err(AccessibilityApiUnavailable);
+        }
+        Ok(self
+            .view
+            .accessibilityTextualContext(self.main_thread)
+            .map(|context| context.to_string()))
     }
 
     /// Return whether UIKit's current label getter returns a non-nil string.

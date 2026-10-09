@@ -93,3 +93,19 @@ Before a future PushKit implementation:
 - [Sending notification requests to APNs](https://developer.apple.com/documentation/usernotifications/sending-notification-requests-to-apns)
 - [Certificate-based APNs connections](https://developer.apple.com/documentation/usernotifications/establishing-a-certificate-based-connection-to-apns)
 - [`objc2-push-kit` 0.3.2](https://docs.rs/objc2-push-kit/0.3.2/objc2_push_kit/)
+
+## B212 follow-up: iOS 26.4 VoIP `mustReport` is callback-scoped
+
+Rechecked the installed iOS 26.5 SDK and published `objc2-push-kit` 0.3.2 for a narrow Rust-callable capability beyond the existing status-query audit. The SDK adds `PKVoIPPushMetadata.mustReport` as a readonly `BOOL` on iOS 26.4 and adds `pushRegistry:didReceiveIncomingVoIPPushWithPayload:metadata:withCompletionHandler:` at the same floor. The property answers only whether the app must report a call or live conversation for that received VoIP push; it is not a PushKit registration, support, authorization, or delivery-status query.
+
+The exact public declarations are in
+`/Applications/Xcode.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS26.5.sdk/System/Library/Frameworks/PushKit.framework/Headers/PKVoIPPushMetadata.h`
+and `PKPushRegistry.h`. The callback supplies both `PKVoIPPushMetadata` and a completion handler. The SDK documents that failure to report when `mustReport == YES` can terminate the app and repeated failures may stop later VoIP delivery; `mustReport == NO` permits omitting a report for that callback. This meaning exists only within incoming-push handling and cannot be safely represented as a standalone or persistent scalar capability.
+
+The published [`objc2-push-kit` 0.3.2 API listing](https://docs.rs/objc2-push-kit/0.3.2/objc2_push_kit/) exposes `PKPushRegistry`, `PKPushRegistryDelegate`, `PKPushCredentials`, `PKPushPayload`, and VoIP push-type declarations, but not `PKVoIPPushMetadata` or the iOS 26.4 metadata callback. That binding gap is additional friction, not the primary no-go: even a hand-authored typed binding would still require the actual PushKit registry/delegate lifecycle, callback-lifetime metadata access, exactly-once completion, APNs/provider state, and CallKit or LiveCommunicationKit handoff when required. No VoIP product/service scope is selected here, so adding a facade for `mustReport` alone would not provide a truthful Rust capability.
+
+Decision: no implementation or dependency change. Keep row `033-notifications-background-pushkit` at `X`. Revisit only with an explicit VoIP product that owns the registry/delegate lifecycle and can consume the metadata inside the incoming callback; do not expose `mustReport` as current readiness or authorization.
+
+Evidence: installed iOS 26.5 SDK headers `PKVoIPPushMetadata.h` and `PKPushRegistry.h`; [Apple `PKVoIPPushMetadata.mustReport`](https://developer.apple.com/documentation/pushkit/pkvoippushmetadata/mustreport?language=objc), [Apple `PKPushRegistryDelegate`](https://developer.apple.com/documentation/pushkit/pkpushregistrydelegate), [Apple `PKPushRegistry`](https://developer.apple.com/documentation/pushkit/pkpushregistry), and the [`objc2-push-kit` 0.3.2 API listing](https://docs.rs/objc2-push-kit/0.3.2/objc2_push_kit/).
+
+No source, dependency, build, link probe, test, app launch, Simulator run, device query, registry creation, push registration, callback, or live manager call was performed for B212

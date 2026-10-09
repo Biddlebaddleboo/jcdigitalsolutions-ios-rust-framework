@@ -150,6 +150,37 @@ B152 adds `IosFiles::volume_is_read_only(AppDirectory)` using `fstatfs` on the r
 
 B178 declines `NSURLVolumeMaximumFileSizeKey` until Apple documentation and the SDK/binding establish an integer byte-count representation; the current reference labels its `NSNumber` Boolean, so converting it could report a false `0` or `1` byte limit. See [`PLAN_IOS_VOLUME_MAXIMUM_FILE_SIZE.md`](PLAN_IOS_VOLUME_MAXIMUM_FILE_SIZE.md). B181 declines `NSURLVolumeSupportsHardLinksKey` because neither `FileBackend` nor `ios-files` creates hard links; B105 already reports a given regular file’s `st_nlink` count. A volume support flag would guide no supported operation. See [`PLAN_IOS_VOLUME_HARD_LINK_SUPPORT.md`](PLAN_IOS_VOLUME_HARD_LINK_SUPPORT.md). B184 declines `NSURLVolumeSupportsSymbolicLinksKey` because the facade has no symlink create/read/follow operation; its current no-follow and unlink behavior is unchanged. B187 declines `NSURLVolumeSupportsAdvisoryFileLockingKey` because the facade has no lock/open-handle API or lock call. B190 declines `NSURLVolumeSupportsSparseFilesKey` because the facade has no sparse-file create, hole, or extent operation; B109 allocated-block counts do not prove sparseness. See [`PLAN_IOS_VOLUME_SPARSE_FILES.md`](PLAN_IOS_VOLUME_SPARSE_FILES.md). See [`PLAN_IOS_VOLUME_SYMLINK_SUPPORT.md`](PLAN_IOS_VOLUME_SYMLINK_SUPPORT.md) and [`PLAN_IOS_VOLUME_ADVISORY_LOCKING.md`](PLAN_IOS_VOLUME_ADVISORY_LOCKING.md).
 
+B193 identifies public `fclonefileat` as a bounded native copy-on-write operation. B196 adds
+`IosFiles::clone_regular_file(source, destination)` for one regular `AppPath` source and a
+nonexistent destination, with no-follow/beneath flags and no Rust byte buffer; native errors,
+cross-volume failures, copy-on-write behavior, metadata semantics, and the concurrent opened-parent
+rename limit remain documented in [`PLAN_IOS_FILE_CLONING.md`](PLAN_IOS_FILE_CLONING.md). B199
+adds `IosFiles::volume_clone_support_snapshot(AppDirectory) -> Result<Option<bool>, FileError>` as
+a cached Foundation volume-level hint only; it does not preflight or guarantee a clone.
+[`PLAN_IOS_VOLUME_CLONING_SUPPORT.md`](PLAN_IOS_VOLUME_CLONING_SUPPORT.md) records its API floor and
+limits. B202 declines a volume access-permission support snapshot because no descriptor-safe
+permission/ACL setter exists in this facade; B205 declines URL-based backup-exclusion mutation
+because URL re-resolution cannot preserve its no-follow `AppPath` contract. See
+[`PLAN_IOS_VOLUME_ACCESS_PERMISSION_SUPPORT.md`](PLAN_IOS_VOLUME_ACCESS_PERMISSION_SUPPORT.md) and
+[`PLAN_IOS_BACKUP_EXCLUSION.md`](PLAN_IOS_BACKUP_EXCLUSION.md).
+
+B208 adds `IosFiles::regular_file_extended_flags_snapshot(&self, path: AppPath<'_>) -> Result<IosFileExtendedFlags, FileError>` using `fgetattrlist` on an opened regular-file descriptor.
+It preserves unknown `ATTR_CMNEXT_EXT_FLAGS` bits and names only SDK-defined flags; clone-sharing
+flags do not identify a particular peer, and sparse/purgeable flags are not allocation or future
+behavior guarantees. B211 adds `IosFiles::regular_file_clone_id_snapshot(&self, path: AppPath<'_>) -> Result<IosFileCloneIdSnapshot, FileError>` for the opaque `ATTR_CMNEXT_CLONEID` value. Equal IDs
+are a current XNU report for pure clones, not a persistent identity, content hash, or proof of
+current block sharing. B214 adds `IosFiles::regular_file_full_clone_count_snapshot(&self, path: AppPath<'_>) -> Result<IosFileFullCloneCountSnapshot, FileError>` for the descriptor-bound `ATTR_CMNEXT_CLONE_REFCNT` count. XNU defines it as the number of full clones, each sharing all blocks with this file; it does not count partial-sharing peers or expose clone IDs/paths. This is distinct from B208's raw per-file flags and B211's opaque clone ID. `fgetattrlist` is listed in Apple's File Timestamp required-reason API category, so the host must declare an applicable approved `PrivacyInfo.xcprivacy` reason for actual use. See [`PLAN_IOS_FILE_EXTENDED_FLAGS.md`](PLAN_IOS_FILE_EXTENDED_FLAGS.md), [`PLAN_IOS_FILE_CLONE_ID.md`](PLAN_IOS_FILE_CLONE_ID.md), and [`PLAN_IOS_FILE_FULL_CLONE_COUNT.md`](PLAN_IOS_FILE_FULL_CLONE_COUNT.md).
+
+B220 declines `ATTR_CMNEXT_RECURSIVE_GENCOUNT`: XNU returns a useful counter only for APFS directories marked `maintain-dir-stats`, otherwise zero, and the public header exposes no settable extended-common attributes. No public app API to mark an app-sandbox directory was found. See [`PLAN_IOS_RECURSIVE_DIRECTORY_GENERATION.md`](PLAN_IOS_RECURSIVE_DIRECTORY_GENERATION.md).
+
+B223 adds `IosFiles::regular_file_private_size_snapshot(&self, path: AppPath<'_>) -> Result<IosFilePrivateSizeSnapshot, FileError>` for the no-follow descriptor-bound `ATTR_CMNEXT_PRIVATESIZE` value. XNU defines it as bytes not trapped inside a clone or snapshot and freed immediately if the file is deleted; it is not allocated size or a future capacity reservation. The host must declare an applicable approved File Timestamp required-reason API entry for actual `fgetattrlist` use. See [`PLAN_IOS_FILE_PRIVATE_SIZE.md`](PLAN_IOS_FILE_PRIVATE_SIZE.md).
+
+B226 adds `IosFiles::regular_file_link_id_snapshot(&self, path: AppPath<'_>) -> Result<IosFileLinkIdSnapshot, FileError>` for the opaque `ATTR_CMNEXT_LINKID` value. It is unique only within the mounted volume; although XNU describes persistent IDs on some volumes, this API does not query that capability. HFS+/APFS hard-link entries may have distinct link IDs, so this is not B99's inode identity, B211's clone ID, or content identity. The host must declare an applicable approved File Timestamp required-reason API entry for actual `fgetattrlist` use. See [`PLAN_IOS_FILE_LINK_ID.md`](PLAN_IOS_FILE_LINK_ID.md).
+
+B232 declines `ATTR_CMNEXT_ATTRIBUTION_TAG`: XNU defines an optional numeric owner tag and zero when a file is not attributed, but no public mapping from that numeric ID to a bundle identifier or app-data use was found. The field also has no public setter. See [`PLAN_IOS_FILE_ATTRIBUTION_TAG.md`](PLAN_IOS_FILE_ATTRIBUTION_TAG.md).
+
+B231 declines `ATTR_CMNEXT_RELPATH`: it returns a mount-relative physical path rather than an `AppPath`, has documented hard-link inconsistency, and gives this facade no supported operation that needs the container's mount path. See [`PLAN_IOS_MOUNT_RELATIVE_FILE_PATH.md`](PLAN_IOS_MOUNT_RELATIVE_FILE_PATH.md).
+
 ## Objective
 
 Implement the iOS backends for the D1 `framework-files` and `framework-preferences` contracts using public iOS filesystem/Foundation APIs. Keep the portable crates `no_std`; platform code may use the platform runtime but must not change portable semantics.

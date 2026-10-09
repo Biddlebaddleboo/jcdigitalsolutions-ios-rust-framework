@@ -9,7 +9,8 @@ Audit row `045-sensors-connectivity-thread-network-system-pieces` for a Rust-cal
 The broad row has no non-entitled, general Thread-capability query. B206 adds one explicitly
 entitlement-scoped partial: a Rust future for ThreadNetwork's preferred-network availability
 Boolean. It does not report device support, local Thread radio, connectivity, or border-router
-state. Root owns the aggregate row update; no aggregate matrix change is part of B206.
+state. The root aggregate now marks row 045 partial; no other matrix row count changes result from
+B206.
 
 `THClient.isPreferredNetworkAvailable(completion:)` is a meaningful scalar for a different, narrower claim: whether a preferred Thread network is available in Apple’s framework. The API is part of the entitlement-gated `ThreadNetwork` framework, does not establish that this iPhone has Thread radio support or that a border router is active, and does not meet the no-entitlement constraint
 

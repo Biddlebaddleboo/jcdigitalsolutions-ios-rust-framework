@@ -29,6 +29,14 @@ use std::{
 // These public `sys/clonefile.h` macros lack Rust constants in the locked `libc` binding.
 const CLONE_NOFOLLOW_ANY: u32 = 0x0008;
 const CLONE_RESOLVE_BENEATH: u32 = 0x0010;
+// These public `sys/stat.h` EF macros are not bound as Rust constants by locked `libc`.
+const EF_MAY_SHARE_BLOCKS: u64 = 0x0000_0001;
+const EF_NO_XATTRS: u64 = 0x0000_0002;
+const EF_IS_PURGEABLE: u64 = 0x0000_0008;
+const EF_IS_SPARSE: u64 = 0x0000_0010;
+const EF_SHARES_ALL_BLOCKS: u64 = 0x0000_0040;
+// This public `sys/attr.h` macro is not bound as a Rust constant by locked `libc`.
+const ATTR_CMNEXT_CLONE_REFCNT: u32 = 0x0000_1000;
 
 mod bookmark;
 mod coordination;
@@ -152,6 +160,91 @@ impl IosBsdFileFlags {
     /// Returns whether all bits in `flag` are present.
     pub const fn contains(self, flag: Self) -> bool {
         self.0 & flag.0 == flag.0
+    }
+}
+
+/// Raw public Darwin extended flags for one regular iOS filesystem file.
+///
+/// The snapshot preserves bits not named by this binding. Named flags are point-in-time
+/// filesystem reports, not stable allocation or future-operation guarantees.
+#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
+pub struct IosFileExtendedFlags(u64);
+
+impl IosFileExtendedFlags {
+    /// `EF_MAY_SHARE_BLOCKS`: the file may share blocks with another file.
+    pub const EF_MAY_SHARE_BLOCKS: Self = Self(EF_MAY_SHARE_BLOCKS);
+    /// `EF_NO_XATTRS`: the file has no extended attributes.
+    pub const EF_NO_XATTRS: Self = Self(EF_NO_XATTRS);
+    /// `EF_IS_PURGEABLE`: the filesystem may delete the file when asked to free space.
+    pub const EF_IS_PURGEABLE: Self = Self(EF_IS_PURGEABLE);
+    /// `EF_IS_SPARSE`: the file has at least one sparse region.
+    pub const EF_IS_SPARSE: Self = Self(EF_IS_SPARSE);
+    /// `EF_SHARES_ALL_BLOCKS`: the file shares all of its blocks with another file.
+    pub const EF_SHARES_ALL_BLOCKS: Self = Self(EF_SHARES_ALL_BLOCKS);
+
+    /// Returns the raw `ATTR_CMNEXT_EXT_FLAGS` bits, including unnamed bits.
+    pub const fn bits(self) -> u64 {
+        self.0
+    }
+
+    /// Returns whether all bits in `flag` are present.
+    pub const fn contains(self, flag: Self) -> bool {
+        self.0 & flag.0 == flag.0
+    }
+}
+
+/// An opaque point-in-time `ATTR_CMNEXT_CLONEID` value for one regular iOS file.
+///
+/// Compare snapshots only as a current XNU clone-ID report. This value has no documented
+/// persistence or change-token guarantee and is not a content hash.
+#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
+pub struct IosFileCloneIdSnapshot(u64);
+
+impl IosFileCloneIdSnapshot {
+    /// Returns the opaque 64-bit clone ID reported by the filesystem.
+    pub const fn value(self) -> u64 {
+        self.0
+    }
+}
+
+/// An opaque point-in-time `ATTR_CMNEXT_LINKID` value for one regular iOS file entry.
+///
+/// XNU scopes link IDs to a mounted volume. Do not treat this value as a content identity or a
+/// cross-mount persistent identifier.
+#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
+pub struct IosFileLinkIdSnapshot(u64);
+
+impl IosFileLinkIdSnapshot {
+    /// Returns the opaque 64-bit link ID reported by the filesystem.
+    pub const fn value(self) -> u64 {
+        self.0
+    }
+}
+
+/// A point-in-time count of full clones reported for one regular iOS file.
+///
+/// The count does not identify clone paths or include partial block-sharing peers.
+#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
+pub struct IosFileFullCloneCountSnapshot(u32);
+
+impl IosFileFullCloneCountSnapshot {
+    /// Returns the reported number of full clones.
+    pub const fn count(self) -> u32 {
+        self.0
+    }
+}
+
+/// A point-in-time byte count reported as private to one regular iOS file.
+///
+/// XNU defines this count as bytes not trapped in a clone or snapshot that would be freed
+/// immediately if the file were deleted. It does not reserve capacity for a later operation.
+#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
+pub struct IosFilePrivateSizeSnapshot(u64);
+
+impl IosFilePrivateSizeSnapshot {
+    /// Returns the reported private size in bytes.
+    pub const fn bytes(self) -> u64 {
+        self.0
     }
 }
 
@@ -474,6 +567,456 @@ impl IosFiles {
         } else {
             Ok(())
         }
+    }
+
+    /// Returns the raw Darwin extended flags for one regular app-sandbox file.
+    ///
+    /// The file is opened through the validated `AppPath` parent with `O_NOFOLLOW`, checked as a
+    /// regular file, and queried by its open descriptor with `fgetattrlist` requesting
+    /// `ATTR_CMNEXT_EXT_FLAGS`. The result preserves unknown bits; named bits are the public
+    /// `EF_*` values exposed by [`IosFileExtendedFlags`]. `EF_MAY_SHARE_BLOCKS` and
+    /// `EF_SHARES_ALL_BLOCKS` describe whether this file may share blocks or shares all blocks
+    /// with another file; they do not identify a particular clone peer or guarantee continued
+    /// sharing. `EF_IS_SPARSE` reports a sparse-region flag, not an allocated-space total. Other
+    /// flags are point-in-time metadata, not stable allocation or later-operation guarantees.
+    /// Filesystems that do not support this attribute return `Unsupported`. This query reads no
+    /// file contents, accepts no arbitrary URL, starts no security scope, and changes no portable
+    /// `FileBackend` behavior.
+    ///
+    /// # Errors
+    ///
+    /// Returns `InvalidPath` for a malformed `AppPath`, `InvalidInput` for a non-regular source or
+    /// malformed attribute buffer, `NotFound` for a missing source or parent, `Unsupported` when
+    /// the filesystem does not support the extended flags, or the mapped POSIX error for other
+    /// failures.
+    pub fn regular_file_extended_flags_snapshot(
+        &self,
+        path: AppPath<'_>,
+    ) -> Result<IosFileExtendedFlags, FileError> {
+        let parts = path_parts(path.relative())?;
+        let (parent, leaf) = open_parent(self.root(path.directory())?, &parts)?;
+        // SAFETY: `parent` is open and `leaf` is one validated component. `O_NOFOLLOW` rejects a
+        // final symlink, and `O_NONBLOCK` avoids blocking if the entry is concurrently replaced.
+        let source_fd = unsafe {
+            libc::openat(
+                parent.as_raw_fd(),
+                leaf.as_ptr(),
+                libc::O_RDONLY | libc::O_NOFOLLOW | libc::O_CLOEXEC | libc::O_NONBLOCK,
+            )
+        };
+        if source_fd < 0 {
+            return Err(file_error(io::Error::last_os_error()));
+        }
+        // SAFETY: `openat` returned a new owned descriptor.
+        let source_file = unsafe { File::from_raw_fd(source_fd) };
+        if !source_file.metadata().map_err(file_error)?.is_file() {
+            return Err(backend_error(ErrorKind::InvalidInput, None));
+        }
+
+        let mut attributes = libc::attrlist {
+            bitmapcount: libc::ATTR_BIT_MAP_COUNT,
+            reserved: 0,
+            commonattr: 0,
+            volattr: 0,
+            dirattr: 0,
+            fileattr: 0,
+            forkattr: libc::ATTR_CMNEXT_EXT_FLAGS,
+        };
+        let mut buffer = [0_u8; 12];
+        // SAFETY: `source_file` is an open regular file. `attributes` requests one documented
+        // extended common attribute; `buffer` holds its u32 length and u64 value. The descriptor
+        // binds the query to the opened inode, so no path lookup or symlink traversal occurs here.
+        let result = unsafe {
+            libc::fgetattrlist(
+                source_file.as_raw_fd(),
+                (&mut attributes as *mut libc::attrlist).cast(),
+                buffer.as_mut_ptr().cast(),
+                buffer.len(),
+                libc::FSOPT_ATTR_CMN_EXTENDED,
+            )
+        };
+        if result < 0 {
+            let error = io::Error::last_os_error();
+            if error.raw_os_error() == Some(libc::EINVAL) {
+                return Err(backend_error(ErrorKind::Unsupported, error.raw_os_error()));
+            }
+            return Err(file_error(error));
+        }
+        let returned_length = u32::from_ne_bytes(
+            buffer[..4]
+                .try_into()
+                .map_err(|_| backend_error(ErrorKind::InvalidInput, None))?,
+        ) as usize;
+        if returned_length != buffer.len() {
+            return Err(backend_error(ErrorKind::InvalidInput, None));
+        }
+        let flags = u64::from_ne_bytes(
+            buffer[4..]
+                .try_into()
+                .map_err(|_| backend_error(ErrorKind::InvalidInput, None))?,
+        );
+        Ok(IosFileExtendedFlags(flags))
+    }
+
+    /// Returns an opaque point-in-time clone ID for one regular app-sandbox file.
+    ///
+    /// The file is opened through the validated `AppPath` parent with `O_NOFOLLOW`, checked as a
+    /// regular file, and queried by its open descriptor with `fgetattrlist` requesting
+    /// `ATTR_CMNEXT_CLONEID`. XNU defines equal clone IDs as a way to find pure clones that share a
+    /// data stream. The value does not identify a particular B196 source path or prove current
+    /// block sharing. It has no documented persistence or change-token guarantee and is not a
+    /// content hash.
+    /// Filesystems that do not support the attribute return `Unsupported`. This query reads no
+    /// file contents, accepts no arbitrary URL, starts no security scope, and changes no portable
+    /// `FileBackend` behavior.
+    ///
+    /// # Errors
+    ///
+    /// Returns `InvalidPath` for a malformed `AppPath`, `InvalidInput` for a non-regular source or
+    /// malformed attribute buffer, `NotFound` for a missing source or parent, `Unsupported` when
+    /// the filesystem does not support clone IDs, or the mapped POSIX error for other failures.
+    pub fn regular_file_clone_id_snapshot(
+        &self,
+        path: AppPath<'_>,
+    ) -> Result<IosFileCloneIdSnapshot, FileError> {
+        let parts = path_parts(path.relative())?;
+        let (parent, leaf) = open_parent(self.root(path.directory())?, &parts)?;
+        // SAFETY: `parent` is open and `leaf` is one validated component. `O_NOFOLLOW` rejects a
+        // final symlink, and `O_NONBLOCK` avoids blocking if the entry is concurrently replaced.
+        let source_fd = unsafe {
+            libc::openat(
+                parent.as_raw_fd(),
+                leaf.as_ptr(),
+                libc::O_RDONLY | libc::O_NOFOLLOW | libc::O_CLOEXEC | libc::O_NONBLOCK,
+            )
+        };
+        if source_fd < 0 {
+            return Err(file_error(io::Error::last_os_error()));
+        }
+        // SAFETY: `openat` returned a new owned descriptor.
+        let source_file = unsafe { File::from_raw_fd(source_fd) };
+        if !source_file.metadata().map_err(file_error)?.is_file() {
+            return Err(backend_error(ErrorKind::InvalidInput, None));
+        }
+
+        let mut attributes = libc::attrlist {
+            bitmapcount: libc::ATTR_BIT_MAP_COUNT,
+            reserved: 0,
+            commonattr: 0,
+            volattr: 0,
+            dirattr: 0,
+            fileattr: 0,
+            forkattr: libc::ATTR_CMNEXT_CLONEID,
+        };
+        let mut buffer = [0_u8; 12];
+        // SAFETY: `source_file` is an open regular file. `attributes` requests one documented
+        // extended common attribute; `buffer` holds its u32 length and u64 value. The descriptor
+        // binds the query to the opened inode, so no path lookup or symlink traversal occurs here.
+        let result = unsafe {
+            libc::fgetattrlist(
+                source_file.as_raw_fd(),
+                (&mut attributes as *mut libc::attrlist).cast(),
+                buffer.as_mut_ptr().cast(),
+                buffer.len(),
+                libc::FSOPT_ATTR_CMN_EXTENDED,
+            )
+        };
+        if result < 0 {
+            let error = io::Error::last_os_error();
+            if error.raw_os_error() == Some(libc::EINVAL) {
+                return Err(backend_error(ErrorKind::Unsupported, error.raw_os_error()));
+            }
+            return Err(file_error(error));
+        }
+        let returned_length = u32::from_ne_bytes(
+            buffer[..4]
+                .try_into()
+                .map_err(|_| backend_error(ErrorKind::InvalidInput, None))?,
+        ) as usize;
+        if returned_length != buffer.len() {
+            return Err(backend_error(ErrorKind::InvalidInput, None));
+        }
+        let clone_id = u64::from_ne_bytes(
+            buffer[4..]
+                .try_into()
+                .map_err(|_| backend_error(ErrorKind::InvalidInput, None))?,
+        );
+        Ok(IosFileCloneIdSnapshot(clone_id))
+    }
+
+    /// Returns an opaque link ID for one regular app-sandbox file entry on its mounted volume.
+    ///
+    /// The file is opened through the validated `AppPath` parent with `O_NOFOLLOW`, checked as a
+    /// regular file, and queried by its open descriptor with `fgetattrlist` requesting
+    /// `ATTR_CMNEXT_LINKID`. XNU defines a `u64` ID unique within a mounted volume; on HFS+ and
+    /// APFS, a hard-link entry has a different link ID from the linked file-system object. This
+    /// value is distinct from B99's `(st_dev, st_ino)` snapshot and B211's clone ID. It identifies
+    /// neither file contents nor a pure-clone group. XNU says it is persistent only on volumes
+    /// that support `VOL_CAP_FMT_PERSISTENTOBJECTIDS`; this method does not query that capability,
+    /// so callers must not rely on cross-mount persistence. Filesystems that do not support the
+    /// attribute return `Unsupported`.
+    ///
+    /// This query reads no file contents, accepts no arbitrary URL, starts no security scope, and
+    /// changes no portable `FileBackend` behavior. Apple lists `fgetattrlist` in the File Timestamp
+    /// required-reason API category; the host app must declare an applicable approved reason in
+    /// `PrivacyInfo.xcprivacy` for actual use.
+    ///
+    /// # Errors
+    ///
+    /// Returns `InvalidPath` for a malformed `AppPath`, `InvalidInput` for a non-regular source or
+    /// malformed attribute buffer, `NotFound` for a missing source or parent, `Unsupported` when
+    /// the filesystem does not support link IDs, or the mapped POSIX error for other failures.
+    pub fn regular_file_link_id_snapshot(
+        &self,
+        path: AppPath<'_>,
+    ) -> Result<IosFileLinkIdSnapshot, FileError> {
+        let parts = path_parts(path.relative())?;
+        let (parent, leaf) = open_parent(self.root(path.directory())?, &parts)?;
+        // SAFETY: `parent` is open and `leaf` is one validated component. `O_NOFOLLOW` rejects a
+        // final symlink, and `O_NONBLOCK` avoids blocking if the entry is concurrently replaced.
+        let source_fd = unsafe {
+            libc::openat(
+                parent.as_raw_fd(),
+                leaf.as_ptr(),
+                libc::O_RDONLY | libc::O_NOFOLLOW | libc::O_CLOEXEC | libc::O_NONBLOCK,
+            )
+        };
+        if source_fd < 0 {
+            return Err(file_error(io::Error::last_os_error()));
+        }
+        // SAFETY: `openat` returned a new owned descriptor.
+        let source_file = unsafe { File::from_raw_fd(source_fd) };
+        if !source_file.metadata().map_err(file_error)?.is_file() {
+            return Err(backend_error(ErrorKind::InvalidInput, None));
+        }
+
+        let mut attributes = libc::attrlist {
+            bitmapcount: libc::ATTR_BIT_MAP_COUNT,
+            reserved: 0,
+            commonattr: 0,
+            volattr: 0,
+            dirattr: 0,
+            fileattr: 0,
+            forkattr: libc::ATTR_CMNEXT_LINKID,
+        };
+        let mut buffer = [0_u8; 12];
+        // SAFETY: `source_file` is an open regular file. `attributes` requests one documented
+        // extended common attribute; `buffer` holds its u32 length and u64 value. The descriptor
+        // binds the query to the opened inode, so no path lookup or symlink traversal occurs here.
+        let result = unsafe {
+            libc::fgetattrlist(
+                source_file.as_raw_fd(),
+                (&mut attributes as *mut libc::attrlist).cast(),
+                buffer.as_mut_ptr().cast(),
+                buffer.len(),
+                libc::FSOPT_ATTR_CMN_EXTENDED,
+            )
+        };
+        if result < 0 {
+            let error = io::Error::last_os_error();
+            if error.raw_os_error() == Some(libc::EINVAL) {
+                return Err(backend_error(ErrorKind::Unsupported, error.raw_os_error()));
+            }
+            return Err(file_error(error));
+        }
+        let returned_length = u32::from_ne_bytes(
+            buffer[..4]
+                .try_into()
+                .map_err(|_| backend_error(ErrorKind::InvalidInput, None))?,
+        ) as usize;
+        if returned_length != buffer.len() {
+            return Err(backend_error(ErrorKind::InvalidInput, None));
+        }
+        let link_id = u64::from_ne_bytes(
+            buffer[4..]
+                .try_into()
+                .map_err(|_| backend_error(ErrorKind::InvalidInput, None))?,
+        );
+        Ok(IosFileLinkIdSnapshot(link_id))
+    }
+
+    /// Returns the current number of full clones reported for one regular app-sandbox file.
+    ///
+    /// The file is opened through the validated `AppPath` parent with `O_NOFOLLOW`, checked as a
+    /// regular file, and queried by its open descriptor with `fgetattrlist` requesting
+    /// `ATTR_CMNEXT_CLONE_REFCNT`. XNU defines this `u32` value as the number of full clones, each
+    /// sharing all of its blocks with this file. It does not count partial block-sharing peers,
+    /// identify clone paths or IDs, or provide a stable identity. The value is a point-in-time
+    /// filesystem report and may change as files are cloned or removed. Filesystems that do not
+    /// support this attribute return `Unsupported`.
+    ///
+    /// This query reads no file contents, accepts no arbitrary URL, starts no security scope, and
+    /// changes no portable `FileBackend` behavior. Apple lists `fgetattrlist` in the File
+    /// Timestamp required-reason API category; the host app must declare an applicable approved
+    /// reason in `PrivacyInfo.xcprivacy` for actual use.
+    ///
+    /// # Errors
+    ///
+    /// Returns `InvalidPath` for a malformed `AppPath`, `InvalidInput` for a non-regular source or
+    /// malformed attribute buffer, `NotFound` for a missing source or parent, `Unsupported` when
+    /// the filesystem does not support the clone reference count, or the mapped POSIX error for
+    /// other failures.
+    pub fn regular_file_full_clone_count_snapshot(
+        &self,
+        path: AppPath<'_>,
+    ) -> Result<IosFileFullCloneCountSnapshot, FileError> {
+        let parts = path_parts(path.relative())?;
+        let (parent, leaf) = open_parent(self.root(path.directory())?, &parts)?;
+        // SAFETY: `parent` is open and `leaf` is one validated component. `O_NOFOLLOW` rejects a
+        // final symlink, and `O_NONBLOCK` avoids blocking if the entry is concurrently replaced.
+        let source_fd = unsafe {
+            libc::openat(
+                parent.as_raw_fd(),
+                leaf.as_ptr(),
+                libc::O_RDONLY | libc::O_NOFOLLOW | libc::O_CLOEXEC | libc::O_NONBLOCK,
+            )
+        };
+        if source_fd < 0 {
+            return Err(file_error(io::Error::last_os_error()));
+        }
+        // SAFETY: `openat` returned a new owned descriptor.
+        let source_file = unsafe { File::from_raw_fd(source_fd) };
+        if !source_file.metadata().map_err(file_error)?.is_file() {
+            return Err(backend_error(ErrorKind::InvalidInput, None));
+        }
+
+        let mut attributes = libc::attrlist {
+            bitmapcount: libc::ATTR_BIT_MAP_COUNT,
+            reserved: 0,
+            commonattr: 0,
+            volattr: 0,
+            dirattr: 0,
+            fileattr: 0,
+            forkattr: ATTR_CMNEXT_CLONE_REFCNT,
+        };
+        let mut buffer = [0_u8; 8];
+        // SAFETY: `source_file` is an open regular file. `attributes` requests one documented
+        // extended common attribute; `buffer` holds its u32 length and u32 value. The descriptor
+        // binds the query to the opened inode, so no path lookup or symlink traversal occurs here.
+        let result = unsafe {
+            libc::fgetattrlist(
+                source_file.as_raw_fd(),
+                (&mut attributes as *mut libc::attrlist).cast(),
+                buffer.as_mut_ptr().cast(),
+                buffer.len(),
+                libc::FSOPT_ATTR_CMN_EXTENDED,
+            )
+        };
+        if result < 0 {
+            let error = io::Error::last_os_error();
+            if error.raw_os_error() == Some(libc::EINVAL) {
+                return Err(backend_error(ErrorKind::Unsupported, error.raw_os_error()));
+            }
+            return Err(file_error(error));
+        }
+        let returned_length = u32::from_ne_bytes(
+            buffer[..4]
+                .try_into()
+                .map_err(|_| backend_error(ErrorKind::InvalidInput, None))?,
+        ) as usize;
+        if returned_length != buffer.len() {
+            return Err(backend_error(ErrorKind::InvalidInput, None));
+        }
+        let count = u32::from_ne_bytes(
+            buffer[4..]
+                .try_into()
+                .map_err(|_| backend_error(ErrorKind::InvalidInput, None))?,
+        );
+        Ok(IosFileFullCloneCountSnapshot(count))
+    }
+
+    /// Returns the current private-size byte count for one regular app-sandbox file.
+    ///
+    /// The file is opened through the validated `AppPath` parent with `O_NOFOLLOW`, checked as a
+    /// regular file, and queried by its open descriptor with `fgetattrlist` requesting
+    /// `ATTR_CMNEXT_PRIVATESIZE`. XNU defines the `off_t` value as bytes not trapped inside a
+    /// clone or snapshot that would be freed immediately if the file were deleted. This differs
+    /// from allocated size, which may include shared blocks. The result is point-in-time metadata,
+    /// not a reservation, quota, later-delete guarantee, or promise about a future write. Filesystems
+    /// that do not support this attribute return `Unsupported`.
+    ///
+    /// This query reads no file contents, accepts no arbitrary URL, starts no security scope, and
+    /// changes no portable `FileBackend` behavior. Apple lists `fgetattrlist` in the File Timestamp
+    /// required-reason API category; the host app must declare an applicable approved reason in
+    /// `PrivacyInfo.xcprivacy` for actual use.
+    ///
+    /// # Errors
+    ///
+    /// Returns `InvalidPath` for a malformed `AppPath`, `InvalidInput` for a non-regular source,
+    /// negative private-size value, or malformed attribute buffer, `NotFound` for a missing
+    /// source or parent, `Unsupported` when the filesystem does not support this attribute, or the
+    /// mapped POSIX error for other failures.
+    pub fn regular_file_private_size_snapshot(
+        &self,
+        path: AppPath<'_>,
+    ) -> Result<IosFilePrivateSizeSnapshot, FileError> {
+        let parts = path_parts(path.relative())?;
+        let (parent, leaf) = open_parent(self.root(path.directory())?, &parts)?;
+        // SAFETY: `parent` is open and `leaf` is one validated component. `O_NOFOLLOW` rejects a
+        // final symlink, and `O_NONBLOCK` avoids blocking if the entry is concurrently replaced.
+        let source_fd = unsafe {
+            libc::openat(
+                parent.as_raw_fd(),
+                leaf.as_ptr(),
+                libc::O_RDONLY | libc::O_NOFOLLOW | libc::O_CLOEXEC | libc::O_NONBLOCK,
+            )
+        };
+        if source_fd < 0 {
+            return Err(file_error(io::Error::last_os_error()));
+        }
+        // SAFETY: `openat` returned a new owned descriptor.
+        let source_file = unsafe { File::from_raw_fd(source_fd) };
+        if !source_file.metadata().map_err(file_error)?.is_file() {
+            return Err(backend_error(ErrorKind::InvalidInput, None));
+        }
+
+        let mut attributes = libc::attrlist {
+            bitmapcount: libc::ATTR_BIT_MAP_COUNT,
+            reserved: 0,
+            commonattr: 0,
+            volattr: 0,
+            dirattr: 0,
+            fileattr: 0,
+            forkattr: libc::ATTR_CMNEXT_PRIVATESIZE,
+        };
+        let mut buffer = [0_u8; 12];
+        // SAFETY: `source_file` is an open regular file. `attributes` requests one documented
+        // extended common attribute; `buffer` holds its u32 length and 8-byte off_t. The
+        // descriptor binds the query to the opened inode, so no path lookup or symlink traversal
+        // occurs here.
+        let result = unsafe {
+            libc::fgetattrlist(
+                source_file.as_raw_fd(),
+                (&mut attributes as *mut libc::attrlist).cast(),
+                buffer.as_mut_ptr().cast(),
+                buffer.len(),
+                libc::FSOPT_ATTR_CMN_EXTENDED,
+            )
+        };
+        if result < 0 {
+            let error = io::Error::last_os_error();
+            if error.raw_os_error() == Some(libc::EINVAL) {
+                return Err(backend_error(ErrorKind::Unsupported, error.raw_os_error()));
+            }
+            return Err(file_error(error));
+        }
+        let returned_length = u32::from_ne_bytes(
+            buffer[..4]
+                .try_into()
+                .map_err(|_| backend_error(ErrorKind::InvalidInput, None))?,
+        ) as usize;
+        if returned_length != buffer.len() {
+            return Err(backend_error(ErrorKind::InvalidInput, None));
+        }
+        let private_size = i64::from_ne_bytes(
+            buffer[4..]
+                .try_into()
+                .map_err(|_| backend_error(ErrorKind::InvalidInput, None))?,
+        );
+        if private_size < 0 {
+            return Err(backend_error(ErrorKind::InvalidInput, None));
+        }
+        Ok(IosFilePrivateSizeSnapshot(private_size as u64))
     }
 
     /// Returns one regular file's current byte length without reading its contents.

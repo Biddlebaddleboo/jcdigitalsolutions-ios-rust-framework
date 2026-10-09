@@ -4,9 +4,9 @@
 
 Row `112-compiler-build-host-capabilities-activitykit-support-if-layer-2-abi-work-is-proven` has one bounded partial candidate that does not require Layer-2 `ActivityAttributes` conformance or generic `Activity<Attributes>` support: `ActivityAuthorizationInfo().areActivitiesEnabled`, available from iOS 16.1. Apple defines the result as whether the current app can start a Live Activity; a person can disable Live Activities for an app in Settings.
 
-The ActivityKit declarations are Swift-only, so this is not currently a Rust-callable API. However, the candidate needs only a public Swift class initializer, a synchronous final property getter returning `Bool`, class ownership, and the `ActivityKit.framework` import. The repository's separate B61 RoomPlan slice proves a narrow compiler-derived `swiftcall` thunk can reach a public Swift framework property without shipping Swift source. This is a feasible future `B` partial after a separate ActivityKit compiler-oracle and device/Simulator link gate; it is not evidence that a reusable Layer-2 or general Swift method bridge exists.
+The ActivityKit declarations are Swift-only, so this is not a generated Objective-C/Rust binding. B209 implements the bounded query in `ios-activitykit-status` using a compiler-derived `swiftcall` C thunk and the audited `swift-abi-core/apple-runtime` ownership path; no Swift source or reusable general method bridge is added. The selected operation needs only the public class initializer, a synchronous final `Bool` getter, and `ActivityKit.framework`.
 
-Keep row 112 at `X` until that operation is implemented and checked. The current status reason about unproven Layer-2 ABI applies to full typed ActivityKit operations, not to this candidate. Do not claim full ActivityKit, Live Activity creation/update/end, or WidgetKit UI support from a Boolean snapshot.
+The root aggregate marks row 112 partial (`B`) for this exact point-in-time start-eligibility snapshot after integrating the focused package and gate evidence. The current status reason about unproven Layer-2 ABI still applies to full typed ActivityKit operations, not to this bounded thunk. Do not claim full ActivityKit, Live Activity creation/update/end, or WidgetKit UI support from a Boolean snapshot.
 
 ## Audit scope
 
@@ -50,8 +50,8 @@ Do not infer ABI from the mangled names or `.tbd` alone. The compiler-generated 
 
 - Swift and Clang compiler IR both used target triple `arm64-apple-ios16.1.0` for device and `arm64-apple-ios16.1.0-simulator` for Simulator. The metadata accessor, owned class initializer, getter, and release sequence matched for both targets.
 - The iPhoneOS and iPhoneSimulator ActivityKit `.tbd` files both export the metadata accessor `_$s11ActivityKit0A17AuthorizationInfoCMa`, initializer `_$s11ActivityKit0A17AuthorizationInfoCACycfC`, and getter `_$s11ActivityKit0A17AuthorizationInfoC20areActivitiesEnabledSbvg`.
-- The iPhoneOS `.tbd` declares target `arm64e-ios`, while the Simulator `.tbd` declares `x86_64-ios-simulator` and `arm64-ios-simulator`. The device ABI oracle compiled as arm64, but this symbol inspection is not an arm64 device link check. A focused final link/import gate remains necessary for the repository's `aarch64-apple-ios` target; do not infer link support from the arm64e stub declaration.
-- This thunk's release path imports Swift runtime `swift_release`, unlike B61's static RoomPlan property query. A future Rust package must enable the audited `swift-abi-core/apple-runtime` path or provide an equally verified `libswiftCore` linkage, then inspect the final Mach-O for `_swift_release` and the expected single Swift runtime dependency. No final link was attempted here.
+- The iPhoneOS `.tbd` declares target `arm64e-ios`, while the Simulator `.tbd` declares `x86_64-ios-simulator` and `arm64-ios-simulator`. The D98 symbol inspection alone was not an arm64 device link check. B209 adds an arm64 device and arm64 Simulator package link/import gate; this is link evidence only, not runtime evidence.
+- This thunk's release path imports Swift runtime `swift_release`, unlike B61's static RoomPlan property query. B209 uses the audited `swift-abi-core/apple-runtime` path and verifies `_swift_release` from `libswiftCore` in linked device/Simulator examples; this establishes no runtime behavior.
 - The synchronous lowering gives no guarantee about call latency, internal system-service work, or thread safety. Keep the operation synchronous on the caller's thread, expose no object across the boundary, and do not mark the Rust facade `Send`/`Sync` or claim real-time behavior without further evidence.
 - The API and compiler oracle used deployment target iOS 16.1. Any implementation must either require that minimum or guard the call on older deployment targets; this audit gives no compatibility claim below iOS 16.1.
 
@@ -77,21 +77,21 @@ Apple documents that `Activity.request` starts a Live Activity in the foreground
 
 ## Feasibility result and next evidence
 
-A status-only slice is technically feasible without Layer-2 type/conformance machinery. The compiler-oracle ABI and one-object release sequence are now proven for the installed Swift 6.3.3 compiler and iOS 26.5 SDK at iOS 16.1 for arm64 device and Simulator compile targets. Remaining evidence gaps are a maintained/reproducible package gate, final arm64 iOS device and arm64 Simulator link/import inspection (including `swift_release`/`libswiftCore`), and runtime behavior; no reusable direct framework initializer/property API exists in the common Swift ABI crates.
+A status-only slice is technically feasible without Layer-2 type/conformance machinery. D98 proved the compiler-oracle ABI and one-object release sequence for the installed Swift 6.3.3 compiler and iOS 26.5 SDK at iOS 16.1 for arm64 device and Simulator compile targets. B209 adds and passes the maintained package gate and arm64 device/Simulator link/import inspection, including `_swift_release` from `libswiftCore`; runtime behavior remains unverified. No reusable direct framework initializer/property API exists in the common Swift ABI crates.
 
-If implemented, expose only a named snapshot such as `activities_enabled_for_current_app() -> bool` under an iOS namespace, with an iOS 16.1 API floor. Copy the Boolean immediately into Rust-owned scalar state, release the temporary ActivityKit object according to compiler-proven ownership, and expose no ActivityKit object, `Activity` identifier, content, token, callback, or async stream. Document that it reports the current settings-based start permission, not device-wide support, Activity creation success, extension presentation, or future state.
+The B209 package exposes `activities_enabled_for_current_app() -> Result<bool, ActivityAuthorizationError>` with an iOS 16.1 API floor. It copies the Boolean into Rust-owned scalar state and releases the temporary ActivityKit object through `SwiftRetained<SwiftObject>`. It exposes no ActivityKit object, `Activity` identifier, content, token, callback, or async stream. The result reports current-app start eligibility only, not device-wide support, Activity creation success, extension presentation, or future state.
 
 ## Compiler-ABI follow-up
 
 D98's initial source audit did not prove callable lowering. A focused follow-up compiled temporary Swift and Clang LLVM-IR oracles for arm64 iOS 16.1 and arm64 Simulator iOS 16.1. The metadata accessor, owned initializer, `swiftself` getter returning `i1`, and `swift_release` signatures matched, and both SDK `.tbd` files export the three API symbols
 
-This still does not establish a usable production path: no final link/import gate ran, the iPhoneOS `.tbd` lists `arm64e-ios` rather than proving arm64 device compatibility, and the owned initializer requires `_swift_release`/`libswiftCore` linkage. Row 112 stays `X` until a package proves those link/runtime ownership details on device and Simulator
+At D98 time this still did not establish a usable production path: no final link/import gate had run, the iPhoneOS `.tbd` listed `arm64e-ios` rather than proving arm64 device compatibility, and the owned initializer required `_swift_release`/`libswiftCore` linkage. B209 adds those static link/ownership checks; it does not validate runtime behavior
 
 ## Root integration needs
 
 - D98 adds only this feasibility report. It does not change `docs/capabilities/capability-status.json`, root plans, workspace membership, Cargo lock, CI, indexes, or code.
-- To promote a partial, the remaining work is a separate implementation slice for the exact status query plus final arm64 device/Simulator link/import checks at iOS 16.1. The compiler-oracle signature checks now pass and must stay in the package gate. The link gate must account for the `swift_release` runtime import and verify device-link compatibility rather than relying on the arm64e-only iPhoneOS `.tbd` target label.
-- Keep row 112 at `X` until that package and its evidence exist. If implemented, revise the status reason to distinguish the status-only slice from the broader ActivityKit protocol/generic/async work; preserve separate rows and reasons for App Intents and WidgetKit.
+- B209 adds the exact status query and final arm64 device/Simulator link/import checks at iOS 16.1. The compiler-oracle signature checks remain in the package gate. The link gate checks the `swift_release` runtime import and device-link compatibility rather than relying on the arm64e-only iPhoneOS `.tbd` target label.
+- Root can revise the row 112 status reason to distinguish this status-only slice from broader ActivityKit protocol/generic/async work; preserve separate rows and reasons for App Intents and WidgetKit.
 - The repository's planned Xcode baseline is 27.x. This audit uses Xcode 26.6 and makes no Xcode 27 compatibility claim.
 
 ## Evidence and checks
@@ -112,3 +112,43 @@ This still does not establish a usable production path: no final link/import gat
 - [`NSSupportsLiveActivities`](https://developer.apple.com/documentation/bundleresources/information-property-list/nssupportsliveactivities)
 - [`ActivityAttributes`](https://developer.apple.com/documentation/activitykit/activityattributes)
 - [`Activity.request(attributes:content:pushType:)`](https://developer.apple.com/documentation/activitykit/activity/request%28attributes%3Acontent%3Apushtype%3A%29)
+
+## B209 — current-app Live Activity start eligibility
+
+`ios_activitykit_status::activities_enabled_for_current_app()` returns
+`Result<bool, ActivityAuthorizationError>`. On iOS it constructs
+`ActivityAuthorizationInfo`, calls only `areActivitiesEnabled`, copies that scalar to Rust, and
+releases the owned Swift object through `swift-abi-core/apple-runtime`. The value keeps Apple's
+meaning: whether ActivityKit currently reports this app can start a Live Activity. It is not a
+device-support result or a guarantee that a subsequent start succeeds. Non-iOS targets return
+`NativeApiUnavailable`; unavailable weak-linked API symbols also return that error.
+
+The SDK exposes the class and property as Swift-only declarations. The public iOS 26.5 SDK exports
+the class metadata accessor `_$s11ActivityKit0A17AuthorizationInfoCMa`, initializer
+`_$s11ActivityKit0A17AuthorizationInfoCACycfC`, and getter
+`_$s11ActivityKit0A17AuthorizationInfoC20areActivitiesEnabledSbvg`. Apple documents the
+property as the current app's ability to start a Live Activity and directs apps to query it before
+showing the start UI. The class/API floor is iOS 16.1. The C thunk calls only these public symbols,
+uses the compiler-derived metadata response and `swiftself` signatures, weak-imports those API
+symbols, and does not author or ship Swift source. The Rust function is synchronous; it makes no
+main-thread or arbitrary-thread-safety claim and does not hop queues.
+
+`NSSupportsLiveActivities` is host configuration for apps that offer Live Activities; this crate
+does not validate or write that key, provide a WidgetKit extension or SwiftUI presentation, or
+perform any ActivityKit lifecycle operation. No dedicated entitlement or usage-description key for
+this snapshot is established by the reviewed docs. `true` does not establish that a later
+`Activity.request` succeeds, that a Live Activity is active, or that rendering is configured.
+
+The focused gate `sh platform/ios/ios-activitykit-status/check.sh` passed with Rust 1.94.1:
+package formatting; host, iOS device, and arm64 Simulator checks; strict Clippy for all three;
+warnings-denied host/device rustdoc; compiler-oracle comparison for metadata, init, getter, and
+release on arm64 device and Simulator; and link/import inspection for ActivityKit and
+`libswiftCore` on iOS device and Simulator. `cargo +1.94.1 xtask docs-check` and
+`cargo +1.94.1 xtask zero-swift-source` also passed. The link examples were built and inspected,
+not executed. No tests, ActivityKit calls, app launches, runtime probes, or device/Simulator queries
+ran for B209.
+
+This used Xcode 26.6 build `17F113`, iPhoneOS/iPhoneSimulator SDK 26.5, Swift 6.3.2/6.3.3, Clang
+21.0.0, and Rust 1.94.1. The installed Xcode remains below the repository Xcode 27.x baseline, so
+this does not establish baseline-toolchain behavior. Row 112 remains `X` in the shared aggregate
+until root integrates the scoped partial; full ActivityKit and WidgetKit remain unsupported.

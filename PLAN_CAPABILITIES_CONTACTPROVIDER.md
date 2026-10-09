@@ -54,3 +54,15 @@ No code, package manifest, global matrix, index, or CI file changed. No tests, b
 - [ContactProviderError cases](https://developer.apple.com/documentation/contactprovider/contactprovidererror)
 - [Apple entitlement catalog](https://developer.apple.com/documentation/bundleresources/entitlements)
 - [Contacts notes entitlement](https://developer.apple.com/documentation/bundleresources/entitlements/com.apple.developer.contacts.notes)
+
+## B224 follow-up: `isEnabled` remains Swift-only
+
+Revalidated the iOS 26.5 public ContactProvider SDK for a newly exposed C/Objective-C path to a host domain's enabled state. `ContactProvider.framework/Headers/ContactProvider.h` still declares only framework version metadata. The public Swift interface declares `ContactProviderManager.init(domainIdentifier:) throws` and the synchronous instance property `isEnabled: Bool`; neither has an `@objc` declaration. The framework export map lists Swift-mangled symbols for this API, not a public C entry point. The local `objc2` generated-framework inventory and `objc2-contact-provider` package search remain without a ContactProvider binding.
+
+Apple documents `isEnabled` narrowly as whether the person enabled that extension domain. The property is a plausible value only after constructing a manager for a known domain. That initializer may register `DefaultContactProviderDomain`, and it can throw `extensionNotFound` or `featureNotAvailable`; the extension must also be packaged under `com.apple.contact.provider.extension` and implement contact enumeration. `isEnabled` does not establish extension launch, enumeration success, sync freshness, or data presence. Using a Swift-mangled symbol or guessed Objective-C selector would not create a supported Rust/C contract.
+
+Decision: no Rust backend or interop change for B224; keep row `102-extension-entitlement-capabilities-contactprovider` at `X`. Reconsider only with a selected host extension and an explicitly supported Swift bridge/ABI path that preserves initializer errors and the domain-enabled-only meaning. Evidence remains Xcode 26.6 build `17F113` / iOS SDK 26.5, below the repository's Xcode 27.x baseline.
+
+Evidence: installed `ContactProvider.framework/Headers/ContactProvider.h`, `Modules/ContactProvider.swiftmodule/arm64e-apple-ios.swiftinterface`, and `ContactProvider.tbd`; [Apple `ContactProviderManager`](https://developer.apple.com/documentation/contactprovider/contactprovidermanager), [`init(domainIdentifier:)`](https://developer.apple.com/documentation/contactprovider/contactprovidermanager/init%28domainidentifier%3A%29), [`ContactProviderExtension`](https://developer.apple.com/documentation/contactprovider/contactproviderextension), and [`ContactProvider`](https://developer.apple.com/documentation/contactprovider).
+
+No source, dependency, build, link probe, test, extension launch, domain registration, user prompt, enumeration, app launch, Simulator run, or device query was performed for B224

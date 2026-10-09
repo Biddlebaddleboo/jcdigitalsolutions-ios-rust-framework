@@ -422,6 +422,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "ios-activitykit-status"
+version = "0.1.0"
+dependencies = [
+ "swift-abi-core",
+]
+
+[[package]]
 name = "ios-app-scenes"
 version = "0.1.0"
 dependencies = [

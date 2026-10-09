@@ -566,7 +566,260 @@ native set is unordered. It exposes identifier values opaquely and does not norm
 subscribe to focus changes, or move focus. The iOS 9.0 selector guard preserves the crate's
 existing iOS 4.0 floor; no dependency or manifest change is needed. Apple documents the method in
 its [`accessibilityAssistiveTechnologyFocusedIdentifiers` reference](https://developer.apple.com/documentation/objectivec/nsobject-swift.class/accessibilityassistivetechnologyfocusedidentifiers%28%29?language=objc).
+Focused static gates passed:
+
+- `cargo +1.94.1 check --locked --offline -p ios-accessibility --target aarch64-apple-ios`
+- `cargo +1.94.1 check --locked --offline -p ios-accessibility --target aarch64-apple-ios-sim`
+- `cargo +1.94.1 clippy --locked --offline -p ios-accessibility --lib --target aarch64-apple-ios -- -D warnings`
+- `cargo +1.94.1 clippy --locked --offline -p ios-accessibility --lib --target aarch64-apple-ios-sim -- -D warnings`
+- `cargo +1.94.1 doc --locked --offline -p ios-accessibility --no-deps --target aarch64-apple-ios`
+- `cargo +1.94.1 fmt -p ios-accessibility -- --check`
+- `cargo +1.94.1 --locked --offline xtask docs-check`
+- `git diff --check -- PLAN_IOS_ACCESSIBILITY.md docs/ios/accessibility.md platform/ios/ios-accessibility/src/lib.rs platform/ios/ios-accessibility/src/platform.rs`
+
 This pass added and ran no tests or focus/runtime probes.
+
+B198 audited the global `UIAccessibilityFocusedElement` function and did not expose it. The active
+iOS 26.5 SDK declares it at `UIAccessibility.h:324-328` with an optional assistive-technology
+identifier, an optional arbitrary `id` result, `API_AVAILABLE(ios(9.0))`, watchOS unavailable, and
+`NS_SWIFT_UI_ACTOR`. `objc2-ui-kit` 0.3.2 generates it under the already-enabled
+`UIAccessibilityConstants` feature as a function returning `Option<Retained<AnyObject>>`; it is
+not a getter scoped to the adapter's borrowed `UIView`. The function may return a non-view
+`UIAccessibilityElement` or other object, and omitting the identifier asks for the most recently
+focused element. Returning/retaining that object would cross the crate's view-only boundary and
+would not give a safe per-view focus result without object identity, type, and lifetime semantics.
+The B192/B195 per-view snapshots remain the bounded focus surface. Apple documents the function in
+its [`UIAccessibilityFocusedElement` reference](https://developer.apple.com/documentation/uikit/uiaccessibility/focusedelement%28using%3A%29?language=objc).
+This audit added and ran no tests or focus/runtime probes.
+
+B201 adds `accessibility_user_input_labels()` as a selector-guarded getter for the plain
+`accessibilityUserInputLabels` array. The active iOS 26.5 SDK declares the nullable-resettable,
+strong `NSArray<NSString *> *` property at `UIAccessibility.h:204` with iOS 13.0 and tvOS 13.0
+availability, watchOS unavailable, and `NS_SWIFT_UI_ACTOR`; Apple specifies primary-first ordering
+and says controls may provide defaults. `objc2-ui-kit` 0.3.2 exposes the typed getter as
+`Option<Retained<NSArray<NSString>>>` on `NSObjectUIAccessibility` under the existing
+`UIAccessibility` feature. The adapter checks the exact selector, preserves native `nil` versus an
+empty array, copies strings to Rust-owned `String`s, and preserves array order. The getter reads
+the property only and does not invoke `accessibilityUserInputLabelsBlock`; it does not validate or
+normalize text, identify whether the caller set the value, or promise input recognition. The iOS
+13.0 selector guard preserves the crate's iOS 4.0 floor, and existing `NSArray`/`NSString` feature
+edges suffice; no dependency or manifest change is needed. Apple documents the property in its
+[`accessibilityUserInputLabels` reference](https://developer.apple.com/documentation/objectivec/nsobject-swift.class/accessibilityuserinputlabels).
+Focused static gates passed:
+
+- `cargo +1.94.1 check --locked --offline -p ios-accessibility --target aarch64-apple-ios`
+- `cargo +1.94.1 check --locked --offline -p ios-accessibility --target aarch64-apple-ios-sim`
+- `cargo +1.94.1 clippy --locked --offline -p ios-accessibility --lib --target aarch64-apple-ios -- -D warnings`
+- `cargo +1.94.1 clippy --locked --offline -p ios-accessibility --lib --target aarch64-apple-ios-sim -- -D warnings`
+- `cargo +1.94.1 doc --locked --offline -p ios-accessibility --no-deps --target aarch64-apple-ios`
+- `cargo +1.94.1 fmt -p ios-accessibility -- --check`
+- `cargo +1.94.1 --locked --offline xtask docs-check`
+- `git diff --check -- PLAN_IOS_ACCESSIBILITY.md docs/ios/accessibility.md platform/ios/ios-accessibility/src/lib.rs platform/ios/ios-accessibility/src/platform.rs`
+
+This pass added and ran no tests or UIKit runtime probes.
+
+B204 adds `accessibility_language()` as a selector-guarded getter for the full
+`accessibilityLanguage` property. The active iOS 26.5 SDK declares it as nullable strong
+`NSString *` at `UIAccessibility.h:154`, with `API_UNAVAILABLE(watchos)` and no explicit iOS minimum
+annotation; the adjacent header comment at `:148-152` describes a BCP 47 language tag and says the
+default is `nil`. `objc2-ui-kit` 0.3.2 exposes the typed getter as
+`Option<Retained<NSString>>` on `NSObjectUIAccessibility` under the existing `UIAccessibility`
+feature. The adapter checks the exact `accessibilityLanguage` selector, preserves native `nil` as
+`None` (and an empty string as `Some("")`), and copies the complete returned string into Rust-owned
+text without validating or normalizing its language tag. It does not invoke
+`accessibilityLanguageBlock`, infer the language used by an assistive application, or claim spoken
+output. The selector check preserves the crate's existing iOS 4.0 floor; no dependency, feature, or
+manifest change is needed. Apple documents the property in its
+[`accessibilityLanguage` reference](https://developer.apple.com/documentation/objectivec/nsobject-swift.class/accessibilitylanguage).
+Focused static gates passed:
+
+- `cargo +1.94.1 check --locked --offline -p ios-accessibility --target aarch64-apple-ios`
+- `cargo +1.94.1 check --locked --offline -p ios-accessibility --target aarch64-apple-ios-sim`
+- `cargo +1.94.1 clippy --locked --offline -p ios-accessibility --lib --target aarch64-apple-ios -- -D warnings`
+- `cargo +1.94.1 clippy --locked --offline -p ios-accessibility --lib --target aarch64-apple-ios-sim -- -D warnings`
+- `cargo +1.94.1 doc --locked --offline -p ios-accessibility --no-deps --target aarch64-apple-ios`
+- `cargo +1.94.1 fmt -p ios-accessibility -- --check`
+- `cargo +1.94.1 --locked --offline xtask docs-check`
+- `git diff --check -- PLAN_IOS_ACCESSIBILITY.md docs/ios/accessibility.md platform/ios/ios-accessibility/src/lib.rs platform/ios/ios-accessibility/src/platform.rs`
+
+This pass added and ran no tests or UIKit runtime probes.
+
+B207 adds `accessibility_textual_context()` as a selector-guarded getter for the full nullable
+`accessibilityTextualContext` property. The active iOS 26.5 SDK declares the property at
+`UIAccessibility.h:227` as nullable strong `UIAccessibilityTextualContext`, available on iOS and
+tvOS 13.0 and unavailable on watchOS; the header describes a named value that may help assistive
+technology choose text output and defaults it to `nil`. `objc2-ui-kit` 0.3.2 exposes the getter as
+`Option<Retained<UIAccessibilityTextualContext>>` on `NSObjectUIAccessibility` under the existing
+`UIAccessibilityConstants` feature, where `UIAccessibilityTextualContext` is an `NSString` alias.
+The adapter checks the exact getter selector, preserves native `nil`, and copies a non-nil value to
+Rust-owned text without limiting it to the seven named constants accepted by the existing setter,
+validation, or normalization. It does not invoke `accessibilityTextualContextBlock` (iOS 17.0),
+infer the context used by an assistive application, or claim spoken output. The iOS 13.0 selector
+guard preserves the crate's existing iOS 4.0 floor; no dependency, feature, or manifest change is
+needed. Apple documents the property in its
+[`accessibilityTextualContext` reference](https://developer.apple.com/documentation/uikit/uiaccessibilitytextualcontext?language=objc).
+Focused static gates passed:
+
+- `cargo +1.94.1 check --locked --offline -p ios-accessibility --target aarch64-apple-ios`
+- `cargo +1.94.1 check --locked --offline -p ios-accessibility --target aarch64-apple-ios-sim`
+- `cargo +1.94.1 clippy --locked --offline -p ios-accessibility --lib --target aarch64-apple-ios -- -D warnings`
+- `cargo +1.94.1 clippy --locked --offline -p ios-accessibility --lib --target aarch64-apple-ios-sim -- -D warnings`
+- `cargo +1.94.1 doc --locked --offline -p ios-accessibility --no-deps --target aarch64-apple-ios`
+- `cargo +1.94.1 fmt -p ios-accessibility -- --check`
+- `cargo +1.94.1 --locked --offline xtask docs-check`
+- `git diff --check -- PLAN_IOS_ACCESSIBILITY.md docs/ios/accessibility.md platform/ios/ios-accessibility/src/lib.rs platform/ios/ios-accessibility/src/platform.rs`
+
+This pass added and ran no tests or UIKit runtime probes.
+
+B210 adds `accessibility_label()` as a selector-guarded getter for UIKit's nullable
+`accessibilityLabel` property. The active iOS 26.5 SDK declares it at `UIAccessibility.h:64` as
+copied nullable `NSString *`, watchOS unavailable, and without an explicit iOS minimum annotation;
+the header describes a localized label and defaults it to `nil`. `objc2-ui-kit` 0.3.2 exposes the
+typed getter as `Option<Retained<NSString>>` on `NSObjectUIAccessibility` under the existing
+`UIAccessibility` feature. The adapter preserves native `nil` and empty string separately and
+copies a non-nil value to Rust-owned text. It reads the property only, does not invoke the iOS 17.0
+`accessibilityLabelBlock`, and makes no effective-label or assistive-output claim. The selector
+guard preserves the crate's existing iOS 4.0 floor; no dependency, feature, or manifest change is
+needed. Apple documents the property in its
+[`accessibilityLabel` reference](https://developer.apple.com/documentation/objectivec/nsobject-swift.class.accessibilitylabel?language=objc).
+Focused static gates passed:
+
+- `cargo +1.94.1 check --locked --offline -p ios-accessibility --target aarch64-apple-ios`
+- `cargo +1.94.1 check --locked --offline -p ios-accessibility --target aarch64-apple-ios-sim`
+- `cargo +1.94.1 clippy --locked --offline -p ios-accessibility --lib --target aarch64-apple-ios -- -D warnings`
+- `cargo +1.94.1 clippy --locked --offline -p ios-accessibility --lib --target aarch64-apple-ios-sim -- -D warnings`
+- `cargo +1.94.1 doc --locked --offline -p ios-accessibility --no-deps --target aarch64-apple-ios`
+- `cargo +1.94.1 fmt -p ios-accessibility -- --check`
+- `cargo +1.94.1 --locked --offline xtask docs-check`
+- `git diff --check -- PLAN_IOS_ACCESSIBILITY.md docs/ios/accessibility.md platform/ios/ios-accessibility/src/lib.rs platform/ios/ios-accessibility/src/platform.rs`
+
+This pass added and ran no tests or UIKit runtime probes.
+
+B213 adds `accessibility_hint()` as a selector-guarded getter for UIKit's nullable
+`accessibilityHint` property. The active iOS 26.5 SDK declares it at `UIAccessibility.h:79` as
+copied nullable `NSString *`, watchOS unavailable, and without an explicit iOS minimum annotation;
+the header describes a brief explanation for a non-obvious action result and defaults it to `nil`.
+`objc2-ui-kit` 0.3.2 exposes the typed getter as `Option<Retained<NSString>>` on
+`NSObjectUIAccessibility` under the existing `UIAccessibility` feature. The adapter preserves
+native `nil` and empty string separately and copies a non-nil value to Rust-owned text. It reads the
+property only, does not invoke the iOS 17.0 `accessibilityHintBlock`, and makes no effective-hint or
+assistive-output claim. The selector guard preserves the crate's existing iOS 4.0 floor; no
+dependency, feature, or manifest change is needed. Apple documents the property in its
+[`accessibilityHint` reference](https://developer.apple.com/documentation/objectivec/nsobject-swift.class.accessibilityhint?language=objc).
+Focused static gates passed:
+
+- `cargo +1.94.1 check --locked --offline -p ios-accessibility --target aarch64-apple-ios`
+- `cargo +1.94.1 check --locked --offline -p ios-accessibility --target aarch64-apple-ios-sim`
+- `cargo +1.94.1 clippy --locked --offline -p ios-accessibility --lib --target aarch64-apple-ios -- -D warnings`
+- `cargo +1.94.1 clippy --locked --offline -p ios-accessibility --lib --target aarch64-apple-ios-sim -- -D warnings`
+- `cargo +1.94.1 doc --locked --offline -p ios-accessibility --no-deps --target aarch64-apple-ios`
+- `cargo +1.94.1 fmt -p ios-accessibility -- --check`
+- `cargo +1.94.1 --locked --offline xtask docs-check`
+- `git diff --check -- PLAN_IOS_ACCESSIBILITY.md docs/ios/accessibility.md platform/ios/ios-accessibility/src/lib.rs platform/ios/ios-accessibility/src/platform.rs`
+
+This pass added and ran no tests or UIKit runtime probes.
+
+B216 adds `accessibility_value()` as a selector-guarded getter for UIKit's nullable
+`accessibilityValue` property. The active iOS 26.5 SDK declares it at `UIAccessibility.h:95` as
+copied nullable `NSString *`, watchOS unavailable, and without an explicit iOS minimum annotation;
+the header describes a value such as a slider's setting or a text field's text and defaults it to
+`nil`. `objc2-ui-kit` 0.3.2 exposes the typed getter as `Option<Retained<NSString>>` on
+`NSObjectUIAccessibility` under the existing `UIAccessibility` feature. The adapter preserves
+native `nil` and empty string separately and copies a non-nil value to Rust-owned text. It reads the
+property only, does not invoke the iOS 17.0 `accessibilityValueBlock`, and makes no effective-value
+or assistive-output claim. The selector guard preserves the crate's existing iOS 4.0 floor; no
+dependency, feature, or manifest change is needed. Apple documents the property in its
+[`accessibilityValue` reference](https://developer.apple.com/documentation/objectivec/nsobject-swift.class/accessibilityvalue?language=objc).
+Focused static gates passed:
+
+- `cargo +1.94.1 check --locked --offline -p ios-accessibility --target aarch64-apple-ios`
+- `cargo +1.94.1 check --locked --offline -p ios-accessibility --target aarch64-apple-ios-sim`
+- `cargo +1.94.1 clippy --locked --offline -p ios-accessibility --lib --target aarch64-apple-ios -- -D warnings`
+- `cargo +1.94.1 clippy --locked --offline -p ios-accessibility --lib --target aarch64-apple-ios-sim -- -D warnings`
+- `cargo +1.94.1 doc --locked --offline -p ios-accessibility --no-deps --target aarch64-apple-ios`
+- `cargo +1.94.1 fmt -p ios-accessibility -- --check`
+- `cargo +1.94.1 --locked --offline xtask docs-check`
+- `git diff --check -- PLAN_IOS_ACCESSIBILITY.md docs/ios/accessibility.md platform/ios/ios-accessibility/src/lib.rs platform/ios/ios-accessibility/src/platform.rs`
+
+This pass added and ran no tests or UIKit runtime probes.
+
+B219 adds `accessibility_attributed_label()` as a selector-guarded getter for UIKit's nullable
+`accessibilityAttributedLabel` property. The active iOS 26.5 SDK declares the copied
+`NSAttributedString *` property at `UIAccessibility.h:70` with iOS and tvOS 11.0 availability,
+watchOS unavailability, and `NS_SWIFT_UI_ACTOR`; Apple says it is synchronized with
+`accessibilityLabel`. `objc2-ui-kit` 0.3.2 exposes the getter as
+`Option<Retained<NSAttributedString>>` on `NSObjectUIAccessibility` under the existing
+`UIAccessibility` feature and Foundation `NSAttributedString` edge. The adapter checks the exact
+getter selector and returns the generated owned retained immutable value to the caller, preserving
+native `nil`; it does not retain the borrowed view. It does not invoke
+`accessibilityAttributedLabelBlock` (iOS 17.0), validate attributes, or claim speech or effective
+assistive output. The iOS 11.0 selector guard preserves the crate's iOS 4.0 floor; no dependency,
+feature, or manifest change is needed. Apple documents the property in its
+[`accessibilityAttributedLabel` reference](https://developer.apple.com/documentation/objectivec/nsobject-swift.class/accessibilityattributedlabel?language=objc).
+Focused static gates passed:
+
+- `cargo +1.94.1 check --locked --offline -p ios-accessibility --target aarch64-apple-ios`
+- `cargo +1.94.1 check --locked --offline -p ios-accessibility --target aarch64-apple-ios-sim`
+- `cargo +1.94.1 clippy --locked --offline -p ios-accessibility --lib --target aarch64-apple-ios -- -D warnings`
+- `cargo +1.94.1 clippy --locked --offline -p ios-accessibility --lib --target aarch64-apple-ios-sim -- -D warnings`
+- `cargo +1.94.1 doc --locked --offline -p ios-accessibility --no-deps --target aarch64-apple-ios`
+- `cargo +1.94.1 fmt -p ios-accessibility -- --check`
+- `cargo +1.94.1 --locked --offline xtask docs-check`
+- `git diff --check -- PLAN_IOS_ACCESSIBILITY.md docs/ios/accessibility.md platform/ios/ios-accessibility/src/lib.rs platform/ios/ios-accessibility/src/platform.rs`
+
+This pass added and ran no tests or UIKit runtime probes.
+
+B222 adds `accessibility_attributed_hint()` as a selector-guarded getter for UIKit's nullable
+`accessibilityAttributedHint` property. The active iOS 26.5 SDK declares the copied
+`NSAttributedString *` property at `UIAccessibility.h:85` with iOS and tvOS 11.0 availability,
+watchOS unavailability, and `NS_SWIFT_UI_ACTOR`; Apple says it is synchronized with
+`accessibilityHint`. `objc2-ui-kit` 0.3.2 exposes the getter as
+`Option<Retained<NSAttributedString>>` on `NSObjectUIAccessibility` under the existing
+`UIAccessibility` feature and Foundation `NSAttributedString` edge. The adapter checks the exact
+getter selector and returns the generated owned retained immutable value to the caller, preserving
+native `nil`; it does not retain the borrowed view. It does not invoke
+`accessibilityAttributedHintBlock` (iOS 17.0), validate attributes, or claim speech or effective
+assistive output. The iOS 11.0 selector guard preserves the crate's iOS 4.0 floor; no dependency,
+feature, or manifest change is needed. Apple documents the property in its
+[`accessibilityAttributedHint` reference](https://developer.apple.com/documentation/objectivec/nsobject-swift.class.accessibilityattributedhint?language=objc).
+Focused static gates passed:
+
+- `cargo +1.94.1 check --locked --offline -p ios-accessibility --target aarch64-apple-ios`
+- `cargo +1.94.1 check --locked --offline -p ios-accessibility --target aarch64-apple-ios-sim`
+- `cargo +1.94.1 clippy --locked --offline -p ios-accessibility --lib --target aarch64-apple-ios -- -D warnings`
+- `cargo +1.94.1 clippy --locked --offline -p ios-accessibility --lib --target aarch64-apple-ios-sim -- -D warnings`
+- `cargo +1.94.1 doc --locked --offline -p ios-accessibility --no-deps --target aarch64-apple-ios`
+- `cargo +1.94.1 fmt -p ios-accessibility -- --check`
+- `cargo +1.94.1 --locked --offline xtask docs-check`
+- `git diff --check -- PLAN_IOS_ACCESSIBILITY.md docs/ios/accessibility.md platform/ios/ios-accessibility/src/lib.rs platform/ios/ios-accessibility/src/platform.rs`
+
+This pass added and ran no tests or UIKit runtime probes.
+
+B225 adds `accessibility_attributed_value()` as a selector-guarded getter for UIKit's nullable
+`accessibilityAttributedValue` property. The active iOS 26.5 SDK declares the copied
+`NSAttributedString *` property at `UIAccessibility.h:101` with iOS and tvOS 11.0 availability,
+watchOS unavailability, and `NS_SWIFT_UI_ACTOR`; Apple says it is synchronized with
+`accessibilityValue`. `objc2-ui-kit` 0.3.2 exposes the getter as
+`Option<Retained<NSAttributedString>>` on `NSObjectUIAccessibility` under the existing
+`UIAccessibility` feature and Foundation `NSAttributedString` edge. The adapter checks the exact
+getter selector and returns the generated owned retained immutable value to the caller, preserving
+native `nil`; it does not retain the borrowed view. It does not invoke
+`accessibilityAttributedValueBlock` (iOS 17.0), validate attributes, or claim speech or effective
+assistive output. The iOS 11.0 selector guard preserves the crate's iOS 4.0 floor; no dependency,
+feature, or manifest change is needed. Apple documents the property in its
+[`accessibilityAttributedValue` reference](https://developer.apple.com/documentation/objectivec/nsobject-swift.class/accessibilityattributedvalue?language=objc).
+Focused static gates passed:
+
+- `cargo +1.94.1 check --locked --offline -p ios-accessibility --target aarch64-apple-ios`
+- `cargo +1.94.1 check --locked --offline -p ios-accessibility --target aarch64-apple-ios-sim`
+- `cargo +1.94.1 clippy --locked --offline -p ios-accessibility --lib --target aarch64-apple-ios -- -D warnings`
+- `cargo +1.94.1 clippy --locked --offline -p ios-accessibility --lib --target aarch64-apple-ios-sim -- -D warnings`
+- `cargo +1.94.1 doc --locked --offline -p ios-accessibility --no-deps --target aarch64-apple-ios`
+- `cargo +1.94.1 fmt -p ios-accessibility -- --check`
+- `cargo +1.94.1 --locked --offline xtask docs-check`
+- `git diff --check -- PLAN_IOS_ACCESSIBILITY.md docs/ios/accessibility.md platform/ios/ios-accessibility/src/lib.rs platform/ios/ios-accessibility/src/platform.rs`
+
+This pass added and ran no tests or UIKit runtime probes.
 
 On Xcode 26.6 build 17F113 with iPhoneOS and iPhoneSimulator SDK 26.5, these checks pass:
 

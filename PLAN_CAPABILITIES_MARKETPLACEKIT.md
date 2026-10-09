@@ -107,3 +107,15 @@ No package, dependency, workspace, lock, CI, docs-index, or matrix change is req
 - `MarketplaceKit.framework/MarketplaceKit.tbd`
 - Swift ABI limits: `PLAN_SWIFT_ABI.md`, `PLAN_SWIFT_ABI_ASYNC.md`, `PLAN_SWIFT_ABI_ASYNC_RUNTIME.md`
 - Canonical row reviewed only: `docs/capabilities/capability-status.json`, id `104-extension-entitlement-capabilities-marketplacekit`
+
+## B230 follow-up: no C/Objective-C marketplace readiness query
+
+Rechecked the installed iOS 26.5 MarketplaceKit headers and module interfaces for a native Rust-callable operation. `MarketplaceKit.framework/Headers/MarketplaceKit.h` remains declaration-free beyond its framework comment. The framework interface exposes `AppDistributor.current` as `async throws`; `eligibilityRegion` (iOS 26.4) and `AppLibrary.catalogRegion` (iOS 26.2) are also asynchronous Swift properties. They report installation source or narrowly scoped region values, not app entitlement, Apple approval, device/account eligibility, or installation readiness.
+
+The apparent Objective-C exception is `_MarketplaceKit_UIKit.ActionButton`, a `@MainActor @objc` UIKit control. Apple defines it as the user-interface element through which a person installs, updates, or launches apps; iOS validates that an install request came from interaction with this control. Its inherited `UIControl.isEnabled` is control interaction state, not MarketplaceKit support, entitlement, or marketplace authorization. Wrapping it would require a real user-facing install flow and would not provide a status operation. The framework's extension and catalog APIs remain Swift protocol/async/value surfaces; no Objective-C/C query or generated Rust binding is available.
+
+Decision: no implementation or dependency change for B230; keep row `104-extension-entitlement-capabilities-marketplacekit` at `X`. The existing async installation-source and region values do not cross the supported Rust ABI boundary, and mapping them to generic MarketplaceKit availability would be false. A future slice requires an explicitly supported Rust/Swift async bridge or a new public C/Objective-C query with documented semantics. Evidence remains Xcode 26.6 build `17F113` / iOS SDK 26.5, below the repository's Xcode 27.x baseline.
+
+Evidence: installed `MarketplaceKit.framework/Headers/MarketplaceKit.h`, `MarketplaceKit.swiftmodule/arm64e-apple-ios.swiftinterface`, and `_MarketplaceKit_UIKit.swiftmodule/arm64e-apple-ios.swiftinterface`; [Apple `AppDistributor.current` usage](https://developer.apple.com/documentation/marketplacekit/distributing-your-app-on-an-alternative-app-marketplace), [`eligibilityRegion`](https://developer.apple.com/documentation/marketplacekit/appdistributor/eligibilityregion), [`ActionButton`](https://developer.apple.com/documentation/marketplacekit/actionbutton?changes=__5_7&language=objc), and [MarketplaceKit overview](https://developer.apple.com/documentation/marketplacekit).
+
+No source, dependency, build, link probe, test, app install, marketplace action, UI presentation, app launch, Simulator run, or device query was performed for B230
