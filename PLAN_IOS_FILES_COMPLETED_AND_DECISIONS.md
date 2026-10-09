@@ -42,3 +42,27 @@ These are completed *research decisions*—not evidence that the underlying Appl
 - The current capability matrix remains the source of truth: `docs/capabilities/capability-status.json`. A completed property query does **not** complete its enclosing capability row.
 - Any future user-facing operations must preserve sandbox root ownership, thread-safety, error mapping, symlink policy and forward compatibility, and add deterministic regression tests with device testing when material.
 - Before implementation: read `PLAN.md`, then the residual workstream; consult this closure index only for a previously decided question, never all historical files.
+
+## Additional retired filesystem slices (audit on e11b2fca5051)
+
+These 14 bounded plans have been retired. Each full contract and evidence record is recoverable from the linked immutable original, with live API behavior described in `platform/ios/ios-files/src/lib.rs` and `docs/ios/files.md`. This is **not** a device-runtime or entire-capability completion claim.
+
+### Implemented narrow APIs
+
+- [PLAN_IOS_DIRECTORY_ALLOCATED_SIZE.md](https://github.com/Biddlebaddleboo/jcdigitalsolutions-ios-rust-framework/blob/e11b2fca50513d24912b3b74bbf79e4315b75bbf/PLAN_IOS_DIRECTORY_ALLOCATED_SIZE.md) — IosFiles::directory_allocated_size_snapshot: no-follow directory-object allocation snapshot.
+- [PLAN_IOS_DIRECTORY_KIND_COUNTS.md](https://github.com/Biddlebaddleboo/jcdigitalsolutions-ios-rust-framework/blob/e11b2fca50513d24912b3b74bbf79e4315b75bbf/PLAN_IOS_DIRECTORY_KIND_COUNTS.md) — IosFiles::directory_entry_kind_counts: direct child type tallies; no content reads.
+- [PLAN_IOS_ENTRY_KIND.md](https://github.com/Biddlebaddleboo/jcdigitalsolutions-ios-rust-framework/blob/e11b2fca50513d24912b3b74bbf79e4315b75bbf/PLAN_IOS_ENTRY_KIND.md) — IosFiles::entry_kind: single-entry no-follow kind.
+- [PLAN_IOS_FILE_ACCESS_TIME.md](https://github.com/Biddlebaddleboo/jcdigitalsolutions-ios-rust-framework/blob/e11b2fca50513d24912b3b74bbf79e4315b75bbf/PLAN_IOS_FILE_ACCESS_TIME.md) — IosFiles::entry_access_time: not an access log or change token.
+- [PLAN_IOS_FILE_ALLOCATED_BLOCKS.md](https://github.com/Biddlebaddleboo/jcdigitalsolutions-ios-rust-framework/blob/e11b2fca50513d24912b3b74bbf79e4315b75bbf/PLAN_IOS_FILE_ALLOCATED_BLOCKS.md) — IosFiles::regular_file_allocated_blocks_512: 512-byte block count, not exact disk use.
+- [PLAN_IOS_FILE_BACKUP_TIME_MARKER.md](https://github.com/Biddlebaddleboo/jcdigitalsolutions-ios-rust-framework/blob/e11b2fca50513d24912b3b74bbf79e4315b75bbf/PLAN_IOS_FILE_BACKUP_TIME_MARKER.md) — IosFiles::entry_stored_backup_time: stored filesystem marker, not actual backup proof.
+- [PLAN_IOS_APP_DIRECTORY_NAME_TRUNCATION.md](https://github.com/Biddlebaddleboo/jcdigitalsolutions-ios-rust-framework/blob/e11b2fca50513d24912b3b74bbf79e4315b75bbf/PLAN_IOS_APP_DIRECTORY_NAME_TRUNCATION.md) — IosFiles::app_directory_truncates_long_names: Darwin _PC_NO_TRUNC true-means-truncation handling.
+
+### Closed no-go decisions
+
+- [PLAN_IOS_APP_DIRECTORY_CASE_PRESERVING.md](https://github.com/Biddlebaddleboo/jcdigitalsolutions-ios-rust-framework/blob/e11b2fca50513d24912b3b74bbf79e4315b75bbf/PLAN_IOS_APP_DIRECTORY_CASE_PRESERVING.md) — Duplicate case-preserved-name volume Boolean already supplied by B175; no separate semantics..
+- [PLAN_IOS_BACKUP_EXCLUSION.md](https://github.com/Biddlebaddleboo/jcdigitalsolutions-ios-rust-framework/blob/e11b2fca50513d24912b3b74bbf79e4315b75bbf/PLAN_IOS_BACKUP_EXCLUSION.md) — Do not infer safe backup-exclusion setter semantics solely from a sandbox AppPath; preserve host/file-provider boundary..
+- [PLAN_IOS_DIRECTORY_DATA_LENGTH.md](https://github.com/Biddlebaddleboo/jcdigitalsolutions-ios-rust-framework/blob/e11b2fca50513d24912b3b74bbf79e4315b75bbf/PLAN_IOS_DIRECTORY_DATA_LENGTH.md) — No supported caller contract for directory logical data length..
+- [PLAN_IOS_DIRECTORY_IO_BLOCK_SIZE.md](https://github.com/Biddlebaddleboo/jcdigitalsolutions-ios-rust-framework/blob/e11b2fca50513d24912b3b74bbf79e4315b75bbf/PLAN_IOS_DIRECTORY_IO_BLOCK_SIZE.md) — No useful supported operation requires directory raw I/O block-size metadata..
+- [PLAN_IOS_DIRECTORY_LINK_COUNT.md](https://github.com/Biddlebaddleboo/jcdigitalsolutions-ios-rust-framework/blob/e11b2fca50513d24912b3b74bbf79e4315b75bbf/PLAN_IOS_DIRECTORY_LINK_COUNT.md) — Directory link count is not a direct child count or portable operation..
+- [PLAN_IOS_DIRECTORY_MOUNT_STATUS.md](https://github.com/Biddlebaddleboo/jcdigitalsolutions-ios-rust-framework/blob/e11b2fca50513d24912b3b74bbf79e4315b75bbf/PLAN_IOS_DIRECTORY_MOUNT_STATUS.md) — Raw mount-status flags are not a safe path-containment or traversal guarantee..
+- [PLAN_IOS_FILE_ATTRIBUTION_TAG.md](https://github.com/Biddlebaddleboo/jcdigitalsolutions-ios-rust-framework/blob/e11b2fca50513d24912b3b74bbf79e4315b75bbf/PLAN_IOS_FILE_ATTRIBUTION_TAG.md) — Opaque attribution tag has no justified sandbox-file caller contract..
