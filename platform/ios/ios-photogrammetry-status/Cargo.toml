@@ -8,6 +8,9 @@ repository.workspace = true
 description = "RealityFoundation photogrammetry hardware-support snapshot for iOS"
 build = "build.rs"
 
+[build-dependencies]
+ios-native-build-support = { path = "../../../tools/native-build-support" }
+
 [[example]]
 name = "photogrammetry_status_link_probe"
 path = "examples/photogrammetry_status_link_probe.rs"

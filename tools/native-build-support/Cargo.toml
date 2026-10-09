@@ -1,0 +1,12 @@
+[package]
+name = "ios-native-build-support"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "Build-script-only support for capability-scoped iOS native archives"
+publish = false
+
+[lints]
+workspace = true

@@ -436,6 +436,7 @@ dependencies = [
 name = "ios-activitykit-status"
 version = "0.1.0"
 dependencies = [
+ "ios-native-build-support",
  "swift-abi-core",
 ]
 
@@ -447,6 +448,7 @@ version = "0.1.0"
 name = "ios-alarmkit-status"
 version = "0.1.0"
 dependencies = [
+ "ios-native-build-support",
  "swift-abi-core",
 ]
 
@@ -862,6 +864,10 @@ dependencies = [
 ]
 
 [[package]]
+name = "ios-native-build-support"
+version = "0.1.0"
+
+[[package]]
 name = "ios-natural-language-status"
 version = "0.1.0"
 dependencies = [
@@ -922,6 +928,9 @@ dependencies = [
 [[package]]
 name = "ios-photogrammetry-status"
 version = "0.1.0"
+dependencies = [
+ "ios-native-build-support",
+]
 
 [[package]]
 name = "ios-photos"
