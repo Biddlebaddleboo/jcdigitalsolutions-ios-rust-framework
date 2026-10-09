@@ -213,6 +213,25 @@ Apple references: [`UIPasteboard`](https://developer.apple.com/documentation/uik
 
 ## Validation evidence and limits
 
+B84 non-test validation passed for both device and Simulator with the clipboard-only feature:
+
+~~~sh
+cargo check --locked --offline -p ios-sharing --no-default-features --features clipboard --target aarch64-apple-ios
+cargo check --locked --offline -p ios-sharing --no-default-features --features clipboard --target aarch64-apple-ios-sim
+cargo clippy --locked --offline -p ios-sharing --no-default-features --features clipboard --target aarch64-apple-ios -- -D warnings
+cargo clippy --locked --offline -p ios-sharing --no-default-features --features clipboard --target aarch64-apple-ios-sim -- -D warnings
+RUSTDOCFLAGS='-D warnings' cargo doc --locked --offline --no-deps -p ios-sharing --no-default-features --features clipboard --target aarch64-apple-ios
+RUSTDOCFLAGS='-D warnings' cargo doc --locked --offline --no-deps -p ios-sharing --no-default-features --features clipboard --target aarch64-apple-ios-sim
+sh platform/ios/ios-sharing/check-clipboard-link-imports.sh
+~~~
+
+The link/import gate builds but does not execute its link-only example. It passed with exactly
+UIKit, Foundation, `libobjc.A.dylib`, and `libSystem.B.dylib` imported for each target; it verified
+the `hasStrings` marker, no share or language-runtime symbols, device minos 10.0, and Simulator
+minos 14.0 with SDK 26.5. Rustdoc output includes `IosClipboardBackend::has_plain_text()` for both
+targets. No tests, live pasteboard access, or consumer/probe execution occurred during this B84
+validation.
+
 Host tests exercise UTF-8 conversion, error propagation, and the deferred-operation seam with a fake backend. `cargo test --locked --offline -p ios-sharing --no-default-features --features clipboard` passed four B6 host tests; these do not read or mutate the developer's live general pasteboard.
 
 The clipboard-only target configuration passed device and simulator checks. A temporary minimal consumer under ignored `target/b6-link-probe` was built for both targets with:

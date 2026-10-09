@@ -14,6 +14,37 @@ locked device and Simulator Cargo trees for exactly `CLLocation`, `CLLocationMan
 executed. The gate emitted a rustc warning that `IPHONEOS_DEPLOYMENT_TARGET` was 9.0 while rustc
 supports a minimum of 10.0; final device probe minos is 10.0 and Simulator minos is 14.0.
 
+B87 adds `IosLocationBackend::accuracy_authorization()` as an iOS-only, synchronous, non-prompting
+snapshot query; it does not change portable D4 or row 037 status. Installed
+`iPhoneOS26.5.sdk`'s `CLLocationManager.h` declares readonly selector
+`-[CLLocationManager accuracyAuthorization]` and `CLAccuracyAuthorization` as
+`NS_ENUM(NSInteger)` with full=0 and reduced=1, available from iOS 14.0. Installed
+`objc2-core-location` 0.3.2 provides the typed getter returning its transparent
+`CLAccuracyAuthorization(pub NSInteger)` wrapper. The query returns `None` before iOS 14.0, maps
+the two known values, and preserves any other signed raw value as `Unknown(isize)`. The existing
+backend remains iOS 9.0+; this extension creates a manager and reads the property synchronously on
+the backend's main thread, without assigning a delegate or starting a service. Apple's Core
+Location docs give no separate queue requirement for this property read; they specify an active
+creation-thread run loop for delegate callbacks, which B87 does not add. Apple also cautions that
+full-accuracy status should be interpreted alongside authorization status, since it can be
+reported while authorization is not determined. B87 checks passed: Rust format, device and
+Simulator `cargo check`, strict Clippy, device rustdoc, `sh platform/ios/ios-location/check-link-imports.sh`,
+docs-check, and `git diff --check`. No tests ran; Release probes were linked and inspected only,
+not executed.
+
+B89 audit closed with no additive API. The installed iOS 26.5 header and objc2-core-location 0.3.2
+confirm public `+[CLLocationManager locationServicesEnabled]`, a typed no-instance class query
+available from iOS 4.0 that returns whether device-wide Location Services are enabled. Apple
+distinguishes this device setting from app authorization. However, `LocationBackend::availability()`
+already calls this exact method and maps `true` to `Available` and `false` to
+`TemporarilyUnavailable`; `authorization()` separately exposes app authorization. A second Rust
+boolean would therefore add no state or result, only a duplicate accessor. Reopen only if a future
+contract needs a distinct device-switch state that cannot be inferred from the portable
+availability result. The installed header warns that subsequent Core Location APIs may cause a
+system warning when services are disabled; current Apple docs say location attempts fail and
+report an error. This audit did not query a live device or verify `requestLocation()` warning
+behavior, so B5 makes no runtime claim here.
+
 Row `037-sensors-connectivity-location-geofencing-significant-change-where-supported` remains
 partial beyond B5/F15's one-shot current-location surface. `PLAN.md` lists the portable location
 crate and iOS backend but has no scoped geofencing or significant-change task. D4 explicitly

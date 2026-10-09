@@ -162,12 +162,14 @@ unsafe fn read(
 /// The operation is synchronous and may block.
 ///
 /// # Safety
-/// Non-empty input spans must point to readable memory valid for the duration of the call. The
-/// required output pointers may be null; each non-null pointer must be writable and distinct. A
-/// missing required pointer returns `INVALID_ARGUMENT` after the other non-null required output is
-/// initialized. A non-null `out_secret` must not contain a live framework-owned allocation; it is
-/// initialized to empty on entry. A non-null native-code output must be writable and must not alias
-/// another output. The function catches Rust panics, but it cannot validate arbitrary invalid C
+/// Non-empty input spans must point to valid, readable memory and remain immutable for the full
+/// call; the caller must prevent unsynchronized mutation. Required output slots may be null; each
+/// non-null output slot, including the optional native-code slot, must point to valid, properly
+/// aligned writable memory for the full call. Output memory ranges must be pairwise disjoint and
+/// must not overlap non-empty input spans; this function does not check overlap. A missing required
+/// output returns `INVALID_ARGUMENT` after all other non-null output slots are initialized. A
+/// non-null `out_secret` must not contain a live framework-owned allocation; it is initialized to
+/// empty on entry. The function catches Rust panics, but it cannot validate arbitrary invalid C
 /// addresses or pointer provenance.
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn framework_ios_secure_storage_read(
@@ -242,9 +244,13 @@ unsafe fn store(
 /// reports the effective policy. The operation is synchronous and may block.
 ///
 /// # Safety
-/// Non-empty input spans must point to readable memory valid for the duration of the call. The
-/// required output pointer must be writable and distinct from the optional native-code output. A
-/// non-null native-code output must be writable. The function catches Rust panics, but it cannot
+/// Non-empty input spans must point to valid, readable memory and remain immutable for the full
+/// call; the caller must prevent unsynchronized mutation. The required output slot may be null; if
+/// it is null, the function returns `INVALID_ARGUMENT` after zeroing a non-null native-code output.
+/// Each non-null output slot must point to valid, properly aligned writable memory for the full
+/// call. Output memory ranges must be disjoint from one another and must not overlap non-empty
+/// input spans; this function does not check overlap. The required and optional outputs
+/// are initialized before input validation. The function catches Rust panics, but it cannot
 /// validate arbitrary invalid C addresses or pointer provenance.
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn framework_ios_secure_storage_store(
@@ -317,9 +323,13 @@ unsafe fn remove(
 /// The operation is synchronous and may block.
 ///
 /// # Safety
-/// The input spans must point to readable memory valid for the duration of the call. The required
-/// output pointer must be writable and distinct from the optional native-code output. A non-null
-/// native-code output must be writable. The function catches Rust panics, but it cannot validate
+/// Input spans must point to valid, readable memory and remain immutable for the full call; the
+/// caller must prevent unsynchronized mutation. The required output slot may be null; if it is
+/// null, the function returns `INVALID_ARGUMENT` after zeroing a non-null native-code output. Each
+/// non-null output slot must point to valid, properly aligned writable memory for the full call.
+/// Output memory ranges must be disjoint from one another and must not overlap non-empty input
+/// spans; this function does not check overlap. The required and optional outputs are
+/// initialized before input validation. The function catches Rust panics, but it cannot validate
 /// arbitrary invalid C addresses or pointer provenance.
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn framework_ios_secure_storage_remove(

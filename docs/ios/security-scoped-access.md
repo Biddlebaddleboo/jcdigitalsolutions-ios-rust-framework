@@ -27,7 +27,8 @@ scope. This guard cannot verify the URL's provenance, prompt for access, or guar
 file operation succeeds. The separate unsafe
 [`IosResolvedBookmark::resolve_unscoped` helper](bookmark-resolution.md) handles
 non-security-scoped bookmark data only; it cannot inspect the input scope or resolve
-security-scoped bookmark data safely. This guard performs no file I/O, does not add `IosFiles`
+security-scoped bookmark data safely. The separate `IosPlainBookmarkData::create` helper creates
+bookmark data with implicit scope omitted; that data does not grant access. This guard performs no file I/O, does not add `IosFiles`
 sandbox-root containment, and does not provide
 FileProvider lifecycle support. The existing `ios-files` crate floor remains iOS 10.0; Foundation
 declares the start/stop methods from iOS 8.0, while bookmark resolution needs iOS 14.2 for the

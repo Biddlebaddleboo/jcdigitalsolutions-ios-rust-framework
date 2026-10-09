@@ -10,6 +10,25 @@ host unit test gate, `cargo test --locked -p ios-network`, passes 10 determinist
 conversion and operation completion/drop races. No URLSession request, local-server differential,
 or HTTP parity result is claimed; the recorded Xcode 26.6 host is below the plan's 27.x baseline.
 
+### B3 bounded response-header conversion update
+
+`NSHTTPURLResponse.allHeaderFields` is a heterogeneous dictionary. B3 now copies `NSString` values
+as UTF-8 and converts `NSNumber` values with `stringValue()`, matching the existing B13 Foundation
+conversion path. This is a useful, bounded D1 `ResponseHeader` representation path, not raw-wire
+preservation: `NSNumber::stringValue()` reflects Foundation's normalized number object and cannot
+recover the server's original header spelling. Unsupported Foundation object types remain a platform
+backend error. No portable contract or dependency version changed.
+
+Non-test checks run for this update:
+
+- Pass: `cargo +1.94.1 fmt --manifest-path platform/ios/ios-network/Cargo.toml -- --check`
+- Pass: `cargo +1.94.1 check --locked --offline -p ios-network --target aarch64-apple-ios`
+- Pass: `cargo +1.94.1 check --locked --offline -p ios-network --target aarch64-apple-ios-sim`
+- Pass: `cargo +1.94.1 clippy --locked --offline -p ios-network --target aarch64-apple-ios -- -D warnings`
+- Pass: `cargo +1.94.1 clippy --locked --offline -p ios-network --target aarch64-apple-ios-sim -- -D warnings`
+- Pass: `cargo xtask docs-check`; `git diff --check`
+- Not run: tests, link/import probes, consumer binaries, or URLSession runtime requests
+
 ## Next-scope gate
 
 No additional B3 implementation is justified by the current plans. The adjacent E1 review in

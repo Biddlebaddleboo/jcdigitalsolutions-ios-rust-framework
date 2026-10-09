@@ -41,7 +41,25 @@ if ! awk '
     echo "B5 permission prompt call must stay in the explicit authorization request path" >&2
     exit 1
 fi
-
+if ! awk '
+    /pub fn accuracy_authorization\(/ { accuracy_query_count++; in_accuracy_query = 1 }
+    in_accuracy_query {
+        if (/objc2::available!\(ios = 14\.0, \.\.\)/) guarded_query_count++
+        if (/manager\.accuracyAuthorization\(\)/) guarded_getter_count++
+        line = $0
+        opens = gsub(/\{/, "", line)
+        closes = gsub(/\}/, "", line)
+        brace_depth += opens - closes
+        if (brace_depth == 0) in_accuracy_query = 0
+    }
+    /accuracyAuthorization\(\)/ { getter_count++ }
+    END {
+        exit !(accuracy_query_count == 1 && guarded_query_count == 1 && guarded_getter_count == 1 && getter_count == 1)
+    }
+' platform/ios/ios-location/src/platform.rs; then
+    echo "B87 accuracy-authorization getter must stay inside the iOS 14 availability guard" >&2
+    exit 1
+fi
 cat > target/ios-location-core-location-features-expected.txt <<'FEATURES'
 objc2-core-location feature "CLLocation"
 objc2-core-location feature "CLLocationManager"

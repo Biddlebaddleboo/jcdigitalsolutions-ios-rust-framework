@@ -16,7 +16,7 @@ block2 = { workspace = true, features = ["alloc"] }
 libc = { workspace = true }
 ios-runtime = { path = "../ios-runtime" }
 objc2 = { workspace = true, features = ["std"] }
-objc2-foundation = { workspace = true, features = ["std", "NSData", "NSError", "NSFileCoordinator", "NSFileManager", "NSPathUtilities", "NSProcessInfo", "NSString", "NSURL", "NSValue", "block2"] }
+objc2-foundation = { workspace = true, features = ["std", "NSArray", "NSData", "NSError", "NSFileCoordinator", "NSFileManager", "NSPathUtilities", "NSProcessInfo", "NSString", "NSURL", "NSValue", "block2"] }
 
 [lints]
 workspace = true

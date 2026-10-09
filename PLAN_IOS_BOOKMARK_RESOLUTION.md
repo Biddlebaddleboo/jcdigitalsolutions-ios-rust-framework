@@ -48,6 +48,9 @@ security-scope guard and file coordinator; make no document-provider readiness o
 - The separate [B82 FileProvider count plan](PLAN_IOS_FILEPROVIDER_DOMAIN_COUNT.md) covers only a
   registered-domain count for the calling app's own extension; it is unrelated to bookmark data,
   bookmark resolution, or file access.
+- B85's separate [plain-bookmark creation plan](PLAN_IOS_BOOKMARK_CREATION.md) creates opaque
+  bookmark data with implicit scope omitted; it does not relax this raw `NSData` resolver's unsafe
+  precondition.
 
 ## Validation
 

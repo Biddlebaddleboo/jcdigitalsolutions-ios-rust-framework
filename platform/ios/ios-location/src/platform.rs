@@ -351,10 +351,45 @@ pub struct IosLocationBackend {
     marker: MainThreadMarker,
 }
 
+/// The app's Core Location authorization for full or reduced accuracy.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum IosAccuracyAuthorization {
+    /// Core Location reports full-accuracy authorization.
+    FullAccuracy,
+    /// Core Location reports reduced-accuracy authorization.
+    ReducedAccuracy,
+    /// A future or unrecognized signed `NSInteger` value, preserved without loss.
+    Unknown(isize),
+}
+
 impl IosLocationBackend {
     /// Creates the backend on the supplied main-thread/run-loop context.
     pub const fn new(marker: MainThreadMarker) -> Self {
         Self { marker }
+    }
+
+    /// Reads Core Location's accuracy-authorization snapshot without prompting.
+    ///
+    /// Returns `None` on iOS versions before 14.0, where the public property is unavailable.
+    /// This synchronous query creates a manager and reads its readonly `accuracyAuthorization`
+    /// property on the backend's main thread; it does not request authorization or start location
+    /// services. The result is separate from `LocationAuthorization`: full accuracy does not mean
+    /// location authorization is granted, and this snapshot can change before a later fix.
+    pub fn accuracy_authorization(&self) -> Option<IosAccuracyAuthorization> {
+        if !objc2::available!(ios = 14.0, ..) {
+            return None;
+        }
+        autoreleasepool(|_| {
+            // SAFETY: The backend is constructed with a MainThreadMarker and is main-thread-bound.
+            let manager = unsafe { CLLocationManager::new() };
+            // SAFETY: The iOS 14 availability guard precedes the public readonly property call.
+            let authorization = unsafe { manager.accuracyAuthorization() };
+            Some(match authorization.0 {
+                0 => IosAccuracyAuthorization::FullAccuracy,
+                1 => IosAccuracyAuthorization::ReducedAccuracy,
+                raw => IosAccuracyAuthorization::Unknown(raw),
+            })
+        })
     }
 }
 

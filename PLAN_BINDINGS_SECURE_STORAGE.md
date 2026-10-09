@@ -41,6 +41,8 @@ Do not edit `crates/framework-abi/**`, secure-storage contracts/backends, root w
 - Reject invalid UTF-8, empty/NUL-containing identifiers, unknown policy flags, malformed pointer/length pairs, and missing required output pointers without calling Keychain.
 - Preserve a nonzero native `OSStatus` when one exists. Set optional native-code outputs to zero for non-platform errors and before any fallible work.
 - Initialize all required output parameters before work; return owned read bytes through `FrameworkOwnedBuffer` and require the F1 destroyer.
+- Require non-empty input spans to remain readable and immutable for the full call; callers prevent unsynchronized mutation because Rust forms shared references to these bytes
+- Require valid, aligned, writable output storage for the full call; output ranges must be pairwise disjoint and must not overlap non-empty input spans. The C API does not check overlap
 - Contain panics within each exported boundary; no panic may unwind across C.
 - On non-iOS targets, compile the optional feature as explicit `UNSUPPORTED` stubs and do not link Apple frameworks.
 - Avoid process-global state, runtime registries, callbacks, async runtime, and hidden initialization.

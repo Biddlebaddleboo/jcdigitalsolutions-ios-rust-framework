@@ -23,6 +23,7 @@ objc2-foundation = { workspace = true, features = [
     "NSError",
     "NSURLError",
     "NSString",
+    "NSValue",
     "NSURL",
     "NSURLRequest",
     "NSURLResponse",

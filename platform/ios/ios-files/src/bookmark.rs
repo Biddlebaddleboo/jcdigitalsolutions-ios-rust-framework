@@ -2,10 +2,75 @@ use framework_core::ErrorKind;
 use objc2::rc::Retained;
 use objc2::runtime::Bool;
 use objc2_foundation::{
-    NSData, NSOperatingSystemVersion, NSProcessInfo, NSURL, NSURLBookmarkResolutionOptions,
+    NSData, NSOperatingSystemVersion, NSProcessInfo, NSURL, NSURLBookmarkCreationOptions,
+    NSURLBookmarkResolutionOptions,
 };
 
 use crate::{FileError, backend_error, foundation_error};
+
+/// Plain bookmark data created without implicit security scope
+///
+/// This value has only a location bookmark. It does not grant file access or preserve a security
+/// scope.
+pub struct IosPlainBookmarkData {
+    data: Retained<NSData>,
+}
+
+impl IosPlainBookmarkData {
+    /// Creates plain bookmark data for a caller-owned file URL
+    ///
+    /// The bookmark omits resource values and uses
+    /// `NSURLBookmarkCreationWithoutImplicitSecurityScope`. Creation is synchronous and may do
+    /// file-system work. It does not start security-scoped access, save the bookmark, or grant
+    /// access to the URL. The caller remains responsible for any access permission it already
+    /// needs to use the URL.
+    ///
+    /// # Errors
+    ///
+    /// Returns `InvalidInput` for a non-file URL or a Foundation error if bookmark creation fails.
+    pub fn create(url: &NSURL) -> Result<Self, FileError> {
+        if !url.isFileURL() {
+            return Err(backend_error(ErrorKind::InvalidInput, None));
+        }
+
+        // SAFETY: `WithoutImplicitSecurityScope` is available on the crate's iOS 10.0 floor and
+        // excludes an implicit ephemeral scope from this newly created bookmark. The explicit
+        // `WithSecurityScope` creation option is unavailable on iOS.
+        let data = url
+            .bookmarkDataWithOptions_includingResourceValuesForKeys_relativeToURL_error(
+                NSURLBookmarkCreationOptions::WithoutImplicitSecurityScope,
+                None,
+                None,
+            )
+            .map_err(|error| foundation_error(&error))?;
+
+        Ok(Self { data })
+    }
+
+    /// Borrows the Foundation data for caller-managed storage
+    ///
+    /// If this data is stored and later reconstructed as an arbitrary `NSData`, use
+    /// `IosResolvedBookmark::resolve_unscoped` with its unsafe input contract; the Rust type
+    /// provenance is not encoded in the bytes.
+    pub fn data(&self) -> &NSData {
+        &self.data
+    }
+
+    /// Resolves this newly created plain bookmark without UI or mounting
+    ///
+    /// This uses the iOS 14.2+ no-implicit-start option. It returns a location and stale bit only;
+    /// it does not establish access, start a scope, coordinate file calls, or register a presenter.
+    ///
+    /// # Errors
+    ///
+    /// Returns `Unsupported` before iOS 14.2, `InvalidInput` if resolution does not produce a file
+    /// URL, or a Foundation error when resolution fails.
+    pub fn resolve(&self) -> Result<IosResolvedBookmark, FileError> {
+        // SAFETY: the private `data` field is created only by `create`, which excludes implicit
+        // security scope and does not use the unavailable iOS `WithSecurityScope` option.
+        unsafe { IosResolvedBookmark::resolve_unscoped(&self.data) }
+    }
+}
 
 /// A retained file URL resolved from plain Foundation bookmark data, with the stale bit kept.
 ///

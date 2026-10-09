@@ -10,8 +10,8 @@ use framework_network::{HttpBackend, HttpRequest, HttpResponse, NetworkError};
 use objc2::rc::{Retained, autoreleasepool};
 use objc2::runtime::AnyObject;
 use objc2_foundation::{
-    NSData, NSError, NSHTTPURLResponse, NSMutableURLRequest, NSString, NSURL, NSURLErrorCancelled,
-    NSURLErrorCannotConnectToHost, NSURLErrorCannotFindHost, NSURLErrorDomain,
+    NSData, NSError, NSHTTPURLResponse, NSMutableURLRequest, NSNumber, NSString, NSURL,
+    NSURLErrorCancelled, NSURLErrorCannotConnectToHost, NSURLErrorCannotFindHost, NSURLErrorDomain,
     NSURLErrorNetworkConnectionLost, NSURLErrorNotConnectedToInternet, NSURLErrorTimedOut,
     NSURLResponse, NSURLSession, NSURLSessionConfiguration, NSURLSessionDataTask,
 };
@@ -229,10 +229,14 @@ unsafe fn response_from_callback(
         let Ok(key) = key.downcast::<NSString>() else {
             return Err(NetworkError::Backend(Error::new(ErrorKind::Platform)));
         };
-        let Ok(value) = value.downcast::<NSString>() else {
+        let value = if let Some(value) = value.downcast_ref::<NSString>() {
+            value.to_string()
+        } else if let Some(value) = value.downcast_ref::<NSNumber>() {
+            value.stringValue().to_string()
+        } else {
             return Err(NetworkError::Backend(Error::new(ErrorKind::Platform)));
         };
-        headers.push((key.to_string(), value.to_string()));
+        headers.push((key.to_string(), value));
     }
     // SAFETY: URLSession lends the body NSData for the callback duration. `to_vec` copies bytes
     // before the callback returns; a null body with a valid response represents an empty body.

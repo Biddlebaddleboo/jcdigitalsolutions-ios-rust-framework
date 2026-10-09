@@ -17,7 +17,12 @@ rather than an item count, and does not change the portable D5 contract or the `
 meaning. Apple lists `hasStrings` among type-checking APIs that avoid user notifications and alerts
 when the system has not established user intent; this does not authorize or guarantee a subsequent
 content read. The installed iOS SDK marks this selector available from iOS 10.0, matching B6's
-existing minimum API floor. No new tests or runtime checks were run for this addition.
+existing minimum API floor. B84-specific device and Simulator compile, strict Clippy, and rustdoc
+checks passed with the commands recorded in `docs/ios/sharing.md`. The focused Release link/import
+gate also passed: device and Simulator imports were exactly UIKit, Foundation, `libobjc.A.dylib`,
+and `libSystem.B.dylib`; its selector markers include `hasStrings`; device minos is 10.0 and
+Simulator minos is 14.0, both with SDK 26.5. The gate builds and inspects its link-only example but
+does not execute it. No tests or live pasteboard runtime checks were run for B84.
 
 Deterministic host tests passed with
 `cargo test --locked --offline -p ios-sharing --no-default-features --features clipboard` (four

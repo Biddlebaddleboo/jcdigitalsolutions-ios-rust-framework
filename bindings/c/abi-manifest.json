@@ -132,7 +132,8 @@
       "panic_boundary": "Each exported function catches Rust panics and returns FRAMEWORK_STATUS_PANIC; no panic unwinds across C.",
       "threading": "Synchronous and potentially blocking; caller chooses the calling thread.",
       "ownership": {
-        "inputs": "FrameworkStr and FrameworkSlice are borrowed through the call and are not retained",
+        "inputs": "FrameworkStr and FrameworkSlice spans are borrowed, readable, and immutable for the full call; input ranges may overlap one another; they are not retained",
+        "outputs": "Every non-null output slot is valid, aligned, and writable for the full call; output ranges are pairwise disjoint and disjoint from all non-empty input ranges; required outputs are initialized before input processing; the API does not check overlap",
         "read_secret": "FrameworkOwnedBuffer must be released exactly once with framework_owned_buffer_destroy; out_secret must not contain a live owned allocation on entry"
       }
     },

@@ -31,8 +31,12 @@ invalid UTF-8, null pointers with nonzero lengths, lengths not representable as 
 policy bits, and missing required output pointers return `FRAMEWORK_STATUS_INVALID_ARGUMENT`
 before any Keychain operation. A zero-length `FrameworkSlice` may use a null data pointer and
 represents a valid empty secret. As with other C APIs, callers must provide readable/writable
-memory for each valid non-empty input/output span; an implementation cannot safely probe whether
-an arbitrary non-null address is mapped.
+memory for each valid non-empty input/output span. Each non-empty input span must remain readable
+and immutable for the full call; the caller must prevent unsynchronized mutation because Rust forms
+shared references to those bytes. Output storage must be valid, properly aligned, and writable for
+the full call. An implementation cannot safely probe whether an arbitrary non-null address is
+mapped. Input spans may overlap one another because they are read-only. Output storage ranges must
+be pairwise disjoint and must not overlap any non-empty input span; the API does not check overlap.
 
 ```c
 FrameworkStr service = {(const uint8_t *)"com.example.account", 19};
@@ -66,9 +70,10 @@ for the exact mapping and security limits.
 ## Output and error rules
 
 Every required output is initialized before parsing inputs or performing Keychain work. Required
-output pointers must be writable and distinct; an optional native-status pointer must also be
-writable and must not alias another output. For read, each non-null required output is initialized
-before a missing required pointer returns `FRAMEWORK_STATUS_INVALID_ARGUMENT`. A non-null
+output storage must be valid, properly aligned, and writable for the full call, pairwise disjoint
+from other outputs and non-empty input spans; the API does not check overlap. An optional
+native-status output must follow the same rule. For read, each non-null required output is
+initialized before a missing required output returns `FRAMEWORK_STATUS_INVALID_ARGUMENT`. A non-null
 `out_secret` must not contain a live framework-owned allocation on entry; the call sets it empty
 first, then returns a buffer only for a present item. A zero `out_found` means absent;
 `out_found == 1` with a zero-length buffer means

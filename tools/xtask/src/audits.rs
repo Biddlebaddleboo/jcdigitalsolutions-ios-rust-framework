@@ -138,7 +138,9 @@ fn graph_counts(graph: &str) -> (usize, usize, usize) {
 pub(crate) fn abi_audit(args: &[String]) -> Result<(), String> {
     let output = output_path(args, "--output")?;
     let mut sources = Vec::new();
-    collect_rs(&root().join("crates"), &mut sources)?;
+    for directory in [root().join("crates"), root().join("bindings/c/src")] {
+        collect_rs(&directory, &mut sources)?;
+    }
     let mut declarations = Vec::new();
     let mut creators = Vec::new();
     let mut destroyers = Vec::new();

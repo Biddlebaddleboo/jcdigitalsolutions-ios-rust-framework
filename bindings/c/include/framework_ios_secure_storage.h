@@ -19,12 +19,15 @@ extern "C" {
  * This ABI exposes no group selector. On other targets the same symbols validate
  * arguments and return FRAMEWORK_STATUS_UNSUPPORTED.
  *
- * Inputs are borrowed for the synchronous call. Each non-empty pointer/length span
- * must reference readable memory; FrameworkStr bytes must be UTF-8. Output pointers
- * must be writable and must not alias. Required output pointers may be null; each non-null
- * pointer gets its default value before input checks. If a read output is null, the other
- * non-null read output gets its default before FRAMEWORK_STATUS_INVALID_ARGUMENT. Read
- * uses out_found = 0 and an empty out_secret; store and remove use 0. On success, read
+ * Inputs are borrowed for the synchronous call. Each non-empty pointer/length span must
+ * refer to valid, readable memory and remain immutable for the full call; FrameworkStr
+ * bytes must be UTF-8. Output storage must be valid, properly aligned, and writable for
+ * the full call. Output ranges must be pairwise disjoint and disjoint from all non-empty
+ * input spans; the API does not check overlap. Required output slots may be null; each
+ * non-null output gets its default value before input checks. If a read output is null,
+ * the other non-null read output gets its default before
+ * FRAMEWORK_STATUS_INVALID_ARGUMENT. Read uses out_found = 0 and an empty out_secret;
+ * store and remove use 0. On success, read
  * sets out_found to 1 for a present item, even when the secret is empty. out_secret must
  * not hold a live buffer on entry; pass each returned buffer to
  * framework_owned_buffer_destroy exactly once. Store leaves out_effective_policy_flags at
