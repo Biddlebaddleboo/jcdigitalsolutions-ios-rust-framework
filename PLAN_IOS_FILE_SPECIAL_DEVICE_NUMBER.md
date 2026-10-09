@@ -25,3 +25,14 @@ Do not add an `ios-files` query for `st_rdev`. The field is a device number only
 
 Revisit only with a concrete iOS app-sandbox use for special-device entries and a supported
 operation that needs the device number, not merely a future header field
+
+## B263: `ATTR_FILE_DEVTYPE` no-go
+
+Do not add a second special-device number query through `ATTR_FILE_DEVTYPE`. Apple's
+`getattrlist(2)` reference defines it as a `u_int32_t` device type for a special-device file and
+states that it is equivalent to `st_rdev`. It does not describe ordinary file kind, container
+volume, or a usable app-sandbox device capability. The current facade rejects operations on
+special entries, so this field would duplicate B122 without supporting a safe action.
+
+The SDK exposes it as a public read/write attribute, but this audit proposes no getter or setter.
+No special-file create/use semantics or portable device-node contract is added.

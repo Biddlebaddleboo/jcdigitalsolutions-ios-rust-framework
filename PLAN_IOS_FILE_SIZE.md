@@ -57,3 +57,17 @@ do not change access, file coordination, or sandbox-root semantics
   `git diff --check`.
 - Checks used Xcode 26.6 build `17F113`, iPhoneOS/iPhoneSimulator SDK 26.5, and Rust/Cargo 1.94.1;
   the local Xcode is below the repository's required Xcode 27.x baseline.
+
+## B265: `ATTR_FILE_DATALENGTH` no-go
+
+Do not add `ATTR_FILE_DATALENGTH` as a second data-fork logical-size API. Apple's archived iOS
+`getattrlist(2)` reference defines it as the logical byte length of the data fork. B90 already
+reports `st_size` for the same regular-file data stream through one no-follow `fstatat` lookup, the
+length callers need before a portable read. XNU groups `va_data_size` with the traditional
+`stat(2)` fields and defines it as the size of the fork managed by the current vnode. A second
+`fgetattrlist` route would add no distinct caller decision.
+
+The SDK exposes public `ATTR_FILE_DATALENGTH` as `0x00000200`; locked `libc` 0.2.190 binds it. The
+SDK gives no separate attribute availability annotation beyond `fgetattrlist` iOS 3.0. B242 already
+provides a separate all-fork total, and B251 provides a resource-fork-specific logical length. No
+source or public API changed for B265.

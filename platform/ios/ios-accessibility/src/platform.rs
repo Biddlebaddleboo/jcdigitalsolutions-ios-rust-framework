@@ -3,12 +3,18 @@ use ios_runtime::main_thread::MainThread;
 use objc2::runtime::NSObjectProtocol;
 use objc2::{MainThreadMarker, rc::Retained, sel};
 use objc2_core_foundation::{CGPoint, CGRect};
-use objc2_foundation::{NSArray, NSAttributedString, NSString};
+use objc2_foundation::{NSArray, NSAttributedString, NSCopying, NSString};
 use objc2_ui_kit::{
     NSObjectUIAccessibility, NSObjectUIAccessibilityContainer, NSObjectUIAccessibilityFocus,
     UIAccessibilityContainerType as NativeAccessibilityContainerType,
+    UIAccessibilityDirectTouchOptions,
     UIAccessibilityExpandedStatus as NativeAccessibilityExpandedStatus,
-    UIAccessibilityIdentification,
+    UIAccessibilityIdentification, UIAccessibilityIsAssistiveTouchRunning,
+    UIAccessibilityIsGuidedAccessEnabled, UIAccessibilityIsInvertColorsEnabled,
+    UIAccessibilityIsReduceMotionEnabled,
+    UIAccessibilityIsReduceTransparencyEnabled, UIAccessibilityIsSpeakScreenEnabled,
+    UIAccessibilityIsSpeakSelectionEnabled, UIAccessibilityIsSwitchControlRunning,
+    UIAccessibilityIsVoiceOverRunning,
     UIAccessibilityNavigationStyle as NativeAccessibilityNavigationStyle,
     UIAccessibilityTextualContext as NativeAccessibilityTextualContext,
     UIAccessibilityTextualContextConsole, UIAccessibilityTextualContextFileSystem,
@@ -35,6 +41,90 @@ use crate::traits::{AccessibilityTrait, fold_traits};
 /// The borrowed UIKit view does not respond to an optional accessibility property selector.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct AccessibilityApiUnavailable;
+
+/// Read the current VoiceOver enabled/running state on UIKit's main actor.
+///
+/// Pass a proof from `ios_runtime::main_thread::MainThread::current`. This is one synchronous
+/// snapshot; it does not observe later status changes, request a permission, or perform a UI action.
+pub fn voice_over_is_running(_main_thread: &MainThread) -> bool {
+    UIAccessibilityIsVoiceOverRunning()
+}
+
+/// Read the current Switch Control enabled state on UIKit's main actor.
+///
+/// Pass a proof from `ios_runtime::main_thread::MainThread::current`. This is one synchronous
+/// snapshot and may only be called on iOS 8.0 or later. It does not observe later status changes,
+/// request a permission, or perform a UI action.
+pub fn switch_control_is_running(_main_thread: &MainThread) -> bool {
+    UIAccessibilityIsSwitchControlRunning()
+}
+
+/// Read whether the app is currently running under Guided Access.
+///
+/// Pass a proof from `ios_runtime::main_thread::MainThread::current`, and call only on iOS 6.0 or
+/// later. This is one synchronous snapshot; it does not start or end a Guided Access session or
+/// observe later status changes.
+pub fn guided_access_is_enabled(_main_thread: &MainThread) -> bool {
+    UIAccessibilityIsGuidedAccessEnabled()
+}
+
+/// Read whether AssistiveTouch is enabled when UIKit can report it accurately.
+///
+/// Pass a proof from `ios_runtime::main_thread::MainThread::current`, and call only on iOS 10.0 or
+/// later. Apple documents that the AssistiveTouch query always returns false outside Guided Access;
+/// `None` means the app is not in Guided Access, while `Some(bool)` preserves the query result.
+/// This snapshot does not observe changes, request permission, or control either feature.
+pub fn assistive_touch_is_enabled(_main_thread: &MainThread) -> Option<bool> {
+    if !guided_access_is_enabled(_main_thread) {
+        return None;
+    }
+    Some(UIAccessibilityIsAssistiveTouchRunning())
+}
+
+/// Read whether UIKit reports the system Reduce Motion preference as enabled.
+///
+/// Pass a proof from `ios_runtime::main_thread::MainThread::current`, and call only on iOS 8.0 or
+/// later. This is one synchronous snapshot; it does not observe later status changes or alter
+/// animation behavior.
+pub fn reduce_motion_is_enabled(_main_thread: &MainThread) -> bool {
+    UIAccessibilityIsReduceMotionEnabled()
+}
+
+/// Read whether UIKit reports the system Reduce Transparency preference as enabled.
+///
+/// Pass a proof from `ios_runtime::main_thread::MainThread::current`, and call only on iOS 8.0 or
+/// later. This is one synchronous snapshot; it does not observe later status changes or alter
+/// visual effects.
+pub fn reduce_transparency_is_enabled(_main_thread: &MainThread) -> bool {
+    UIAccessibilityIsReduceTransparencyEnabled()
+}
+
+/// Read whether UIKit reports the system Speak Screen setting as enabled.
+///
+/// Pass a proof from `ios_runtime::main_thread::MainThread::current`, and call only on iOS 8.0 or
+/// later. This is one synchronous setting snapshot; it does not invoke Speak Screen, observe later
+/// status changes, or perform a UI action.
+pub fn speak_screen_is_enabled(_main_thread: &MainThread) -> bool {
+    UIAccessibilityIsSpeakScreenEnabled()
+}
+
+/// Read whether UIKit reports the system Speak Selection setting as enabled.
+///
+/// Pass a proof from `ios_runtime::main_thread::MainThread::current`, and call only on iOS 8.0 or
+/// later. This is one synchronous setting snapshot; it does not invoke Speak Selection, observe
+/// later status changes, or perform a UI action.
+pub fn speak_selection_is_enabled(_main_thread: &MainThread) -> bool {
+    UIAccessibilityIsSpeakSelectionEnabled()
+}
+
+/// Read whether UIKit reports the Classic Invert setting as enabled.
+///
+/// Pass a proof from `ios_runtime::main_thread::MainThread::current`, and call only on iOS 6.0 or
+/// later. This is one synchronous setting snapshot; it does not observe later status changes or
+/// alter display colors.
+pub fn classic_invert_is_enabled(_main_thread: &MainThread) -> bool {
+    UIAccessibilityIsInvertColorsEnabled()
+}
 
 /// Synchronous accessibility metadata access to a caller-owned borrowed UIKit view.
 ///
@@ -564,6 +654,29 @@ impl<'view> AccessibilityMetadata<'view> {
         Ok(())
     }
 
+    /// Read UIKit's current attributed user-input labels as owned retained values in native order.
+    ///
+    /// The iOS 13.0 getter is selector-checked. UIKit controls may supply defaults; the getter
+    /// does not invoke `accessibilityAttributedUserInputLabelsBlock` or claim speech recognition.
+    pub fn accessibility_attributed_user_input_labels(
+        &self,
+    ) -> Result<Vec<Retained<NSAttributedString>>, AccessibilityApiUnavailable> {
+        if !self
+            .view
+            .respondsToSelector(sel!(accessibilityAttributedUserInputLabels))
+        {
+            return Err(AccessibilityApiUnavailable);
+        }
+        let native_labels = self
+            .view
+            .accessibilityAttributedUserInputLabels(self.main_thread);
+        let mut labels = Vec::with_capacity(native_labels.count());
+        for index in 0..native_labels.count() {
+            labels.push(native_labels.objectAtIndex(index));
+        }
+        Ok(labels)
+    }
+
     /// Replace UIKit's `accessibilityTextualContext` property.
     ///
     /// `None` clears the property. The iOS 13.0 property is checked with `respondsToSelector:`
@@ -813,6 +926,24 @@ impl<'view> AccessibilityMetadata<'view> {
         Ok(self.view.accessibilityPath(self.main_thread).is_some())
     }
 
+    /// Return an owned copy of UIKit's current accessibility path, preserving a native `nil`.
+    ///
+    /// The iOS 7.0 getter is selector-checked. UIKit stores a copied path in screen coordinates;
+    /// this method copies the returned mutable path so callers cannot mutate UIKit's stored value.
+    /// It does not convert coordinates, invoke the iOS 17 `accessibilityPathBlock`, or report
+    /// assistive-application behavior.
+    pub fn accessibility_path(
+        &self,
+    ) -> Result<Option<Retained<UIBezierPath>>, AccessibilityApiUnavailable> {
+        if !self.view.respondsToSelector(sel!(accessibilityPath)) {
+            return Err(AccessibilityApiUnavailable);
+        }
+        Ok(self
+            .view
+            .accessibilityPath(self.main_thread)
+            .map(|path| path.copy()))
+    }
+
     /// Return whether UIKit's current `accessibilityTextualContext` property is non-nil.
     ///
     /// The iOS 13.0 property getter is checked with `respondsToSelector:` first. This does not
@@ -874,6 +1005,35 @@ impl<'view> AccessibilityMetadata<'view> {
         let requested = native_trait(trait_);
         let current = self.view.accessibilityTraits(self.main_thread);
         requested != 0 && current & requested == requested
+    }
+
+    /// Read UIKit's current raw accessibility-traits bit mask.
+    ///
+    /// The property is selector-checked and returned unchanged, including flags this crate does
+    /// not name. UIKit defaults may contribute flags; this does not invoke the iOS 17
+    /// `accessibilityTraitsBlock` or report assistive-application behavior.
+    pub fn accessibility_traits_mask(&self) -> Result<u64, AccessibilityApiUnavailable> {
+        if !self.view.respondsToSelector(sel!(accessibilityTraits)) {
+            return Err(AccessibilityApiUnavailable);
+        }
+        Ok(self.view.accessibilityTraits(self.main_thread))
+    }
+
+    /// Read UIKit's current direct-touch option mask without interpreting or changing it.
+    ///
+    /// The iOS 17.0 property is selector-checked and returned as the generated typed options
+    /// value, preserving flags this crate does not name. This does not detect VoiceOver state,
+    /// enable direct touch, or guarantee touch delivery or audio behavior.
+    pub fn accessibility_direct_touch_options(
+        &self,
+    ) -> Result<UIAccessibilityDirectTouchOptions, AccessibilityApiUnavailable> {
+        if !self
+            .view
+            .respondsToSelector(sel!(accessibilityDirectTouchOptions))
+        {
+            return Err(AccessibilityApiUnavailable);
+        }
+        Ok(self.view.accessibilityDirectTouchOptions(self.main_thread))
     }
 
     /// Read UIKit's current `accessibilityNavigationStyle` property.

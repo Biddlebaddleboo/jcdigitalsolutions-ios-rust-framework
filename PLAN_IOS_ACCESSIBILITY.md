@@ -821,6 +821,249 @@ Focused static gates passed:
 
 This pass added and ran no tests or UIKit runtime probes.
 
+B228 adds `accessibility_attributed_user_input_labels()` as a selector-guarded getter for UIKit's
+null-resettable `accessibilityAttributedUserInputLabels` property. The active iOS 26.5 SDK declares
+the copied `NSArray<NSAttributedString *> *` property at `UIAccessibility.h:210` with iOS and tvOS
+13.0 availability, watchOS unavailability, and `NS_SWIFT_UI_ACTOR`; Apple says it is synchronized
+with `accessibilityUserInputLabels`. `objc2-ui-kit` 0.3.2 exposes the generated getter as a
+non-null `Retained<NSArray<NSAttributedString>>` on `NSObjectUIAccessibility` under the existing
+`UIAccessibility` feature and Foundation `NSArray`/`NSAttributedString` edges. The adapter checks
+the exact selector and returns each attributed string as an owned retained immutable value in
+native order; the native empty array becomes an empty vector, with no `nil` branch implied by the
+binding. UIKit controls may supply defaults. The getter does not retain the view, invoke
+`accessibilityAttributedUserInputLabelsBlock` (iOS 17.0), validate attributes, infer caller
+assignment, or claim speech recognition or matching. The iOS 13.0 selector guard preserves the
+crate's iOS 4.0 floor; no dependency, feature, or manifest change is needed. Apple documents the
+property in its
+[`accessibilityAttributedUserInputLabels` reference](https://developer.apple.com/documentation/objectivec/nsobject-swift.class/accessibilityattributeduserinputlabels?language=objc).
+Focused static gates passed:
+
+- `cargo +1.94.1 check --locked --offline -p ios-accessibility --target aarch64-apple-ios`
+- `cargo +1.94.1 check --locked --offline -p ios-accessibility --target aarch64-apple-ios-sim`
+- `cargo +1.94.1 clippy --locked --offline -p ios-accessibility --lib --target aarch64-apple-ios -- -D warnings`
+- `cargo +1.94.1 clippy --locked --offline -p ios-accessibility --lib --target aarch64-apple-ios-sim -- -D warnings`
+- `cargo +1.94.1 doc --locked --offline -p ios-accessibility --no-deps --target aarch64-apple-ios`
+- `cargo +1.94.1 fmt -p ios-accessibility -- --check`
+- `cargo +1.94.1 --locked --offline xtask docs-check`
+- `git diff --check -- PLAN_IOS_ACCESSIBILITY.md docs/ios/accessibility.md platform/ios/ios-accessibility/src/lib.rs platform/ios/ios-accessibility/src/platform.rs`
+
+This pass added and ran no tests or UIKit runtime probes.
+
+B234 adds `accessibility_path() -> Result<Option<Retained<UIBezierPath>>, AccessibilityApiUnavailable>`
+for the current `accessibilityPath` property. The active iOS 26.5 SDK declares the property as
+nullable, copied, main-actor isolated, and available from iOS 7.0 at `UIAccessibility.h:134`; the
+header specifies screen coordinates and a default of `nil` at lines 129-139. Generated
+`objc2-ui-kit` 0.3.2 exposes the getter as `Option<Retained<UIBezierPath>>` under the already-enabled
+`UIBezierPath` feature, and its generated `UIBezierPath` binding implements `NSCopying` with
+`CopyingHelper::Result = Self`. The adapter checks the exact getter selector and maps a native
+`nil` to `None`. For a non-nil result it invokes typed `NSCopying::copy()` and returns the retained
+copy; Apple documents `NSCopying` copies as functionally independent, so callers can mutate the
+returned `UIBezierPath` without mutating UIKit's stored property. The property and getter retain
+screen-space coordinates; no conversion or view/layout update is performed. The getter does not
+invoke the iOS 17 `accessibilityPathBlock` and makes no highlight, activation, or assistive-application
+behavior claim. Selector checking preserves this package's iOS 4.0 deployment floor; no feature,
+manifest, or dependency change is needed. Sources: [UIKit `accessibilityPath`](https://developer.apple.com/documentation/objectivec/nsobject-swift.class/accessibilitypath),
+[UIKit `UIBezierPath`](https://developer.apple.com/documentation/uikit/uibezierpath), and
+[Foundation `NSCopying`](https://developer.apple.com/documentation/foundation/nscopying).
+Focused static gates passed:
+
+- `cargo +1.94.1 check --locked --offline -p ios-accessibility --target aarch64-apple-ios`
+- `cargo +1.94.1 check --locked --offline -p ios-accessibility --target aarch64-apple-ios-sim`
+- `cargo +1.94.1 clippy --locked --offline -p ios-accessibility --lib --target aarch64-apple-ios -- -D warnings`
+- `cargo +1.94.1 clippy --locked --offline -p ios-accessibility --lib --target aarch64-apple-ios-sim -- -D warnings`
+- `cargo +1.94.1 doc --locked --offline -p ios-accessibility --no-deps --target aarch64-apple-ios`
+- `cargo +1.94.1 fmt -p ios-accessibility -- --check`
+- `cargo +1.94.1 --locked --offline xtask docs-check`
+- `git diff --check -- PLAN_IOS_ACCESSIBILITY.md docs/ios/accessibility.md platform/ios/ios-accessibility/src/lib.rs platform/ios/ios-accessibility/src/platform.rs`
+
+This pass added and ran no tests, linked probes, or UIKit runtime calls.
+
+B243 adds `accessibility_traits_mask() -> Result<u64, AccessibilityApiUnavailable>` as a raw
+snapshot of UIKit's `accessibilityTraits` property. The active iOS 26.5 SDK declares this
+`uint64_t` property at `UIAccessibility.h:113`, marks it main-actor isolated and unavailable on
+watchOS, and gives it no explicit iOS minimum annotation. The header describes the mask as an OR
+combination, defaults to `UIAccessibilityTraitNone`, and notes that standard UIKit controls supply
+their own characteristic traits. `objc2-ui-kit` 0.3.2 generates the typed property getter as
+`UIAccessibilityTraits`; `UIAccessibilityConstants.h` declares that alias as `uint64_t`, and the
+existing `UIAccessibilityConstants` feature already enables it. The adapter selector-checks the
+property, returns `AccessibilityApiUnavailable` if absent, and preserves every bit unchanged,
+including flags this crate does not name. UIKit defaults may be included. This is a property
+snapshot only: it does not invoke the separate iOS 17 `accessibilityTraitsBlock`, decode unknown
+flags, set the traits, or claim the effective value observed by an assistive application. The
+selector guard preserves the crate's existing iOS 4.0 floor; no manifest or feature change is
+needed. Sources: [Apple `accessibilityTraits`](https://developer.apple.com/documentation/uikit/uiaccessibilityelement/accessibilitytraits?language=objc),
+[Apple `UIAccessibilityTraits`](https://developer.apple.com/documentation/uikit/uiaccessibilitytraits?language=objc),
+and the active SDK headers cited above. Focused static gates passed:
+
+- `cargo +1.94.1 check --locked --offline -p ios-accessibility --target aarch64-apple-ios`
+- `cargo +1.94.1 check --locked --offline -p ios-accessibility --target aarch64-apple-ios-sim`
+- `cargo +1.94.1 clippy --locked --offline -p ios-accessibility --lib --target aarch64-apple-ios -- -D warnings`
+- `cargo +1.94.1 clippy --locked --offline -p ios-accessibility --lib --target aarch64-apple-ios-sim -- -D warnings`
+- `cargo +1.94.1 doc --locked --offline -p ios-accessibility --no-deps --target aarch64-apple-ios`
+- `cargo +1.94.1 fmt -p ios-accessibility -- --check`
+- `cargo +1.94.1 --locked --offline xtask docs-check`
+- `git diff --check -- PLAN_IOS_ACCESSIBILITY.md docs/ios/accessibility.md platform/ios/ios-accessibility/src/lib.rs platform/ios/ios-accessibility/src/platform.rs`
+
+This pass added and ran no tests, linked probes, or UIKit runtime calls.
+
+B246 adds `accessibility_direct_touch_options()` as a selector-guarded snapshot of UIKit's
+`accessibilityDirectTouchOptions` property. The active iOS 26.5 SDK declares the property at
+`UIAccessibility.h:230` with an iOS 17.0 floor, watchOS unavailability, and main-actor isolation;
+`UIAccessibilityConstants.h:237-244` defines `UIAccessibilityDirectTouchOptions` as
+`NS_OPTIONS(NSUInteger, ...)`, available on iOS 17.0 and watchOS 10.0, with `None`, `SilentOnTouch`,
+and `RequiresActivation`. Apple documents that these options configure VoiceOver audio and
+activation behavior for direct-touch areas, where gestures pass to the app rather than being
+interpreted as VoiceOver commands. Generated `objc2-ui-kit` 0.3.2 exposes the property as the typed
+`UIAccessibilityDirectTouchOptions` under `UIAccessibilityConstants`; that feature is already
+enabled, and the generated wrapper preserves the native `NSUInteger` bits. The method checks the
+exact selector and returns `AccessibilityApiUnavailable` when absent. This point-in-time property
+read does not check whether VoiceOver or a direct-touch region is active, enable the behavior, route
+touch input, or promise audio/passthrough results. The selector guard preserves this package's
+iOS 4.0 floor, and no manifest, feature, or dependency change is needed. Sources: [Apple UIKit
+direct-touch options](https://developer.apple.com/documentation/uikit/uiaccessibility/directtouchoptions?language=objc)
+and the active SDK headers cited above. Focused static gates passed:
+
+- `cargo +1.94.1 check --locked --offline -p ios-accessibility --target aarch64-apple-ios`
+- `cargo +1.94.1 check --locked --offline -p ios-accessibility --target aarch64-apple-ios-sim`
+- `cargo +1.94.1 clippy --locked --offline -p ios-accessibility --lib --target aarch64-apple-ios -- -D warnings`
+- `cargo +1.94.1 clippy --locked --offline -p ios-accessibility --lib --target aarch64-apple-ios-sim -- -D warnings`
+- `cargo +1.94.1 doc --locked --offline -p ios-accessibility --no-deps --target aarch64-apple-ios`
+- `cargo +1.94.1 fmt -p ios-accessibility -- --check`
+- `cargo +1.94.1 --locked --offline xtask docs-check`
+- `git diff --check -- PLAN_IOS_ACCESSIBILITY.md docs/ios/accessibility.md platform/ios/ios-accessibility/src/lib.rs platform/ios/ios-accessibility/src/platform.rs`
+
+This pass added and ran no tests, linked probes, or UIKit runtime calls.
+
+B249 adds the crate-level `voice_over_is_running(&MainThread) -> bool` snapshot. The active iOS
+26.5 SDK declares `UIAccessibilityIsVoiceOverRunning()` at `UIAccessibility.h:529` with an iOS 4.0
+floor, watchOS unavailability, and `NS_SWIFT_UI_ACTOR`. Apple documents that it returns whether
+VoiceOver is enabled and separately recommends `UIAccessibilityVoiceOverStatusDidChangeNotification`
+to observe later starts/stops. The adapter requires the existing `ios_runtime::main_thread::MainThread`
+proof, then calls the safe generated `objc2-ui-kit` 0.3.2 function under the already-enabled
+`UIAccessibility` feature. It returns one bool snapshot; it installs no notification observer,
+requests no permission, and performs no UI action. No later state or VoiceOver output is promised.
+This global query is distinct from `AccessibilityMetadata`'s per-view focus snapshot. Its iOS 4.0
+floor does not raise the crate's minimum supported API; no manifest or feature change is needed.
+Sources: [Apple `UIAccessibilityIsVoiceOverRunning`](https://developer.apple.com/documentation/uikit/uiaccessibility/isvoiceoverrunning?language=objc),
+[Apple status-change notification](https://developer.apple.com/documentation/uikit/uiaccessibility/voiceoverstatusdidchangenotification?language=objc),
+and the active SDK header above. Focused static gates passed:
+
+- `cargo +1.94.1 check --locked --offline -p ios-accessibility --target aarch64-apple-ios`
+- `cargo +1.94.1 check --locked --offline -p ios-accessibility --target aarch64-apple-ios-sim`
+- `cargo +1.94.1 clippy --locked --offline -p ios-accessibility --lib --target aarch64-apple-ios -- -D warnings`
+- `cargo +1.94.1 clippy --locked --offline -p ios-accessibility --lib --target aarch64-apple-ios-sim -- -D warnings`
+- `cargo +1.94.1 doc --locked --offline -p ios-accessibility --no-deps --target aarch64-apple-ios`
+- `cargo +1.94.1 fmt -p ios-accessibility -- --check`
+- `cargo +1.94.1 --locked --offline xtask docs-check`
+- `git diff --check -- PLAN_IOS_ACCESSIBILITY.md docs/ios/accessibility.md platform/ios/ios-accessibility/src/lib.rs platform/ios/ios-accessibility/src/platform.rs`
+
+This pass added and ran no tests, linked probes, notifications, or UIKit runtime calls.
+
+B252 adds `switch_control_is_running(&MainThread) -> bool` as a crate-level point-in-time status
+query. The active iOS 26.5 SDK declares `UIAccessibilityIsSwitchControlRunning()` at
+`UIAccessibility.h:585` with an iOS 8.0 floor, watchOS unavailability, and `NS_SWIFT_UI_ACTOR`.
+Apple's documentation defines the result as whether the Switch Control setting is enabled; the
+header separately names `UIAccessibilitySwitchControlStatusDidChangeNotification` for later
+changes. The safe generated `objc2-ui-kit` 0.3.2 function is available under the existing
+`UIAccessibility` feature. This API requires the existing `ios_runtime::main_thread::MainThread`
+proof and may only be called when the app runs on iOS 8.0 or later. Unlike an Objective-C property,
+this is a direct C function and has no selector guard or runtime availability check; the generated
+binding does not weak-link the symbol. The crate may still target iOS 4.0 for its other APIs, but
+callers must guard this method with their runtime/deployment availability policy. It returns only
+the current bool; it does not observe changes, initiate a control action, request permission, or
+promise the state after return. No feature, manifest, or dependency change is needed.
+Sources: [Apple `UIAccessibilityIsSwitchControlRunning`](https://developer.apple.com/documentation/uikit/uiaccessibility/isswitchcontrolrunning?language=objc),
+[Apple Switch Control status-change notification](https://developer.apple.com/documentation/uikit/uiaccessibility/switchcontrolstatusdidchangenotification?language=objc),
+and the active SDK header above. Focused static gates passed:
+
+- `cargo +1.94.1 check --locked --offline -p ios-accessibility --target aarch64-apple-ios`
+- `cargo +1.94.1 check --locked --offline -p ios-accessibility --target aarch64-apple-ios-sim`
+- `cargo +1.94.1 clippy --locked --offline -p ios-accessibility --lib --target aarch64-apple-ios -- -D warnings`
+- `cargo +1.94.1 clippy --locked --offline -p ios-accessibility --lib --target aarch64-apple-ios-sim -- -D warnings`
+- `cargo +1.94.1 doc --locked --offline -p ios-accessibility --no-deps --target aarch64-apple-ios`
+- `cargo +1.94.1 fmt -p ios-accessibility -- --check`
+- `cargo +1.94.1 --locked --offline xtask docs-check`
+- `git diff --check -- PLAN_IOS_ACCESSIBILITY.md docs/ios/accessibility.md platform/ios/ios-accessibility/src/lib.rs platform/ios/ios-accessibility/src/platform.rs`
+
+This pass added and ran no tests, linked probes, notifications, or UIKit runtime calls.
+
+B255 adds `assistive_touch_is_enabled(&MainThread) -> Option<bool>` as an honest snapshot around
+UIKit's `UIAccessibilityIsAssistiveTouchRunning()`. The active iOS 26.5 SDK declares that function
+at `UIAccessibility.h:602` with an iOS 10.0 floor, watchOS unavailability, and `NS_SWIFT_UI_ACTOR`;
+the header says it always returns false when Guided Access is not enabled. Apple likewise says
+Guided Access must be enabled for a correct AssistiveTouch result. The method first calls the safe
+generated `UIAccessibilityIsGuidedAccessEnabled()` (iOS 6.0) and returns `None` outside Guided
+Access; when the app is running under Guided Access it returns the generated AssistiveTouch bool as
+`Some(bool)`. Both C functions are available through the existing `UIAccessibility` feature, but
+neither generated binding has a runtime availability guard or weak-links its direct symbol, so the
+caller must invoke this method only on iOS 10.0 or later and on the main thread. It observes no
+notifications, requests no permission, and changes no setting or UI behavior. The method preserves
+the package's iOS 4.0 floor for other APIs; no manifest or feature change is needed. Sources: [Apple
+AssistiveTouch query](https://developer.apple.com/documentation/uikit/uiaccessibility/isassistivetouchrunning?language=objc),
+[Apple Guided Access query](https://developer.apple.com/documentation/uikit/uiaccessibility/isguidedaccessenabled?language=objc),
+and the active SDK header above. Focused static gates passed:
+
+- `cargo +1.94.1 check --locked --offline -p ios-accessibility --target aarch64-apple-ios`
+- `cargo +1.94.1 check --locked --offline -p ios-accessibility --target aarch64-apple-ios-sim`
+- `cargo +1.94.1 clippy --locked --offline -p ios-accessibility --lib --target aarch64-apple-ios -- -D warnings`
+- `cargo +1.94.1 clippy --locked --offline -p ios-accessibility --lib --target aarch64-apple-ios-sim -- -D warnings`
+- `cargo +1.94.1 doc --locked --offline -p ios-accessibility --no-deps --target aarch64-apple-ios`
+- `cargo +1.94.1 fmt -p ios-accessibility -- --check`
+- `cargo +1.94.1 --locked --offline xtask docs-check`
+- `git diff --check -- PLAN_IOS_ACCESSIBILITY.md docs/ios/accessibility.md platform/ios/ios-accessibility/src/lib.rs platform/ios/ios-accessibility/src/platform.rs`
+
+This pass added and ran no tests, linked probes, notifications, or UIKit runtime calls.
+
+B258 adds `guided_access_is_enabled(&MainThread) -> bool` as a separate Guided Access-mode
+snapshot. The active iOS 26.5 SDK declares `UIAccessibilityIsGuidedAccessEnabled()` at
+`UIAccessibility.h:546` with an iOS 6.0 floor, watchOS unavailability, and `NS_SWIFT_UI_ACTOR`; the
+header defines the result as whether the app is running under Guided Access mode. The generated
+`objc2-ui-kit` 0.3.2 binding is a safe C wrapper under the existing `UIAccessibility` feature.
+The method requires the package's existing main-thread proof and may only be called at runtime on
+iOS 6.0 or later because the direct C import has no selector or runtime availability guard. It
+reports one bool snapshot only; it does not start/end a session or register for
+`UIAccessibilityGuidedAccessStatusDidChangeNotification`. The iOS 6.0 per-method floor does not
+change this package's iOS 4.0 availability for other functions; no dependency or feature change is
+needed. Sources: [Apple `UIAccessibilityIsGuidedAccessEnabled`](https://developer.apple.com/documentation/uikit/uiaccessibility/isguidedaccessenabled?language=objc),
+[Apple Guided Access status-change notification](https://developer.apple.com/documentation/uikit/uiaccessibility/guidedaccessstatusdidchangenotification?language=objc),
+and the active SDK header above. Focused static gates passed:
+
+- `cargo +1.94.1 check --locked --offline -p ios-accessibility --target aarch64-apple-ios`
+- `cargo +1.94.1 check --locked --offline -p ios-accessibility --target aarch64-apple-ios-sim`
+- `cargo +1.94.1 clippy --locked --offline -p ios-accessibility --lib --target aarch64-apple-ios -- -D warnings`
+- `cargo +1.94.1 clippy --locked --offline -p ios-accessibility --lib --target aarch64-apple-ios-sim -- -D warnings`
+- `cargo +1.94.1 doc --locked --offline -p ios-accessibility --no-deps --target aarch64-apple-ios`
+- `cargo +1.94.1 fmt -p ios-accessibility -- --check`
+- `cargo +1.94.1 --locked --offline xtask docs-check`
+- `git diff --check -- PLAN_IOS_ACCESSIBILITY.md docs/ios/accessibility.md platform/ios/ios-accessibility/src/lib.rs platform/ios/ios-accessibility/src/platform.rs`
+
+This pass added and ran no tests, linked probes, notifications, or UIKit runtime calls.
+
+B261 adds `reduce_motion_is_enabled(&MainThread) -> bool` as a crate-level Reduce Motion preference
+snapshot. The active iOS 26.5 SDK declares `UIAccessibilityIsReduceMotionEnabled()` at
+`UIAccessibility.h:566` with an iOS 8.0 floor, watchOS unavailability, and `NS_SWIFT_UI_ACTOR`; the
+header describes it as returning whether the system preference is enabled. It separately declares
+`UIAccessibilityReduceMotionStatusDidChangeNotification` at line 567. The generated
+`objc2-ui-kit` 0.3.2 function is a safe direct C wrapper under the existing `UIAccessibility`
+feature. The method requires `ios_runtime::main_thread::MainThread` proof and may only be called on
+iOS 8.0 or later because the generated import has no runtime availability guard or weak symbol
+declaration. It returns one bool snapshot and performs no animation changes or notification
+observation. The per-method iOS 8.0 floor does not raise the crate's iOS 4.0 minimum for other APIs;
+no manifest or feature change is needed. Sources: [Apple `UIAccessibilityIsReduceMotionEnabled`](https://developer.apple.com/documentation/uikit/uiaccessibility/isreducemotionenabled?language=objc),
+[Apple Reduce Motion status-change notification](https://developer.apple.com/documentation/uikit/uiaccessibility/reducemotionstatusdidchangenotification?language=objc),
+and the active SDK header above. Focused static gates passed:
+
+- `cargo +1.94.1 check --locked --offline -p ios-accessibility --target aarch64-apple-ios`
+- `cargo +1.94.1 check --locked --offline -p ios-accessibility --target aarch64-apple-ios-sim`
+- `cargo +1.94.1 clippy --locked --offline -p ios-accessibility --lib --target aarch64-apple-ios -- -D warnings`
+- `cargo +1.94.1 clippy --locked --offline -p ios-accessibility --lib --target aarch64-apple-ios-sim -- -D warnings`
+- `cargo +1.94.1 doc --locked --offline -p ios-accessibility --no-deps --target aarch64-apple-ios`
+- `cargo +1.94.1 fmt -p ios-accessibility -- --check`
+- `cargo +1.94.1 --locked --offline xtask docs-check`
+- `git diff --check -- PLAN_IOS_ACCESSIBILITY.md docs/ios/accessibility.md platform/ios/ios-accessibility/src/lib.rs platform/ios/ios-accessibility/src/platform.rs`
+
+This pass added and ran no tests, linked probes, notifications, or UIKit runtime calls.
+
 On Xcode 26.6 build 17F113 with iPhoneOS and iPhoneSimulator SDK 26.5, these checks pass:
 
 - `cargo test --locked -p ios-accessibility` (3 focused unit tests pass; 0 doc tests)
@@ -861,13 +1104,113 @@ compile/link evidence only; the B92 `UIAccessibilityTraitAdjustable`, B95
 `UIAccessibilityTraitCausesPageTurn`, B106 `UIAccessibilityTraitStartsMediaSession`, B108
 `UIAccessibilityTraitAllowsDirectInteraction`, and B111 `UIAccessibilityTraitSummaryElement`
 references have no new link evidence in their respective passes.
-The B153 `CGPoint` accessors, B156/B159/B162 attributed-string accessors, B169 attributed
-user-input labels, B171 accessibility-path APIs, B174 `CGRect` accessibility-frame APIs, and B177
-identifier APIs were not included in a link audit; this evidence pass makes no linked-symbol claim
-for them.
+The B153 `CGPoint` accessors, B156/B159/B162 attributed-string accessors, B169/B228 attributed
+user-input-label APIs, B171/B234 accessibility-path APIs, B174 `CGRect` accessibility-frame APIs,
+and B177 identifier APIs were not included in a link audit; this evidence pass makes no
+linked-symbol claim for them.
 The host remains below the Xcode 27.x planning baseline; no simulator launch, device run, live
 VoiceOver session, announcement, focus movement, accessibility audit, or UX behavior is claimed.
 No CI/G8 files were changed.
+
+B268 adds `reduce_transparency_is_enabled(&MainThread) -> bool` as a crate-level Reduce
+Transparency preference snapshot. The active iOS 26.5 SDK declares
+`UIAccessibilityIsReduceTransparencyEnabled()` at `UIAccessibility.h:562` with an iOS 8.0 floor,
+watchOS unavailability, and `NS_SWIFT_UI_ACTOR`; Apple documents that the boolean reports whether
+the Reduce Transparency setting is enabled. The generated `objc2-ui-kit` 0.3.2 function is a safe
+direct C wrapper under the existing `UIAccessibility` feature. The method requires
+`ios_runtime::main_thread::MainThread` proof and may only be called on iOS 8.0 or later because the
+generated import has no runtime availability guard or weak symbol declaration. It returns one
+bool snapshot and performs no visual-effect changes or notification observation. The per-method
+iOS 8.0 floor does not raise the crate's iOS 4.0 minimum for other APIs; no manifest or feature
+change is needed. Sources: [Apple `UIAccessibilityIsReduceTransparencyEnabled`](https://developer.apple.com/documentation/uikit/uiaccessibility/isreducetransparencyenabled?language=objc),
+[Apple Reduce Transparency status-change notification](https://developer.apple.com/documentation/uikit/uiaccessibility/reducetransparencystatusdidchangenotification?language=objc),
+and the active SDK header above. Focused static gates passed:
+
+- `cargo +1.94.1 check --locked --offline -p ios-accessibility --target aarch64-apple-ios`
+- `cargo +1.94.1 check --locked --offline -p ios-accessibility --target aarch64-apple-ios-sim`
+- `cargo +1.94.1 clippy --locked --offline -p ios-accessibility --lib --target aarch64-apple-ios -- -D warnings`
+- `cargo +1.94.1 clippy --locked --offline -p ios-accessibility --lib --target aarch64-apple-ios-sim -- -D warnings`
+- `cargo +1.94.1 doc --locked --offline -p ios-accessibility --no-deps --target aarch64-apple-ios`
+- `cargo +1.94.1 fmt -p ios-accessibility -- --check`
+- `cargo +1.94.1 --locked --offline xtask docs-check`
+- `git diff --check -- PLAN_IOS_ACCESSIBILITY.md docs/ios/accessibility.md platform/ios/ios-accessibility/src/lib.rs platform/ios/ios-accessibility/src/platform.rs`
+
+This pass added and ran no tests, linked probes, notifications, or UIKit runtime calls.
+
+B271 adds `speak_screen_is_enabled(&MainThread) -> bool` as a crate-level Speak Screen setting
+snapshot. The active iOS 26.5 SDK declares `UIAccessibilityIsSpeakScreenEnabled()` at
+`UIAccessibility.h:593` with an iOS 8.0 floor, watchOS unavailability, and `NS_SWIFT_UI_ACTOR`; Apple
+documents that the boolean reports whether the Speak Screen setting is enabled. The generated
+`objc2-ui-kit` 0.3.2 function is a safe direct C wrapper under the existing `UIAccessibility`
+feature. The method requires `ios_runtime::main_thread::MainThread` proof and may only be called on
+iOS 8.0 or later because the generated import has no runtime availability guard or weak symbol
+declaration. It returns one setting snapshot; it does not invoke Speak Screen, subscribe to
+`UIAccessibilitySpeakScreenStatusDidChangeNotification`, or perform a UI action. The per-method
+iOS 8.0 floor does not raise the crate's iOS 4.0 minimum for other APIs; no manifest or feature
+change is needed. Sources: [Apple `UIAccessibilityIsSpeakScreenEnabled`](https://developer.apple.com/documentation/uikit/uiaccessibility/isspeakscreenenabled?language=objc),
+[Apple Speak Screen status-change notification](https://developer.apple.com/documentation/uikit/uiaccessibility/speakscreenstatusdidchangenotification?language=objc),
+and the active SDK header above. Focused static gates passed:
+
+- `cargo +1.94.1 check --locked --offline -p ios-accessibility --target aarch64-apple-ios`
+- `cargo +1.94.1 check --locked --offline -p ios-accessibility --target aarch64-apple-ios-sim`
+- `cargo +1.94.1 clippy --locked --offline -p ios-accessibility --lib --target aarch64-apple-ios -- -D warnings`
+- `cargo +1.94.1 clippy --locked --offline -p ios-accessibility --lib --target aarch64-apple-ios-sim -- -D warnings`
+- `cargo +1.94.1 doc --locked --offline -p ios-accessibility --no-deps --target aarch64-apple-ios`
+- `cargo +1.94.1 fmt -p ios-accessibility -- --check`
+- `cargo +1.94.1 --locked --offline xtask docs-check`
+- `git diff --check -- PLAN_IOS_ACCESSIBILITY.md docs/ios/accessibility.md platform/ios/ios-accessibility/src/lib.rs platform/ios/ios-accessibility/src/platform.rs`
+
+This pass added and ran no tests, linked probes, notifications, or UIKit runtime calls.
+
+B273 adds `speak_selection_is_enabled(&MainThread) -> bool` as a crate-level Speak Selection setting
+snapshot. The active iOS 26.5 SDK declares `UIAccessibilityIsSpeakSelectionEnabled()` at
+`UIAccessibility.h:589` with an iOS 8.0 floor, watchOS unavailability, and `NS_SWIFT_UI_ACTOR`; Apple
+documents that the boolean reports whether the Speak Selection setting is enabled. The generated
+`objc2-ui-kit` 0.3.2 function is a safe direct C wrapper under the existing `UIAccessibility`
+feature. The method requires `ios_runtime::main_thread::MainThread` proof and may only be called on
+iOS 8.0 or later because the generated import has no runtime availability guard or weak symbol
+declaration. It returns one setting snapshot; it does not invoke Speak Selection, subscribe to
+`UIAccessibilitySpeakSelectionStatusDidChangeNotification`, or perform a UI action. The per-method
+iOS 8.0 floor does not raise the crate's iOS 4.0 minimum for other APIs; no manifest or feature
+change is needed. Sources: [Apple `UIAccessibilityIsSpeakSelectionEnabled`](https://developer.apple.com/documentation/uikit/uiaccessibility/isspeakselectionenabled?language=objc),
+[Apple Speak Selection status-change notification](https://developer.apple.com/documentation/uikit/uiaccessibility/speakselectionstatusdidchangenotification?language=objc),
+and the active SDK header above. Focused static gates passed:
+
+- `cargo +1.94.1 check --locked --offline -p ios-accessibility --target aarch64-apple-ios`
+- `cargo +1.94.1 check --locked --offline -p ios-accessibility --target aarch64-apple-ios-sim`
+- `cargo +1.94.1 clippy --locked --offline -p ios-accessibility --lib --target aarch64-apple-ios -- -D warnings`
+- `cargo +1.94.1 clippy --locked --offline -p ios-accessibility --lib --target aarch64-apple-ios-sim -- -D warnings`
+- `cargo +1.94.1 doc --locked --offline -p ios-accessibility --no-deps --target aarch64-apple-ios`
+- `cargo +1.94.1 fmt -p ios-accessibility -- --check`
+- `cargo +1.94.1 --locked --offline xtask docs-check`
+- `git diff --check -- PLAN_IOS_ACCESSIBILITY.md docs/ios/accessibility.md platform/ios/ios-accessibility/src/lib.rs platform/ios/ios-accessibility/src/platform.rs`
+
+This pass added and ran no tests, linked probes, notifications, or UIKit runtime calls.
+
+B276 adds `classic_invert_is_enabled(&MainThread) -> bool` as a crate-level Classic Invert setting
+snapshot. The active iOS 26.5 SDK declares `UIAccessibilityIsInvertColorsEnabled()` at
+`UIAccessibility.h:542` with an iOS 6.0 floor, watchOS unavailability, and `NS_SWIFT_UI_ACTOR`; Apple
+documents that the boolean reports whether the Classic Invert setting is enabled. The generated
+`objc2-ui-kit` 0.3.2 function is a safe direct C wrapper under the existing `UIAccessibility`
+feature. The method requires `ios_runtime::main_thread::MainThread` proof and may only be called on
+iOS 6.0 or later because the generated import has no runtime availability guard or weak symbol
+declaration. It returns one setting snapshot; it does not subscribe to
+`UIAccessibilityInvertColorsStatusDidChangeNotification` or perform a visual change. The per-method
+iOS 6.0 floor does not raise the crate's iOS 4.0 minimum for other APIs; no manifest or feature
+change is needed. Sources: [Apple `UIAccessibilityIsInvertColorsEnabled`](https://developer.apple.com/documentation/uikit/uiaccessibility/isinvertcolorsenabled?language=objc),
+[Apple Invert Colors status-change notification](https://developer.apple.com/documentation/uikit/uiaccessibility/invertcolorsstatusdidchangenotification?language=objc),
+and the active SDK header above. Focused static gates passed:
+
+- `cargo +1.94.1 check --locked --offline -p ios-accessibility --target aarch64-apple-ios`
+- `cargo +1.94.1 check --locked --offline -p ios-accessibility --target aarch64-apple-ios-sim`
+- `cargo +1.94.1 clippy --locked --offline -p ios-accessibility --lib --target aarch64-apple-ios -- -D warnings`
+- `cargo +1.94.1 clippy --locked --offline -p ios-accessibility --lib --target aarch64-apple-ios-sim -- -D warnings`
+- `cargo +1.94.1 doc --locked --offline -p ios-accessibility --no-deps --target aarch64-apple-ios`
+- `cargo +1.94.1 fmt -p ios-accessibility -- --check`
+- `cargo +1.94.1 --locked --offline xtask docs-check`
+- `git diff --check -- PLAN_IOS_ACCESSIBILITY.md docs/ios/accessibility.md platform/ios/ios-accessibility/src/lib.rs platform/ios/ios-accessibility/src/platform.rs`
+
+This pass added and ran no tests, linked probes, notifications, or UIKit runtime calls.
 
 ## Validation and handoff
 

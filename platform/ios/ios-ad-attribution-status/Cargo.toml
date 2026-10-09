@@ -1,0 +1,12 @@
+[package]
+name = "ios-ad-attribution-status"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "AdAttributionKit app-impression support snapshot for iOS"
+build = "build.rs"
+
+[lints]
+workspace = true

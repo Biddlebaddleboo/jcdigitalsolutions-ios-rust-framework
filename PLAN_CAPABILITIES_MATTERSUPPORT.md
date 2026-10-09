@@ -71,3 +71,29 @@ Before a later implementation, require:
 - Read-only local source checks searched `MatterSupport`, `MatterAddDeviceRequest`, and `MatterAddDeviceExtensionRequestHandler` across repository Rust/C/Objective-C sources and local Cargo registry sources. The only binding-catalog result was `MatterSupport | Swift-only`; no local generated MatterSupport Rust binding was found.
 - Inspected SDK files: `iPhoneOS.sdk/System/Library/Frameworks/MatterSupport.framework/Headers/MatterSupport.h`, `Modules/module.modulemap`, and `Modules/MatterSupport.swiftmodule/arm64e-apple-ios.swiftinterface`; plus `Matter.framework/Headers/MTRDeviceController.h` and `HomeKit.framework/Headers/HMAccessorySetupRequest.h`.
 - No tests, builds, link probes, or runtime probes ran.
+
+## B233 implementation: request API support only
+
+B233 adds `ios-matter-support-status::matter_add_device_request_is_supported()` as a narrow
+Rust-callable snapshot of `MatterAddDeviceRequest.isSupported`. The crate uses one
+compiler-derived C `swiftcall` thunk with an exact weak import; it has no Swift source, Objective-C
+selector, generated binding, or new external Rust dependency. The getter is a direct Swift `Bool`
+static property, so the call has no Swift object ownership or async ABI
+
+Apple defines this value only as whether MatterSupport supports use of `MatterAddDeviceRequest` on
+the current device. `Ok(true)` is not generic Matter, Thread, accessory, entitlement, ecosystem,
+home, permission, commissioning, or future setup readiness. The call creates no request or
+topology, starts no scan, and presents no UI. iOS 16.1 through 16.x without the iOS 17 getter and
+non-iOS targets return `MatterSupportError::NativeApiUnavailable`
+
+The compiler oracle confirms the getter call as `swiftcc i1` on arm64 iOS and arm64 Simulator. The
+C object carries an undefined weak external import for
+`_$s13MatterSupport0A16AddDeviceRequestV11isSupportedSbvgZ`. The package's local toolchain is Xcode
+26.6 / iOS 26.5, below the repository's Xcode 27.x baseline; no runtime or device call was made
+
+The B233 focused gate runs package format, host/device/Simulator `cargo check`, strict Clippy,
+rustdoc, `docs-check`, and compiler-derived Swift/C ABI checks. It runs no tests, app, probe, setup
+flow, or runtime call
+
+Changed paths: `platform/ios/ios-matter-support-status/`, `docs/ios/matter-support-status.md`, and
+this focused plan only. B233 changes row 105 to a narrow partial; aggregate status is recorded in `PLAN.md`, `PLAN_CAPABILITIES.md`, and the capability manifest

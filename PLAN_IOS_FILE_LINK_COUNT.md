@@ -57,3 +57,16 @@ at the time of observation, without reading or opening file contents
 - No tests, live sandbox operation, link/import probe, consumer, or runtime action was run. These
   checks used Rust/Cargo 1.94.1, Xcode 26.6 build `17F113`, and iPhoneOS/iPhoneSimulator SDK 26.5;
   local Xcode is below the repo's required Xcode 27.x baseline.
+
+## B264: `ATTR_FILE_LINKCOUNT` no-go
+
+Do not add `ATTR_FILE_LINKCOUNT` as another hard-link count API. Apple's `getattrlist(2)` reference
+defines it as a `u_int32_t` number of hard links and explicitly says it is equivalent to `st_nlink`.
+B105 already exposes the same per-entry observation for regular files through the existing
+no-follow `fstatat` path; changing the attribute source and width would not add a distinct supported
+contract.
+
+The public iPhoneOS 26.5 SDK defines `ATTR_FILE_LINKCOUNT` as `0x00000001`, and locked `libc`
+0.2.190 binds it. `fgetattrlist` is declared from iOS 3.0 with no separate attribute availability
+annotation; any use would also be filesystem-dependent and require an applicable File Timestamp
+required-reason entry. No source or public API changed for B264.

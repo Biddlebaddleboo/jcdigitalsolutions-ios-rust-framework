@@ -36,3 +36,33 @@ guarantees
 - B121 changes no code, Cargo manifest, portable contract, or guide behavior.
 - The SDK/header facts above were inspected; scoped `git diff --check` passed with the B118 work.
 - No tests, builds, probes, consumers, or live filesystem calls were run specifically for B121.
+
+## B256: `ATTR_FILE_IOBLOCKSIZE` no-go
+
+Do not add a second per-file I/O-size hint through `ATTR_FILE_IOBLOCKSIZE`. Apple's archived iOS
+`getattrlist(2)` reference defines it as the optimal block size when reading or writing that file's
+data. This has the same missing consumer as `st_blksize`: `ios-files` has no streaming descriptor,
+caller buffer, or I/O policy hook. It is not a mandatory alignment or transfer size, and the facade
+does not promise that returning it would improve performance.
+
+The installed iPhoneOS 26.5 SDK defines public `ATTR_FILE_IOBLOCKSIZE` as `0x00000008` in
+`sys/attr.h`; locked `libc` 0.2.190 binds it. The SDK gives no attribute-specific availability
+annotation beyond `fgetattrlist` iOS 3.0, and actual support is filesystem-dependent. Any host use
+would also require an applicable approved File Timestamp reason in `PrivacyInfo.xcprivacy`.
+
+B121/B256 remain no-go until `ios-files` gains a documented file-I/O operation or caller policy
+that can use a hint without treating it as a requirement or performance result. No source or public
+API changed for B256.
+
+## B260: `ATTR_FILE_CLUMPSIZE` no-go
+
+Do not add `ATTR_FILE_CLUMPSIZE` as a per-file allocation policy value. The installed public SDK
+marks this attribute obsolete. Apple's archived reference describes it as an allocation-clump hint
+for the data fork, not a required allocation unit or guarantee that the filesystem will allocate
+that amount. `ios-files` exposes no allocation-clump setter, streaming writer, or write policy hook
+that could consume the hint.
+
+The installed iPhoneOS 26.5 SDK defines the obsolete public macro as `0x00000010`; locked `libc`
+0.2.190 binds the value. The SDK gives no attribute-specific availability annotation beyond
+`fgetattrlist` iOS 3.0, and filesystem support is not guaranteed. No source or public API changed for
+B260.

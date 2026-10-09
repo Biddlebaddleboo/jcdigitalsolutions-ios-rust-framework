@@ -6,7 +6,7 @@ Audit row `067-ml-vision-language-foundation-models-residual-through-c-where-ava
 
 ## Status
 
-No public C or Objective-C Foundation Models interface is present in the inspected iOS SDK or generated Rust binding cache. Keep row 067 unsupported (`X`) until an explicit supported Swift-to-C boundary is separately approved and validated. No Foundation Models implementation or portable contract is added by D69
+No public C or Objective-C Foundation Models interface is present in the inspected iOS SDK or generated Rust binding cache. B236 adds a compiler-derived Swift ABI bridge for `SystemLanguageModel.default.isAvailable`, so row 067 is now partial (`B`) for that Boolean only. Session creation, inference, generation, prompts, context size, supported languages, use-case support, unavailable reasons, and full Foundation Models parity remain unsupported. No portable Foundation Models contract is added
 
 ## Smallest candidate and blocker
 
@@ -43,3 +43,41 @@ Inspection used Xcode 26.6, iOS and iOS Simulator SDK 26.5, Swift interface comp
 - Do not add model sessions, prompts, generation, streaming, tools, macros, or response values through C
 - Next step: leave row 067 as `X`; if scope changes, create a separate Swift-ABI/C-wrapper feasibility task and first prove a supported scalar C export plus device/Simulator linkability on intended architectures
 - No tests, builds, link probes, or runtime calls were run
+
+## B236 implementation: default model readiness Boolean
+
+B236 adds `ios-foundation-models-status::default_model_is_available()` as a point-in-time
+snapshot of `SystemLanguageModel.default.isAvailable`. Apple describes `isAvailable` as a
+convenience getter for whether the system is entirely ready. The Rust API reports only that Bool;
+it does not expose `Availability` or its associated unavailable reason
+
+Capability-row impact: row
+`067-ml-vision-language-foundation-models-residual-through-c-where-available` can move from `X`
+to partial (`B`) for this default-model readiness Boolean only. The `B` claim does not include
+session creation, inference, generation, prompts, context size, supported languages, use-case
+support, unavailable reasons, or full Foundation Models parity. Root owns any aggregate matrix edit
+
+The public Swift call uses an owned `SystemLanguageModel.default` object and a final `isAvailable`
+getter. Compiler IR on arm64 iOS and Simulator shows metadata accessor → default getter → Bool
+getter → `swift_release`. B236 implements the exact lowering with weak-import C `swiftcall` thunks
+and releases the owned object through `swift-abi-core/apple-runtime`. The package contains no Swift
+source, C/Objective-C selector, model session, prompt, inference, or generation path
+
+`Ok(false)` does not distinguish device ineligibility, Apple Intelligence settings, model download
+readiness, or another unavailable reason. The query does not establish entitlement, future model
+availability, supported language, output quality, or a successful request. The installed public
+interface does not mark these properties `@objc`; FoundationModels has no C header or module map
+
+The iOS 26.5 `FoundationModels.tbd` lists device target `arm64e-ios` and Simulator targets
+`arm64-ios-simulator` / `x86_64-ios-simulator`. Static C library link/import checks passed for the
+repository's arm64 iOS and Simulator targets at min iOS 26.0; the produced libraries were not
+executed. Apple currently marks the API documentation as beta. The local environment is Xcode 26.6
+/ iOS 26.5, below the repository's Xcode 27.x baseline
+
+The focused B236 gate runs format, host/device/Simulator `cargo check`, strict Clippy, rustdoc,
+`docs-check`, the Swift/C compiler oracle, and static FoundationModels framework link/import checks.
+It runs no tests, app, model session, prompt, inference, or runtime query
+
+Changed paths: `platform/ios/ios-foundation-models-status/`,
+`docs/ios/foundation-models-status.md`, and this focused plan only. Root aggregate plans and
+capability matrix remain unchanged

@@ -8,7 +8,7 @@ This audit does not change the canonical capability matrix, global docs, CI, Car
 
 ## Status and recommendation
 
-Keep row 091 X for a framework-specific Rust WeatherKit package at this time. The native WeatherKit API is a Swift-only surface, and this repository has no Rust binding for it. Apple also offers a documented REST service that a Rust HTTP client can call, so this is not a claim that WeatherKit data is impossible to access from Rust
+Keep row 091 X for a framework-specific Rust WeatherKit package at this time. The native WeatherKit API is a Swift-only surface, and this repository has no Rust binding for it. B250 confirms the REST availability endpoint is technically callable for coordinate/data-set availability only; this does not establish device, forecast, or general WeatherKit readiness. Apple also offers a documented REST service that a Rust HTTP client can call, so this is not a claim that WeatherKit data is impossible to access from Rust
 
 The existing `framework-network` package provides generic foreground HTTP transport, not WeatherKit authentication, JSON decoding, attribution, or typed weather values. A request-builder-only package or a raw response wrapper would not establish a useful WeatherKit value contract. A full REST client is technically feasible, but it needs an explicit host-owned developer-token boundary, data-model/decode scope, and attribution contract. No such package boundary is selected here, so do not classify this row as implemented
 
@@ -114,3 +114,45 @@ and [WeatherAttribution](https://developer.apple.com/documentation/weatherkit/we
 
 No tests, builds, REST calls, token requests, app launches, Simulator or device calls, or runtime
 probes were performed for B188
+
+## B250 follow-up — REST feasibility requires a host-owned token and attribution contract
+
+The public REST API exposes one narrow and technically Rust-callable operation:
+`GET https://weatherkit.apple.com/api/v1/availability/{latitude}/{longitude}` determines which
+weather data sets are available for a coordinate. Apple documents `Latitude` as `-90` through
+`90`, `Longitude` as `-180` through `180`, and `DataSet` values `currentWeather`, `forecastDaily`,
+`forecastHourly`, `forecastNextHour`, and `weatherAlerts`. This is a location-specific data-set
+availability result; it is not a device, app, entitlement, authorization, service-readiness, or
+forecast-success predicate
+
+This endpoint is separate from native WeatherKit. Apple's REST overview directs web and other
+platform clients to REST and native Apple-platform apps to the WeatherKit framework. It also says
+REST use requires attribution. Every REST request needs an `Authorization: Bearer` signed
+developer token. Apple's authentication page requires ES256 and the WeatherKit key ID plus issuer,
+issued-at, expiry, and Service ID subject claims; it says never to distribute the private key and
+advises using an authenticated service to create and sign tokens. A safe Rust client could accept
+an opaque short-lived token from a host backend and leave signing, key custody, and attribution to
+the host; it must not embed or mint a WeatherKit signing key
+
+The existing `framework-network` contract supplies a caller-selected foreground HTTP backend and
+opaque response bytes. It does not implement WeatherKit request construction, bearer-token
+provision, JSON decoding into the documented `DataSet` values, or attribution. The endpoint
+therefore supports a concrete future client boundary, but it does not silently select the
+repository product contract. No REST package, endpoint call, parser, dependency, token handling, or
+source code is added here. Keep row
+`091-commerce-services-weatherkit-through-rest-native-http-where-appropriate` at `X` until the
+host explicitly selects REST for its native iOS product and accepts caller-supplied token,
+coordinate/data-set-only semantics, and attribution responsibilities. This is a product-boundary
+no-change, not a claim that Apple REST is uncallable from Rust
+
+Primary API evidence: [WeatherKit REST API](https://developer.apple.com/documentation/weatherkitrestapi),
+[availability endpoint](https://developer.apple.com/documentation/weatherkitrestapi/get-api-v1-availability-_latitude_-_longitude_),
+[DataSet](https://developer.apple.com/documentation/weatherkitrestapi/dataset),
+[Latitude](https://developer.apple.com/documentation/weatherkitrestapi/latitude),
+[Longitude](https://developer.apple.com/documentation/weatherkitrestapi/longitude), and
+[REST authentication](https://developer.apple.com/documentation/weatherkitrestapi/request-authentication-for-weatherkit-rest-api)
+
+No builds, tests, REST calls, token requests, app launches, Simulator or device calls, or runtime
+probes were performed for B250. Evidence is Apple Developer documentation and the existing
+`framework-network` source contract; the Xcode 26.6 / iOS SDK 26.5 and Xcode 27.x baseline caveat
+for native SDK audits remains unchanged

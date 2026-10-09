@@ -248,6 +248,61 @@ impl IosFilePrivateSizeSnapshot {
     }
 }
 
+/// A point-in-time logical byte count across all forks of one regular iOS file.
+#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
+pub struct IosFileTotalForkSizeSnapshot(u64);
+
+impl IosFileTotalForkSizeSnapshot {
+    /// Returns the reported total logical size in bytes across all file forks.
+    pub const fn bytes(self) -> u64 {
+        self.0
+    }
+}
+
+/// A point-in-time allocated byte count for the data fork of one regular iOS file.
+#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
+pub struct IosFileDataForkAllocatedSizeSnapshot(u64);
+
+impl IosFileDataForkAllocatedSizeSnapshot {
+    /// Returns the reported data-fork allocation in bytes.
+    pub const fn bytes(self) -> u64 {
+        self.0
+    }
+}
+
+/// A point-in-time allocated byte count for the resource fork of one regular iOS file.
+#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
+pub struct IosFileResourceForkAllocatedSizeSnapshot(u64);
+
+impl IosFileResourceForkAllocatedSizeSnapshot {
+    /// Returns the reported resource-fork allocation in bytes.
+    pub const fn bytes(self) -> u64 {
+        self.0
+    }
+}
+
+/// A point-in-time logical byte count for the resource fork of one regular iOS file.
+#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
+pub struct IosFileResourceForkSizeSnapshot(u64);
+
+impl IosFileResourceForkSizeSnapshot {
+    /// Returns the reported logical resource-fork size in bytes.
+    pub const fn bytes(self) -> u64 {
+        self.0
+    }
+}
+
+/// A point-in-time document ID for one regular iOS file.
+#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
+pub struct IosFileDocumentIdSnapshot(u32);
+
+impl IosFileDocumentIdSnapshot {
+    /// Returns the nonzero document ID, or `None` when XNU reports its invalid zero value.
+    pub const fn document_id(self) -> Option<u32> {
+        if self.0 == 0 { None } else { Some(self.0) }
+    }
+}
+
 /// A point-in-time POSIX numeric owner and group pair for one iOS filesystem entry.
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
 pub struct IosFileOwnerIds {
@@ -381,6 +436,19 @@ impl IosDirectoryEntryKindCounts {
     /// Returns the count of symbolic links and other non-file, non-directory entries.
     pub const fn other(self) -> u64 {
         self.other
+    }
+}
+
+/// A point-in-time physical allocation size reported for one iOS directory object.
+///
+/// This counts bytes used by the directory itself, not bytes in its children or descendants.
+#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
+pub struct IosDirectoryAllocatedSizeSnapshot(u64);
+
+impl IosDirectoryAllocatedSizeSnapshot {
+    /// Returns the reported directory-object allocation in bytes.
+    pub const fn bytes(self) -> u64 {
+        self.0
     }
 }
 
@@ -1019,6 +1087,481 @@ impl IosFiles {
         Ok(IosFilePrivateSizeSnapshot(private_size as u64))
     }
 
+    /// Returns the current logical byte count across all forks of one regular app-sandbox file.
+    ///
+    /// The file is opened through the validated `AppPath` parent with `O_NOFOLLOW`, checked as a
+    /// regular file, and queried by its open descriptor with `fgetattrlist` requesting
+    /// `ATTR_FILE_TOTALSIZE`. XNU defines this `off_t` value as the total number of logical bytes
+    /// across all file forks. It may differ from a data-fork size and is not the size of a buffer
+    /// returned by `FileBackend::read`. The result is point-in-time metadata; concurrent writes
+    /// may change it. Filesystems that do not support the attribute return `Unsupported`.
+    ///
+    /// This query reads no file contents, accepts no arbitrary URL, starts no security scope, and
+    /// changes no portable `FileBackend` behavior. Apple lists `fgetattrlist` in the File Timestamp
+    /// required-reason API category; the host app must declare an applicable approved reason in
+    /// `PrivacyInfo.xcprivacy` for actual use.
+    ///
+    /// # Errors
+    ///
+    /// Returns `InvalidPath` for a malformed `AppPath`, `InvalidInput` for a non-regular source,
+    /// negative total size, or malformed attribute buffer, `NotFound` for a missing source or
+    /// parent, `Unsupported` when the filesystem does not support this attribute, or the mapped
+    /// POSIX error for other failures.
+    pub fn regular_file_total_fork_size_snapshot(
+        &self,
+        path: AppPath<'_>,
+    ) -> Result<IosFileTotalForkSizeSnapshot, FileError> {
+        let parts = path_parts(path.relative())?;
+        let (parent, leaf) = open_parent(self.root(path.directory())?, &parts)?;
+        // SAFETY: `parent` is open and `leaf` is one validated component. `O_NOFOLLOW` rejects a
+        // final symlink, and `O_NONBLOCK` avoids blocking if the entry is concurrently replaced.
+        let source_fd = unsafe {
+            libc::openat(
+                parent.as_raw_fd(),
+                leaf.as_ptr(),
+                libc::O_RDONLY | libc::O_NOFOLLOW | libc::O_CLOEXEC | libc::O_NONBLOCK,
+            )
+        };
+        if source_fd < 0 {
+            return Err(file_error(io::Error::last_os_error()));
+        }
+        // SAFETY: `openat` returned a new owned descriptor.
+        let source_file = unsafe { File::from_raw_fd(source_fd) };
+        if !source_file.metadata().map_err(file_error)?.is_file() {
+            return Err(backend_error(ErrorKind::InvalidInput, None));
+        }
+
+        let mut attributes = libc::attrlist {
+            bitmapcount: libc::ATTR_BIT_MAP_COUNT,
+            reserved: 0,
+            commonattr: 0,
+            volattr: 0,
+            dirattr: 0,
+            fileattr: libc::ATTR_FILE_TOTALSIZE,
+            forkattr: 0,
+        };
+        let mut buffer = [0_u8; 12];
+        // SAFETY: `source_file` is an open regular file. `attributes` requests one documented
+        // file attribute; `buffer` holds its u32 length and 8-byte off_t. The descriptor binds the
+        // query to the opened inode, so no path lookup or symlink traversal occurs here.
+        let result = unsafe {
+            libc::fgetattrlist(
+                source_file.as_raw_fd(),
+                (&mut attributes as *mut libc::attrlist).cast(),
+                buffer.as_mut_ptr().cast(),
+                buffer.len(),
+                0,
+            )
+        };
+        if result < 0 {
+            let error = io::Error::last_os_error();
+            if matches!(error.raw_os_error(), Some(libc::EINVAL | libc::ENOTSUP)) {
+                return Err(backend_error(ErrorKind::Unsupported, error.raw_os_error()));
+            }
+            return Err(file_error(error));
+        }
+        let returned_length = u32::from_ne_bytes(
+            buffer[..4]
+                .try_into()
+                .map_err(|_| backend_error(ErrorKind::InvalidInput, None))?,
+        ) as usize;
+        if returned_length == std::mem::size_of::<u32>() {
+            return Err(backend_error(ErrorKind::Unsupported, None));
+        }
+        if returned_length != buffer.len() {
+            return Err(backend_error(ErrorKind::InvalidInput, None));
+        }
+        let total_size = i64::from_ne_bytes(
+            buffer[4..]
+                .try_into()
+                .map_err(|_| backend_error(ErrorKind::InvalidInput, None))?,
+        );
+        if total_size < 0 {
+            return Err(backend_error(ErrorKind::InvalidInput, None));
+        }
+        Ok(IosFileTotalForkSizeSnapshot(total_size as u64))
+    }
+
+    /// Returns the current filesystem-reported allocated byte count for one regular file's data fork.
+    ///
+    /// The file is opened through the validated `AppPath` parent with `O_NOFOLLOW`, checked as a
+    /// regular file, and queried by its open descriptor with `fgetattrlist` requesting
+    /// `ATTR_FILE_DATAALLOCSIZE`. XNU defines this `off_t` value as bytes on disk used by the data
+    /// fork only. It does not include resource-fork allocation and is not a guarantee of exclusive
+    /// physical-device storage. The result is point-in-time metadata; concurrent writes may change
+    /// it. Filesystems that do not support the attribute return `Unsupported`.
+    ///
+    /// This query reads no file contents, accepts no arbitrary URL, starts no security scope, and
+    /// changes no portable `FileBackend` behavior. Apple lists `fgetattrlist` in the File Timestamp
+    /// required-reason API category; the host app must declare an applicable approved reason in
+    /// `PrivacyInfo.xcprivacy` for actual use.
+    ///
+    /// # Errors
+    ///
+    /// Returns `InvalidPath` for a malformed `AppPath`, `InvalidInput` for a non-regular source,
+    /// negative allocation, or malformed attribute buffer, `NotFound` for a missing source or
+    /// parent, `Unsupported` when the filesystem does not support this attribute, or the mapped
+    /// POSIX error for other failures.
+    pub fn regular_file_data_fork_allocated_size_snapshot(
+        &self,
+        path: AppPath<'_>,
+    ) -> Result<IosFileDataForkAllocatedSizeSnapshot, FileError> {
+        let parts = path_parts(path.relative())?;
+        let (parent, leaf) = open_parent(self.root(path.directory())?, &parts)?;
+        // SAFETY: `parent` is open and `leaf` is one validated component. `O_NOFOLLOW` rejects a
+        // final symlink, and `O_NONBLOCK` avoids blocking if the entry is concurrently replaced.
+        let source_fd = unsafe {
+            libc::openat(
+                parent.as_raw_fd(),
+                leaf.as_ptr(),
+                libc::O_RDONLY | libc::O_NOFOLLOW | libc::O_CLOEXEC | libc::O_NONBLOCK,
+            )
+        };
+        if source_fd < 0 {
+            return Err(file_error(io::Error::last_os_error()));
+        }
+        // SAFETY: `openat` returned a new owned descriptor.
+        let source_file = unsafe { File::from_raw_fd(source_fd) };
+        if !source_file.metadata().map_err(file_error)?.is_file() {
+            return Err(backend_error(ErrorKind::InvalidInput, None));
+        }
+
+        let mut attributes = libc::attrlist {
+            bitmapcount: libc::ATTR_BIT_MAP_COUNT,
+            reserved: 0,
+            commonattr: 0,
+            volattr: 0,
+            dirattr: 0,
+            fileattr: libc::ATTR_FILE_DATAALLOCSIZE,
+            forkattr: 0,
+        };
+        let mut buffer = [0_u8; 12];
+        // SAFETY: `source_file` is an open regular file. `attributes` requests one documented
+        // file attribute; `buffer` holds its u32 length and 8-byte off_t. The descriptor binds the
+        // query to the opened inode, so no path lookup or symlink traversal occurs here.
+        let result = unsafe {
+            libc::fgetattrlist(
+                source_file.as_raw_fd(),
+                (&mut attributes as *mut libc::attrlist).cast(),
+                buffer.as_mut_ptr().cast(),
+                buffer.len(),
+                0,
+            )
+        };
+        if result < 0 {
+            let error = io::Error::last_os_error();
+            if matches!(error.raw_os_error(), Some(libc::EINVAL | libc::ENOTSUP)) {
+                return Err(backend_error(ErrorKind::Unsupported, error.raw_os_error()));
+            }
+            return Err(file_error(error));
+        }
+        let returned_length = u32::from_ne_bytes(
+            buffer[..4]
+                .try_into()
+                .map_err(|_| backend_error(ErrorKind::InvalidInput, None))?,
+        ) as usize;
+        if returned_length == std::mem::size_of::<u32>() {
+            return Err(backend_error(ErrorKind::Unsupported, None));
+        }
+        if returned_length != buffer.len() {
+            return Err(backend_error(ErrorKind::InvalidInput, None));
+        }
+        let allocated_size = i64::from_ne_bytes(
+            buffer[4..]
+                .try_into()
+                .map_err(|_| backend_error(ErrorKind::InvalidInput, None))?,
+        );
+        if allocated_size < 0 {
+            return Err(backend_error(ErrorKind::InvalidInput, None));
+        }
+        Ok(IosFileDataForkAllocatedSizeSnapshot(allocated_size as u64))
+    }
+
+    /// Returns the current filesystem-reported allocated byte count for one regular file's resource fork.
+    ///
+    /// The file is opened through the validated `AppPath` parent with `O_NOFOLLOW`, checked as a
+    /// regular file, and queried by its open descriptor with `fgetattrlist` requesting
+    /// `ATTR_FILE_RSRCALLOCSIZE`. XNU defines this `off_t` value as bytes on disk used by the
+    /// resource fork only. It does not include data-fork allocation and is not a guarantee of
+    /// exclusive physical-device storage. A zero result is the reported size only and does not
+    /// establish that a resource fork is absent. The result is point-in-time metadata; concurrent
+    /// writes may change it. Filesystems that do not support the attribute return `Unsupported`.
+    ///
+    /// This query reads no file contents, accepts no arbitrary URL, starts no security scope, and
+    /// changes no portable `FileBackend` behavior. Apple lists `fgetattrlist` in the File Timestamp
+    /// required-reason API category; the host app must declare an applicable approved reason in
+    /// `PrivacyInfo.xcprivacy` for actual use.
+    ///
+    /// # Errors
+    ///
+    /// Returns `InvalidPath` for a malformed `AppPath`, `InvalidInput` for a non-regular source,
+    /// negative allocation, or malformed attribute buffer, `NotFound` for a missing source or
+    /// parent, `Unsupported` when the filesystem does not support this attribute, or the mapped
+    /// POSIX error for other failures.
+    pub fn regular_file_resource_fork_allocated_size_snapshot(
+        &self,
+        path: AppPath<'_>,
+    ) -> Result<IosFileResourceForkAllocatedSizeSnapshot, FileError> {
+        let parts = path_parts(path.relative())?;
+        let (parent, leaf) = open_parent(self.root(path.directory())?, &parts)?;
+        // SAFETY: `parent` is open and `leaf` is one validated component. `O_NOFOLLOW` rejects a
+        // final symlink, and `O_NONBLOCK` avoids blocking if the entry is concurrently replaced.
+        let source_fd = unsafe {
+            libc::openat(
+                parent.as_raw_fd(),
+                leaf.as_ptr(),
+                libc::O_RDONLY | libc::O_NOFOLLOW | libc::O_CLOEXEC | libc::O_NONBLOCK,
+            )
+        };
+        if source_fd < 0 {
+            return Err(file_error(io::Error::last_os_error()));
+        }
+        // SAFETY: `openat` returned a new owned descriptor.
+        let source_file = unsafe { File::from_raw_fd(source_fd) };
+        if !source_file.metadata().map_err(file_error)?.is_file() {
+            return Err(backend_error(ErrorKind::InvalidInput, None));
+        }
+
+        let mut attributes = libc::attrlist {
+            bitmapcount: libc::ATTR_BIT_MAP_COUNT,
+            reserved: 0,
+            commonattr: 0,
+            volattr: 0,
+            dirattr: 0,
+            fileattr: libc::ATTR_FILE_RSRCALLOCSIZE,
+            forkattr: 0,
+        };
+        let mut buffer = [0_u8; 12];
+        // SAFETY: `source_file` is an open regular file. `attributes` requests one documented
+        // file attribute; `buffer` holds its u32 length and 8-byte off_t. The descriptor binds the
+        // query to the opened inode, so no path lookup or symlink traversal occurs here.
+        let result = unsafe {
+            libc::fgetattrlist(
+                source_file.as_raw_fd(),
+                (&mut attributes as *mut libc::attrlist).cast(),
+                buffer.as_mut_ptr().cast(),
+                buffer.len(),
+                0,
+            )
+        };
+        if result < 0 {
+            let error = io::Error::last_os_error();
+            if matches!(error.raw_os_error(), Some(libc::EINVAL | libc::ENOTSUP)) {
+                return Err(backend_error(ErrorKind::Unsupported, error.raw_os_error()));
+            }
+            return Err(file_error(error));
+        }
+        let returned_length = u32::from_ne_bytes(
+            buffer[..4]
+                .try_into()
+                .map_err(|_| backend_error(ErrorKind::InvalidInput, None))?,
+        ) as usize;
+        if returned_length == std::mem::size_of::<u32>() {
+            return Err(backend_error(ErrorKind::Unsupported, None));
+        }
+        if returned_length != buffer.len() {
+            return Err(backend_error(ErrorKind::InvalidInput, None));
+        }
+        let allocated_size = i64::from_ne_bytes(
+            buffer[4..]
+                .try_into()
+                .map_err(|_| backend_error(ErrorKind::InvalidInput, None))?,
+        );
+        if allocated_size < 0 {
+            return Err(backend_error(ErrorKind::InvalidInput, None));
+        }
+        Ok(IosFileResourceForkAllocatedSizeSnapshot(
+            allocated_size as u64,
+        ))
+    }
+
+    /// Returns the current filesystem-reported logical byte count for one regular file's resource fork.
+    ///
+    /// The file is opened through the validated `AppPath` parent with `O_NOFOLLOW`, checked as a
+    /// regular file, and queried by its open descriptor with `fgetattrlist` requesting
+    /// `ATTR_FILE_RSRCLENGTH`. XNU defines this `off_t` value as the logical length of the resource
+    /// fork in bytes. A zero result is only the reported length and does not establish that a
+    /// resource fork is absent. The result is point-in-time metadata; concurrent writes may change
+    /// it. Filesystems that do not support the attribute return `Unsupported`.
+    ///
+    /// This query reads no file contents, accepts no arbitrary URL, starts no security scope, and
+    /// changes no portable `FileBackend` behavior. Apple lists `fgetattrlist` in the File Timestamp
+    /// required-reason API category; the host app must declare an applicable approved reason in
+    /// `PrivacyInfo.xcprivacy` for actual use.
+    ///
+    /// # Errors
+    ///
+    /// Returns `InvalidPath` for a malformed `AppPath`, `InvalidInput` for a non-regular source,
+    /// negative length, or malformed attribute buffer, `NotFound` for a missing source or parent,
+    /// `Unsupported` when the filesystem does not support this attribute, or the mapped POSIX
+    /// error for other failures.
+    pub fn regular_file_resource_fork_size_snapshot(
+        &self,
+        path: AppPath<'_>,
+    ) -> Result<IosFileResourceForkSizeSnapshot, FileError> {
+        let parts = path_parts(path.relative())?;
+        let (parent, leaf) = open_parent(self.root(path.directory())?, &parts)?;
+        // SAFETY: `parent` is open and `leaf` is one validated component. `O_NOFOLLOW` rejects a
+        // final symlink, and `O_NONBLOCK` avoids blocking if the entry is concurrently replaced.
+        let source_fd = unsafe {
+            libc::openat(
+                parent.as_raw_fd(),
+                leaf.as_ptr(),
+                libc::O_RDONLY | libc::O_NOFOLLOW | libc::O_CLOEXEC | libc::O_NONBLOCK,
+            )
+        };
+        if source_fd < 0 {
+            return Err(file_error(io::Error::last_os_error()));
+        }
+        // SAFETY: `openat` returned a new owned descriptor.
+        let source_file = unsafe { File::from_raw_fd(source_fd) };
+        if !source_file.metadata().map_err(file_error)?.is_file() {
+            return Err(backend_error(ErrorKind::InvalidInput, None));
+        }
+
+        let mut attributes = libc::attrlist {
+            bitmapcount: libc::ATTR_BIT_MAP_COUNT,
+            reserved: 0,
+            commonattr: 0,
+            volattr: 0,
+            dirattr: 0,
+            fileattr: libc::ATTR_FILE_RSRCLENGTH,
+            forkattr: 0,
+        };
+        let mut buffer = [0_u8; 12];
+        // SAFETY: `source_file` is an open regular file. `attributes` requests one documented
+        // file attribute; `buffer` holds its u32 length and 8-byte off_t. The descriptor binds the
+        // query to the opened inode, so no path lookup or symlink traversal occurs here.
+        let result = unsafe {
+            libc::fgetattrlist(
+                source_file.as_raw_fd(),
+                (&mut attributes as *mut libc::attrlist).cast(),
+                buffer.as_mut_ptr().cast(),
+                buffer.len(),
+                0,
+            )
+        };
+        if result < 0 {
+            let error = io::Error::last_os_error();
+            if matches!(error.raw_os_error(), Some(libc::EINVAL | libc::ENOTSUP)) {
+                return Err(backend_error(ErrorKind::Unsupported, error.raw_os_error()));
+            }
+            return Err(file_error(error));
+        }
+        let returned_length = u32::from_ne_bytes(
+            buffer[..4]
+                .try_into()
+                .map_err(|_| backend_error(ErrorKind::InvalidInput, None))?,
+        ) as usize;
+        if returned_length == std::mem::size_of::<u32>() {
+            return Err(backend_error(ErrorKind::Unsupported, None));
+        }
+        if returned_length != buffer.len() {
+            return Err(backend_error(ErrorKind::InvalidInput, None));
+        }
+        let logical_size = i64::from_ne_bytes(
+            buffer[4..]
+                .try_into()
+                .map_err(|_| backend_error(ErrorKind::InvalidInput, None))?,
+        );
+        if logical_size < 0 {
+            return Err(backend_error(ErrorKind::InvalidInput, None));
+        }
+        Ok(IosFileResourceForkSizeSnapshot(logical_size as u64))
+    }
+
+    /// Returns the current document ID reported for one regular app-sandbox file.
+    ///
+    /// The file is opened through the validated `AppPath` parent with `O_NOFOLLOW`, checked as a
+    /// regular file, and queried by its open descriptor with `fgetattrlist` requesting
+    /// `ATTR_CMN_DOCUMENT_ID` and `FSOPT_ATTR_CMN_EXTENDED`. XNU defines a nonzero `u32` document
+    /// ID that is sticky to the path it was assigned to across safe saves; zero is invalid and
+    /// becomes `None`. Filesystem support may vary. The value is a point-in-time path/document
+    /// token, not an inode, content hash, clone ID, link ID, cross-volume ID, or durable identity.
+    ///
+    /// This query reads no file contents, accepts no arbitrary URL, starts no security scope, and
+    /// changes no portable `FileBackend` behavior. Apple lists `fgetattrlist` in the File Timestamp
+    /// required-reason API category; the host app must declare an applicable approved reason in
+    /// `PrivacyInfo.xcprivacy` for actual use.
+    ///
+    /// # Errors
+    ///
+    /// Returns `InvalidPath` for a malformed `AppPath`, `InvalidInput` for a non-regular source or
+    /// malformed attribute buffer, `NotFound` for a missing source or parent, `Unsupported` when
+    /// the filesystem omits or does not support the attribute, or the mapped POSIX error for other
+    /// failures.
+    pub fn regular_file_document_id_snapshot(
+        &self,
+        path: AppPath<'_>,
+    ) -> Result<IosFileDocumentIdSnapshot, FileError> {
+        let parts = path_parts(path.relative())?;
+        let (parent, leaf) = open_parent(self.root(path.directory())?, &parts)?;
+        // SAFETY: `parent` is open and `leaf` is one validated component. `O_NOFOLLOW` rejects a
+        // final symlink, and `O_NONBLOCK` avoids blocking if the entry is concurrently replaced.
+        let source_fd = unsafe {
+            libc::openat(
+                parent.as_raw_fd(),
+                leaf.as_ptr(),
+                libc::O_RDONLY | libc::O_NOFOLLOW | libc::O_CLOEXEC | libc::O_NONBLOCK,
+            )
+        };
+        if source_fd < 0 {
+            return Err(file_error(io::Error::last_os_error()));
+        }
+        // SAFETY: `openat` returned a new owned descriptor.
+        let source_file = unsafe { File::from_raw_fd(source_fd) };
+        if !source_file.metadata().map_err(file_error)?.is_file() {
+            return Err(backend_error(ErrorKind::InvalidInput, None));
+        }
+
+        let mut attributes = libc::attrlist {
+            bitmapcount: libc::ATTR_BIT_MAP_COUNT,
+            reserved: 0,
+            commonattr: 0,
+            volattr: 0,
+            dirattr: 0,
+            fileattr: 0,
+            forkattr: libc::ATTR_CMN_DOCUMENT_ID,
+        };
+        let mut buffer = [0_u8; 8];
+        // SAFETY: `source_file` is an open regular file. `attributes` requests one documented
+        // extended-common attribute; `buffer` holds its u32 length and u32 value. The descriptor
+        // binds the query to the opened inode, so no path lookup or symlink traversal occurs here.
+        let result = unsafe {
+            libc::fgetattrlist(
+                source_file.as_raw_fd(),
+                (&mut attributes as *mut libc::attrlist).cast(),
+                buffer.as_mut_ptr().cast(),
+                buffer.len(),
+                libc::FSOPT_ATTR_CMN_EXTENDED,
+            )
+        };
+        if result < 0 {
+            let error = io::Error::last_os_error();
+            if matches!(error.raw_os_error(), Some(libc::EINVAL | libc::ENOTSUP)) {
+                return Err(backend_error(ErrorKind::Unsupported, error.raw_os_error()));
+            }
+            return Err(file_error(error));
+        }
+        let returned_length = u32::from_ne_bytes(
+            buffer[..4]
+                .try_into()
+                .map_err(|_| backend_error(ErrorKind::InvalidInput, None))?,
+        ) as usize;
+        if returned_length == std::mem::size_of::<u32>() {
+            return Err(backend_error(ErrorKind::Unsupported, None));
+        }
+        if returned_length != buffer.len() {
+            return Err(backend_error(ErrorKind::InvalidInput, None));
+        }
+        let document_id = u32::from_ne_bytes(
+            buffer[4..]
+                .try_into()
+                .map_err(|_| backend_error(ErrorKind::InvalidInput, None))?,
+        );
+        Ok(IosFileDocumentIdSnapshot(document_id))
+    }
+
     /// Returns one regular file's current byte length without reading its contents.
     ///
     /// The path uses the same app-sandbox root and descriptor-relative, no-follow traversal as
@@ -1431,6 +1974,83 @@ impl IosFiles {
         let parts = path_parts(path.relative())?;
         let directory = open_directory(self.root(path.directory())?, &parts).map_err(file_error)?;
         scan_directory_entry_kind_counts(&directory)
+    }
+
+    /// Returns the current on-disk allocation reported for one app-sandbox directory object.
+    ///
+    /// This opens the validated `AppPath` with the backend's descriptor-relative no-follow
+    /// directory traversal, then requests `ATTR_DIR_ALLOCSIZE` by `fgetattrlist` on the open
+    /// directory descriptor. XNU defines this `off_t` value as bytes on disk used by the directory
+    /// itself; it is not the aggregate size of child files or descendants. The result is
+    /// filesystem-specific point-in-time metadata, not an app quota, storage reservation, or
+    /// performance signal. Filesystems that do not support the attribute return `Unsupported`.
+    ///
+    /// This iOS-only query reads no file contents, accepts no arbitrary URL, and starts no security
+    /// scope. Apple lists `fgetattrlist` in the File Timestamp required-reason API category; the
+    /// host app must declare an applicable approved reason in `PrivacyInfo.xcprivacy` for actual
+    /// use.
+    ///
+    /// # Errors
+    ///
+    /// Returns `InvalidPath` for a malformed `AppPath`, `NotFound` for a missing path,
+    /// `InvalidInput` for a negative allocation or malformed attribute buffer, `Unsupported` when
+    /// the filesystem does not support directory allocation size, or the mapped POSIX error for
+    /// other failures.
+    pub fn directory_allocated_size_snapshot(
+        &self,
+        path: AppPath<'_>,
+    ) -> Result<IosDirectoryAllocatedSizeSnapshot, FileError> {
+        let parts = path_parts(path.relative())?;
+        let directory = open_directory(self.root(path.directory())?, &parts).map_err(file_error)?;
+        let mut attributes = libc::attrlist {
+            bitmapcount: libc::ATTR_BIT_MAP_COUNT,
+            reserved: 0,
+            commonattr: 0,
+            volattr: 0,
+            dirattr: libc::ATTR_DIR_ALLOCSIZE,
+            fileattr: 0,
+            forkattr: 0,
+        };
+        let mut buffer = [0_u8; 12];
+        // SAFETY: `directory` is an open directory descriptor and `attributes` requests one
+        // documented directory attribute. `buffer` holds its u32 length and 8-byte off_t; the
+        // descriptor binds the query to the opened directory inode.
+        let result = unsafe {
+            libc::fgetattrlist(
+                directory.as_raw_fd(),
+                (&mut attributes as *mut libc::attrlist).cast(),
+                buffer.as_mut_ptr().cast(),
+                buffer.len(),
+                0,
+            )
+        };
+        if result < 0 {
+            let error = io::Error::last_os_error();
+            if matches!(error.raw_os_error(), Some(libc::EINVAL | libc::ENOTSUP)) {
+                return Err(backend_error(ErrorKind::Unsupported, error.raw_os_error()));
+            }
+            return Err(file_error(error));
+        }
+        let returned_length = u32::from_ne_bytes(
+            buffer[..4]
+                .try_into()
+                .map_err(|_| backend_error(ErrorKind::InvalidInput, None))?,
+        ) as usize;
+        if returned_length == std::mem::size_of::<u32>() {
+            return Err(backend_error(ErrorKind::Unsupported, None));
+        }
+        if returned_length != buffer.len() {
+            return Err(backend_error(ErrorKind::InvalidInput, None));
+        }
+        let allocated_size = i64::from_ne_bytes(
+            buffer[4..]
+                .try_into()
+                .map_err(|_| backend_error(ErrorKind::InvalidInput, None))?,
+        );
+        if allocated_size < 0 {
+            return Err(backend_error(ErrorKind::InvalidInput, None));
+        }
+        Ok(IosDirectoryAllocatedSizeSnapshot(allocated_size as u64))
     }
 
     /// Returns the no-follow kind of one app-sandbox directory entry.

@@ -1,6 +1,6 @@
 #![deny(missing_docs)]
 #![deny(unsafe_op_in_unsafe_fn)]
-#![doc = "Bounded synchronous accessibility metadata and focus-status access for caller-owned iOS UIKit views."]
+#![doc = "Bounded synchronous UIKit accessibility metadata plus point-in-time accessibility status queries for iOS apps."]
 
 #[cfg(any(target_os = "ios", test))]
 mod container_type;
@@ -30,7 +30,12 @@ pub use traits::AccessibilityTrait;
 mod platform;
 
 #[cfg(target_os = "ios")]
-pub use platform::{AccessibilityApiUnavailable, AccessibilityMetadata};
+pub use platform::{
+    AccessibilityApiUnavailable, AccessibilityMetadata, assistive_touch_is_enabled,
+    classic_invert_is_enabled, guided_access_is_enabled,
+    reduce_motion_is_enabled, reduce_transparency_is_enabled, speak_screen_is_enabled,
+    speak_selection_is_enabled, switch_control_is_running, voice_over_is_running,
+};
 
 #[cfg(test)]
 mod tests {

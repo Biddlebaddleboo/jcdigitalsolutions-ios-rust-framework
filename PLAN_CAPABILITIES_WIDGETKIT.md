@@ -6,9 +6,9 @@ Audit whether row `111-compiler-build-host-capabilities-widgetkit-support-manage
 
 ## Status and recommendation
 
-Keep row 111 `X` / `unsupported` for now. The installed SDK has app-side `WidgetCenter` operations and configured-widget data, but the public methods and value types are Swift APIs. The public WidgetKit C/Objective-C headers contain only user-info key constants, and this repo has no WidgetKit Rust binding or proven production Swift call adapter. The linker stub exports Swift-mangled `WidgetCenter` and `WidgetInfo` symbols; that fact does not make them a documented C ABI
+B254 makes row 111 partial (`B`) for `WidgetCenter.shared.reloadAllTimelines()` only. This synchronous request operates on configured widgets belonging to the containing app. It does not guarantee provider success, rendering, or timing. The API is Swift-only; B254 uses a compiler-derived weak `swiftcall` bridge rather than a C/Objective-C declaration
 
-A future, separate management-only slice may be viable if the Swift ABI workstream proves a stable public Rust call path for Swift class methods, `Swift.String`, Swift closures, `Swift.Result`, and `WidgetInfo`. Such a slice could request timeline reloads and read user-configured widget descriptors. It would not implement a widget provider, render content, prove that a widget exists in an extension, or guarantee when WidgetKit refreshes its view
+B254 implements the request-only timeline reload. Reading user-configured widget descriptors remains a separate candidate requiring Swift class/closure/Result/WidgetInfo ownership support. It would not implement a widget provider, render content, prove that a widget exists in an extension, or guarantee when WidgetKit refreshes its view
 
 Full widget support remains outside a small Rust facade. `TimelineProvider` has a Swift associated `Entry` type and Swift protocol requirements that return or callback with `Timeline<Entry>`; `Timeline` is generic over a `TimelineEntry`. A WidgetKit extension also defines a SwiftUI `Widget` whose body returns `WidgetConfiguration`; its configuration initializers take `@ViewBuilder` closures with `Content: View`. These APIs need Swift protocol conformance, associated-type metadata, callback/async interop, and SwiftUI view construction. This report does not propose a SwiftUI clone
 
@@ -86,3 +86,41 @@ It does not establish a package, binding feature, entitlement, usage-description
 ## Root integration need
 
 No Cargo, lock, CI, source, matrix, aggregate-plan, or docs-index change is needed for this feasibility report. If root accepts the recommendation, it may revise only row 111's status reason to distinguish Swift-only `WidgetCenter` management from the absent provider/render path; keep the row `X` until a supported Rust call adapter exists
+
+## B254 implementation — all-configured-widget timeline reload request
+
+B254 adds `ios-widgetkit-reload::request_reload_all_timelines()` for iOS 14.0 and later. Its exact
+native operation is `WidgetCenter.shared.reloadAllTimelines()`, which Apple documents as a request
+to reload timelines for all configured widgets belonging to the containing app. The method is
+synchronous and returns `Void`; `Ok(())` means only that this native request call returned. It
+does not prove a widget exists, a provider ran, a new timeline was accepted, a widget rendered, or
+an update occurred by a particular time
+
+The iOS 26.5 public Swift interface declares `WidgetCenter.shared` and `reloadAllTimelines()` from
+iOS 14.0. The public WidgetKit C/Objective-C headers declare no `WidgetCenter` type or method. The
+device compiler oracle lowers metadata accessor → owned `shared` getter → zero-argument `Void`
+method → `swift_release`; the device and Simulator call patterns match compiler-derived
+`swiftcall` thunks. The bridge uses weak imports and `swift-abi-core/apple-runtime` to retain the
+manager through the call and release it afterward. It adds no Swift source, selector, generated
+binding, callback, closure, or async runtime route
+
+This is a host-owned management operation, not a general WidgetKit availability query. The
+containing app should request reloads when its widget data changes and should respect WidgetKit's
+dynamic per-widget refresh budget. WidgetKit controls provider scheduling and render timing; the
+package makes no main-thread or queue guarantee and does not implement an extension, provider,
+timeline, data-sharing contract, SwiftUI view, Live Activity, or Control
+
+Capability-row impact: row
+`111-compiler-build-host-capabilities-widgetkit-support-management-data-logic-available-through-proven-interfaces-do-not-implement-a-swiftui-clone-merely-to-claim-full-rendering-support`
+can move from `X` to partial (`B`) for this all-configured-widget reload request only. Provider
+execution, configured-widget inventory, data logic, configuration, rendering, and refresh timing
+remain outside the implemented contract. Root owns any aggregate matrix edit
+
+The focused B254 gate runs package-only format, host/device/Simulator `cargo check`, strict Clippy,
+rustdoc, `docs-check`, compiler-oracle checks for device and Simulator, and static WidgetKit
+framework link/import checks. It runs no tests, app, Simulator or device calls, provider callbacks,
+timeline requests, or runtime probes. The local compiler is Xcode 26.6 / iOS SDK 26.5, below the
+repository's Xcode 27.x baseline
+
+Changed paths: `platform/ios/ios-widgetkit-reload/`, `docs/ios/widgetkit-reload.md`, and this
+focused plan only. Root aggregate plans and capability matrix remain unchanged

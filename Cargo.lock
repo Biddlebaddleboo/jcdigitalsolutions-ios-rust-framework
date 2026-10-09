@@ -421,12 +421,17 @@ dependencies = [
  "objc2-external-accessory",
 ]
 
+
 [[package]]
 name = "ios-activitykit-status"
 version = "0.1.0"
 dependencies = [
  "swift-abi-core",
 ]
+
+[[package]]
+name = "ios-ad-attribution-status"
+version = "0.1.0"
 
 [[package]]
 name = "ios-app-scenes"
@@ -603,6 +608,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "ios-dockkit-status"
+version = "0.1.0"
+dependencies = [
+ "swift-abi-core",
+]
+
+[[package]]
 name = "ios-extension-support"
 version = "0.1.0"
 dependencies = [
@@ -635,6 +647,13 @@ dependencies = [
  "libc",
  "objc2",
  "objc2-foundation",
+]
+
+[[package]]
+name = "ios-foundation-models-status"
+version = "0.1.0"
+dependencies = [
+ "swift-abi-core",
 ]
 
 [[package]]
@@ -699,6 +718,10 @@ dependencies = [
  "objc2-core-location",
  "objc2-map-kit",
 ]
+
+[[package]]
+name = "ios-matter-support-status"
+version = "0.1.0"
 
 [[package]]
 name = "ios-media"
@@ -1120,6 +1143,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "ios-widgetkit-reload"
+version = "0.1.0"
+dependencies = [
+ "swift-abi-core",
+]
+
+[[package]]
 name = "iri-string"
 version = "0.7.14"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1139,6 +1169,7 @@ checksum = "08849bbd4767dfae9457696856ae1c84fe4e0281bbe4a7abff2d0e06fb7981f8"
 dependencies = [
  "objc2-encode",
 ]
+
 
 [[package]]
 name = "objc2-app-kit"

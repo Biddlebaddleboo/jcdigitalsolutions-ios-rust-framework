@@ -1,0 +1,12 @@
+[package]
+name = "ios-matter-support-status"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "MatterAddDeviceRequest API support snapshot for iOS"
+build = "build.rs"
+
+[lints]
+workspace = true

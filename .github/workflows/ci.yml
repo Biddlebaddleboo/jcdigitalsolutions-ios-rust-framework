@@ -369,6 +369,24 @@ jobs:
       - name: Check StoreKit 2 purchase-ability status
         if: runner.os == 'macOS'
         run: sh platform/ios/ios-storekit2-status/check.sh
+      - name: Check ActivityKit Live Activity start status
+        if: runner.os == 'macOS'
+        run: sh platform/ios/ios-activitykit-status/check.sh
+      - name: Check MatterSupport request API status
+        if: runner.os == 'macOS'
+        run: sh platform/ios/ios-matter-support-status/check.sh
+      - name: Check Foundation Models default-model status
+        if: runner.os == 'macOS'
+        run: sh platform/ios/ios-foundation-models-status/check.sh
+      - name: Check AdAttributionKit app-impression status
+        if: runner.os == 'macOS'
+        run: sh platform/ios/ios-ad-attribution-status/check.sh
+      - name: Check DockKit system-tracking status
+        if: runner.os == 'macOS'
+        run: sh platform/ios/ios-dockkit-status/check.sh
+      - name: Check WidgetKit timeline reload request
+        if: runner.os == 'macOS'
+        run: sh platform/ios/ios-widgetkit-reload/check.sh
       - name: Check RoomPlan device-support status
         if: runner.os == 'macOS'
         run: sh platform/ios/ios-roomplan/check.sh

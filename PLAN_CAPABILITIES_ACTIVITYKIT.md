@@ -139,7 +139,7 @@ perform any ActivityKit lifecycle operation. No dedicated entitlement or usage-d
 this snapshot is established by the reviewed docs. `true` does not establish that a later
 `Activity.request` succeeds, that a Live Activity is active, or that rendering is configured.
 
-The focused gate `sh platform/ios/ios-activitykit-status/check.sh` passed with Rust 1.94.1:
+The focused gate `sh platform/ios/ios-activitykit-status/check.sh` passed locally with Rust 1.94.1:
 package formatting; host, iOS device, and arm64 Simulator checks; strict Clippy for all three;
 warnings-denied host/device rustdoc; compiler-oracle comparison for metadata, init, getter, and
 release on arm64 device and Simulator; and link/import inspection for ActivityKit and
@@ -150,5 +150,4 @@ ran for B209.
 
 This used Xcode 26.6 build `17F113`, iPhoneOS/iPhoneSimulator SDK 26.5, Swift 6.3.2/6.3.3, Clang
 21.0.0, and Rust 1.94.1. The installed Xcode remains below the repository Xcode 27.x baseline, so
-this does not establish baseline-toolchain behavior. Row 112 remains `X` in the shared aggregate
-until root integrates the scoped partial; full ActivityKit and WidgetKit remain unsupported.
+this does not establish baseline-toolchain behavior. The shared aggregate now marks row 112 `B` only for this start-eligibility snapshot; full ActivityKit and WidgetKit remain unsupported. Its package gate is wired in macOS CI, with no passing workflow run recorded.

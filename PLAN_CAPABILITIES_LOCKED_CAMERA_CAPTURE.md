@@ -89,3 +89,41 @@ No package, dependency, workspace, lock, CI, aggregate plan, docs index, matrix,
 - `/Applications/Xcode.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS.sdk/System/Library/Frameworks/LockedCameraCapture.framework/LockedCameraCapture.tbd`
 - `PLAN_SWIFT_ABI_ASYNC.md`, `PLAN_SWIFT_ABI_ASYNC_RUNTIME.md`
 - `docs/capabilities/capability-status.json`, row `109-extension-entitlement-capabilities-lockedcameracapture`
+
+## B269 follow-up — content URL array is not a supported Rust status value
+
+Rechecked the iOS 18.0 `LockedCameraCaptureManager.sessionContentURLs` candidate against the
+compiler-derived synchronous Swift boundary. The iOS 26.5 public interface declares a synchronous
+`[Foundation.URL]` property on `LockedCameraCaptureManager.shared`; the public Objective-C header
+still has no manager class or property declaration. An ephemeral arm64 iOS 18.0 Swift oracle for
+`LockedCameraCaptureManager.shared.sessionContentURLs.count` lowers to the metadata accessor, an
+owned shared-manager getter, an array-valued property getter, `Foundation.URL` metadata, the generic
+Swift `Array.count` getter, and `swift_bridgeObjectRelease` for the owned array. The count is a
+possible host-content value, not a support or readiness predicate
+
+The repository's implemented `swift-abi-core` owns Swift class references only. Its synchronous
+boundary explicitly excludes Swift `Array` adapters; `PLAN_SWIFT_ABI.md` lists `Array<T>` as a
+future value-adapter phase, not as a production capability currently available to callers. The
+compiler lowering therefore does not make the Swift array pointer a Rust `Vec`, and a new array
+ownership/value adapter would be required to safely reduce, release, or copy this result. No
+array-layout guess or direct `swift_bridgeObjectRelease` binding is added by this audit
+
+Disposition: no B269 Rust slice is implemented. Keep row
+`109-extension-entitlement-capabilities-lockedcameracapture` at `X`. Even a future bounded
+`sessionContentURLs` count would mean only how many captured-content URLs the manager currently
+reports to the containing app; it would require an explicit host that uses LockedCameraCapture and
+must not be labeled framework support, extension registration, user configuration, authorization,
+camera readiness, or session readiness. The existing D95 lifecycle and permission limits remain
+unchanged
+
+Evidence: Xcode 26.6 build `17F113`, iPhoneOS SDK 26.5, local
+`LockedCameraCapture.swiftinterface`, Swift 6.3.3 LLVM IR from temporary oracle input, the public
+`LockedCameraCapture.h`, `interop/swift-abi-core/src/retained.rs`,
+`docs/swift-abi/SYNCHRONOUS_BOUNDARY.md`, and `PLAN_SWIFT_ABI.md`; Apple [LockedCameraCaptureManager](https://developer.apple.com/documentation/lockedcameracapture/lockedcameracapturemanager)
+and [sessionContentURLs](https://developer.apple.com/documentation/lockedcameracapture/lockedcameracapturemanager/sessioncontenturls)
+documentation. The local Xcode 26.6 / iOS SDK 26.5 toolchain remains below the repository's Xcode
+27.x baseline
+
+The only build-like action for B269 was the temporary Swift compiler-emission oracle used to
+inspect LLVM IR. No source or dependency was added; no Rust package build, link probe, test, app
+launch, Simulator or device call, content read, extension lifecycle, or runtime query was performed

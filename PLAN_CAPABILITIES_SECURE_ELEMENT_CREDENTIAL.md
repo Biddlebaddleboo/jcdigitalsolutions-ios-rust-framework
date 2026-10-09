@@ -68,3 +68,44 @@ Consider a later, explicitly platform-exclusive package only after:
 - Read-only binding/source searches found the `objc2` 0.6.5 catalog entry `SecureElementCredential | Swift-only`; no generated local Rust binding or repository Rust/C/Objective-C implementation was found.
 - Apple primary docs confirm `isEligible` semantics, the `startSession()` entitlement and user-consent requirements, ABR setup, current region/device availability, and foreground transaction policy.
 - No tests, builds, link probes, entitlement requests, credential reads, or runtime probes ran.
+
+## B270 follow-up — eligibility remains async, entitlement-scoped Swift only
+
+Rechecked the sole status-like `CredentialSession.isEligible` candidate against the synchronous
+Swift ABI call path used by later scalar slices. The iOS 26.5 public interface declares
+`CredentialSession` as a Swift `actor` and `isEligible` as a static `Bool` property with
+`get async throws`, available from iOS 18.1. The SecureElementCredential framework has no public
+Objective-C header or module map, and the local generated-binding catalog continues to mark it
+Swift-only
+
+An ephemeral arm64 iOS 18.1 Swift compiler oracle for `try await CredentialSession.isEligible`
+does not lower to a synchronous `swiftcall` getter. Its LLVM IR references async getter descriptor
+`$s23SecureElementCredential0C7SessionC10isEligibleSbvgZTu`, allocates Swift task context with
+`swift_task_alloc`, and tail-calls the getter using `swifttailcc` with `swiftasync` and `swiftself`
+state before resuming the throwing continuation. The current Rust synchronous bridge supports no
+Swift task entry/context/resume or async error contract; `swift-abi-core` ownership alone does not
+make this getter callable
+
+This is not a safe unentitled discovery route. Apple's `startSession()` documentation states that
+calls to SecureElementCredential APIs without `com.apple.developer.secure-element-credential` raise
+`fatalError(_:file:line:)`. Apple describes `isEligible` only as preflight for whether the app or
+extension is eligible to start a credential session, not as generic Secure Element, NFC,
+hardware-presence, entitlement, applet, or future transaction readiness. The previously recorded
+foreground, user-consent sheet, ABR onboarding, and territory/device limits remain in force
+
+Disposition: no B270 Rust slice is implemented. Keep row
+`106-extension-entitlement-capabilities-secureelementcredential` at `X` until an eligible NFC & SE
+product accepts the restricted entitlement and a supported Rust/Swift async actor/session/error
+bridge exists. Do not infer Secure Element support from an adjacent CoreNFC or PassKit API
+
+Evidence: Xcode 26.6 build `17F113`, iPhoneOS SDK 26.5,
+`SecureElementCredential.swiftinterface`, framework file list, the local
+`objc2` 0.6.5 generated-framework catalog, Swift 6.3.3 LLVM IR from temporary oracle input,
+`PLAN_SWIFT_ABI_ASYNC_RUNTIME.md`, and Apple's [`CredentialSession.isEligible`](https://developer.apple.com/documentation/secureelementcredential/credentialsession/iseligible)
+and [`CredentialSession.startSession()`](https://developer.apple.com/documentation/secureelementcredential/credentialsession/startsession%28%29)
+documentation. The local Xcode 26.6 / iOS SDK 26.5 toolchain remains below the repository's Xcode
+27.x baseline
+
+The only build-like action for B270 was temporary Swift compiler emission to inspect LLVM IR. No
+source, dependency, Rust package build, link probe, test, entitlement request, app launch,
+Simulator or device call, credential access, session, user prompt, or runtime query was performed

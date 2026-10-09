@@ -1,8 +1,8 @@
 # PLAN_CAPABILITIES_AD_ATTRIBUTION.md — Workstream D74: Row 089 Feasibility Gate
 
-## Result
+## D74/B185 feasibility result (historical)
 
-Keep capability row `089-commerce-services-adattributionkit-adservices-as-applicable` at `X`. Apple exposes a small, nonprompting support query, `AppImpression.isSupported`, with an iOS 18.0 API floor. Its sole public declaration is Swift; the installed SDK has no C or Objective-C declaration, and the generated Rust bindings have no AdAttributionKit crate. This project bars Swift source and direct Swift ABI calls, so no Rust-callable slice exists under the current rules.
+The original audit found capability row `089-commerce-services-adattributionkit-adservices-as-applicable` had no Rust-callable path under the no-Swift rule. B239 supersedes that result only for `AppImpression.isSupported`: a compiler-derived weak `swiftcall` thunk now exposes its iOS 18.0 app-impression support Boolean. Row 089 is partial (`B`) for that operation only; the rest of this plan still excludes postback, network token, attribution lifecycle, and general framework readiness.
 
 `Postback.isSupported` is another Swift-only Boolean at iOS 18.0, but it reports support for postbacks only. Neither property reports ad-network registration, attribution service reachability, campaign eligibility, postback delivery, or general AdAttributionKit readiness.
 
@@ -84,9 +84,9 @@ the server cannot provide a token without unimpeded internet access. Treating th
 operation as a support query would both change the data/network contract and conflate platform
 support with token generation success.
 
-No Rust-callable narrow surface is justified under the current no-Swift rule. B185 makes no code,
-binding, dependency, manifest, or row-status change; row
-`089-commerce-services-adattributionkit-adservices-as-applicable` remains `X`. This audit used
+B185 made no code or row-status change at the time of its audit. B239 later added a narrow weak-import
+`swiftcall` bridge for `AppImpression.isSupported`; row
+`089-commerce-services-adattributionkit-adservices-as-applicable` is partial (`B`) for that Boolean only. This audit used
 Xcode 26.6 build `17F113` and iPhoneOS SDK 26.5; the Xcode 27.x baseline caveat is unchanged.
 
 Primary API evidence: [AppImpression.isSupported](https://developer.apple.com/documentation/adattributionkit/appimpression/issupported),
@@ -97,3 +97,35 @@ and [AAAttribution NetworkError](https://developer.apple.com/documentation/adser
 
 No tests, builds, token requests, network calls, app launches, or runtime/device probes were
 performed for B185
+
+## B239 implementation: app-impression support only
+
+B239 adds `ios-ad-attribution-status::app_impression_is_supported()` as a Rust-callable snapshot
+of `AppImpression.isSupported`. Apple defines the Boolean as whether AdAttributionKit supports app
+impressions on the current device. The API floor is iOS 18.0; the `AppImpression` type and framework
+begin at iOS 17.4
+
+The implementation uses one compiler-derived C `swiftcall` thunk and an exact weak import. The
+Swift property is static and returns `Bool`; it has no object ownership, async ABI, selector, Swift
+source, or external Rust dependency. Older iOS releases without the property return
+`AdAttributionError::NativeApiUnavailable`
+
+This operation creates no impression, validates no JWS, records no view or tap, generates no
+AdServices token, and makes no network request. It does not report postback support, ad-network
+registration, campaign eligibility, consent, entitlement, attribution delivery, or general
+AdAttributionKit readiness. `Postback.isSupported` remains a distinct API and is not folded into
+this result
+
+The compiler oracle confirms a direct `swiftcc i1` getter on arm64 iOS and Simulator. The C object
+contains an undefined weak external import for
+`_$s16AdAttributionKit13AppImpressionV11isSupportedSbvgZ`. Static framework link/import gates pass
+for arm64 iOS and Simulator with min iOS 17.4; linked libraries were not executed. Xcode 26.6 /
+iOS 26.5 remains below the repository's Xcode 27.x baseline
+
+The focused B239 gate runs format, host/device/Simulator `cargo check`, strict Clippy, rustdoc,
+`docs-check`, compiler ABI checks, and static framework link/import checks. It runs no tests,
+app, token request, network call, or runtime/device query
+
+Changed paths: `platform/ios/ios-ad-attribution-status/`,
+`docs/ios/ad-attribution-status.md`, and this focused plan only. Root aggregate plans and capability
+matrix remain unchanged

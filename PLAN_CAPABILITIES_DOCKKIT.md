@@ -6,9 +6,7 @@ Audit row `097-maps-ar-spatial-dockkit` for a small, honest Rust-accessible Dock
 
 ## Status
 
-The installed public API has two potentially useful state surfaces, but no direct Rust binding: `DockAccessoryManager.isSystemTrackingEnabled` is a synchronous setting value, and `DockAccessoryManager.accessoryStateChanges` is an asynchronous sequence of dock/undock events. `DockKit` is Swift-only in the installed generated-binding inventory, and no generated DockKit crate is cached or present in `Cargo.lock`
-
-Keep row 097 at `X` until a supported Swift ABI or C boundary exists and a concrete subset is implemented. The sync Boolean can be a separate narrow candidate if its exact semantics are acceptable; it does not prove a dock is connected, tracking is active, camera access is granted, or the device can operate a compatible accessory. The event sequence carries real accessory state but requires an async lifecycle bridge and cannot be assumed to provide an initial snapshot
+The installed public API has two potentially useful state surfaces: `DockAccessoryManager.isSystemTrackingEnabled` is a synchronous setting value, and `DockAccessoryManager.accessoryStateChanges` is an asynchronous sequence of dock/undock events. `DockKit` is Swift-only in the installed generated-binding inventory. B245 now implements the synchronous setting snapshot on physical iOS through compiler-derived `swiftcall`; the Simulator backend returns `NativeApiUnavailable`. It does not prove a dock is connected, tracking is active, camera access is granted, or the device can operate a compatible accessory. The event sequence still requires an async lifecycle bridge and cannot be assumed to provide an initial snapshot
 
 ## SDK and Rust binding evidence
 
@@ -51,9 +49,9 @@ This stream can support an honest event API after a Rust/Swift async bridge exis
 
 ## Recommendation
 
-No safe direct Rust DockKit slice is available from the installed public Rust bindings. Keep row 097 at `X`; do not infer DockKit support from iOS version, framework presence, camera authorization, or `isSystemTrackingEnabled`
+No safe direct Rust DockKit slice is available from the installed public Rust bindings. B245 makes row 097 partial (`B`) for the physical-device system-tracking setting only; do not infer DockKit support from iOS version, framework presence, camera authorization, or `isSystemTrackingEnabled`
 
-If a separate approved Swift ABI task establishes a synchronous, ownership-safe path, `system_tracking_enabled()` may be considered as a deliberately limited scalar with the semantics above. If the desired value is actual dock presence, the candidate is `accessoryStateChanges`, which requires a supported async stream bridge and an explicit task/handle lifecycle contract. Neither candidate is implemented by this audit
+B245 implements the deliberately limited scalar `system_tracking_enabled()` with the semantics above. Actual dock presence remains a separate question; `accessoryStateChanges` requires a supported async stream bridge and an explicit task/handle lifecycle contract. Neither candidate is implemented by this audit
 
 ## Apple primary sources
 
@@ -98,3 +96,34 @@ and [DockKit](https://developer.apple.com/documentation/dockkit)
 
 No tests, builds, sequence iteration, state changes, camera access, accessory operations, app
 launches, Simulator or device calls, or runtime probes were performed for B197
+
+## B245 implementation: system-tracking setting only
+
+B245 adds `ios-dockkit-status::system_tracking_enabled()` on physical iOS devices. Its sole result
+is `DockAccessoryManager.shared.isSystemTrackingEnabled`: whether the system-tracking setting is
+enabled. It does not report DockKit device support, dock presence, active subject tracking, camera
+authorization, connected accessories, or operation success. It does not call the async setter or
+observe the accessory event sequence
+
+The public API is Swift-only. Compiler IR confirms metadata accessor → owned shared manager getter
+→ synchronous Bool property getter → `swift_release` on arm64 iOS. The device bridge uses exact
+weak-import `swiftcall` declarations and `swift-abi-core/apple-runtime`; it adds no Swift source,
+Objective-C selector, or generated binding. No `@MainActor` annotation appears in the public
+interface; this package claims no main-thread or queue guarantee
+
+The installed iOS Simulator 26.5 SDK has no `DockKit.framework` or Swift module. The package
+therefore compiles with a Simulator backend that returns `DockKitError::NativeApiUnavailable`; it
+does not infer device state from Simulator. Device compiler-oracle and static link/import checks
+pass at min iOS 17.0; no linked library was executed. The local toolchain remains Xcode 26.6 / iOS
+26.5, below the repository's Xcode 27.x baseline
+
+Capability-row impact: row `097-maps-ar-spatial-dockkit` is partial (`B`) for
+this system-tracking setting snapshot only. The `B` claim excludes dock/undock events, accessory
+identity, camera integration, control, and full DockKit parity. Root owns any aggregate matrix edit
+
+The focused B245 gate runs format, host/device/Simulator `cargo check`, strict Clippy, rustdoc,
+`docs-check`, device Swift/C compiler-oracle checks, and static DockKit link/import checks. It runs
+no tests, app, accessory, camera, state change, or runtime query
+
+Changed paths: `platform/ios/ios-dockkit-status/`, `docs/ios/dockkit-status.md`, and this focused
+plan only. Root aggregate plans and capability manifest now record row 097 as partial (`B`)

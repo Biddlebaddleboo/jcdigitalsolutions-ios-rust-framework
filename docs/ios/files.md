@@ -71,6 +71,56 @@ another handle changes or replaces the file. It is iOS-only and does not change 
 `framework-files` contract, follow arbitrary URLs, start a security scope, or prove stronger
 containment under concurrent parent-directory rename. See the [B90 plan](../../PLAN_IOS_FILE_SIZE.md).
 
+`IosFiles::regular_file_total_fork_size_snapshot` returns XNU's logical byte count across all
+forks of one regular file. It opens the validated `AppPath` with no-follow descriptor traversal and
+queries `ATTR_FILE_TOTALSIZE` through `fgetattrlist` on that file descriptor. This total can differ
+from the data-fork length returned by `regular_file_size`; it is not a `FileBackend::read` buffer
+size and does not expose or read resource-fork contents. Filesystem support can vary, and the value
+is a point-in-time snapshot. The query reads no contents, accepts no arbitrary URL, starts no
+security scope, and does not change portable file behavior. Apple lists `fgetattrlist` in the File
+Timestamp required-reason API category, so the host must declare an applicable approved reason in
+`PrivacyInfo.xcprivacy` for actual use. See the [B242 plan](../../PLAN_IOS_FILE_TOTAL_FORK_SIZE.md).
+
+`IosFiles::regular_file_data_fork_allocated_size_snapshot` returns the filesystem-reported bytes
+allocated to the data fork only, using `ATTR_FILE_DATAALLOCSIZE` through `fgetattrlist` on an opened
+regular-file descriptor. It excludes resource-fork allocation and is not a guarantee of exclusive
+physical-device storage. This is distinct from B109's raw `st_blocks` count in 512-byte units; the
+API does not assert that the two values have a fixed conversion. The query reads no file contents,
+accepts no arbitrary URL, starts no security scope, and does not change portable file behavior.
+Apple lists `fgetattrlist` in the File Timestamp required-reason API category, so the host must
+declare an applicable approved reason in `PrivacyInfo.xcprivacy` for actual use. See the
+[B244 plan](../../PLAN_IOS_FILE_DATA_FORK_ALLOCATED_SIZE.md).
+
+`IosFiles::regular_file_resource_fork_allocated_size_snapshot` returns the filesystem-reported
+bytes allocated to the resource fork only, using `ATTR_FILE_RSRCALLOCSIZE` through `fgetattrlist`
+on an opened regular-file descriptor. It excludes data-fork allocation and does not read, enumerate,
+or grant access to resource-fork contents. A zero value is only the reported size and does not
+establish that a resource fork is absent. Filesystem support can vary, and the value is a
+point-in-time snapshot. This iOS-only query does not change portable file behavior. Apple lists
+`fgetattrlist` in the File Timestamp required-reason API category, so the host must declare an
+applicable approved reason in `PrivacyInfo.xcprivacy` for actual use. See the
+[B248 plan](../../PLAN_IOS_FILE_RESOURCE_FORK_ALLOCATED_SIZE.md).
+
+`IosFiles::regular_file_resource_fork_size_snapshot` returns the filesystem-reported logical byte
+length for the resource fork only, using `ATTR_FILE_RSRCLENGTH` through `fgetattrlist` on an opened
+regular-file descriptor. It does not enumerate or read fork contents; zero is the reported length
+and does not prove that a resource fork is absent. Filesystem support can vary, and the value is a
+point-in-time snapshot. The iOS-only query does not change portable file behavior. Apple lists
+`fgetattrlist` in the File Timestamp required-reason API category, so the host must declare an
+applicable approved reason in `PrivacyInfo.xcprivacy` for actual use. See the
+[B251 plan](../../PLAN_IOS_FILE_RESOURCE_FORK_SIZE.md).
+
+`IosFiles::regular_file_document_id_snapshot` returns `IosFileDocumentIdSnapshot`; its
+`document_id()` accessor maps XNU's invalid zero value to `None` and returns nonzero IDs as
+`Some(u32)`. The query uses `ATTR_CMN_DOCUMENT_ID` with `FSOPT_ATTR_CMN_EXTENDED` through
+`fgetattrlist` on an opened regular-file descriptor. XNU describes this ID as a kernel-assigned
+document value that tracks data across moves and stays sticky to its assigned path across safe
+saves. The API makes no inode, content-hash, clone-ID, link-ID, cross-volume, or durable-identity
+guarantee; filesystem support can vary. A filesystem that omits the requested value yields
+`Unsupported`. This iOS-only query reads no content, accepts no arbitrary URL, starts no security
+scope, and does not change portable file behavior. The host must declare an applicable approved
+File Timestamp reason in `PrivacyInfo.xcprivacy` for actual use. See the [B266 plan](../../PLAN_IOS_FILE_DOCUMENT_ID.md).
+
 `IosFiles::regular_file_allocated_blocks_512` returns the filesystem-reported `st_blocks` count
 in 512-byte units for one regular file. This differs from logical file size; sparse files may
 report fewer allocated blocks than their logical size implies. It is not a promise of exact
@@ -196,6 +246,14 @@ between `readdir` and its kind lookup; in that case the query may return the map
 rather than partial counts. Concurrent namespace mutation also means the result is not an atomic
 snapshot or delete guard. The method adds no portable `FileBackend` operation, file-content
 access, URL support, or security-scope access. See the [B134 plan](../../PLAN_IOS_DIRECTORY_KIND_COUNTS.md).
+
+`IosFiles::directory_allocated_size_snapshot(path)` returns the filesystem's point-in-time on-disk
+allocation for the directory object itself. It does not sum child files or descendant directories,
+and it is not an app quota, reservation, or performance signal. The query uses the no-follow opened
+directory descriptor and returns `Unsupported` when the filesystem does not provide
+`ATTR_DIR_ALLOCSIZE`. As with other `fgetattrlist` calls, host use requires an applicable approved
+File Timestamp reason in `PrivacyInfo.xcprivacy`. See the
+[B235 plan](../../PLAN_IOS_DIRECTORY_ALLOCATED_SIZE.md).
 
 ## Volume available capacity
 
