@@ -15,7 +15,7 @@ int main(void) {
     const uint64_t version = framework_abi_version();
     const uint32_t major = (uint32_t)(version >> 32);
     const uint32_t minor = (uint32_t)version;
-    if (major != 1 || minor != 0) {
+    if (major != 1 || minor != 1) {
         fprintf(stderr, "unsupported framework ABI: %" PRIu32 ".%" PRIu32 "\n", major, minor);
         return 1;
     }
@@ -26,7 +26,9 @@ int main(void) {
         .reserved = 0,
         .future_field = 0
     };
-    if (future_options.struct_size < sizeof(FrameworkOptionsV1) || future_options.abi_version != major) {
+    const FrameworkStatus options_status = framework_options_v1_validate(
+        (const FrameworkOptionsV1 *)(const void *)&future_options);
+    if (options_status != FRAMEWORK_STATUS_OK) {
         fprintf(stderr, "invalid future-sized options header\n");
         return 2;
     }

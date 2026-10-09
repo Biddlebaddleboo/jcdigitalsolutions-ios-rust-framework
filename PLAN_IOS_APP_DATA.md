@@ -50,6 +50,15 @@ B17 file coordination; it synchronously adopts only the URLSession callback temp
 `AppPath`. Its copy, commit, and inherited directory-rename limits are recorded in
 `PLAN_IOS_FILE_ADOPTION.md`.
 
+The B83 app-data follow-up `IosResolvedBookmark::resolve_unscoped` maps caller-owned, non-security-scoped
+Foundation bookmark data to a file URL and stale bit. The method is unsafe because its input scope
+cannot be verified; `NSURLBookmarkResolutionWithoutImplicitStartAccessing` does not govern
+security-scoped bookmark data. It needs iOS 14.2 and does not create bookmarks, prompt, grant access,
+coordinate I/O, or extend sandbox containment. See
+[`PLAN_IOS_BOOKMARK_RESOLUTION.md`](PLAN_IOS_BOOKMARK_RESOLUTION.md). B83 is distinct from B82,
+which adds only a registered-domain count for the calling app's own FileProvider extension; see the
+[B82 FileProvider count plan](PLAN_IOS_FILEPROVIDER_DOMAIN_COUNT.md).
+
 ## Objective
 
 Implement the iOS backends for the D1 `framework-files` and `framework-preferences` contracts using public iOS filesystem/Foundation APIs. Keep the portable crates `no_std`; platform code may use the platform runtime but must not change portable semantics.

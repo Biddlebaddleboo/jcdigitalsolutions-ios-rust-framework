@@ -38,7 +38,7 @@ signed app needs `com.apple.developer.game-center`. Neither adds capability-row 
 
 F1–F33 source, public headers, and named validation paths are present in the current tree; `bindings/c/abi-manifest.json` records the core and capability C exports. Their plan records state:
 
-- F1: `sh bindings/c/check.sh` passed ABI layout and symbol checks, linked the minimal C consumer, and ran it; the consumer printed `framework ABI 1.0`
+- F1: The ABI 1.0 baseline `sh bindings/c/check.sh` passed layout and symbol checks, linked the minimal C consumer, and printed `framework ABI 1.0`. A follow-up adds `framework_options_v1_validate` and updates the current ABI to 1.1; non-test format/build/symbol and C11/C++17 syntax checks passed, while no consumer or Rust test was run for the 1.1 change. The validator accepts `struct_size >= 16` only for major 1, requires reserved zero, and ignores flags and trailing bytes
 - F2: `sh bindings/c/check-secure-storage.sh` passed, including 10 package tests (eight secure-storage-specific), C11/C++17 header compilation, the host unsupported-stub run, and arm64 iOS device/simulator Clippy, archive, and C-probe link/import checks; the linked iOS probes did not run
 - F3: `sh bindings/cpp/check.sh` passed formatting and compiled, linked, and ran `consumer.cpp` and
   `owner-consumer.cpp` against the real C API archive. The real-archive owner consumer proves
@@ -109,7 +109,7 @@ executed, and neither adds capability-row coverage. See `PLAN_BINDINGS_F32.md` a
 ## Open limits
 
 - Future async C scopes must define their own handle or durable ID, acceptance point, result path, cancel effect, destroy/drop rule, callback lifetime, thread, and error map; F8 does not require a cross-capability handle shape or executor
-- Larger same-major record compatibility is not proven: `FrameworkOptionsV1` has a measured layout but no exported C API takes it, while F5 `FrameworkTransferRequestV1` and F7 request/anchor inputs require exact V1 sizes. A later API that takes an extensible record must state if a larger size is valid and check `struct_size` and `abi_version` before field reads
+- `framework_options_v1_validate` accepts `FrameworkOptionsV1` records with `struct_size >= 16` for ABI major 1, checks `reserved == 0`, and ignores flags/trailing bytes. This guarantee applies only to the validator; F5 `FrameworkTransferRequestV1` and F7 request/anchor inputs still require exact V1 sizes, and every later record-consuming API must define its own supported prefix and validate it before later field reads
 - F2, F4–F7, F9–F16 ownership semantics were manually reconciled against source, headers, guides, and contracts; their automated checks validate ownership-record shape/presence and selected fields, not every prose semantic, so future ownership edits require another manual comparison
 - C and C++ probes establish link shape only; they do not prove live Keychain, URLSession, pasteboard, privacy UI, notification response delivery, or share recipient behavior
 - F9 link probes validate import shape and deployment metadata only; they do not prove live defaults access, consuming-app privacy-manifest compliance, cross-process visibility, persistence flush, or crash durability

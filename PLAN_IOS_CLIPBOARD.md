@@ -11,6 +11,14 @@ all pasteboard items. `availability()` is `Unknown`: UIKit exposes no query for 
 programmatic-read usability or approval, and `Unknown` does not mean `RequiresPermission`. The B6
 backend has no callback, queue, executor, or worker-thread path.
 
+The B84 addition `IosClipboardBackend::has_plain_text()` is a synchronous, caller-invoked presence
+snapshot. It reads only `UIPasteboard.hasStrings`, does not load string content, returns a bool
+rather than an item count, and does not change the portable D5 contract or the `Availability`
+meaning. Apple lists `hasStrings` among type-checking APIs that avoid user notifications and alerts
+when the system has not established user intent; this does not authorize or guarantee a subsequent
+content read. The installed iOS SDK marks this selector available from iOS 10.0, matching B6's
+existing minimum API floor. No new tests or runtime checks were run for this addition.
+
 Deterministic host tests passed with
 `cargo test --locked --offline -p ios-sharing --no-default-features --features clipboard` (four
 clipboard tests). The full crate tests passed with `cargo test --locked --offline -p ios-sharing`
@@ -59,7 +67,8 @@ no passing workflow run is recorded.
 The package default feature set also includes the separate B7 `share` backend; both the B6 gate and
 F6 C ABI gate disable default features and select `clipboard`. No live pasteboard action, privacy
 prompt, or user-facing clipboard behavior was tested. G113 records this compile/link/import gate;
-the probes were not executed. No commit was created, per task scope.
+the probes were not executed. The B6 executor made no standalone commit per task scope; its source,
+guide, and gate are integrated in checkpoint `07cd525`.
 
 ## Objective
 

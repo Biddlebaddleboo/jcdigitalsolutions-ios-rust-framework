@@ -1,0 +1,16 @@
+[package]
+name = "ios-family-controls-status"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "Family Controls authorization status snapshot for iOS"
+build = "build.rs"
+
+[[example]]
+name = "family_controls_status_link_probe"
+path = "examples/family_controls_status_link_probe.rs"
+
+[lints]
+workspace = true

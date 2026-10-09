@@ -22,11 +22,16 @@ once on drop; the last balanced stop immediately revokes access. Do not `mem::fo
 If a process aborts, Rust destructors do not run.
 
 The input must already be a security-scoped URL, for example one returned from a document picker or
-security-scoped bookmark resolution. A path or URL string does not carry that scope. This API cannot
-verify the URL's provenance, prompt for access, resolve bookmarks, or guarantee that a later file
-operation succeeds. It performs no file I/O, does not add `IosFiles` sandbox-root containment, and
-does not provide FileProvider lifecycle support. The existing `ios-files` crate floor remains iOS
-10.0; Foundation declares these two methods from iOS 8.0.
+another API that provides a scope. A path, URL string, or plain bookmark result does not carry that
+scope. This guard cannot verify the URL's provenance, prompt for access, or guarantee that a later
+file operation succeeds. The separate unsafe
+[`IosResolvedBookmark::resolve_unscoped` helper](bookmark-resolution.md) handles
+non-security-scoped bookmark data only; it cannot inspect the input scope or resolve
+security-scoped bookmark data safely. This guard performs no file I/O, does not add `IosFiles`
+sandbox-root containment, and does not provide
+FileProvider lifecycle support. The existing `ios-files` crate floor remains iOS 10.0; Foundation
+declares the start/stop methods from iOS 8.0, while bookmark resolution needs iOS 14.2 for the
+no-implicit-start option.
 
 See [the focused implementation plan](../../PLAN_IOS_SECURITY_SCOPED_ACCESS.md),
 [file coordination](file-coordination.md), and [sandbox files](files.md).

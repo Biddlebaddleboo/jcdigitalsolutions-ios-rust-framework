@@ -70,4 +70,15 @@ is used. A future parity record must follow the artifact requirements in
 [`PLAN_VALIDATION_IOS_NETWORK.md`](../../PLAN_VALIDATION_IOS_NETWORK.md); compile and link results do
 not substitute for an Apple runtime reference.
 
+## Separate iOS network facilities
+
+- [`ios-transfer`](transfer.md) owns durable background GET-to-file transfers; it does not extend
+  this foreground `HttpBackend` contract.
+- [`ios-connectivity`](connectivity.md) returns an informational path snapshot, not endpoint
+  reachability or a request preflight.
+- [`ios-connection`](connection.md) provides outbound TLS-over-TCP bytes, not HTTP, listeners, or
+  UDP.
+- [`ios-safari`](safari.md) constructs a host-presented SafariServices controller for HTTPS; the
+  host owns presentation and browser lifecycle.
+
 References: [URLSession completion handler and delegate queue](https://developer.apple.com/documentation/foundation/urlsession/datatask%28with%3Acompletionhandler%3A%29-e6xv), [URLSession invalidation lifecycle](https://developer.apple.com/documentation/foundation/urlsession/finishtasksandinvalidate%28%29?language=objc), [NSURLRequest reserved headers](https://developer.apple.com/documentation/foundation/nsurlrequest), [NSMutableURLRequest duplicate header behavior](https://developer.apple.com/documentation/foundation/nsmutableurlrequest/addvalue%28_%3Aforhttpheaderfield%3A), [NSHTTPURLResponse headers](https://developer.apple.com/documentation/foundation/httpurlresponse/allheaderfields), [default session configuration](https://developer.apple.com/documentation/foundation/urlsessionconfiguration/default), [App Transport Security](https://developer.apple.com/documentation/bundleresources/information-property-list/nsapptransportsecurity), and [local network privacy](https://developer.apple.com/documentation/technotes/tn3179-understanding-local-network-privacy).

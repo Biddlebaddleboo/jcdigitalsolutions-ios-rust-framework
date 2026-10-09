@@ -10,6 +10,9 @@ B4 now also exposes `IosNotificationsBackend::pending_request_count`, an iOS-onl
 app's `u64` local-request count at native callback time. It claims no authorization, delivery, or
 readiness; the count may change after the native snapshot and has no ID or content
 
+Row 031's canonical support reason now includes the iOS-only local-request count snapshot; the
+portable D3 contract stays unchanged
+
 The pending-count follow-up passed root device and Simulator checks, strict all-target Clippy,
 rustdoc, and the Release link/import gate. The compile-only example selects the new method, but no
 tests, pending-request callback, or linked probe executable ran

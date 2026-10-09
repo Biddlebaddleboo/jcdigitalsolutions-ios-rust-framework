@@ -1,4 +1,4 @@
-# iOS File Provider domain-presence query
+# iOS File Provider registered-domain snapshots
 
 `ios-file-provider` wraps the iOS 11.0+ Objective-C class method `NSFileProviderManager.getDomainsWithCompletionHandler`. Apple permits this manager query from the main app that contains the File Provider extension. It returns the domains registered for that app's own provider, not other installed providers
 
@@ -14,6 +14,12 @@ async fn query() -> Result<bool, ios_file_provider::FileProviderQueryError> {
 The function starts the native query at call time and returns a one-shot `Future`. The future stores its own completion state and the executor `Waker` supplied during `poll`; there is no process-global registry or crate-owned executor, but the caller must poll the future using an executor. The framework callback queue is unspecified, so callers must not assume main-thread delivery. A caller that needs UIKit work must marshal it to its own main-thread executor
 
 `RegisteredDomainPresence` reports only whether the returned domain array is non-empty. `FileProviderQueryError::Native` preserves `NSError.domain` and `NSError.code` as owned Rust data; it does not flatten an OS error to `false`. No localized description or `userInfo` dictionary is copied
+
+Call `request_registered_domain_count()` when the caller needs the exact number rather than a
+Boolean. Its `RegisteredDomainCount::count()` is a `u64` copied from the callback array length. Each
+presence or count function call starts its own asynchronous request; neither result contains domain
+identifiers, display names, account/location names, URLs, or provider objects. See the focused
+[B82 domain-count plan](../../PLAN_IOS_FILEPROVIDER_DOMAIN_COUNT.md)
 
 If the future is dropped before callback completion, Rust interest and its `Waker` are released. The native query is not cancelled; the callback keeps only per-request Rust completion state until it returns. No FileProvider object or domain identifier escapes the callback
 

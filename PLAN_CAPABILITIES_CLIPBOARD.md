@@ -12,6 +12,11 @@ suppression. Validation passes:
 `cargo doc --locked --offline -p framework-sharing --no-deps --no-default-features`, and
 `git diff --check`.
 
+B84 adds iOS-only `IosClipboardBackend::has_plain_text()` as a caller-invoked, main-thread
+`UIPasteboard.hasStrings` snapshot. It neither reads text nor changes D5 availability or privacy
+semantics. The focused source-format and diff checks passed; no build, probe, or live pasteboard
+query ran. See `PLAN_IOS_CLIPBOARD.md`.
+
 ## Objective
 
 Add a small platform-agnostic Rust contract for plain-text clipboard read, write, and clear operations. This is one capability slice in `framework-sharing`; it does not implement native iOS access or share-sheet presentation.

@@ -12,9 +12,9 @@ The package and source are implemented in `platform/ios/ios-file-provider`; the 
 
 The only native operation is `+[NSFileProviderManager getDomainsWithCompletionHandler:]`, available from iOS 11.0 through the public Objective-C FileProvider framework. It is callable from the main app that contains the provider extension and reports that extension's registered domains
 
-The Rust API is `request_registered_domain_presence() -> RegisteredDomainPresenceFuture`. The request starts at function call time. The result is a single `RegisteredDomainPresence` Boolean snapshot. `FileProviderQueryError::Native` preserves the native `NSError` domain and `NSInteger` code as owned Rust values; API-floor and non-iOS cases use distinct errors
+The original B75 API is `request_registered_domain_presence() -> RegisteredDomainPresenceFuture`. The request starts at function call time and returns one Boolean snapshot. B82 adds `request_registered_domain_count() -> RegisteredDomainCountFuture`, which returns the same callback array length as a fixed-width `u64` and exposes no domain IDs or metadata. `FileProviderQueryError::Native` preserves the native `NSError` domain and `NSInteger` code as owned Rust values; API-floor and non-iOS cases use distinct errors
 
-The future has per-request `Arc<Completion>` state protected by a mutex. It holds the caller's `Waker` only until completion or drop. Its native callback captures only this per-request state, copies array presence and error domain/code during the callback, and returns no Objective-C object across threads. The callback may arrive on an unspecified queue. No main-thread context, global registry, crate-owned executor, or native object handle is required; the caller must poll the returned future through its executor
+Both futures use per-request `Arc<Completion>` state protected by a mutex. It holds the caller's `Waker` only until completion or drop. The native callback captures only this per-request state, copies the array count and error domain/code during the callback, and returns no Objective-C object across threads. The B75 API derives presence from the copied count; B82 returns the count. The callback may arrive on an unspecified queue. No main-thread context, global registry, crate-owned executor, or native object handle is required; the caller must poll the returned future through its executor
 
 Dropping the future detaches Rust interest and releases the stored waker/result; the native query is not cancelled. The callback state remains alive until the callback returns. The future reports `Pending` after its first `Ready`, and callback completion is one-shot
 
@@ -25,7 +25,7 @@ Dropping the future detaches Rust interest and releases the stored waker/result;
 - Enumerating File Provider extensions from other apps or all system providers
 - Document picker or browser UI, URL translation, file access, security-scoped resources, or file coordination
 - Domain creation/removal, provider extension implementation, remote storage, synchronization, item enumeration, or file contents
-- Any claim that a domain presence snapshot predicts later file access or service success
+- Any claim that a presence or count snapshot predicts later file access or service success
 
 ## API, binding, and host facts
 
@@ -55,4 +55,4 @@ G78 uses compile, strict Clippy, rustdoc, static-surface, zero-Swift, and link/i
 
 ## Audit record
 
-Source scope is limited to the manager query, per-request Rust completion state, and owned Boolean/error data. The package is locked and the G78 compile, Clippy, rustdoc, and link/import gates pass. The link probes were built and inspected, never executed. No tests, provider requests, or runtime probes were run
+The B75 Boolean API remains intact; additive B82 scope is documented in [the count plan](PLAN_IOS_FILEPROVIDER_DOMAIN_COUNT.md). Source scope is limited to the manager query, per-request Rust completion state, and owned count/error data. The package is locked and the G78 compile, Clippy, rustdoc, and link/import gates pass. The link probes were built and inspected, never executed. No tests, provider requests, or runtime probes were run

@@ -130,7 +130,7 @@ Implement the following native/system backends, capability-scoped so linking one
 - URLSession foreground;
 - URLSession background file downloads implemented as B13 after D10 and B14; they remain separate from B3;
 - SystemConfiguration only for still-supported semantics;
-- B33 covers one platform-exclusive `WKWebView` view/navigation slice. It does not claim browser parity or include a JavaScript bridge; Safari in-app UI remains separate and needs verified generated `SFSafariViewController` bindings. B11 covers only the external UIKit URL-handler request.
+- B33 covers one platform-exclusive `WKWebView` view/navigation slice. It does not claim browser parity or include a JavaScript bridge; B64 separately provides one host-presented `SFSafariViewController` constructor for HTTPS. B11 covers only the external UIKit URL-handler request.
 - D19/B24 now scopes only outbound TLS-over-TCP byte streams through public Network.framework C APIs, separately from D1/B3 URLSession HTTP and D15/B18 informational NWPathMonitor status. It does not include listeners, UDP, Bonjour, or endpoint preflight; those remain unplanned without a bounded consumer need.
 
 ### Notifications/background

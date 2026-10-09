@@ -11,7 +11,10 @@ change the crate's iOS 10.0 package floor.
 
 ## Contract
 
-- Accept only a file `NSURL`; do not resolve a bookmark, invoke a picker, or manufacture scope.
+- Accept only a file `NSURL`; do not invoke a picker or manufacture scope. The separate unsafe
+  `IosResolvedBookmark::resolve_unscoped` method resolves non-security-scoped bookmark data only;
+  it cannot inspect the input scope, and does not start scope; see
+  `PLAN_IOS_BOOKMARK_RESOLUTION.md`.
 - Return a guard only when Foundation's start method returns `true`. A `false` result is reported as
   `SecurityScopeStartError::StartRejected`, with no matching stop call.
 - Borrow the same `NSURL` for the guard lifetime. The guard is `!Send` and `!Sync`, and its `Drop`
@@ -22,11 +25,12 @@ change the crate's iOS 10.0 package floor.
 - The guard performs no file I/O and does not provide URL coordination. External document reads and
   writes still require the relevant file-coordination and FileProvider lifecycle behavior, which
   this crate does not implement.
-- A URL string or path does not preserve security scope. The caller must obtain a valid scoped URL,
-  such as from a document-picker flow or security-scoped bookmark resolution. This API cannot
-  verify that provenance, provider availability, or later read/write success.
+- A URL string or path does not preserve security scope. The caller must obtain a valid scoped URL
+  from an API that provides one, such as the document picker. A plain bookmark resolution may
+  return a URL without a scope. This guard cannot verify provenance, provider availability, or later
+  read/write success.
 - The guard itself adds no prompt, Info.plist usage key, entitlement, global state, runtime, or
-  executor. User selection or bookmark resolution remains outside this crate.
+  executor. User selection and bookmark creation remain outside this crate.
 
 ## API and availability evidence
 

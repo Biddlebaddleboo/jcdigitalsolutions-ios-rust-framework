@@ -1,0 +1,16 @@
+[package]
+name = "ios-app-scenes"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "Point-in-time UIKit scene activity snapshot for iOS apps"
+
+[target.'cfg(target_os = "ios")'.dependencies]
+ios-runtime = { path = "../ios-runtime" }
+objc2-foundation = { workspace = true, features = ["NSArray", "NSEnumerator"] }
+objc2-ui-kit = { workspace = true, features = ["std", "UIApplication", "UIScene", "UISceneDefinitions", "UIResponder"] }
+
+[lints]
+workspace = true

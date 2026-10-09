@@ -58,6 +58,19 @@ typedef struct FrameworkOptionsV1 {
 /* Major occupies bits 63..32; minor occupies bits 31..0. */
 uint64_t framework_abi_version(void);
 
+/*
+ * Validates the V1 options prefix. `options` may be NULL, which returns
+ * FRAMEWORK_STATUS_INVALID_ARGUMENT without a read. Otherwise it must point to
+ * valid, properly aligned, fully initialized readable FrameworkOptionsV1
+ * storage for the full synchronous call. A size below sizeof(FrameworkOptionsV1)
+ * or nonzero `reserved` returns FRAMEWORK_STATUS_INVALID_ARGUMENT. An `abi_version` other
+ * than the major in framework_abi_version() returns FRAMEWORK_STATUS_UNSUPPORTED.
+ * Same-major records of at least the V1 size are accepted. `flags` and any
+ * trailing bytes are ignored. The pointer is not retained; callers must prevent
+ * unsynchronized mutation during the call.
+ */
+FrameworkStatus framework_options_v1_validate(const FrameworkOptionsV1 *options);
+
 /* NULL is a no-op. Otherwise buffer must be an unchanged, live descriptor made by this framework.
  * Destroy the original descriptor once; never copy or mutate it, or destroy a copy. */
 void framework_owned_buffer_destroy(FrameworkOwnedBuffer *buffer);

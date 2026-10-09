@@ -7,14 +7,14 @@
     "capability_count": 113,
     "portable_contract_implemented_count": 36,
     "portable_contract_partial_count": 22,
-    "partial_implementation_count": 85,
+    "partial_implementation_count": 86,
     "ios_class_counts": {
       "R": 0,
       "M": 0,
-      "B": 85,
+      "B": 86,
       "A": 0,
       "C": 0,
-      "X": 28
+      "X": 27
     }
   },
   "capabilities": [
@@ -25,7 +25,8 @@
       "crate_module": [
         "framework-app",
         "examples/ios-minimal",
-        "ios-runtime"
+        "ios-runtime",
+        "platform/ios/ios-app-scenes"
       ],
       "crate_module_status": "portable_contract_and_ios_backend_partial",
       "portability_class": "portable_with_platform_extensions",
@@ -33,7 +34,7 @@
       "portable_contract_note": "framework-app defines portable values and a generic backend contract; no platform backend is included.",
       "ios_implementation_class": "B",
       "implementation_status": "partial",
-      "status_reason": "The portable lifecycle contract exists, but the only iOS path is the B example launch delegate and one window; it has no scene-aware lifecycle adapter.",
+      "status_reason": "The example owns the launch delegate and one window; B81 ios-app-scenes adds an iOS 13.0 point-in-time UIScene.activationState count snapshot, not scene lifecycle events or a scene delegate.",
       "minimum_ios_version": null,
       "required_frameworks": [
         "UIKit",
@@ -45,7 +46,7 @@
       "entitlements": [],
       "device_only_restrictions": [],
       "swift_abi_requirement": false,
-      "metadata_verification": "partial_verified_from_docs/ios/runtime.md_and_examples/ios-minimal; minimum_iOS_version_not_stated",
+      "metadata_verification": "partial_verified_from_docs/ios/runtime.md_examples/ios-minimal_and_docs/ios/app-scenes; B81_scene_snapshot_API_floor_iOS_13.0; overall_minimum_iOS_version_not_stated",
       "parity_status": "not_tested_live_behavior_or_Apple_parity",
       "performance_status": "not_measured",
       "native_escape_handle_available": true,
@@ -191,7 +192,7 @@
       "portable_contract_note": "framework-sharing implements plain-text read, write, and clear only; rich representations and share UI are outside the contract.",
       "ios_implementation_class": "B",
       "implementation_status": "partial",
-      "status_reason": "ios-sharing implements plain-text read, write, and clear through UIKit UIPasteboard; iOS 14+ may notify on cross-app reads and iOS 16+ programmatic reads may prompt. Write and clear replace all pasteboard items; rich representations, share UI, and live privacy/paste behavior are not claimed.",
+      "status_reason": "ios-sharing implements plain-text read, write, and clear through UIKit UIPasteboard; B84 adds a presence-only hasStrings snapshot without loading or copying content. The snapshot can become stale and does not prove permission or read success; iOS 14+ may notify on cross-app reads and iOS 16+ programmatic reads may prompt. Write and clear replace all pasteboard items; rich representations, share UI, and live privacy/paste behavior are not claimed.",
       "minimum_ios_version": "10.0",
       "required_frameworks": [
         "UIKit",
@@ -202,7 +203,7 @@
       "entitlements": [],
       "device_only_restrictions": [],
       "swift_abi_requirement": false,
-      "metadata_verification": "Xcode_26.6_iOS_26.5_headers_verify_UIPasteboard_iOS_3.0_and_hasStrings_iOS_10.0_floor; docs/ios/sharing.md; device/simulator compile and import checks only; no live pasteboard test; Xcode_27_baseline_not_met",
+      "metadata_verification": "Xcode_26.6_iOS_26.5_headers_verify_UIPasteboard_iOS_3.0_and_hasStrings_iOS_10.0_floor; B6 device/simulator compile and import checks only; B84 Rust formatting and diff checks only, no build; no live pasteboard query; Xcode_27_baseline_not_met",
       "parity_status": "not_tested_live_behavior_or_Apple_parity",
       "performance_status": "not_measured",
       "native_escape_handle_available": false,
@@ -971,7 +972,7 @@
       "portable_contract_note": "framework-notifications defines a partial one-shot local-notification contract; remote push and live delivery are excluded.",
       "ios_implementation_class": "B",
       "implementation_status": "partial",
-      "status_reason": "ios-notifications implements local authorization, one-shot scheduling, and pending-request cancellation through UserNotifications; remote push, response delegates, and live delivery behavior are not claimed.",
+      "status_reason": "ios-notifications covers local authorization, one-shot schedule, request cancellation, and a UserNotifications local-request count snapshot; remote push, response delegates, and live delivery are not claimed.",
       "minimum_ios_version": "10.0",
       "required_frameworks": [
         "UserNotifications",
@@ -984,7 +985,7 @@
       "entitlements": [],
       "device_only_restrictions": [],
       "swift_abi_requirement": false,
-      "metadata_verification": "Xcode_26.6_iOS_26.5_headers_verify_iOS_10_API_floor; local_permission_scope_documented_in_docs/ios/notifications.md; no_live_prompt_or_delivery_test; Xcode_27_baseline_not_met",
+      "metadata_verification": "Xcode_26.6_iOS_26.5_headers_verify_iOS_10_API_floor; local_permission_scope_and_local-request_count_snapshot_documented_in_docs/ios/notifications.md; no_live_prompt_or_count_or_delivery_test; Xcode_27_baseline_not_met",
       "parity_status": "not_tested_live_behavior_or_Apple_parity",
       "performance_status": "not_measured",
       "native_escape_handle_available": true,
@@ -1034,7 +1035,7 @@
       "portable_contract_note": "PushKit is platform-exclusive; no portable facade is included.",
       "ios_implementation_class": "X",
       "implementation_status": "unsupported",
-      "status_reason": "No PushKit backend exists; a separate workstream must define the public surface and verify applicable entitlement, background, and lifecycle requirements.",
+      "status_reason": "D100 found no standalone PushKit status query; a write to desiredPushTypes starts PushKit registration, and VoIP delivery needs host launch/delegate, token, provider, and CallKit/LiveCommunicationKit lifecycle; row 033 stays X until a real VoIP product accepts those duties",
       "minimum_ios_version": null,
       "required_frameworks": null,
       "required_permissions": null,
@@ -1042,7 +1043,7 @@
       "entitlements": null,
       "device_only_restrictions": null,
       "swift_abi_requirement": "not_assessed_for_absent_backend",
-      "metadata_verification": "unverified; null fields do not assert that no requirement exists",
+      "metadata_verification": "PLAN_CAPABILITIES_PUSHKIT.md audits Xcode_26.6_iOS_26.5 headers and objc2-push-kit_0.3.2; PKPushRegistry floor iOS 8.0, PKPushTypeVoIP 9.0, incoming callback 11.0; no standalone status query; APS entitlement, VoIP UIBackgroundModes, APNs provider, token lifecycle, and CallKit/LiveCommunicationKit requirements remain product-scoped",
       "parity_status": "not_tested_no_iOS_implementation",
       "performance_status": "not_measured",
       "native_escape_handle_available": false,
@@ -2296,15 +2297,15 @@
       "family": "Personal data/system stores",
       "capability": "ScreenTime/FamilyControls base authorization",
       "crate_module": [
-        "platform/ios/ios-system-services"
+        "platform/ios/ios-family-controls-status"
       ],
-      "crate_module_status": "planned_not_present",
+      "crate_module_status": "present",
       "portability_class": "platform_exclusive",
       "portable_contract_status": "not_implemented",
       "portable_contract_note": "No portable facade for this capability is included in D1.",
-      "ios_implementation_class": "X",
-      "implementation_status": "unsupported",
-      "status_reason": "FamilyControls exposes authorizationStatus as a main-queue-only Swift property from iOS 15, with approvedWithDataAccess added in iOS 26.4. The installed SDK has no public Objective-C declaration or generated Rust binding, and Apple's docs do not establish whether this read-only query works without the Family Controls entitlement; no supported Rust ABI path is claimed.",
+      "ios_implementation_class": "B",
+      "implementation_status": "partial",
+      "status_reason": "D67/B80 adds an iOS 15+ raw AuthorizationStatus snapshot through a compiler-matched C swiftcall bridge. It does not request authorization, read activity data, prove entitlement or distribution approval, or establish control use; no runtime or entitlement-absent behavior claim is made.",
       "minimum_ios_version": "15.0",
       "required_frameworks": [
         "FamilyControls"
@@ -2313,9 +2314,9 @@
       "required_info_plist_keys": null,
       "entitlements": null,
       "device_only_restrictions": null,
-      "swift_abi_requirement": "current public authorizationStatus property is Swift-only; generated Rust binding absent",
-      "metadata_verification": "Apple FamilyControls docs and installed Xcode 26.5 SDK inspected; authorizationStatus is main-queue-only, iOS 15+, approvedWithDataAccess is iOS 26.4+, entitlement semantics for query-only use remain undocumented",
-      "parity_status": "not_tested_no_iOS_implementation",
+      "swift_abi_requirement": true,
+      "metadata_verification": "Xcode 26.6 build 17F113 / iOS SDK 26.5; Swift oracle and C swiftcall bridge LLVM IR match on arm64 device and Simulator at min iOS 15.0; VWT size, alignment mask, destroy witness, and C-convention swift_release checks pass; Rust link probes use default minos device 10.0 / Simulator 14.0 with FamilyControls.framework and its symbols weak-imported; imports are FamilyControls.framework, libswiftCore.dylib, and libSystem.B.dylib; probes were inspected, not executed; entitlement and runtime behavior are untested",
+      "parity_status": "not_tested_live_authorization_or_Apple_parity",
       "performance_status": "not_measured",
       "native_escape_handle_available": false,
       "native_escape_handle_note": "No native escape handle is exposed by a capability facade in this row."
@@ -3047,7 +3048,7 @@
       "portable_contract_note": "No portable contract is included; this is an iOS-only query for the calling app's own File Provider extension.",
       "ios_implementation_class": "B",
       "implementation_status": "partial",
-      "status_reason": "D85/B75 adds an iOS 11.0+ async snapshot of whether the calling app's own File Provider extension has registered domains through NSFileProviderManager.getDomainsWithCompletionHandler:. It preserves native NSError domain/code and exposes no IDs, files, sync, enablement, or other providers. The callback queue is unspecified and dropping the future does not cancel the request; see PLAN_IOS_FILEPROVIDER.md.",
+  "status_reason": "D85/B75 adds an iOS 11.0+ async registered-domain presence snapshot and B82 adds the returned domain count for the calling app's own File Provider extension through NSFileProviderManager.getDomainsWithCompletionHandler:. Both preserve native NSError domain/code and expose no IDs, files, sync, enablement, or other providers. The callback queue is unspecified and dropping the future does not cancel the request; see PLAN_IOS_FILEPROVIDER.md and PLAN_IOS_FILEPROVIDER_DOMAIN_COUNT.md.",
       "minimum_ios_version": "11.0",
       "required_frameworks": [
         "FileProvider"
@@ -3057,8 +3058,8 @@
       "entitlements": null,
       "device_only_restrictions": [],
       "swift_abi_requirement": false,
-      "metadata_verification": "Xcode 26.6 build 17F113 / iOS SDK 26.5 FileProvider headers and objc2-file-provider 0.3.2 inspected; host/device/Simulator checks, strict Clippy, rustdoc, and link/import audit passed; probes inspected, not executed",
-      "parity_status": "not_tested_live_provider_or_registered_domains",
+  "metadata_verification": "Xcode 26.6 build 17F113 / iOS SDK 26.5 FileProvider headers and objc2-file-provider 0.3.2 inspected; B75/B82 host/device/Simulator checks, strict Clippy, rustdoc, and link/import audits passed; probes inspected, not executed",
+  "parity_status": "not_tested_live_provider_registered_domains_or_count",
       "performance_status": "not_measured",
       "native_escape_handle_available": false,
       "native_escape_handle_note": "No native provider, domain, or file handle escapes the callback."

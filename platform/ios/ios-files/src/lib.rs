@@ -24,10 +24,12 @@ use std::{
     path::PathBuf,
 };
 
+mod bookmark;
 mod coordination;
 mod path_validation;
 mod security_scope;
 
+pub use bookmark::IosResolvedBookmark;
 pub use coordination::IosFileCoordinator;
 use path_validation::path_parts;
 pub use security_scope::{IosSecurityScopedAccess, SecurityScopeStartError};

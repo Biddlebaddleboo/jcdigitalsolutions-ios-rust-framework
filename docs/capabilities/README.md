@@ -14,7 +14,7 @@ performance status, and native-escape status.
 | `C` | Compiler/build/discovery contract |
 | `X` | No supported implementation in this workstream; reason is in the row |
 
-Current counts: 85 rows have `B` support, and all remain partial at the whole-capability
+Current counts: 86 rows have `B` support, and all remain partial at the whole-capability
 level pending runtime/parity evidence where applicable: two partial UIKit example rows, two partial
 reusable UI-control rows, one partial native-escape row, one partial finite-Frame geometry row, one
 partial CoreGraphics frame-intersection row, one partial CoreText system-font-metrics row,
@@ -37,8 +37,8 @@ eligibility, B49 MessageUI mail/text and SharedWithYou status, B50 VideoToolbox 
 B51 Apple Pay capability status, B52 CloudKit account-status snapshot, B53 SafetyKit Crash Detection
 availability, B54 ARKit world-tracking support, B55 Game Center local-player status, B56 Core ML
 compute-device availability, B57 Vision text-recognition revision support, B58 Speech authorization
-status, B59 English Natural Language asset status, B60 legacy StoreKit purchase-ability status, B61 RoomPlan device-support status, B62 default camera video-device status, B63 StoreKit 2 purchase-ability status, B64 SafariServices HTTPS presentation, B65 Accelerate vDSP vector addition, B66 CommonCrypto SHA-256 only, B67 ModelIO extension support only, B68 MPS preferred-device presence only, B69 P-256 verification suitability only, B70 SpriteKit node position only, B71 MediaPlayer authorization status only, B72 CallKit call snapshot only, B73 MapKit geometry only, and B74 ClassKit deep-link marker only, B75 FileProvider registered-domain presence only, B76 ProximityReader device-model support only, B77 extension-point metadata read only, and B78 Sign in with Apple credential-state query only, and B79 Personal VPN profile-status query only; 28 rows are `X` for iOS runtime support. Counts are per capability row, so B3's shared `ios-network` backend appears for both the
-request/response model and foreground HTTP. All 28 remaining `X` rows name a specific scope or toolchain gap; no generic missing-facade/backend reason remains. `X` is current
+status, B59 English Natural Language asset status, B60 legacy StoreKit purchase-ability status, B61 RoomPlan device-support status, B62 default camera video-device status, B63 StoreKit 2 purchase-ability status, B64 SafariServices HTTPS presentation, B65 Accelerate vDSP vector addition, B66 CommonCrypto SHA-256 only, B67 ModelIO extension support only, B68 MPS preferred-device presence only, B69 P-256 verification suitability only, B70 SpriteKit node position only, B71 MediaPlayer authorization status only, B72 CallKit call snapshot only, B73 MapKit geometry only, and B74 ClassKit deep-link marker only, B75 FileProvider registered-domain presence only, B76 ProximityReader device-model support only, B77 extension-point metadata read only, and B78 Sign in with Apple credential-state query only, B79 Personal VPN profile-status query only, B80 Family Controls raw authorization-status snapshot only, B81 UIKit scene activation-state counts only, B82 FileProvider registered-domain count only, and B84 UIPasteboard string-presence preflight only; 27 rows are `X` for iOS runtime support. Counts are per capability row, so B3's shared `ios-network` backend appears for both the
+request/response model and foreground HTTP. All 27 remaining `X` rows name a specific scope or toolchain gap; no generic missing-facade/backend reason remains. `X` is current
 workstream status, not proof that Rust cannot call an Apple API. D90–D99 audits record scoped outcomes for rows 104–113; rows 104–112 remain `X`, while row 113 has B77's runtime metadata partial; see the linked [D90](../../PLAN_CAPABILITIES_MARKETPLACEKIT.md), [D91](../../PLAN_CAPABILITIES_MATTERSUPPORT.md), [D92](../../PLAN_CAPABILITIES_SECURE_ELEMENT_CREDENTIAL.md), [D93](../../PLAN_CAPABILITIES_CARKEY.md), [D94](../../PLAN_CAPABILITIES_PROXIMITYREADER.md), and [D95](../../PLAN_CAPABILITIES_LOCKED_CAMERA_CAPTURE.md), [D96](../../PLAN_CAPABILITIES_EXTENSION_BUNDLE_METADATA.md), [D97](../../PLAN_CAPABILITIES_WIDGETKIT.md), [D98](../../PLAN_CAPABILITIES_ACTIVITYKIT.md), and [D99](../../PLAN_CAPABILITIES_APP_INTENTS.md) audits. HomeKit is one specific scope gap:
 its authorization status is an instance property and first manager use can prompt, so a prompt-free
 status-only facade is not claimed. The
@@ -47,9 +47,11 @@ prompt-free support predicate; session state requires a configured discovery flo
 presentation is user-facing. An OS-version check alone would report API availability, not usable
 capability. See row 044 in the [canonical manifest](capability-status.json).
 Row 021 is partial (`B`) only for B78's prior-user credential-state query under a conservative Sign in with Apple entitlement requirement. Passkeys, general sign-in readiness, and the original non-entitled scope remain unsupported ([D66 audit and B78 follow-up](../../PLAN_CAPABILITIES_PASSKEYS.md)).
-Row 074 ScreenTime/FamilyControls also remains unsupported: its status property is Swift-only and
-main-queue-only, no generated Rust binding is available, and Apple does not document query-only
-entitlement semantics ([D67 feasibility plan](../../PLAN_CAPABILITIES_FAMILY_CONTROLS_STATUS.md)).
+Row 074 ScreenTime/FamilyControls has B80 partial support for a raw signed authorization-status
+snapshot through a compiler-matched C `swiftcall` bridge. The unsafe call requires the main dispatch
+queue. It does not prove entitlement presence or approval, activity-data access, or control use; Apple
+does not document query-only entitlement semantics ([D67/B80 plan](../../PLAN_CAPABILITIES_FAMILY_CONTROLS_STATUS.md)).
+Row 001 has B81 partial support for point-in-time `connectedScenes` activation-state counts; it does not deliver lifecycle events or claim scene visibility ([B81 plan](../../PLAN_IOS_SCENE_SNAPSHOT.md)).
 Row 067 Foundation Models remains unsupported because its narrow availability snapshot is Swift-only,
 with no public C/Objective-C entry point or generated Rust binding; a supported wrapper or Swift ABI
 boundary is not integrated ([D69 feasibility plan](../../PLAN_CAPABILITIES_FOUNDATION_MODELS.md)).
@@ -76,7 +78,7 @@ no public Objective-C/C declaration, generated Rust binding, or integrated Swift
 `accessoryStateChanges` needs async lifecycle support ([D78 feasibility plan](../../PLAN_CAPABILITIES_DOCKKIT.md)).
 Row 091 WeatherKit remains unsupported as a native Rust package: the SDK API is Swift-only, while REST needs trusted server-signed developer tokens and a separate typed-data/attribution contract ([D79 audit](../../PLAN_CAPABILITIES_WEATHERKIT.md)). Row 095 RealityKit remains unsupported for useful scene work: `ARView` is only a view shell and scene/entity operations are Swift-facing ([D80 audit](../../PLAN_CAPABILITIES_REALITYKIT.md)).
 Row 098 NetworkExtension/VPN is partial (`B`) only for B79's read-only caller-app Personal VPN profile-status snapshot after preference load. The host requires `com.apple.developer.networking.vpn.api = ["allow-vpn"]`; this does not cover preference mutation, tunnel control, provider extensions, routes, reachability, or system-wide VPN state ([D82 audit and B79 plan](../../PLAN_CAPABILITIES_NETWORK_EXTENSION.md)).
-Row 084 PushToTalk remains unsupported because no standalone support/authorization query exists and useful operation needs entitlement, background mode, microphone consent, APNs channel restoration, and audio lifecycle ([D83 audit](../../PLAN_CAPABILITIES_PUSHTOTALK.md)). Row 085 CarPlay remains unsupported because its session-configuration values describe the connected vehicle, not device availability; useful access requires an approved category entitlement and host scene/session lifecycle ([D84 audit](../../PLAN_CAPABILITIES_CARPLAY.md)). Row 100 ExtensionKit/Foundation remains unsupported: the only status-like API is a Swift-only asynchronous inventory for a host-defined extension point, while iOS host/browser controllers need host UI plus extension process/XPC lifecycle ([D86 audit](../../PLAN_CAPABILITIES_EXTENSIONKIT.md)). Row 102 ContactProvider remains unsupported because `ContactProviderManager.isEnabled` is Swift-only and reports person-enabled state rather than extension health or sync; enabling may prompt and the extension needs its host metadata ([D87 audit](../../PLAN_CAPABILITIES_CONTACTPROVIDER.md)). Row 099 FileProvider now has B75 partial support for registered-domain presence in the caller app; its scoped compile/Clippy/rustdoc/link gates passed, but this does not prove provider enablement, sync, or file access ([D85/B75](../../PLAN_CAPABILITIES_FILEPROVIDER.md)). Row 101 BrowserEngineKit has generated bindings, but no host/process/XPC implementation or Apple entitlement approval; grant validity does not establish general engine support ([D88 audit](../../PLAN_CAPABILITIES_BROWSERENGINEKIT.md)). Row 103 ManagedApp/Distribution has Swift-only configuration and catalog APIs, with no general managed-device status and an entitlement-gated distribution operation ([D89 audit](../../PLAN_CAPABILITIES_MANAGEDAPP.md)).
+Row 084 PushToTalk remains unsupported because no standalone support/authorization query exists and useful operation needs entitlement, background mode, microphone consent, APNs channel restoration, and audio lifecycle ([D83 audit](../../PLAN_CAPABILITIES_PUSHTOTALK.md)). Row 085 CarPlay remains unsupported because its session-configuration values describe the connected vehicle, not device availability; useful access requires an approved category entitlement and host scene/session lifecycle ([D84 audit](../../PLAN_CAPABILITIES_CARPLAY.md)). Row 100 ExtensionKit/Foundation remains unsupported: the only status-like API is a Swift-only asynchronous inventory for a host-defined extension point, while iOS host/browser controllers need host UI plus extension process/XPC lifecycle ([D86 audit](../../PLAN_CAPABILITIES_EXTENSIONKIT.md)). Row 102 ContactProvider remains unsupported because `ContactProviderManager.isEnabled` is Swift-only and reports person-enabled state rather than extension health or sync; enabling may prompt and the extension needs its host metadata ([D87 audit](../../PLAN_CAPABILITIES_CONTACTPROVIDER.md)). Row 099 FileProvider has B75 partial support for registered-domain presence and B82 for its returned count in the caller app; its scoped compile/Clippy/rustdoc/link gates passed, but this does not prove provider enablement, sync, or file access ([D85/B75](../../PLAN_CAPABILITIES_FILEPROVIDER.md)). Row 101 BrowserEngineKit has generated bindings, but no host/process/XPC implementation or Apple entitlement approval; grant validity does not establish general engine support ([D88 audit](../../PLAN_CAPABILITIES_BROWSERENGINEKIT.md)). Row 103 ManagedApp/Distribution has Swift-only configuration and catalog APIs, with no general managed-device status and an entitlement-gated distribution operation ([D89 audit](../../PLAN_CAPABILITIES_MANAGEDAPP.md)).
 Row 089 AdAttributionKit/AdServices remains unsupported under the no-Swift rule: the iOS 18
 `AppImpression.isSupported` scalar is Swift-only, while AdServices token generation is a network
 operation rather than a status check ([D74 feasibility plan](../../PLAN_CAPABILITIES_AD_ATTRIBUTION.md)).
@@ -95,8 +97,8 @@ device link floor is iOS 10.0 and the Simulator gate uses iOS 14.0. B65 adds onl
 vDSP vector addition on iOS; no portable math contract, parity, or performance claim is made
 ([iOS guide](../ios/accelerate.md)).
 D5 adds a partial portable plain-text clipboard contract; B6 adds an iOS general-pasteboard backend
-with documented iOS privacy behavior and item replacement. No live
-privacy prompt or paste behavior is claimed. B1 adds iOS sandbox file and
+with documented privacy behavior and item replacement, and B84 adds a presence-only `hasStrings`
+preflight that does not load content. No live privacy prompt or paste behavior is claimed. B1 adds iOS sandbox file and
 `NSUserDefaults` backends for three rows. B17 adds a separate `IosFileCoordinator` extension for
 synchronous Foundation coordination of caller-supplied file URLs ([guide](../ios/file-coordination.md));
 it does not add provider, picker, or security-scope lifecycle support or change D1 sandbox paths.
@@ -376,7 +378,7 @@ getter has no documented entitlement; Schoolwork data sharing is a separate host
 | Camera/audio/media | 8 | `B`: 8 partial including VideoToolbox hardware-decode support; `X`: 0 |
 | Graphics/GPU | 9 | `B`: 9 partial finite-Frame geometry, CoreGraphics frame-intersection, CoreText system-font-metrics, ImageIO metadata, Metal device-presence, Accelerate vDSP vector-add, ModelIO extension-support, MPS preferred-device, and SpriteKit node-position rows; `X`: 0 |
 | ML/vision/language | 5 | `B`: 4 partial Core ML compute-device, Vision revision-status, Speech authorization-status, and Natural Language English-model asset rows; `X`: 1 |
-| Personal data/system stores | 8 | `B`: 5 partial Photos, Contacts, Calendar, HealthKit authorization, and SafetyKit availability rows; `X`: 3 |
+| Personal data/system stores | 8 | `B`: 6 partial Photos, Contacts, Calendar, HealthKit authorization, SafetyKit availability, and Family Controls raw-status rows; `X`: 2 |
 | Cloud/accounts/communication | 10 | `B`: 8 partial including CloudKit, CallKit, ClassKit marker, Game Center, and MessageUI/SharedWithYou status; `X`: 2 |
 | Commerce/services | 7 | `B`: 4 partial Apple Pay, legacy StoreKit, StoreKit 2 purchase-ability, and MediaPlayer library-authorization status; `X`: 3 |
 | Maps/AR/spatial | 5 | `B`: 3 partial MapKit geometry, ARKit world-tracking, and RoomPlan device-support rows; `X`: 2 |
@@ -412,8 +414,9 @@ The D3 [local-notification guide](../notifications.md) describes the portable sc
 the B4 [iOS guide](../ios/notifications.md) describes the local-only native backend and its runtime
 limits. The D4 [location guide](location.md) describes the one-shot portable current-location
 contract; the B5 [iOS guide](../ios/location.md) documents its Core Location backend and limits.
-The D5 [sharing guide](sharing.md) describes the plain-text clipboard contract; the B6
-[iOS guide](../ios/sharing.md) documents the general-pasteboard backend and native privacy limits.
+The D5 [sharing guide](sharing.md) describes the plain-text clipboard contract; the B6 and B84
+[iOS guide](../ios/sharing.md) documents the general-pasteboard backend, presence-only preflight,
+and native privacy limits.
 The D6 [share guide](share.md) describes outgoing text and URL-text values; the B7 [iOS
 guide](../ios/sharing.md) documents UIKit presentation context, lifecycle, result, and evidence
 limits.

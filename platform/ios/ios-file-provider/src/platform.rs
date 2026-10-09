@@ -8,7 +8,7 @@ use objc2_file_provider::{NSFileProviderDomain, NSFileProviderManager};
 use objc2_foundation::{NSArray, NSError};
 
 use crate::completion::Completion;
-use crate::{FileProviderQueryError, NativeFileProviderError, RegisteredDomainPresence};
+use crate::{FileProviderQueryError, NativeFileProviderError};
 
 pub(crate) fn start(completion: Arc<Completion>) {
     if !objc2::available!(ios = 11.0, ..) {
@@ -28,8 +28,8 @@ pub(crate) fn start(completion: Arc<Completion>) {
                     }
 
                     // SAFETY: Apple declares the returned domains array nonnull on success
-                    let has_registered_domains = unsafe { domains.as_ref() }.count() != 0;
-                    Ok(RegisteredDomainPresence::new(has_registered_domains))
+                    let count = unsafe { domains.as_ref() }.count();
+                    u64::try_from(count).map_err(|_| FileProviderQueryError::CountOutOfRange)
                 })
             }))
             .unwrap_or(Err(FileProviderQueryError::CallbackPanicked));

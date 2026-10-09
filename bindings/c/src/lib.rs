@@ -2,11 +2,14 @@
 #![deny(unsafe_op_in_unsafe_fn)]
 #![doc = "Static C ABI entry points over the framework's Rust-native foundation types."]
 
+mod options_v1;
+
 pub use framework_abi::{
     FrameworkCompletionCallback, FrameworkErrorHandle, FrameworkOperationHandle,
     FrameworkOptionsV1, FrameworkOwnedBuffer, FrameworkSlice, FrameworkStatus, FrameworkStr,
     framework_owned_buffer_destroy,
 };
+pub use options_v1::framework_options_v1_validate;
 
 #[cfg(any(
     feature = "ios-transfer",

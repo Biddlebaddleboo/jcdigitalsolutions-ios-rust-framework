@@ -26,6 +26,26 @@ The present baseline is [`OwnedRequest::from_request`](platform/ios/ios-network/
 for URLSession request submission and callback values. B13 background downloads and B14 file
 adoption remain separate completed scopes, not extensions of B3.
 
+## Remaining network-family gate after 07cd525
+
+The implemented slices are B3 foreground URLSession HTTP, B13/B14 background file download and
+adoption, D15/B18 informational path status, and D19/B24 outbound TLS-over-TCP. They are separate
+contracts: path status is not endpoint reachability, and byte streams do not add HTTP, listeners, or
+UDP. B64 SafariServices HTTPS presentation is a host-UI slice.
+
+No source or static-gate change is justified by the current contracts. B3's local-fixture differential
+has no Apple app/runner and the recorded Xcode 26.6 host is below the 27.x baseline; E1 also found no
+replacement candidate. D19/B24 leaves listeners and UDP unplanned without a bounded consumer need.
+The nearest network-adjacent product candidate is PushKit row 033; D70 blocks source work until a
+real VoIP product accepts APNs registration/token lifecycle, host launch/delegate ownership, and
+CallKit reporting. WeatherKit REST also needs a trusted server-signed token source and explicit typed
+response/attribution ownership.
+
+Re-entry: open the PushKit slice only after the product owner accepts that VoIP/APNs/CallKit contract.
+Reopen B3 parity only with a named behavioral gap and an Apple runner that compares URLSession and a
+candidate against the same deterministic local fixture under the required toolchain; see
+[`PLAN_REPLACEMENTS_HTTP.md#reopening-and-acceptance-criteria`](PLAN_REPLACEMENTS_HTTP.md#reopening-and-acceptance-criteria).
+
 ## Objective
 
 Implement the iOS foreground HTTP backend for the stable `framework-network` contract using public Apple APIs and no Swift source or mandatory executor.

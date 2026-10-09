@@ -2,7 +2,7 @@
 
 ## Status
 
-F6 is implemented locally as an opt-in plain-text clipboard C ABI. `sh bindings/c/check-ios-clipboard.sh` passes its locked host, device, and simulator checks; strict Clippy; C11/C++17 static-library links; feature-isolation checks; and symbol checks. The linked device and simulator C consumers import exactly `Foundation`, `UIKit`, `libSystem.B.dylib`, and `libobjc.A.dylib`; C++ also imports `libc++.1.dylib`. The script does not execute consumers. A manual audit found the manifest ownership, thread, status, and acceptance semantics consistent with the C source, header, guide, and D5/B6 contracts. No tests were added or run, and no live pasteboard or privacy UI behavior is claimed
+F6 is integrated in checkpoint `07cd525` as an opt-in plain-text clipboard C ABI. `sh bindings/c/check-ios-clipboard.sh` passes its locked host, device, and simulator checks; strict Clippy; C11/C++17 static-library links; feature-isolation checks; and symbol checks. The linked device and simulator C consumers import exactly `Foundation`, `UIKit`, `libSystem.B.dylib`, and `libobjc.A.dylib`; C++ also imports `libc++.1.dylib`. The script does not execute consumers. A manual audit found the manifest ownership, thread, status, and acceptance semantics consistent with the C source, header, guide, and D5/B6 contracts. No tests were added or run, and no live pasteboard or privacy UI behavior is claimed
 
 Repo evidence lists Xcode 26.6 and iPhoneOS/iPhoneSimulator SDK 26.5, below the Xcode 27.x baseline; no F6 pass on 27.x is in the log
 

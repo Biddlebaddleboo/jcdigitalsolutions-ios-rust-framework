@@ -11,9 +11,11 @@ The backend resolves Documents, Caches, and Application Support with Foundation'
 `URLForDirectory:inDomain:appropriateForURL:create:error:`. It resolves Temporary with
 [`NSFileManager.temporaryDirectory`](https://developer.apple.com/documentation/foundation/filemanager/temporarydirectory).
 Each URL is opened once with a directory/no-follow open, and the backend retains the descriptor
-for its lifetime. These are app-sandbox locations; this backend does not
+for its lifetime. These are app-sandbox locations; the sandbox backend and `Files` facade do not
 accept user-selected document-provider URLs, security-scoped bookmarks, iCloud container URLs, or
-file-provider URLs through the `Files` facade. [A separate iOS extension](file-coordination.md)
+file-provider URLs. The separate [`IosResolvedBookmark` helper](bookmark-resolution.md) resolves
+non-security-scoped Foundation bookmark data to a file URL, but does not start a security scope or
+add the URL to the sandbox `Files` facade. [A separate iOS extension](file-coordination.md)
 coordinates caller-supplied file URLs for synchronous read/write access, but does not establish
 sandbox-root containment or file-provider lifecycle support. Callers that already hold a scoped
 file URL may balance its Foundation access lifetime with the separate
@@ -22,8 +24,9 @@ file URL may balance its Foundation access lifetime with the separate
 `IosFiles::adopt_url_session_download` is a separate additive operation outside `FileBackend` that
 copies a URLSession download callback's temporary file into an `AppPath`; call it before the
 delegate callback returns. The method cannot verify URLSession provenance, so pass only that
-callback URL. It does not add arbitrary file-URL, provider, picker, or security-scope support; see
-the [file-adoption guide](file-adoption.md) for copy cost, atomic commit, and namespace-race limits.
+callback URL. This operation does not add arbitrary file-URL, provider, picker, or security-scope
+support; see the [file-adoption guide](file-adoption.md) for copy cost, atomic commit, and
+namespace-race limits.
 
 The backend's API floor is iOS 10.0. The Xcode 26.5 iOS SDK headers declare
 `renameatx_np`, `NSFileManager.temporaryDirectory`, and both volume rename-support resource keys
@@ -101,14 +104,16 @@ Methods are synchronous and can block on filesystem I/O. They start no callback,
 async task; dropping `IosFiles` does not cancel a call already on the stack. `read` copies file
 bytes into its returned `Vec`; `write` passes the caller's slice to POSIX writes without an
 intermediate Rust byte buffer. Path components are copied into temporary C strings. Directory
-entry names are copied from `readdir` into owned Rust `String` values. File operations expose no
-native root path or descriptor escape handle.
+entry names are copied from `readdir` into owned Rust `String` values. The sandbox `Files` facade
+exposes no native root path or descriptor escape handle.
 
-The sandbox implementation uses `objc2` 0.6.5, `objc2-foundation` 0.3.2 with Foundation error,
-search-path, URL, value, and volume-metadata APIs, plus private `libc` POSIX calls. The integrated
-crate also enables `block2`, `ios-runtime`, and Foundation file-coordination APIs for the separate
-`IosFileCoordinator` extension; these are not needed by the sandbox methods. A minimal consumer of
-both app-data crates, built against the integrated crate, was checked for device and simulator
+The crate uses `objc2` 0.6.5 and `objc2-foundation` 0.3.2. The sandbox backend uses Foundation error,
+search-path, URL, value, and volume-metadata APIs plus private `libc` POSIX calls. Bookmark resolution
+also uses `NSData`, `NSProcessInfo`, and typed `NSURL` bookmark APIs. The integrated crate enables
+`block2`, `ios-runtime`, and Foundation file-coordination APIs for the separate `IosFileCoordinator`
+extension; these are not needed by the sandbox methods. `IosResolvedBookmark` exposes only its
+resolved caller URL. A minimal consumer of both app-data crates, built against the integrated
+crate, was checked for device and simulator
 imports. `otool -L` showed Foundation, CoreFoundation, `libobjc.A`, `libSystem.B`, and `libiconv.2`;
 neither binary imports UIKit, Network, Swift, Python, or another capability framework. This link
 probe used Xcode 26.6 with the iOS 26.5 SDK, below the planned Xcode 27.x baseline. It proves link

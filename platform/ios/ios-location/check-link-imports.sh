@@ -12,6 +12,36 @@ for tool in awk cargo diff grep nm otool sort; do
     fi
 done
 
+out_of_scope_apis='startUpdatingLocation|startMonitoringForRegion|startMonitoringSignificantLocationChanges|startMonitoringVisits|startUpdatingHeading|startRangingBeacons|allowDeferredLocationUpdates|requestAlwaysAuthorization|requestTemporaryFullAccuracyAuthorization|allowsBackgroundLocationUpdates|showsBackgroundLocationIndicator|CLCircularRegion|CLRegion|CLVisit|CLHeading'
+if grep -REn "$out_of_scope_apis" platform/ios/ios-location/src platform/ios/ios-location/examples; then
+    echo "out-of-scope Core Location operation in B5 Rust source" >&2
+    exit 1
+fi
+if ! grep -REq 'requestLocation\(\)' platform/ios/ios-location/src; then
+    echo "B5 one-shot requestLocation call is missing" >&2
+    exit 1
+fi
+if ! grep -REq 'requestWhenInUseAuthorization\(\)' platform/ios/ios-location/src; then
+    echo "B5 foreground authorization call is missing" >&2
+    exit 1
+fi
+if ! awk '
+    /fn start_authorization_request\(/ { in_authorization_request = 1; next }
+    /fn start_current\(/ { in_authorization_request = 0; in_current_request = 1; next }
+    /fn new_operation_objects\(/ { in_current_request = 0 }
+    /requestWhenInUseAuthorization[[:space:]]*\(/ {
+        all_authorization_calls++
+        if (in_authorization_request) authorization_request_calls++
+        if (in_current_request) current_request_calls++
+    }
+    END {
+        exit !(all_authorization_calls == 1 && authorization_request_calls == 1 && current_request_calls == 0)
+    }
+' platform/ios/ios-location/src/platform.rs; then
+    echo "B5 permission prompt call must stay in the explicit authorization request path" >&2
+    exit 1
+fi
+
 cat > target/ios-location-core-location-features-expected.txt <<'FEATURES'
 objc2-core-location feature "CLLocation"
 objc2-core-location feature "CLLocationManager"

@@ -23,7 +23,15 @@ permission scope, platform limits, registration replacement/persistence, event d
 app suspension or termination, and per-region cancellation. These are contract decisions, not a
 bounded backend plumbing gap; do not extend B5/F15 or claim these operations until a separate plan
 defines their portable semantics and iOS policy. Existing compile, feature-tree, and link/import
-checks establish only the one-shot API boundary and do not validate monitoring behavior.
+checks establish only the one-shot API boundary and do not validate monitoring behavior. The link
+gate now also guards the B5 Rust source/example call surface against continuous, region,
+significant-change, visit, heading, beacon-ranging, Always-authorization, temporary-accuracy, and
+background-location APIs. This source check does not constrain calls through the borrowed native
+manager escape and does not close row 037's partial status. This guard was added after the recorded
+link/import run; only its shell syntax and source predicates are checked in this follow-up, not the
+full gate that builds Release probes. It also confines the sole `requestWhenInUseAuthorization()`
+call to the explicit authorization-request path and confirms the one-shot current-request path stays
+prompt-free.
 
 ## Objective
 
@@ -69,5 +77,7 @@ Do not edit the portable D4 crate, root workspace configuration, capability stat
 - Run `cargo check` and Clippy for `ios-location` on `aarch64-apple-ios` and `aarch64-apple-ios-sim`
 - Add deterministic tests for pure authorization, accuracy, and native-error mappings that do not need a live permission prompt
 - Inspect device and simulator imports for CoreLocation and absence of unrelated capability frameworks and Swift runtime; audit both target Cargo feature trees to require exactly `CLLocation`, `CLLocationManager`, and `CLLocationManagerDelegate` from `objc2-core-location`
+- Keep the link/import script's Rust source guard aligned with the one-shot contract and verify that it does not mistake `stopUpdatingLocation()` cancellation for continuous updates
+- Keep `requestWhenInUseAuthorization()` confined to `start_authorization_request`; `start_current` must stay non-prompting
 - Document minimum iOS version only from installed SDK metadata, permission text, authorization-status change and pending behavior, callback/run-loop behavior, location age/accuracy semantics, cancellation, native handles, and live-device test limits
 - Report changed files, commit SHA, exact checks, deviations, and unresolved assumptions

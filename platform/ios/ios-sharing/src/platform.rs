@@ -34,6 +34,20 @@ impl IosClipboardBackend {
             _not_send: PhantomData,
         }
     }
+
+    /// Returns whether the general pasteboard currently has a plain-text representation.
+    ///
+    /// This caller-invoked snapshot checks only `UIPasteboard.hasStrings`; it does not load or
+    /// copy string contents. The shared pasteboard may change immediately after this call, and a
+    /// `true` result does not guarantee that a later read succeeds or has user approval. Apple
+    /// documents this type-presence query among the APIs that avoid user notifications and alerts
+    /// when the system has not established user intent to access pasteboard data. Call it on the
+    /// same main thread used to construct this backend.
+    pub fn has_plain_text(&self) -> bool {
+        // SAFETY: The backend retains the main-thread proof and is !Send + !Sync, so safe Rust
+        // cannot move this UIKit access to another thread.
+        unsafe { self.pasteboard.hasStrings() }
+    }
 }
 
 impl ClipboardAccess for IosClipboardBackend {

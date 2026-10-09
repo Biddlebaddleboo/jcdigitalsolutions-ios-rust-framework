@@ -12,6 +12,10 @@ minos is 10.0 and Simulator minos is 14.0. Workflow parsing, docs-check, and dif
 Xcode 26.6 / SDK 26.5 is below the plan's Xcode 27.x baseline; live permission and location
 behavior remain unverified.
 
+A Rust source-surface guard was added to the B5 link/import script after the recorded target and
+probe run. This follow-up checks its shell syntax and source predicates only; the full gate was not
+rerun because it builds Release probes.
+
 ## Objective
 
 Add persistent iOS device and simulator compile/lint gates for the integrated B5 Core Location backend. Record precisely that these checks do not prove live permission, GPS, cancellation, or positioning behavior.
@@ -41,6 +45,7 @@ Do not edit the iOS backend, portable location contract, root Cargo workspace/de
 - Add locked `cargo check` gates for `ios-location` on `aarch64-apple-ios` and `aarch64-apple-ios-sim`.
 - Add `cargo clippy --all-targets -- -D warnings` gates for the same package and targets.
 - Link a probe for both targets; require exact direct imports `CoreLocation`, `Foundation`, `libSystem.B.dylib`, and `libobjc.A.dylib`, and reject Swift runtime or unrelated capability symbols.
+- Require the link/import script to assert the one-shot request and foreground-authorization calls, confine `requestWhenInUseAuthorization()` to `start_authorization_request`, and reject out-of-scope Core Location operations in B5 Rust source/examples; this guard does not constrain host calls through the borrowed native manager.
 - Run the gates only on macOS runners with both Rust targets and Xcode SDKs installed.
 - Update `docs/VALIDATION.md` to list the exact compile/lint and link/import commands, state that probes are not executed, and clarify that live permission UI, GPS delivery, fix quality/freshness, and cancellation races remain untested.
 

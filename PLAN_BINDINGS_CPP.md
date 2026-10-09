@@ -2,21 +2,25 @@
 
 ## Status
 
-F3's focused host gate `sh bindings/cpp/check.sh` passed. It used
-`cargo build --locked --release -p framework-c-api`, checked C++ formatting, compiled and linked
-`consumer.cpp` and `owner-consumer.cpp` against the real C API archive, and ran both executables.
-It also compiled and ran `ownership.cpp` with its local test stub; static traits and runtime checks
-confirmed move-only state, a pointer to the original descriptor, no descriptor change before
-release, and one destroy call per descriptor. The `nm -u` checks found only
-`framework_abi_version` for the core consumer, only `framework_owned_buffer_destroy` for the RAII
-consumer, and no unresolved symbol for the test stub. The real-archive owner consumer proves
-symbol resolution and process exit only; F1 has no core buffer creator, so runtime exactly-once
-evidence comes from the test stub. `OwnedBuffer` requires a live framework-created descriptor whose
-fields stay unchanged until C destroy; the descriptor must outlive the guard, with no second guard.
-F3 links use `-nostdlib++`; no C++ runtime symbol is required, and no final-binary import audit is
-claimed
+The prior F3 host gate `sh bindings/cpp/check.sh` passed at ABI 1.0. It compiled and linked
+`consumer.cpp` and `owner-consumer.cpp` against the C API archive, ran both executables, and compiled
+and ran `ownership.cpp` with its local destroy stub. Static traits and runtime checks confirmed
+move-only state, a pointer to the original descriptor, no descriptor change before release, and one
+destroy call per descriptor. The `nm -u` checks found only `framework_abi_version` for the core
+app, only `framework_owned_buffer_destroy` for the RAII app, and no unresolved symbol for the stub.
+This is ABI 1.0 evidence only; the current fixtures expect ABI 1.1. `OwnedBuffer` still
+requires a live framework-created descriptor whose fields stay unchanged until C destroy; the
+descriptor must outlive the guard, with no second guard. F3 links use `-nostdlib++`; no C++ runtime
+symbol is required, and no final-binary import audit is claimed
 
-F1 host ABI checks also passed against that locked archive: C11 and C++17 headers compiled, the C layout output matched the manifest, archive exports matched `c_symbols`, and `examples/c-minimal/main.c` linked and ran with output `framework ABI 1.0`
+F1's ABI 1.0 host app linked and ran with output `framework ABI 1.0`. ABI 1.1 adds
+`framework_options_v1_validate`; the F1 plan records C11/C++17 header and manifest layout checks but
+no ABI 1.1 app link/run. This audit adds C++17 compile-only coverage for all five C++ fixture
+sources. `bindings/c/tests/header_cpp.cpp` asserts the validator signature and the 16-byte,
+4-aligned `FrameworkOptionsV1` layout with offsets 0, 4, 8, and 12; these values match
+`bindings/c/abi-manifest.json`
+
+`clang++ -std=c++17 -fno-exceptions -fno-rtti -Wall -Wextra -Werror -pedantic -I bindings/c/include -I bindings/cpp/include -fsyntax-only` passed for `bindings/cpp/tests/consumer.cpp`, `bindings/cpp/tests/owner-consumer.cpp`, `bindings/cpp/tests/ownership.cpp`, `bindings/c/tests/header_cpp.cpp`, and `bindings/c/tests/secure_storage_header_cpp.cpp`. `format_tool=$(xcrun -f clang-format); "$format_tool" --dry-run --Werror bindings/c/tests/header_cpp.cpp` and `git diff --check -- PLAN_BINDINGS_CPP.md bindings/c/tests/header_cpp.cpp` passed. No ABI 1.1 link, app/probe run, test, or Cargo command took place; ABI 1.1 runtime/link evidence for F3 is absent
 
 ## Objective
 

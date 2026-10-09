@@ -1,43 +1,54 @@
-# PLAN_CAPABILITIES_FAMILY_CONTROLS_STATUS.md — Workstream D67: Row 074 Feasibility Gate
+# Workstream D67/B80: Family Controls status snapshot
 
 ## Status
 
-D67 found a truthful read-only status property, but no supported Rust call path or clear entitlement contract for a standalone row-074 slice. Keep row 074 at `X`. Do not treat this plan as implementation evidence or edit the canonical capability matrix. No B or G implementation gate starts until the evidence below closes.
+The bounded iOS status adapter and local ABI gates pass. They use a compiler-matched C `swiftcall` bridge with no Swift source. Host, device, and Simulator check, strict Clippy, rustdoc, compiler-oracle, and link/import gates pass; no test or linked probe ran
+
+Row 074 is partial `B` for the raw status snapshot only. The row stays platform-exclusive. No portable contract or row 075 DeviceActivity/ManagedSettings support is in scope
 
 ## Objective
 
-Assess whether Family Controls exposes a caller-triggered, non-prompting snapshot of the app's Family Controls authorization state that does not imply entitlement approval, access to Screen Time data, or capability to enforce controls.
+Read one signed `AuthorizationStatus.RawValue` snapshot from `AuthorizationCenter.shared.authorizationStatus` on the main dispatch queue, without authorization request, UI, activity data, or control operations
 
-## SDK and API evidence
+## API and bounds
 
-- Inspected Xcode 26.6 build 17F113 and the iPhoneOS 26.5 SDK. `FamilyControls.framework` has a public Swift module interface at `System/Library/Frameworks/FamilyControls.framework/Modules/FamilyControls.swiftmodule/arm64e-apple-ios.swiftinterface`; the framework has no public Objective-C headers in this SDK.
-- The Swift interface marks `FamilyControls.AuthorizationStatus` and `AuthorizationCenter` available from iOS 15.0. It exposes `AuthorizationCenter.shared` and the read-only `authorizationStatus` property.
-- Apple's `authorizationStatus` docs say the initial value is always `.notDetermined`; the system sets it only after `requestAuthorization(for:)` succeeds, then updates it until successful revocation or app exit. Apple requires access to this property on the main queue. The read itself is a snapshot; observing changes uses the separate `@Published` publisher.
-- The iOS 15 enum cases are `.notDetermined`, `.denied`, and `.approved`. The current iOS 26.5 SDK adds `.approvedWithDataAccess` at iOS 26.4. Apple defines that case as approval with access to non-tokenized family activity data. Preserve it separately in any future wrapper; do not treat it as equivalent to `.approved`.
-- `AuthorizationCenter` and `AuthorizationStatus` are Swift APIs, not Objective-C APIs. No `objc2-family-controls` dependency or generated Rust binding is present in the current workspace, lockfile, or local Cargo source cache. This repo's Swift ABI plans prove ownership and selected value/async lowering only; they do not yet define a supported call path for this Swift singleton plus property getter.
+- Package: `platform/ios/ios-family-controls-status`
+- Guide: `docs/ios/family-controls-status.md`
+- API: `unsafe authorization_status_raw_value_on_main_queue() -> Result<AuthorizationStatusRawValue, AuthorizationStatusError>`
+- Floor: iOS 15.0
+- Value: exact signed Swift `Int` as `i64`; do not guess enum storage or hard-code raw values
+- `approvedWithDataAccess` is a distinct Swift case from iOS 26.4. Its raw value passes through without a Rust case map; unknown future raw values also pass through
+- Apple requires this getter on the main dispatch queue. The API is `unsafe` so its safety contract requires that queue; it does not infer queue identity from the main thread or hop queues
+- No portable facade, authorization request or revoke, prompt, picker, activity data, DeviceActivity, ManagedSettings, or C ABI is part of this slice
+- The iOS 15 cases are `.notDetermined`, `.denied`, and `.approved`; the iOS 26.4+ case is `.approvedWithDataAccess`. This API returns raw values only and does not map or collapse any case
+- Apple docs say the initial value is `.notDetermined`; a successful `requestAuthorization(for:)` updates it, then it may change after revocation or app exit. The property read is a snapshot; change observation uses the separate `@Published` publisher
+- The exact Family Controls entitlement key is `com.apple.developer.family-controls`. Apple requires it before `requestAuthorization` or `revokeAuthorization`; distribution also requires Apple's entitlement approval. The host owns this setup for its broader feature
+- Apple does not state whether this read alone needs that entitlement or define its value when absent. This snapshot neither inspects nor proves entitlement presence, distribution approval, activity-data access, or control use; no absent-entitlement behavior is claimed
+- `.approved` means a person, parent, or guardian approved the request for parental controls. It does not prove distribution approval, data-access entitlement, token selection, DeviceActivity monitoring, or ManagedSettings enforcement
+- The separate `com.apple.developer.family-controls.app-and-website-usage` entitlement is for `FamilyActivityData`; it is not a status-query requirement or evidence that this crate reads activity data. `.approvedWithDataAccess` stays a distinct raw value; this crate does not access that data
+- `requestAuthorization(for:)` may show a system alert and, for an individual, Face ID or Touch ID. D67 does not call it, call revoke, show a picker, read activity data, schedule DeviceActivity, or apply ManagedSettings
 
-## Authorization and entitlement boundary
+## SDK and ABI evidence
 
-- The exact Family Controls entitlement key is `com.apple.developer.family-controls`. Apple's entitlement docs require it before `requestAuthorization` or `revokeAuthorization`; distribution also requires Apple's entitlement approval. This row's status property does not itself show whether a signed host has that entitlement.
-- Apple does not state in the inspected docs whether reading `AuthorizationCenter.shared.authorizationStatus` requires `com.apple.developer.family-controls`, or what the getter returns in an app without that entitlement. Do not claim that a successful status read proves entitlement approval.
-- Apple's separate Family Controls App and Website Usage entitlement is `com.apple.developer.family-controls.app-and-website-usage`. Apple requires that capability before access to `FamilyActivityData`; it is not evidence that a status-only query reads activity data.
-- `.approved` means a person, parent, or guardian approved the request to provide parental controls. It does not prove App Store entitlement approval, data-access entitlement, token selection, DeviceActivity monitoring, or ManagedSettings enforcement. `.approvedWithDataAccess` has its own stronger data-access meaning and must not imply that a status-only crate reads those data.
-- `requestAuthorization(for:)` can present a system alert and, for an individual, Face ID or Touch ID authorization. D67 does not call it, call revoke, show a picker, read activity data, schedule DeviceActivity, or apply ManagedSettings.
+- Inspected Xcode 26.6 build 17F113 and the iPhoneOS 26.5 SDK. `FamilyControls.framework` has a public Swift module interface but no public Objective-C declaration for these APIs
+- The SDK marks `AuthorizationStatus` and `AuthorizationCenter` as iOS 15.0 APIs; the interface marks `approvedWithDataAccess` as iOS 26.4+
+- Device and arm64 Simulator Swift LLVM IR at min iOS 15.0 derives the same public calls: `_$s14FamilyControls19AuthorizationStatusOMa`, `_$s14FamilyControls19AuthorizationCenterCMa`, `_$s14FamilyControls19AuthorizationCenterC6sharedACvgZ`, `_$s14FamilyControls19AuthorizationCenterC19authorizationStatusAA0cF0OvgTj`, and `_$s14FamilyControls19AuthorizationStatusO8rawValueSivg`
+- Swift IR returns the singleton as owned; the compiler calls `_swift_release` after the property getter. The property result uses indirect result storage; the raw getter returns signed i64; the compiler calls the VWT destroy witness after the raw read
+- Compiler IR gives the VWT as eight pointer witnesses then `size`, `stride`, `flags`, and extra-inhabitant count. Metadata holds the VWT pointer one word before the metadata pointer
+- The C bridge reads size and the low eight alignment-mask bits from the runtime VWT, allocates by that layout, calls the destroy witness, then frees the value. It uses `malloc` for alignment no greater than `_Alignof(max_align_t)` and `posix_memalign` for larger valid alignment; it does not use a guessed fixed buffer
+- Swift ABI source defines the VWT alignment mask as `0x000000FF`; the gate checks the compiler VWT shape and bridge mask
+- The Swift/Clang ABI gate uses min iOS 15.0 / SDK 26.5 on arm64 device and Simulator. The final Rust link probes use rustc target defaults: device minos 10.0 and Simulator minos 14.0. `FamilyControls.framework` is `LC_LOAD_WEAK_DYLIB`, and each FamilyControls symbol is a weak external; the bridge returns `NativeApiUnavailable` if a weak symbol is absent. Imports are only `FamilyControls.framework`, `/usr/lib/swift/libswiftCore.dylib`, and `libSystem.B.dylib`
+- These link facts support a weak-link path below the API floor; no runtime behavior on any iOS release was tested, and no linked artifact ran
 
-## Feasibility blockers
+## Validation
 
-1. Establish a supported zero-Swift-source Rust call path for the Swift `AuthorizationCenter.shared` getter and `authorizationStatus` getter, with compiler-derived ABI signatures and device/Simulator evidence. Do not use guessed mangled calls, private metadata, or raw Swift object layouts.
-2. Obtain Apple documentation or framework guidance for whether the read-only status property is usable without `com.apple.developer.family-controls` and for its behavior when the entitlement is absent. Keep that separate from entitlement approval for distribution.
-3. Define a main-queue contract compatible with this framework's static Rust API and preserve `.approvedWithDataAccess` as a distinct value on iOS 26.4+. Do not add an implicit executor, global runtime, or hidden queue hop.
-4. Keep the contract limited to app authorization status. A `true`/approved result must not assert Screen Time data access, entitlement approval, or effective parental-control capability.
+`platform/ios/ios-family-controls-status/scripts/check-swift-abi.sh` emits Swift oracle and C bridge LLVM IR for device and Simulator, then checks the VWT shape, call signatures, C-convention destroy and release calls, dynamic allocation fields, and output path. It adds no Swift source to the repository
 
-## Deferred work
+`platform/ios/ios-family-controls-status/scripts/check-link-imports.sh` builds a small probe for device and Simulator and checks `otool -L` against the exact allowlist plus `nm -u` for each required symbol. It does not execute the probes
 
-- No portable facade, Rust backend, Swift shim, Objective-C shim, or B/G validation gate is authorized by D67.
-- Row 074 remains `X`; row 075 DeviceActivity/ManagedSettings remains separate and out of scope.
-- No workspace/lockfile, CI, canonical matrix, aggregate plan, or shared index edit is part of D67.
+The full package gate is `sh platform/ios/ios-family-controls-status/check.sh`. It passed. No tests, permission prompts, runtime query, or consumer execution took place
 
-## Apple and repository references
+## Apple and ABI references
 
 - [AuthorizationCenter](https://developer.apple.com/documentation/familycontrols/authorizationcenter)
 - [authorizationStatus](https://developer.apple.com/documentation/familycontrols/authorizationcenter/authorizationstatus)
@@ -45,5 +56,5 @@ Assess whether Family Controls exposes a caller-triggered, non-prompting snapsho
 - [AuthorizationStatus.approvedWithDataAccess](https://developer.apple.com/documentation/familycontrols/authorizationstatus/approvedwithdataaccess)
 - [Family Controls entitlement](https://developer.apple.com/documentation/bundleresources/entitlements/com.apple.developer.family-controls)
 - [Configuring Family Controls](https://developer.apple.com/documentation/xcode/configuring-family-controls)
-- [Requesting the Family Controls entitlement](https://developer.apple.com/documentation/familycontrols/requesting-the-family-controls-entitlement)
-- [PLAN_SWIFT_ABI.md](PLAN_SWIFT_ABI.md)
+- [Swift VWT flags](https://github.com/swiftlang/swift/blob/main/include/swift/ABI/MetadataValues.h)
+- [Swift type metadata](https://github.com/swiftlang/swift/blob/main/docs/ABI/TypeMetadata.rst)

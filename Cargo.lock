@@ -421,6 +421,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "ios-app-scenes"
+version = "0.1.0"
+dependencies = [
+ "ios-runtime",
+ "objc2-foundation",
+ "objc2-ui-kit",
+]
+
+[[package]]
 name = "ios-auth"
 version = "0.1.0"
 dependencies = [
@@ -582,6 +591,10 @@ dependencies = [
  "objc2",
  "objc2-foundation",
 ]
+
+[[package]]
+name = "ios-family-controls-status"
+version = "0.1.0"
 
 [[package]]
 name = "ios-file-provider"

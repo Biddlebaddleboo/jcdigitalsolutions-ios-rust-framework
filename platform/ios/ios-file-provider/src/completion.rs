@@ -1,7 +1,7 @@
 use core::task::{Context, Poll, Waker};
 use std::sync::{Mutex, MutexGuard};
 
-use crate::{FileProviderQueryError, RegisteredDomainPresence};
+use crate::FileProviderQueryError;
 
 /// Per-request state shared only with its native callback
 pub(crate) struct Completion {
@@ -11,7 +11,7 @@ pub(crate) struct Completion {
 struct State {
     completed: bool,
     detached: bool,
-    result: Option<Result<RegisteredDomainPresence, FileProviderQueryError>>,
+    result: Option<Result<u64, FileProviderQueryError>>,
     waker: Option<Waker>,
 }
 
@@ -29,10 +29,7 @@ impl Completion {
     }
 
     /// Publishes one callback result and wakes the current caller task
-    pub(crate) fn complete(
-        &self,
-        result: Result<RegisteredDomainPresence, FileProviderQueryError>,
-    ) {
+    pub(crate) fn complete(&self, result: Result<u64, FileProviderQueryError>) {
         let waker = {
             let mut state = self.lock();
             if state.completed {
@@ -55,7 +52,7 @@ impl Completion {
     pub(crate) fn poll(
         &self,
         context: &mut Context<'_>,
-    ) -> Poll<Result<RegisteredDomainPresence, FileProviderQueryError>> {
+    ) -> Poll<Result<u64, FileProviderQueryError>> {
         let mut state = self.lock();
         if let Some(result) = state.result.take() {
             return Poll::Ready(result);

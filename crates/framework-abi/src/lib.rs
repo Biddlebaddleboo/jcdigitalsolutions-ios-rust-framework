@@ -17,7 +17,7 @@ use framework_core::{Error, ErrorKind, OperationId};
 /// The current major ABI version.
 pub const ABI_VERSION_MAJOR: u32 = 1;
 /// The current minor ABI version.
-pub const ABI_VERSION_MINOR: u32 = 0;
+pub const ABI_VERSION_MINOR: u32 = 1;
 
 /// A fixed-width status value for C callers.
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
