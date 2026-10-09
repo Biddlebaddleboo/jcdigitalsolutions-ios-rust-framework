@@ -7,4 +7,6 @@ pub enum AccessibilityContainerType {
     List,
     /// Mark a container as a landmark.
     Landmark,
+    /// Mark a semantic group; callers must use this value only on iOS 13 or later.
+    SemanticGroup,
 }

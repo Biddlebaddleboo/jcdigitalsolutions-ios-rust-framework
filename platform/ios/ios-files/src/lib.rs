@@ -173,6 +173,29 @@ impl IosFileBackupTimeMarker {
     }
 }
 
+/// A point-in-time filesystem-reported creation timestamp for one iOS sandbox regular file.
+///
+/// The value is read/write metadata. It is not immutable proof of the real-world creation event.
+#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
+pub struct IosFileCreationTime {
+    seconds_since_unix_epoch: i64,
+    nanoseconds: u32,
+}
+
+impl IosFileCreationTime {
+    /// Returns the filesystem-reported whole seconds relative to the Unix epoch.
+    pub const fn seconds_since_unix_epoch(self) -> i64 {
+        self.seconds_since_unix_epoch
+    }
+
+    /// Returns the filesystem-reported subsecond nanosecond field.
+    ///
+    /// The filesystem may store or report a coarser precision than one nanosecond.
+    pub const fn nanoseconds(self) -> u32 {
+        self.nanoseconds
+    }
+}
+
 /// A point-in-time set of Darwin BSD file flags from one iOS filesystem entry.
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
 pub struct IosBsdFileFlags(u32);
@@ -1980,6 +2003,96 @@ impl IosFiles {
             .ok_or_else(|| backend_error(ErrorKind::ResourceExhausted, None))
     }
 
+    /// Returns the filesystem-reported total space used on a volume, in bytes.
+    ///
+    /// On the retained semantic-root descriptor, this first requests
+    /// `ATTR_VOL_INFO | ATTR_VOL_ATTRIBUTES` and requires `validattr.volattr` to include
+    /// `ATTR_VOL_SPACEUSED`. It then requests `ATTR_VOL_INFO | ATTR_VOL_SPACEUSED` on that same
+    /// descriptor and parses the returned `off_t`. An unsupported volume or omitted value returns
+    /// `Unsupported`; a negative or malformed value returns `InvalidInput`.
+    ///
+    /// This is a point-in-time, volume-wide value. XNU warns that on space-sharing volumes it may
+    /// differ from volume size minus free space, so do not derive it from B137 or B146. It is not
+    /// app/container use, a quota, physical-device use, a reservation, or a guarantee that a later
+    /// write will succeed. The support and value queries are separate calls and do not form one
+    /// atomic snapshot. Apple lists `fgetattrlist` in the File Timestamp required-reason API
+    /// category; the app or SDK that uses this method must declare an applicable approved reason
+    /// in `PrivacyInfo.xcprivacy`.
+    ///
+    /// This iOS-only query reads no file contents, accepts no arbitrary URL, starts no security
+    /// scope, and changes no portable `FileBackend` behavior.
+    ///
+    /// # Errors
+    ///
+    /// Returns `Unsupported` for an unsupported semantic directory, an unadvertised volume
+    /// attribute, an omitted value, or a native unsupported-attribute error; `InvalidInput` for a
+    /// negative value or malformed attribute buffer; or the mapped POSIX error for other failures.
+    pub fn volume_used_capacity_bytes(&self, directory: AppDirectory) -> Result<u64, FileError> {
+        let root = self.root(directory)?;
+        let mut support_attributes = libc::attrlist {
+            bitmapcount: libc::ATTR_BIT_MAP_COUNT,
+            reserved: 0,
+            commonattr: 0,
+            volattr: libc::ATTR_VOL_INFO | libc::ATTR_VOL_ATTRIBUTES,
+            dirattr: 0,
+            fileattr: 0,
+            forkattr: 0,
+        };
+        let mut support_buffer =
+            [0_u8; std::mem::size_of::<u32>() + std::mem::size_of::<libc::vol_attributes_attr_t>()];
+        // SAFETY: `root` is an open semantic-root descriptor. The request contains only the
+        // fixed-size volume-attributes structure and `support_buffer` holds its length and payload.
+        let result = unsafe {
+            libc::fgetattrlist(
+                root.as_raw_fd(),
+                (&mut support_attributes as *mut libc::attrlist).cast(),
+                support_buffer.as_mut_ptr().cast(),
+                support_buffer.len(),
+                0,
+            )
+        };
+        if result < 0 {
+            let error = io::Error::last_os_error();
+            if matches!(error.raw_os_error(), Some(libc::EINVAL | libc::ENOTSUP)) {
+                return Err(backend_error(ErrorKind::Unsupported, error.raw_os_error()));
+            }
+            return Err(file_error(error));
+        }
+        if parse_volume_valid_attribute_masks(&support_buffer)?.1 & libc::ATTR_VOL_SPACEUSED == 0 {
+            return Err(backend_error(ErrorKind::Unsupported, None));
+        }
+
+        let mut attributes = libc::attrlist {
+            bitmapcount: libc::ATTR_BIT_MAP_COUNT,
+            reserved: 0,
+            commonattr: 0,
+            volattr: libc::ATTR_VOL_INFO | libc::ATTR_VOL_SPACEUSED,
+            dirattr: 0,
+            fileattr: 0,
+            forkattr: 0,
+        };
+        let mut buffer = [0_u8; std::mem::size_of::<u32>() + std::mem::size_of::<libc::off_t>()];
+        // SAFETY: `root` is the same open descriptor used for the support query. XNU defines the
+        // fixed-size `ATTR_VOL_SPACEUSED` payload as `off_t`; the buffer fits its length and value.
+        let result = unsafe {
+            libc::fgetattrlist(
+                root.as_raw_fd(),
+                (&mut attributes as *mut libc::attrlist).cast(),
+                buffer.as_mut_ptr().cast(),
+                buffer.len(),
+                0,
+            )
+        };
+        if result < 0 {
+            let error = io::Error::last_os_error();
+            if matches!(error.raw_os_error(), Some(libc::EINVAL | libc::ENOTSUP)) {
+                return Err(backend_error(ErrorKind::Unsupported, error.raw_os_error()));
+            }
+            return Err(file_error(error));
+        }
+        parse_volume_off_t_attribute(&buffer)
+    }
+
     /// Returns whether the mounted volume for a semantic app directory reports a read-only mount.
     ///
     /// This checks `fstatfs`'s `f_flags` for `MNT_RDONLY` on the retained directory-root
@@ -2714,6 +2827,126 @@ impl IosFiles {
         }
         let (seconds_since_unix_epoch, nanoseconds) = parse_timespec_attribute(&buffer)?;
         Ok(IosFileBackupTimeMarker {
+            seconds_since_unix_epoch,
+            nanoseconds,
+        })
+    }
+
+    /// Returns the filesystem-reported creation timestamp for one app-sandbox regular file.
+    ///
+    /// The method opens the validated `AppPath` without following a final symlink. On that open
+    /// descriptor, it first requests `ATTR_VOL_INFO | ATTR_VOL_ATTRIBUTES` and requires the
+    /// volume's `validattr.commonattr` to include `ATTR_CMN_CRTIME`. It then requests
+    /// `ATTR_CMN_CRTIME` on the same descriptor and returns the filesystem's `timespec`. If the
+    /// volume does not advertise support, the method returns `Unsupported`; it does not infer a
+    /// creation time from `st_birthtime`.
+    ///
+    /// XNU defines `ATTR_CMN_CRTIME` as the time the filesystem object was created and marks it
+    /// read/write through `setattrlist`. The reported value is therefore mutable metadata, a
+    /// point-in-time observation, and not immutable proof of the real-world creation event. The
+    /// support-mask query and timestamp query are separate calls, not an atomic metadata snapshot.
+    /// Filesystem precision may be coarser than one nanosecond. This method reads no file contents,
+    /// accepts no arbitrary URL, starts no security scope, and retains B1's concurrent opened-parent
+    /// directory-rename limit.
+    ///
+    /// Apple lists `fgetattrlist` in the File Timestamp required-reason API category. The host app
+    /// must declare an applicable approved reason in `PrivacyInfo.xcprivacy` for actual use.
+    ///
+    /// # Errors
+    ///
+    /// Returns `InvalidPath` for a malformed `AppPath`, `InvalidInput` for a final symlink, an
+    /// entry other than a regular file, or a malformed attribute buffer, `NotFound` for a missing
+    /// entry or parent, `Unsupported` when the volume does not advertise `ATTR_CMN_CRTIME` or
+    /// omits the requested value, or the mapped POSIX error for other failures.
+    pub fn regular_file_creation_time(
+        &self,
+        path: AppPath<'_>,
+    ) -> Result<IosFileCreationTime, FileError> {
+        let parts = path_parts(path.relative())?;
+        let (parent, leaf) = open_parent(self.root(path.directory())?, &parts)?;
+        // SAFETY: `parent` is open and `leaf` is one validated component. `O_NOFOLLOW` rejects a
+        // final symlink, and `O_NONBLOCK` avoids blocking if the entry is concurrently replaced.
+        let source_fd = unsafe {
+            libc::openat(
+                parent.as_raw_fd(),
+                leaf.as_ptr(),
+                libc::O_RDONLY | libc::O_NOFOLLOW | libc::O_CLOEXEC | libc::O_NONBLOCK,
+            )
+        };
+        if source_fd < 0 {
+            return Err(file_error(io::Error::last_os_error()));
+        }
+        // SAFETY: `openat` returned a new owned descriptor.
+        let source_file = unsafe { File::from_raw_fd(source_fd) };
+        if !source_file.metadata().map_err(file_error)?.is_file() {
+            return Err(backend_error(ErrorKind::InvalidInput, None));
+        }
+
+        let mut volume_attributes = libc::attrlist {
+            bitmapcount: libc::ATTR_BIT_MAP_COUNT,
+            reserved: 0,
+            commonattr: 0,
+            volattr: libc::ATTR_VOL_INFO | libc::ATTR_VOL_ATTRIBUTES,
+            dirattr: 0,
+            fileattr: 0,
+            forkattr: 0,
+        };
+        let mut volume_buffer =
+            [0_u8; std::mem::size_of::<u32>() + std::mem::size_of::<libc::vol_attributes_attr_t>()];
+        // SAFETY: `source_file` is an open regular file. The volume request has no variable-size
+        // values; `volume_buffer` fits the leading length and `vol_attributes_attr_t`. The
+        // descriptor binds the query to the opened entry's mounted volume.
+        let result = unsafe {
+            libc::fgetattrlist(
+                source_file.as_raw_fd(),
+                (&mut volume_attributes as *mut libc::attrlist).cast(),
+                volume_buffer.as_mut_ptr().cast(),
+                volume_buffer.len(),
+                0,
+            )
+        };
+        if result < 0 {
+            let error = io::Error::last_os_error();
+            if matches!(error.raw_os_error(), Some(libc::EINVAL | libc::ENOTSUP)) {
+                return Err(backend_error(ErrorKind::Unsupported, error.raw_os_error()));
+            }
+            return Err(file_error(error));
+        }
+        if parse_volume_common_valid_attributes(&volume_buffer)? & libc::ATTR_CMN_CRTIME == 0 {
+            return Err(backend_error(ErrorKind::Unsupported, None));
+        }
+
+        let mut attributes = libc::attrlist {
+            bitmapcount: libc::ATTR_BIT_MAP_COUNT,
+            reserved: 0,
+            commonattr: libc::ATTR_CMN_CRTIME,
+            volattr: 0,
+            dirattr: 0,
+            fileattr: 0,
+            forkattr: 0,
+        };
+        let mut buffer = [0_u8; std::mem::size_of::<u32>() + std::mem::size_of::<libc::timespec>()];
+        // SAFETY: `source_file` is the same open regular-file descriptor used for the support
+        // query. The request contains one documented common `timespec` attribute, and `buffer`
+        // fits its length and payload.
+        let result = unsafe {
+            libc::fgetattrlist(
+                source_file.as_raw_fd(),
+                (&mut attributes as *mut libc::attrlist).cast(),
+                buffer.as_mut_ptr().cast(),
+                buffer.len(),
+                0,
+            )
+        };
+        if result < 0 {
+            let error = io::Error::last_os_error();
+            if matches!(error.raw_os_error(), Some(libc::EINVAL | libc::ENOTSUP)) {
+                return Err(backend_error(ErrorKind::Unsupported, error.raw_os_error()));
+            }
+            return Err(file_error(error));
+        }
+        let (seconds_since_unix_epoch, nanoseconds) = parse_timespec_attribute(&buffer)?;
+        Ok(IosFileCreationTime {
             seconds_since_unix_epoch,
             nanoseconds,
         })
@@ -3477,6 +3710,66 @@ fn parse_timespec_attribute(buffer: &[u8]) -> Result<(i64, u32), FileError> {
         return Err(backend_error(ErrorKind::InvalidInput, None));
     }
     Ok((seconds, nanoseconds))
+}
+
+fn parse_volume_common_valid_attributes(buffer: &[u8]) -> Result<u32, FileError> {
+    parse_volume_valid_attribute_masks(buffer).map(|(common_attributes, _)| common_attributes)
+}
+
+fn parse_volume_valid_attribute_masks(buffer: &[u8]) -> Result<(u32, u32), FileError> {
+    let header_length = std::mem::size_of::<u32>();
+    let expected_length = header_length + std::mem::size_of::<libc::vol_attributes_attr_t>();
+    if buffer.len() != expected_length {
+        return Err(backend_error(ErrorKind::InvalidInput, None));
+    }
+    let returned_length = u32::from_ne_bytes(
+        buffer[..header_length]
+            .try_into()
+            .map_err(|_| backend_error(ErrorKind::InvalidInput, None))?,
+    ) as usize;
+    if returned_length == header_length {
+        return Err(backend_error(ErrorKind::Unsupported, None));
+    }
+    if returned_length != expected_length {
+        return Err(backend_error(ErrorKind::InvalidInput, None));
+    }
+    // `vol_attributes_attr_t.validattr` starts the payload. The SDK and locked libc binding define
+    // `attribute_set_t` with `commonattr` then `volattr`, both four-byte `attrgroup_t` fields.
+    let read_mask = |offset: usize| -> Result<u32, FileError> {
+        Ok(u32::from_ne_bytes(
+            buffer[offset..offset + std::mem::size_of::<u32>()]
+                .try_into()
+                .map_err(|_| backend_error(ErrorKind::InvalidInput, None))?,
+        ))
+    };
+    let common_attributes = read_mask(header_length)?;
+    let volume_attributes = read_mask(header_length + std::mem::size_of::<u32>())?;
+    Ok((common_attributes, volume_attributes))
+}
+
+fn parse_volume_off_t_attribute(buffer: &[u8]) -> Result<u64, FileError> {
+    let header_length = std::mem::size_of::<u32>();
+    let expected_length = header_length + std::mem::size_of::<libc::off_t>();
+    if buffer.len() != expected_length {
+        return Err(backend_error(ErrorKind::InvalidInput, None));
+    }
+    let returned_length = u32::from_ne_bytes(
+        buffer[..header_length]
+            .try_into()
+            .map_err(|_| backend_error(ErrorKind::InvalidInput, None))?,
+    ) as usize;
+    if returned_length == header_length {
+        return Err(backend_error(ErrorKind::Unsupported, None));
+    }
+    if returned_length != expected_length {
+        return Err(backend_error(ErrorKind::InvalidInput, None));
+    }
+    // SAFETY: the exact returned length proves one complete `off_t` follows the u32 header. XNU
+    // aligns every returned attribute to four bytes, so read the possibly eight-aligned type as
+    // unaligned storage.
+    let used_bytes =
+        unsafe { std::ptr::read_unaligned(buffer[header_length..].as_ptr().cast::<libc::off_t>()) };
+    u64::try_from(used_bytes).map_err(|_| backend_error(ErrorKind::InvalidInput, None))
 }
 
 fn scan_directory_entry_kind_counts(

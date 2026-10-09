@@ -284,6 +284,16 @@ capacity or an app-container limit. It is another point-in-time volume value, no
 reservation. It has the same required-reason Disk Space privacy-manifest obligation as B137 and
 does not add an Info.plist key or entitlement. See the [B146 plan](../../PLAN_IOS_VOLUME_TOTAL_CAPACITY.md).
 
+`IosFiles::volume_used_capacity_bytes` queries `ATTR_VOL_SPACEUSED` on the retained semantic-root
+descriptor after it checks `validattr.volattr` in `ATTR_VOL_ATTRIBUTES`. The returned `off_t` is
+filesystem-reported total used bytes for the volume, not usage by this app or container, a quota,
+physical-device use, or a write guarantee. XNU warns that on space-sharing volumes it may differ
+from total size minus free space. This is a point-in-time query; its separate support and value
+calls do not make it atomic with each other or with B137/B146. The host must declare an applicable
+approved File Timestamp required-reason entry for `fgetattrlist` in `PrivacyInfo.xcprivacy`. The
+method adds no permission, Info.plist key, or entitlement. See the
+[B365 plan](../../PLAN_IOS_VOLUME_USED_CAPACITY.md).
+
 `IosFiles::volume_is_read_only` checks whether `fstatfs` reports the `MNT_RDONLY` mount flag for
 the volume that contains a retained semantic app-directory root. This is a volume-mount property,
 not an effective-write-access check: a writable mount does not bypass sandbox policy, directory
@@ -378,6 +388,19 @@ and a filesystem that omits the attribute returns `Unsupported`. This iOS-only q
 contents, accepts no arbitrary URL, starts no security scope, and does not change portable
 `FileBackend` semantics. The host must declare an applicable approved File Timestamp reason in
 `PrivacyInfo.xcprivacy` for actual use. See the [B272 plan](../../PLAN_IOS_FILE_ADDED_TIME.md).
+
+## Stored creation-time attribute
+
+`IosFiles::regular_file_creation_time` first checks the opened file's volume support mask for
+`ATTR_CMN_CRTIME`, then requests that stored `timespec` on the same no-follow regular-file
+descriptor. If the volume does not advertise the attribute, the method returns `Unsupported`; it
+does not use `st_birthtime`. B101's `st_birthtime` no-go remains because that `stat` field may
+contain `ctime` when birth time is unavailable. XNU defines `ATTR_CMN_CRTIME` as creation time,
+but also marks it read/write, so the value is mutable metadata and not immutable proof of a
+real-world creation event. The support check and timestamp query are separate calls, and the result
+is point-in-time. The method reads no file contents, does not alter portable `FileBackend`
+semantics, and requires an applicable approved File Timestamp reason in the host's
+`PrivacyInfo.xcprivacy` for actual use. See the [B359 plan](../../PLAN_IOS_FILE_CREATION_TIME_ATTRIBUTE.md).
 
 ## Stored backup-time marker
 

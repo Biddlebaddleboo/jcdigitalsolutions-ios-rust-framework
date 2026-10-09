@@ -1,11 +1,11 @@
-# B101: iOS Entry Creation-Time Snapshot — No-Go
+# B101: iOS `st_birthtime` Creation-Time Snapshot — No-Go
 
 ## Disposition
 
-No creation-time API is added. Darwin exposes a birth-time field in `struct stat`, but that field
-does not have a reliable per-entry availability signal. Apple documents that on filesystems without
-birth-time support, `st_birthtime` contains `ctime` instead. Returning the value as creation time
-would mislabel a file-status-change time as a creation time
+No `st_birthtime`-based creation-time API is added. Darwin exposes a birth-time field in
+`struct stat`, but that field does not have a reliable per-entry availability signal. Apple
+documents that on filesystems without birth-time support, `st_birthtime` contains `ctime` instead.
+Returning that field as creation time would mislabel a file-status-change time as a creation time
 
 ## Audited surface
 
@@ -27,9 +27,12 @@ would mislabel a file-status-change time as a creation time
 
 ## Closure criteria
 
-Reconsider only if a public Apple contract guarantees birth-time support for all roots this adapter
-uses, or a public per-entry signal/API distinguishes true birth time from the `ctime` fallback.
-Without that evidence, keep the app-data API surface free of an `entry_creation_time` claim
+The `st_birthtime` no-go remains. B359 adds a separate `ATTR_CMN_CRTIME` query that first checks
+`ATTR_VOL_ATTRIBUTES.validattr.commonattr` on the same opened file descriptor and returns
+`Unsupported` when the volume does not advertise that attribute. This qualified attrlist path does
+not infer from `st_birthtime`; its returned value is read/write metadata, a point-in-time
+observation, and not immutable proof of the real-world creation event. See
+[`PLAN_IOS_FILE_CREATION_TIME_ATTRIBUTE.md`](PLAN_IOS_FILE_CREATION_TIME_ATTRIBUTE.md)
 
 ## Scope and checks
 

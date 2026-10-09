@@ -308,9 +308,64 @@ property at `UIAccessibilityContainer.h:58` with `API_AVAILABLE(ios(11.0))`; the
 `AccessibilityApiUnavailable` if absent, preserving the crate's iOS 4.0 floor. The Rust enum maps
 only `None`, `List`, and `Landmark`; the getter returns `None` for unknown values and exposes no raw
 `NSInteger`. `DataTable` is excluded because Apple requires `UIAccessibilityContainerDataTable`;
-`SemanticGroup` is excluded because that enum member has a separate iOS 13.0 floor and this slice
-does not add a version check. The setter marks the container type only and does not implement
+at this B144 stage, `SemanticGroup` was also excluded because that enum member has a separate iOS
+13.0 floor and this slice did not add a version check. B379 later adds that variant with a
+caller-availability guard. The setter marks the container type only and does not implement
 container enumeration or create children. This pass added and ran no tests.
+
+B379 adds `AccessibilityContainerType::SemanticGroup` to the existing selector-checked
+`accessibilityContainerType` getter/setter. The active iOS 26.5 SDK declares the base property at
+iOS 11.0 and `UIAccessibilityContainerTypeSemanticGroup` at iOS 13.0 in
+`UIAccessibilityContainer.h:58` and `UIAccessibilityConstants.h:229-235`. The generated
+`objc2-ui-kit` 0.3.2 enum already provides the typed `SemanticGroup` value through the package's
+existing `UIAccessibilityConstants` feature; no dependency change is needed. The getter maps that
+known value and continues to return `None` for all unknown native values. Callers must guard iOS
+13.0 or later before setting or relying on the `SemanticGroup` case; the runtime selector check
+protects only the iOS 11.0 property. The setter changes container metadata only, does not create
+children or implement a container protocol, and makes no guarantee about assistive-technology
+output. No test or runtime claim is added.
+
+B382 adds `AccessibilityImageSizing`, a separate borrowed typed adapter with `for_image_view` and
+`for_button` constructors and getter/setter access to
+`adjustsImageSizeForAccessibilityContentSizeCategory`. The active iOS 26.5 SDK declares the
+`UIAccessibilityContentSizeCategoryImageAdjusting` protocol and its `UIImageView`/`UIButton`
+conformances at iOS 11.0 in
+`UIAccessibilityContentSizeCategoryImageAdjusting.h:16-43`. The generated `objc2-ui-kit` 0.3.2
+protocol is `MainThreadOnly` and provides safe typed implementations for those classes; its
+feature-gated conformances require `UIImageView` + `UIResponder` + `UIView`, and `UIButton` +
+`UIControl` + `UIResponder` + `UIView`. The package adds only that feature closure to its existing
+UIKit features, with no new crate dependency. The API accepts no arbitrary `UIView`,
+`NSTextAttachment`, or other target, so it
+does not cast or assume protocol conformance. Callers provide the existing `MainThread` proof and
+must guard iOS 11.0 or later; the generated calls have no runtime availability guard. Setting the
+property changes image sizing for accessibility content-size categories. The host must select
+scalable image content; for `UIImageView`, Apple says behavior is undefined when `contentMode` does
+not scale the image. For `UIButton`, only its image (not background image) scales and image edge
+insets stay unchanged. The adapter does not own image assets or content mode and promises no layout
+or assistive-technology output. Sources: active SDK header
+`UIAccessibilityContentSizeCategoryImageAdjusting.h` and [Apple protocol reference](https://developer.apple.com/documentation/uikit/uiaccessibilitycontentsizecategoryimageadjusting), [property reference](https://developer.apple.com/documentation/uikit/uiaccessibilitycontentsizecategoryimageadjusting/adjustsimagesizeforaccessibilitycontentsizecategory?language=objc). No tests or runtime calls were added.
+
+B410 adds `guided_access_restriction_state(&NSString, &MainThread)` using the generated typed
+`UIGuidedAccessRestrictionState::for_identifier` function behind an `objc2::available!(ios = 7.0,
+..)` runtime guard. The active iOS 26.5 SDK declares the query at
+`UIGuidedAccess.h:75` with iOS 7.0 availability and `NS_SWIFT_UI_ACTOR`; `objc2-ui-kit` 0.3.2
+exposes the `Allow`/`Deny` enum and query under `UIGuidedAccess`, with no raw ABI or `block2`
+requirement. The crate maps known states and preserves all unknown native `NSInteger` values as
+`GuidedAccessRestrictionState::Unknown(isize)`. Callers must pass one of their own IDs listed by
+the host app's `UIGuidedAccessRestrictionDelegate`. An `Allow` result does not prove that the ID is
+registered or Guided Access is active; `Deny` does not enforce a restriction, so the host must
+disable the operation across all UI paths. This slice adds no delegate, callback, UI, or Guided
+Access session request. The API is only a point-in-time state query, not an operation grant or
+readiness claim. Sources: active SDK `UIGuidedAccess.h`, [Apple query reference](https://developer.apple.com/documentation/uikit/1621153-uiguidedaccessrestrictionstatefo?language=objc), and [delegate reference](https://developer.apple.com/documentation/uikit/uiguidedaccessrestrictiondelegate). No tests or runtime calls were added.
+
+B432 declines `UIGuidedAccessConfigureAccessibilityFeatures`. The iOS 26.5 SDK declares its
+feature set and function at iOS 12.2, unavailable on watchOS/tvOS, with a main-actor completion
+callback; its header documents this system-setting API for apps locked into Guided Access by a
+Single App Mode profile. It can enable or disable VoiceOver, Zoom, AssistiveTouch, Invert Colors,
+or Grayscale Display, so it is a system mutation rather than a status or view-metadata query. The
+generated `objc2-ui-kit` 0.3.2 function also requires `block2`. Keep it outside this synchronous
+adapter; no feature or source change was made. Source: active SDK `UIGuidedAccess.h` and [Apple
+API reference](https://developer.apple.com/documentation/uikit/uiaccessibility/configureforguidedaccess%28features%3Aenabled%3Acompletionhandler%3A).
 
 B147 audited UIKit's `accessibilityDirectTouchOptions` property and did not add it. The iOS 26.5
 SDK declares the property at `UIAccessibility.h:230` and option flags at
@@ -1714,6 +1769,152 @@ not a missing binding. No implementation or feature change was made. Sources: [A
 and the active SDK headers above.
 
 The B346 audit changed no implementation and ran no build, test, or UIKit runtime call.
+
+B349 reviewed `UIAccessibilityCustomAction` and the `accessibilityCustomActions` property and does
+not add custom actions to this borrowed-view metadata adapter. The active iOS 26.5 SDK declares the
+class and property at iOS 8.0, with the class main-actor isolated and unavailable on watchOS. The
+target/selector route requires a method with exactly one of the documented `BOOL` signatures,
+`- (BOOL)myPerformActionMethod` or
+`- (BOOL)myPerformActionMethod:(UIAccessibilityCustomAction *)action`; UIKit stores `target` as
+weak. The generated `objc2-ui-kit` 0.3.2 initializers and selector accessors are unsafe because
+the caller must supply a valid target type and selector. Handler-based initialization starts at
+iOS 13.0 and the handler takes precedence over target/selector; the generated binding exposes its
+handler through a raw block pointer that also needs the `block2` feature and pointer-safety
+invariants. Adding the action array to a view does not merely set descriptive metadata: assistive
+apps can offer each action for explicit user activation, which invokes application behavior and
+requires the action target or handler and its lifetime to remain valid. This synchronous adapter
+does not define action ownership, callback dispatch, reentrancy, or lifecycle. Defer the surface
+until a separate action API defines those contracts; this is a scope/safety no-go, not a missing
+binding or a deployment-floor blocker. No implementation or feature change was made. Sources:
+[Apple `UIAccessibilityCustomAction`](https://developer.apple.com/documentation/uikit/uiaccessibilitycustomaction),
+[selector requirements](https://developer.apple.com/documentation/uikit/uiaccessibilitycustomaction/selector?changes=la_8_1),
+[weak target](https://developer.apple.com/documentation/uikit/uiaccessibilitycustomaction/target),
+[handler precedence](https://developer.apple.com/documentation/uikit/uiaccessibilitycustomaction/actionhandler),
+and the active SDK headers `UIAccessibilityCustomAction.h` and `UIAccessibility.h`.
+
+The B349 audit changed no implementation and ran no build, test, or UIKit runtime call.
+
+B352 reviewed `UIAccessibilityCustomRotor` and the `accessibilityCustomRotors` property and does
+not add custom rotors to this adapter. The active iOS 26.5 SDK sets the rotor, predicate, result,
+and property floor at iOS 10.0; system rotor types and attributed-name APIs start at iOS 11.0,
+while the dynamic `accessibilityCustomRotorsBlock` starts at iOS 17.0. A rotor is an interactive
+search contract, not passive metadata: UIKit calls its item-search block with the current item and
+search direction, and the block must return a result for the next or previous matching element.
+`UIAccessibilityCustomRotorItemResult` holds its target element weakly and may refer to a text
+range, so results are only valid while the target and any range remain live and semantically
+correct. The generated `objc2-ui-kit` 0.3.2 module is feature-gated and not enabled by this crate;
+its search block type and initializer require `block2` and use raw block pointers with unsafe
+validity requirements. Exposing this property would need a dynamic search callback, current-item
+and direction semantics, result-target lifetime rules, and callback lifecycle beyond the current
+synchronous borrowed-view metadata contract. Defer to a dedicated rotor adapter; this is a
+scope/lifecycle no-go, not a deployment-floor blocker. No implementation or feature change was
+made. Sources: [Apple `UIAccessibilityCustomRotor`](https://developer.apple.com/documentation/uikit/uiaccessibilitycustomrotor?language=objc),
+[Apple `UIAccessibilityCustomRotorSearchPredicate`](https://developer.apple.com/documentation/uikit/uiaccessibilitycustomrotorsearchpredicate?language=objc),
+and the active SDK header `UIAccessibilityCustomRotor.h`.
+
+The B352 audit changed no implementation and ran no build, test, or UIKit runtime call.
+
+B355 reviewed `accessibilityHeaderElements` and does not add it to this iOS crate. The active
+iOS 26.5 SDK declares the static array property at `UIAccessibility.h:218` as available on tvOS
+9.0 and explicitly unavailable on iOS and watchOS. The broader Apple `UIAccessibility` protocol
+reference lists the property but does not override the SDK's platform-unavailability annotation;
+the generated `objc2-ui-kit` 0.3.2 category accessor likewise does not make it callable on iOS.
+UIKit's iOS alternative, `accessibilityHeaderElementsBlock`, is available from iOS 17.0 and returns
+header elements dynamically. Its generated accessor is callback-based and requires `block2`; its
+setter accepts an unsafe raw block pointer. This adapter excludes dynamic accessibility blocks,
+and the static tvOS-only property has no valid iOS availability floor. Do not expose either route
+in B8. This is an SDK platform-scope no-go, not a missing iOS binding or an iOS deployment-floor
+choice. No implementation or feature change was made. Sources: [Apple `UIAccessibility` protocol](https://developer.apple.com/documentation/uikit/uiaccessibility-protocol?language=objc),
+and the active SDK header `UIAccessibility.h`.
+
+The B355 audit changed no implementation and ran no build, test, or UIKit runtime call.
+
+B358 reviewed `UIAccessibilityContainerTypeDataTable` and the `UIAccessibilityContainerDataTable`
+and `UIAccessibilityContainerDataTableCell` protocols; the public Rust
+`AccessibilityContainerType` intentionally continues to exclude `DataTable`. The active iOS 26.5
+SDK declares both protocols at iOS 11.0 and states that a container using the DataTable type must
+also implement `UIAccessibilityContainerDataTable`. That protocol requires row and column counts,
+indexed cell lookup, and optional row and column header arrays; each cell must report its row and
+column span ranges. The current adapter borrows an arbitrary `UIView` and cannot establish this
+protocol conformance or own the table's child-element and range lifecycle. Setting only the
+container-type enum would therefore describe an unsupported table contract. The generated
+`objc2-ui-kit` 0.3.2 protocol bindings are present under the already-enabled
+`UIAccessibilityContainer` feature, but they do not make an arbitrary view a conforming data
+table. Keep the Rust type limited to `Unspecified`, `List`, and `Landmark`; this is a
+scope/contract no-go, not a missing binding. No implementation or feature change was made. Sources:
+[Apple `UIAccessibilityContainerTypeDataTable`](https://developer.apple.com/documentation/uikit/uiaccessibilitycontainertype/datatable),
+[Apple `UIAccessibilityContainerDataTable`](https://developer.apple.com/documentation/uikit/uiaccessibilitycontainerdatatable),
+[Apple `UIAccessibilityContainerDataTableCell`](https://developer.apple.com/documentation/uikit/uiaccessibilitycontainerdatatablecell),
+and active SDK headers `UIAccessibilityContainer.h` and `UIAccessibilityConstants.h`.
+
+The B358 audit changed no implementation and ran no build, test, or UIKit runtime call.
+
+B361 reviewed the static `accessibilityElements` property and does not expose it through this
+metadata adapter. The active iOS 26.5 SDK declares the strong array property at iOS 8.0 as a
+container-managed child list and as an alternative to implementing the dynamic element-count and
+index methods. UIKit also states that an accessibility container must report
+`isAccessibilityElement == NO`. Setting the array changes the accessible child set and traversal
+order; each child must remain a valid view or accessibility element for the container's lifetime,
+and `UIAccessibilityElement.accessibilityContainer` itself is weak. The current adapter borrows an
+arbitrary `UIView` and exposes `set_element(bool)` independently, so a list setter cannot establish
+the required container invariant or coordinate child and view-tree lifetime. In addition,
+generated `objc2-ui-kit` 0.3.2 binds the setter as `unsafe fn` over an untyped `NSArray` because the
+caller must prove the element type is correct. Defer until a separate container API owns the child
+model and traversal contract; this is a scope/ownership no-go, not an API availability or missing
+binding blocker. No implementation or feature change was made. Sources: [Apple
+`UIAccessibilityContainer`](https://developer.apple.com/documentation/uikit/uiaccessibilitycontainer?changes=_2&language=objc),
+[Apple `UIAccessibilityElement.accessibilityContainer`](https://developer.apple.com/documentation/uikit/uiaccessibilityelement/accessibilitycontainer?language=objc),
+and the active SDK header `UIAccessibilityContainer.h`.
+
+The B361 audit changed no implementation and ran no build, test, or UIKit runtime call.
+
+B364 reviewed `automationElements` and does not add it to this accessibility metadata adapter. The
+active iOS 26.5 SDK declares this strong array property at iOS 17.0 specifically for automation
+traversal; it can change the child list exposed to automation and falls back first to
+`accessibilityElements`, then to identified subviews, or to an empty array. The generated
+`objc2-ui-kit` 0.3.2 getter and setter are present under the already-enabled
+`UIAccessibilityContainer` feature, but the setter is `unsafe` over an untyped `NSArray` and the
+binding does not add an iOS runtime availability guard. This is an automation-tree API, not
+assistive-technology child metadata; exposing it in B8 could make automation observe a tree that
+differs from the tree used by assistive technologies. Defer to a separate automation contract with
+an explicit iOS 17 caller guard and element-ownership rules. This is a scope no-go, not a missing
+binding. No implementation or feature change was made. Sources: active SDK header
+`UIAccessibilityContainer.h` and [Apple `UIAccessibilityContainer`](https://developer.apple.com/documentation/uikit/uiaccessibilitycontainer?changes=_2&language=objc).
+
+The B364 audit changed no implementation and ran no build, test, or UIKit runtime call.
+
+B367 reviewed `accessibilityTextInputResponder` and does not add it to this metadata adapter. The
+active iOS 26.5 SDK declares this weak `id<UITextInput>` property at iOS 18.1, marks it main-actor
+isolated, and makes it unavailable on watchOS and tvOS. Apple documents it as a forwarding route:
+when an accessibility element represents a view that supports text operations, UIKit sends
+`UITextInput` calls to the backing view. The generated `objc2-ui-kit` 0.3.2 accessors require both
+`UITextInput` and `UITextInputTraits` feature gates and expose a protocol object; the block
+alternative additionally requires `block2` and callback ownership. The current package enables
+none of this feature closure. More importantly, forwarding text operations depends on the backing
+view's text, selection, layout, and editing behavior, which this metadata adapter does not own.
+Defer to a separate text-input adapter with an explicit protocol and editing contract; this is a
+scope/behavior no-go, not an SDK or weak-reference blocker. No implementation or feature change
+was made. Sources: [Apple `accessibilityTextInputResponder`](https://developer.apple.com/documentation/objectivec/nsobject-swift.class/accessibilitytextinputresponder?changes=_10),
+and active SDK headers `UIAccessibility.h` and `UITextInput.h`.
+
+The B367 audit changed no implementation and ran no build, test, or UIKit runtime call.
+
+B370 reviewed `accessibilityHitTest:withEvent:` and does not expose it as a query on the borrowed
+view. The active iOS 26.5 SDK declares this `NSObject` category method at iOS 18.0, tvOS 18.0, and
+visionOS 2.0, marks it main-actor isolated, and makes it unavailable on watchOS. It takes a point
+and optional `UIEvent` and returns an arbitrary Objective-C accessibility element; the SDK says
+the result should itself report `isAccessibilityElement`. Neither the header nor Apple's
+method-reference page defines the point's coordinate space. The category is an override hook for
+app-defined hit-test behavior, not a guaranteed passive query implemented by every `UIView`, so
+dispatch may enter host code and the result is not known to be a `UIView`. The generated
+`objc2-ui-kit` 0.3.2 binding also requires the `UIEvent` and `objc2-core-foundation` feature gates;
+the current package does not enable `UIEvent`. Defer until a separate container/hit-test contract
+defines coordinates, override behavior, and returned-object ownership. This is a scope/evidence
+no-go, not a UIKit API-floor blocker. No implementation or feature change was made. Sources:
+[Apple `accessibilityHitTest:withEvent:`](https://developer.apple.com/documentation/objectivec/nsobject-swift.class/accessibilityhittest%28_%3Aevent%3A%29?changes=la&language=objc),
+and active SDK header `UIAccessibility.h`.
+
+The B370 audit changed no implementation and ran no build, test, or UIKit runtime call.
 
 ## Validation and handoff
 

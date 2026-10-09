@@ -7,6 +7,7 @@ use objc2_foundation::{NSArray, NSAttributedString, NSCopying, NSString};
 use objc2_ui_kit::{
     NSObjectUIAccessibility, NSObjectUIAccessibilityContainer, NSObjectUIAccessibilityFocus,
     UIAccessibilityContainerType as NativeAccessibilityContainerType,
+    UIAccessibilityContentSizeCategoryImageAdjusting,
     UIAccessibilityConvertFrameToScreenCoordinates, UIAccessibilityConvertPathToScreenCoordinates,
     UIAccessibilityDarkerSystemColorsEnabled, UIAccessibilityDirectTouchOptions,
     UIAccessibilityExpandedStatus as NativeAccessibilityExpandedStatus,
@@ -34,7 +35,8 @@ use objc2_ui_kit::{
     UIAccessibilityTraitSearchField, UIAccessibilityTraitSelected,
     UIAccessibilityTraitStartsMediaSession, UIAccessibilityTraitStaticText,
     UIAccessibilityTraitSummaryElement, UIAccessibilityTraitTabBar,
-    UIAccessibilityTraitUpdatesFrequently, UIAccessibilityTraits, UIBezierPath, UIView,
+    UIAccessibilityTraitUpdatesFrequently, UIAccessibilityTraits, UIBezierPath, UIButton,
+    UIGuidedAccessRestrictionState as NativeGuidedAccessRestrictionState, UIImageView, UIView,
 };
 
 use crate::container_type::AccessibilityContainerType;
@@ -44,7 +46,7 @@ use crate::text::map_optional_text;
 use crate::textual_context::AccessibilityTextualContext;
 use crate::traits::{AccessibilityTrait, fold_traits};
 
-/// The borrowed UIKit view does not respond to an optional accessibility property selector.
+/// A UIKit accessibility API or optional property selector is unavailable on this iOS runtime.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct AccessibilityApiUnavailable;
 
@@ -61,6 +63,17 @@ pub enum HearingDevicePairingStatus {
     Both,
     /// UIKit returned bits not named by the SDK constants known to this crate.
     Unknown(u64),
+}
+
+/// A Guided Access restriction state returned by UIKit for a caller-supplied identifier.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum GuidedAccessRestrictionState {
+    /// UIKit reports that the restriction allows the associated operation.
+    Allow,
+    /// UIKit reports that the restriction denies the associated operation.
+    Deny,
+    /// UIKit returned a state value not named by the SDK constants known to this crate.
+    Unknown(isize),
 }
 
 /// Read the current VoiceOver enabled/running state on UIKit's main actor.
@@ -87,6 +100,29 @@ pub fn switch_control_is_running(_main_thread: &MainThread) -> bool {
 /// observe later status changes.
 pub fn guided_access_is_enabled(_main_thread: &MainThread) -> bool {
     UIAccessibilityIsGuidedAccessEnabled()
+}
+
+/// Read the current Guided Access state for one of the app's registered restriction identifiers.
+///
+/// Pass an identifier that the host app lists through its
+/// `UIGuidedAccessRestrictionDelegate`. Call only on iOS 7.0 or later and pass a proof from
+/// `ios_runtime::main_thread::MainThread::current`. `Allow` does not prove that the identifier is
+/// registered or Guided Access is active. `Deny` is a state snapshot only; this crate does not
+/// enforce it, and the host app must remove or disable the restricted operation from all UI paths.
+/// Unknown native values are preserved in `GuidedAccessRestrictionState::Unknown`.
+pub fn guided_access_restriction_state(
+    restriction_identifier: &NSString,
+    _main_thread: &MainThread,
+) -> Result<GuidedAccessRestrictionState, AccessibilityApiUnavailable> {
+    if !objc2::available!(ios = 7.0, ..) {
+        return Err(AccessibilityApiUnavailable);
+    }
+    let native = NativeGuidedAccessRestrictionState::for_identifier(restriction_identifier);
+    Ok(match native {
+        NativeGuidedAccessRestrictionState::Allow => GuidedAccessRestrictionState::Allow,
+        NativeGuidedAccessRestrictionState::Deny => GuidedAccessRestrictionState::Deny,
+        unknown => GuidedAccessRestrictionState::Unknown(unknown.0),
+    })
 }
 
 /// Read whether UIKit reports the Increase Contrast setting as enabled.
@@ -257,6 +293,82 @@ pub fn differentiate_without_color_is_enabled(_main_thread: &MainThread) -> bool
 /// observe later status changes.
 pub fn cross_fade_transitions_are_preferred(_main_thread: &MainThread) -> bool {
     UIAccessibilityPrefersCrossFadeTransitions()
+}
+
+enum AccessibilityImageSizingTarget<'view> {
+    ImageView(&'view UIImageView),
+    Button(&'view UIButton),
+}
+
+/// Synchronous image-size adjustment access for a borrowed `UIImageView` or `UIButton`.
+///
+/// This adapter never creates or retains the target. It is neither `Send` nor `Sync`; construct,
+/// call, and drop it on UIKit's main thread. The target remains caller-owned and must outlive the
+/// adapter.
+pub struct AccessibilityImageSizing<'view> {
+    target: AccessibilityImageSizingTarget<'view>,
+    _main_thread: MainThreadMarker,
+    _not_sync: PhantomData<*mut ()>,
+}
+
+impl<'view> AccessibilityImageSizing<'view> {
+    /// Borrow a caller-owned image view for iOS 11.0+ image-size adjustment access.
+    ///
+    /// The caller must provide the main-thread proof and must call the adapter only on iOS 11.0 or
+    /// later. UIKit's image scaling requires host-selected scalable content and a scaling content
+    /// mode; behavior is undefined for a `UIImageView` whose `contentMode` does not scale its image.
+    pub fn for_image_view(view: &'view UIImageView, main_thread: MainThread) -> Self {
+        Self {
+            target: AccessibilityImageSizingTarget::ImageView(view),
+            _main_thread: main_thread.into_objc2(),
+            _not_sync: PhantomData,
+        }
+    }
+
+    /// Borrow a caller-owned button for iOS 11.0+ image-size adjustment access.
+    ///
+    /// The caller must provide the main-thread proof and must call the adapter only on iOS 11.0 or
+    /// later. UIKit scales the button's image, not its background image; the caller owns the image,
+    /// scalable asset choice, and layout.
+    pub fn for_button(view: &'view UIButton, main_thread: MainThread) -> Self {
+        Self {
+            target: AccessibilityImageSizingTarget::Button(view),
+            _main_thread: main_thread.into_objc2(),
+            _not_sync: PhantomData,
+        }
+    }
+
+    /// Read UIKit's current image-size adjustment property.
+    ///
+    /// Call only on iOS 11.0 or later. This reads the property; it does not establish that the
+    /// supplied image can scale well or guarantee a resulting layout or assistive-technology
+    /// output.
+    pub fn adjusts_image_size_for_accessibility_content_size_category(&self) -> bool {
+        match &self.target {
+            AccessibilityImageSizingTarget::ImageView(view) => {
+                view.adjustsImageSizeForAccessibilityContentSizeCategory()
+            }
+            AccessibilityImageSizingTarget::Button(view) => {
+                view.adjustsImageSizeForAccessibilityContentSizeCategory()
+            }
+        }
+    }
+
+    /// Replace UIKit's image-size adjustment property.
+    ///
+    /// Call only on iOS 11.0 or later. Enabling it changes image sizing for accessibility content
+    /// size categories. The host must choose scalable content and a suitable image content mode;
+    /// this setter does not guarantee a resulting layout or assistive-technology output.
+    pub fn set_adjusts_image_size_for_accessibility_content_size_category(&self, adjusts: bool) {
+        match &self.target {
+            AccessibilityImageSizingTarget::ImageView(view) => {
+                view.setAdjustsImageSizeForAccessibilityContentSizeCategory(adjusts)
+            }
+            AccessibilityImageSizingTarget::Button(view) => {
+                view.setAdjustsImageSizeForAccessibilityContentSizeCategory(adjusts)
+            }
+        }
+    }
 }
 
 /// Synchronous accessibility metadata access to a caller-owned borrowed UIKit view.
@@ -1333,6 +1445,9 @@ impl<'view> AccessibilityMetadata<'view> {
             NativeAccessibilityContainerType::Landmark => {
                 Some(AccessibilityContainerType::Landmark)
             }
+            NativeAccessibilityContainerType::SemanticGroup => {
+                Some(AccessibilityContainerType::SemanticGroup)
+            }
             _ => None,
         })
     }
@@ -1355,6 +1470,9 @@ impl<'view> AccessibilityMetadata<'view> {
             AccessibilityContainerType::Unspecified => NativeAccessibilityContainerType::None,
             AccessibilityContainerType::List => NativeAccessibilityContainerType::List,
             AccessibilityContainerType::Landmark => NativeAccessibilityContainerType::Landmark,
+            AccessibilityContainerType::SemanticGroup => {
+                NativeAccessibilityContainerType::SemanticGroup
+            }
         };
         self.view
             .setAccessibilityContainerType(container_type, self.main_thread);
