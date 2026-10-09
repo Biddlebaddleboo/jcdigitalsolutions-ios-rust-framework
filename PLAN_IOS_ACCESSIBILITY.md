@@ -369,6 +369,35 @@ keys or claim speech or assistive-application output. Apple documents the proper
 [UIKit text-attribute surface](https://developer.apple.com/documentation/uikit/text-attributes-for-attributed-strings).
 This pass added and ran no tests.
 
+B159 adds `set_accessibility_attributed_hint(Option<&NSAttributedString>)` and
+`has_accessibility_attributed_hint()` for UIKit's `accessibilityAttributedHint` property. The active
+iOS 26.5 SDK declares the nullable copied property at `UIAccessibility.h:85` with an iOS 11.0 floor;
+the header describes it as the attributed version of `accessibilityHint` and says setting it
+changes the plain hint and vice versa. `objc2-ui-kit` 0.3.2 provides safe typed getter/setter
+methods on `NSObjectUIAccessibility`, and the direct `objc2-foundation/NSAttributedString` feature
+added for B156 is sufficient. Both methods check their exact selectors and return
+`AccessibilityApiUnavailable` if absent, preserving the crate's iOS 4.0 floor. The setter passes
+the caller-owned attributed string or `None` to clear it; UIKit copies it. The presence query reads
+the scalar property only, and neither method invokes `accessibilityAttributedHintBlock`. The API
+does not validate attributed-string keys or claim speech or assistive-application output. Apple
+documents the property in its [API reference](https://developer.apple.com/documentation/objectivec/nsobject-swift.class/accessibilityattributedhint).
+This pass added and ran no tests.
+
+B162 adds `set_accessibility_attributed_value(Option<&NSAttributedString>)` and
+`has_accessibility_attributed_value()` for UIKit's `accessibilityAttributedValue` property. The
+active iOS 26.5 SDK declares the nullable copied property at `UIAccessibility.h:101` with an iOS
+11.0 floor; the header describes it as the attributed version of `accessibilityValue` and says
+setting it changes the plain value and vice versa. `objc2-ui-kit` 0.3.2 provides safe typed
+getter/setter methods on `NSObjectUIAccessibility`, and the direct
+`objc2-foundation/NSAttributedString` feature added for B156 is sufficient. Both methods check
+their exact selectors and return `AccessibilityApiUnavailable` if absent, preserving the crate's
+iOS 4.0 floor. The setter passes the caller-owned attributed string or `None` to clear it; UIKit
+copies it. The presence query reads the scalar property only, and neither method invokes
+`accessibilityAttributedValueBlock`. The API does not validate attributed-string keys or claim
+speech or assistive-application output. Apple documents the property in its
+[API reference](https://developer.apple.com/documentation/objectivec/nsobject-swift.class/accessibilityattributedvalue).
+This pass added and ran no tests.
+
 On Xcode 26.6 build 17F113 with iPhoneOS and iPhoneSimulator SDK 26.5, these checks pass:
 
 - `cargo test --locked -p ios-accessibility` (3 focused unit tests pass; 0 doc tests)

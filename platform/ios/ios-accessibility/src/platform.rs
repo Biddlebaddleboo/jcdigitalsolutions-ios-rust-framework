@@ -238,11 +238,51 @@ impl<'view> AccessibilityMetadata<'view> {
             .setAccessibilityHint(value.as_deref(), self.main_thread);
     }
 
+    /// Replace UIKit's attributed accessibility hint; `None` clears it.
+    ///
+    /// The iOS 11.0 property is selector-checked. UIKit copies the supplied attributed string and
+    /// documents that setting this property also changes `accessibilityHint`; this method makes
+    /// no claim about speech attributes or assistive-application output.
+    pub fn set_accessibility_attributed_hint(
+        &self,
+        hint: Option<&NSAttributedString>,
+    ) -> Result<(), AccessibilityApiUnavailable> {
+        if !self
+            .view
+            .respondsToSelector(sel!(setAccessibilityAttributedHint:))
+        {
+            return Err(AccessibilityApiUnavailable);
+        }
+        self.view
+            .setAccessibilityAttributedHint(hint, self.main_thread);
+        Ok(())
+    }
+
     /// Replace the value; `None` clears it and `Some("")` assigns an empty string.
     pub fn set_value(&self, value: Option<&str>) {
         let value = map_optional_text(value, NSString::from_str);
         self.view
             .setAccessibilityValue(value.as_deref(), self.main_thread);
+    }
+
+    /// Replace UIKit's attributed accessibility value; `None` clears it.
+    ///
+    /// The iOS 11.0 property is selector-checked. UIKit copies the supplied attributed string and
+    /// documents that setting this property also changes `accessibilityValue`; this method makes
+    /// no claim about speech attributes or assistive-application output.
+    pub fn set_accessibility_attributed_value(
+        &self,
+        value: Option<&NSAttributedString>,
+    ) -> Result<(), AccessibilityApiUnavailable> {
+        if !self
+            .view
+            .respondsToSelector(sel!(setAccessibilityAttributedValue:))
+        {
+            return Err(AccessibilityApiUnavailable);
+        }
+        self.view
+            .setAccessibilityAttributedValue(value, self.main_thread);
+        Ok(())
     }
 
     /// Replace UIKit's `accessibilityLanguage` property with a caller-supplied BCP 47 tag.
@@ -349,12 +389,46 @@ impl<'view> AccessibilityMetadata<'view> {
         self.view.accessibilityHint(self.main_thread).is_some()
     }
 
+    /// Return whether UIKit's current attributed accessibility-hint property is non-nil.
+    ///
+    /// The iOS 11.0 getter is selector-checked. This reads the property only and does not invoke
+    /// the iOS 17 `accessibilityAttributedHintBlock` or report assistive-application output.
+    pub fn has_accessibility_attributed_hint(&self) -> Result<bool, AccessibilityApiUnavailable> {
+        if !self
+            .view
+            .respondsToSelector(sel!(accessibilityAttributedHint))
+        {
+            return Err(AccessibilityApiUnavailable);
+        }
+        Ok(self
+            .view
+            .accessibilityAttributedHint(self.main_thread)
+            .is_some())
+    }
+
     /// Return whether UIKit's current value getter returns a non-nil string.
     ///
     /// An empty string counts as present. This reports the property getter only, not a dynamic
     /// accessibility callback.
     pub fn has_value(&self) -> bool {
         self.view.accessibilityValue(self.main_thread).is_some()
+    }
+
+    /// Return whether UIKit's current attributed accessibility-value property is non-nil.
+    ///
+    /// The iOS 11.0 getter is selector-checked. This reads the property only and does not invoke
+    /// the iOS 17 `accessibilityAttributedValueBlock` or report assistive-application output.
+    pub fn has_accessibility_attributed_value(&self) -> Result<bool, AccessibilityApiUnavailable> {
+        if !self
+            .view
+            .respondsToSelector(sel!(accessibilityAttributedValue))
+        {
+            return Err(AccessibilityApiUnavailable);
+        }
+        Ok(self
+            .view
+            .accessibilityAttributedValue(self.main_thread)
+            .is_some())
     }
 
     /// Return whether UIKit's current `accessibilityLanguage` property is non-nil.
