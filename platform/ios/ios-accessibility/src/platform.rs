@@ -2,11 +2,13 @@ use core::marker::PhantomData;
 use ios_runtime::main_thread::MainThread;
 use objc2::runtime::NSObjectProtocol;
 use objc2::{MainThreadMarker, sel};
-use objc2_core_foundation::CGPoint;
+use objc2_core_foundation::{CGPoint, CGRect};
 use objc2_foundation::{NSArray, NSAttributedString, NSString};
 use objc2_ui_kit::{
-    NSObjectUIAccessibility, NSObjectUIAccessibilityContainer,
+    NSObjectUIAccessibility, NSObjectUIAccessibilityContainer, NSObjectUIAccessibilityFocus,
     UIAccessibilityContainerType as NativeAccessibilityContainerType,
+    UIAccessibilityExpandedStatus as NativeAccessibilityExpandedStatus,
+    UIAccessibilityIdentification,
     UIAccessibilityNavigationStyle as NativeAccessibilityNavigationStyle,
     UIAccessibilityTextualContext as NativeAccessibilityTextualContext,
     UIAccessibilityTextualContextConsole, UIAccessibilityTextualContextFileSystem,
@@ -19,11 +21,12 @@ use objc2_ui_kit::{
     UIAccessibilityTraitNotEnabled, UIAccessibilityTraitPlaysSound,
     UIAccessibilityTraitSearchField, UIAccessibilityTraitSelected,
     UIAccessibilityTraitStartsMediaSession, UIAccessibilityTraitStaticText,
-    UIAccessibilityTraitSummaryElement, UIAccessibilityTraitUpdatesFrequently,
-    UIAccessibilityTraits, UIView,
+    UIAccessibilityTraitSummaryElement, UIAccessibilityTraitTabBar,
+    UIAccessibilityTraitUpdatesFrequently, UIAccessibilityTraits, UIBezierPath, UIView,
 };
 
 use crate::container_type::AccessibilityContainerType;
+use crate::expanded_status::AccessibilityExpandedStatus;
 use crate::navigation_style::AccessibilityNavigationStyle;
 use crate::text::map_optional_text;
 use crate::textual_context::AccessibilityTextualContext;
@@ -60,6 +63,49 @@ impl<'view> AccessibilityMetadata<'view> {
     /// exposes or can reach the view.
     pub fn is_element(&self) -> bool {
         self.view.isAccessibilityElement(self.main_thread)
+    }
+
+    /// Read whether UIKit reports an assistive technology focused on this view at this instant.
+    ///
+    /// The iOS 4.0 method is selector-checked. This is a point-in-time status query; it does not
+    /// identify the assistive technology, observe focus changes, or move accessibility focus.
+    pub fn accessibility_element_is_focused(&self) -> Result<bool, AccessibilityApiUnavailable> {
+        if !self
+            .view
+            .respondsToSelector(sel!(accessibilityElementIsFocused))
+        {
+            return Err(AccessibilityApiUnavailable);
+        }
+        Ok(self.view.accessibilityElementIsFocused(self.main_thread))
+    }
+
+    /// Return owned identifiers for assistive technologies that UIKit reports as focused here.
+    ///
+    /// The iOS 9.0 method is selector-checked. `None` preserves a native `nil` result; strings in
+    /// a returned set are copied to Rust-owned values and sorted lexicographically because the
+    /// native set has no ordering. The result is a point-in-time snapshot, not a focus callback.
+    pub fn accessibility_assistive_technology_focused_identifiers(
+        &self,
+    ) -> Result<Option<Vec<String>>, AccessibilityApiUnavailable> {
+        if !self
+            .view
+            .respondsToSelector(sel!(accessibilityAssistiveTechnologyFocusedIdentifiers))
+        {
+            return Err(AccessibilityApiUnavailable);
+        }
+        let Some(native_identifiers) = self
+            .view
+            .accessibilityAssistiveTechnologyFocusedIdentifiers(self.main_thread)
+        else {
+            return Ok(None);
+        };
+        let native_identifiers = native_identifiers.allObjects();
+        let mut identifiers = Vec::with_capacity(native_identifiers.count());
+        for index in 0..native_identifiers.count() {
+            identifiers.push(native_identifiers.objectAtIndex(index).to_string());
+        }
+        identifiers.sort_unstable();
+        Ok(Some(identifiers))
     }
 
     /// Replace whether UIKit exposes this view as an accessibility element.
@@ -211,6 +257,41 @@ impl<'view> AccessibilityMetadata<'view> {
             .setAccessibilityLabel(value.as_deref(), self.main_thread);
     }
 
+    /// Return UIKit's current accessibility identifier as an owned Rust string.
+    ///
+    /// This iOS 5.0 property is selector-checked. The value is identifier metadata for uses such
+    /// as UI Automation, not an accessibility label; it does not invoke the iOS 17
+    /// `accessibilityIdentifierBlock` or report assistive output.
+    pub fn accessibility_identifier(&self) -> Result<Option<String>, AccessibilityApiUnavailable> {
+        if !self.view.respondsToSelector(sel!(accessibilityIdentifier)) {
+            return Err(AccessibilityApiUnavailable);
+        }
+        Ok(self
+            .view
+            .accessibilityIdentifier()
+            .map(|identifier| identifier.to_string()))
+    }
+
+    /// Replace UIKit's accessibility identifier; `None` clears it.
+    ///
+    /// This iOS 5.0 property is selector-checked and copied by UIKit. Identifiers are metadata for
+    /// uses such as UI Automation; this setter does not change `accessibilityLabel`, invoke the
+    /// iOS 17 `accessibilityIdentifierBlock`, validate uniqueness, or promise assistive output.
+    pub fn set_accessibility_identifier(
+        &self,
+        identifier: Option<&str>,
+    ) -> Result<(), AccessibilityApiUnavailable> {
+        if !self
+            .view
+            .respondsToSelector(sel!(setAccessibilityIdentifier:))
+        {
+            return Err(AccessibilityApiUnavailable);
+        }
+        let identifier = map_optional_text(identifier, NSString::from_str);
+        self.view.setAccessibilityIdentifier(identifier.as_deref());
+        Ok(())
+    }
+
     /// Replace UIKit's attributed accessibility label; `None` clears it.
     ///
     /// The iOS 11.0 property is selector-checked. UIKit copies the supplied attributed string and
@@ -333,6 +414,26 @@ impl<'view> AccessibilityMetadata<'view> {
             self.view
                 .setAccessibilityUserInputLabels(Some(&native_labels), self.main_thread);
         }
+        Ok(())
+    }
+
+    /// Replace UIKit's `accessibilityAttributedUserInputLabels` with caller-ordered labels.
+    ///
+    /// Put the primary label first and alternatives in descending importance. An empty slice
+    /// assigns an empty array. The iOS 13.0 property is selector-checked; UIKit copies the array.
+    pub fn set_accessibility_attributed_user_input_labels(
+        &self,
+        labels: &[&NSAttributedString],
+    ) -> Result<(), AccessibilityApiUnavailable> {
+        if !self
+            .view
+            .respondsToSelector(sel!(setAccessibilityAttributedUserInputLabels:))
+        {
+            return Err(AccessibilityApiUnavailable);
+        }
+        let native_labels = NSArray::from_slice(labels);
+        self.view
+            .setAccessibilityAttributedUserInputLabels(Some(&native_labels), self.main_thread);
         Ok(())
     }
 
@@ -459,6 +560,25 @@ impl<'view> AccessibilityMetadata<'view> {
             .is_some_and(|labels| !labels.is_empty()))
     }
 
+    /// Return whether UIKit's attributed user-input-label array is non-empty.
+    ///
+    /// The iOS 13.0 getter is selector-checked. This reads the property only and does not invoke
+    /// the iOS 17 `accessibilityAttributedUserInputLabelsBlock` or prove the caller set labels.
+    pub fn has_accessibility_attributed_user_input_labels(
+        &self,
+    ) -> Result<bool, AccessibilityApiUnavailable> {
+        if !self
+            .view
+            .respondsToSelector(sel!(accessibilityAttributedUserInputLabels))
+        {
+            return Err(AccessibilityApiUnavailable);
+        }
+        Ok(!self
+            .view
+            .accessibilityAttributedUserInputLabels(self.main_thread)
+            .is_empty())
+    }
+
     /// Read UIKit's current accessibility activation point in screen coordinates.
     ///
     /// UIKit defaults this to the midpoint of `accessibilityFrame`. The iOS 5.0 property is
@@ -492,6 +612,59 @@ impl<'view> AccessibilityMetadata<'view> {
         self.view
             .setAccessibilityActivationPoint(point, self.main_thread);
         Ok(())
+    }
+
+    /// Return UIKit's current accessibility frame in screen coordinates.
+    ///
+    /// The property is selector-checked. The `UIView` default is its frame; this reads the native
+    /// rectangle only and does not report visibility or assistive-application behavior.
+    pub fn accessibility_frame(&self) -> Result<CGRect, AccessibilityApiUnavailable> {
+        if !self.view.respondsToSelector(sel!(accessibilityFrame)) {
+            return Err(AccessibilityApiUnavailable);
+        }
+        Ok(self.view.accessibilityFrame(self.main_thread))
+    }
+
+    /// Replace UIKit's accessibility frame with a caller-supplied screen-space rectangle.
+    ///
+    /// The rectangle is passed through unchanged; this method does not convert coordinates, alter
+    /// the view's layout frame, or guarantee assistive-application behavior.
+    pub fn set_accessibility_frame(
+        &self,
+        frame: CGRect,
+    ) -> Result<(), AccessibilityApiUnavailable> {
+        if !self.view.respondsToSelector(sel!(setAccessibilityFrame:)) {
+            return Err(AccessibilityApiUnavailable);
+        }
+        self.view.setAccessibilityFrame(frame, self.main_thread);
+        Ok(())
+    }
+
+    /// Replace UIKit's accessibility path; `None` clears the property.
+    ///
+    /// The iOS 7.0 property is selector-checked. UIKit copies the supplied path, which must use
+    /// screen coordinates. This method performs no coordinate conversion and makes no claim about
+    /// assistive-application highlighting or activation behavior.
+    pub fn set_accessibility_path(
+        &self,
+        path: Option<&UIBezierPath>,
+    ) -> Result<(), AccessibilityApiUnavailable> {
+        if !self.view.respondsToSelector(sel!(setAccessibilityPath:)) {
+            return Err(AccessibilityApiUnavailable);
+        }
+        self.view.setAccessibilityPath(path, self.main_thread);
+        Ok(())
+    }
+
+    /// Return whether UIKit's current accessibility-path property is non-nil.
+    ///
+    /// The iOS 7.0 getter is selector-checked. This reads the property only and does not invoke
+    /// the iOS 17 `accessibilityPathBlock` or report assistive-application behavior.
+    pub fn has_accessibility_path(&self) -> Result<bool, AccessibilityApiUnavailable> {
+        if !self.view.respondsToSelector(sel!(accessibilityPath)) {
+            return Err(AccessibilityApiUnavailable);
+        }
+        Ok(self.view.accessibilityPath(self.main_thread).is_some())
     }
 
     /// Return whether UIKit's current `accessibilityTextualContext` property is non-nil.
@@ -537,6 +710,9 @@ impl<'view> AccessibilityMetadata<'view> {
     /// options.
     /// If the set includes `AccessibilityTrait::SummaryElement`, the caller must provide a summary
     /// of current app conditions, settings, or state; this setter does not control when it is read.
+    /// If the set includes `AccessibilityTrait::TabBar`, the caller must use the iOS 10.0 trait
+    /// only for a view that represents an ordered tab list and set that view's element flag to
+    /// `false`; this setter does not create or order tab children.
     pub fn set_traits(&self, traits: &[AccessibilityTrait]) {
         // SAFETY: `UIAccessibilityTraitNone` is a public immutable UIKit constant from the active
         // SDK's `UIAccessibilityConstants.h` and is linked from UIKit.
@@ -657,6 +833,62 @@ impl<'view> AccessibilityMetadata<'view> {
             .setAccessibilityContainerType(container_type, self.main_thread);
         Ok(())
     }
+
+    /// Read UIKit's scalar `accessibilityExpandedStatus` property.
+    ///
+    /// The iOS 18.0 property is selector-checked. The result maps only the three known values;
+    /// unknown native values return `None`. This does not invoke the iOS 18
+    /// `accessibilityExpandedStatusBlock` or report an assistive application's output.
+    pub fn accessibility_expanded_status(
+        &self,
+    ) -> Result<Option<AccessibilityExpandedStatus>, AccessibilityApiUnavailable> {
+        if !self
+            .view
+            .respondsToSelector(sel!(accessibilityExpandedStatus))
+        {
+            return Err(AccessibilityApiUnavailable);
+        }
+        let status = self.view.accessibilityExpandedStatus(self.main_thread);
+        Ok(match status {
+            NativeAccessibilityExpandedStatus::Unsupported => {
+                Some(AccessibilityExpandedStatus::Unsupported)
+            }
+            NativeAccessibilityExpandedStatus::Expanded => {
+                Some(AccessibilityExpandedStatus::Expanded)
+            }
+            NativeAccessibilityExpandedStatus::Collapsed => {
+                Some(AccessibilityExpandedStatus::Collapsed)
+            }
+            _ => None,
+        })
+    }
+
+    /// Replace UIKit's scalar `accessibilityExpandedStatus` property.
+    ///
+    /// The iOS 18.0 property is selector-checked. This sets metadata only and does not expand or
+    /// collapse content. The iOS 18 `accessibilityExpandedStatusBlock` can take precedence; this
+    /// method does not call or replace that block. The caller owns state accuracy.
+    pub fn set_accessibility_expanded_status(
+        &self,
+        status: AccessibilityExpandedStatus,
+    ) -> Result<(), AccessibilityApiUnavailable> {
+        if !self
+            .view
+            .respondsToSelector(sel!(setAccessibilityExpandedStatus:))
+        {
+            return Err(AccessibilityApiUnavailable);
+        }
+        let status = match status {
+            AccessibilityExpandedStatus::Unsupported => {
+                NativeAccessibilityExpandedStatus::Unsupported
+            }
+            AccessibilityExpandedStatus::Expanded => NativeAccessibilityExpandedStatus::Expanded,
+            AccessibilityExpandedStatus::Collapsed => NativeAccessibilityExpandedStatus::Collapsed,
+        };
+        self.view
+            .setAccessibilityExpandedStatus(status, self.main_thread);
+        Ok(())
+    }
 }
 
 fn native_trait(trait_: AccessibilityTrait) -> UIAccessibilityTraits {
@@ -682,6 +914,7 @@ fn native_trait(trait_: AccessibilityTrait) -> UIAccessibilityTraits {
                 UIAccessibilityTraitAllowsDirectInteraction
             }
             AccessibilityTrait::SummaryElement => UIAccessibilityTraitSummaryElement,
+            AccessibilityTrait::TabBar => UIAccessibilityTraitTabBar,
         }
     }
 }

@@ -65,3 +65,42 @@ Do not implement a Rust facade or change row 075 yet. First obtain primary docum
 - [Family Controls authorization](https://developer.apple.com/documentation/familycontrols)
 
 No tests, builds, link probes, prompts, monitoring, or settings changes were performed
+
+## B176 follow-up: no next truthful status slice
+
+Rechecked the public iOS 26.5 declarations and Apple API pages for a distinct typed, read-only
+operation beyond the authorization candidate in D71. No operation has a sufficiently defined,
+privacy-safe contract for this Rust-only row. Keep row 075 unsupported (`X`); do not add an FFI
+binding based solely on Objective-C callability.
+
+- `DeviceActivityAuthorization.isAuthorized` remains the only direct authorization Boolean.
+  Apple documents its `@objc static var isAuthorized: Bool { get }` signature but gives no
+  discussion of what is authorized, no-prompt behavior, entitlement requirements for the query,
+  or thread-safety guarantees. The separate `AuthorizationCenter.authorizationStatus` API has
+  documented parental-control status semantics, but belongs to Family Controls row 074 and is
+  not evidence for this Device Activity property.
+- `DeviceActivityAuthorization.sharingEnabled` is another `@objc static` Boolean, but Apple
+  documents only its signature, not what is shared or which sharing state it represents. Exposing
+  it would give callers an ungrounded label, not a useful capability snapshot.
+- `DeviceActivityAuthorization.authorizedClientIdentifiers` returns identifiers. Apple does not
+  document its scope or a need for a caller to enumerate those identities for this status-only
+  goal; omit it to avoid needless identity disclosure.
+- `DeviceActivityAuthorization.isOverridden` is mutable. It is excluded from a read-only status
+  facade; the public declaration alone does not define a safe purpose or contract for writes.
+- `DeviceActivityCenter` monitoring state and operations are Swift value-type APIs with schedule
+  and extension lifecycle semantics. `DeviceActivityData` exposes private activity information
+  subject to the separate app-and-website-usage entitlement and explicit authorization. Neither
+  is an interchangeable status query.
+
+This is a source-backed no-go, not a claim that these symbols are unavailable to Objective-C. The
+SDK contains the Objective-C runtime class `_TtC14DeviceActivity27DeviceActivityAuthorization`, but
+the local generated `objc2` framework inventory marks DeviceActivity Swift-only and no dedicated
+`objc2-device-activity` crate is available in the local Cargo registry. A handwritten binding
+would therefore depend on precisely the undocumented semantics above. No dependency or code was
+added, and no tests, builds, runtime calls, probes, or device queries were run for B176.
+
+Primary API evidence: [DeviceActivityAuthorizing.isAuthorized](https://developer.apple.com/documentation/deviceactivity/deviceactivityauthorizing/isauthorized),
+[DeviceActivityAuthorization.sharingEnabled](https://developer.apple.com/documentation/deviceactivity/deviceactivityauthorization/sharingenabled),
+[DeviceActivityAuthorization.isOverridden](https://developer.apple.com/documentation/deviceactivity/deviceactivityauthorization/isoverridden),
+[Family Controls authorization status](https://developer.apple.com/documentation/familycontrols/authorizationstatus),
+and [Family Controls App and Website Usage entitlement](https://developer.apple.com/documentation/bundleresources/entitlements/com.apple.developer.family-controls.app-and-website-usage)

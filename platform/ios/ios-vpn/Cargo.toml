@@ -5,7 +5,7 @@ edition.workspace = true
 rust-version.workspace = true
 license.workspace = true
 repository.workspace = true
-description = "Read-only caller-app Personal VPN status query for iOS"
+description = "Read-only caller-app Personal VPN status and configuration queries for iOS"
 
 [dependencies]
 framework-vpn = { path = "../../../crates/framework-vpn", version = "0.1.0" }

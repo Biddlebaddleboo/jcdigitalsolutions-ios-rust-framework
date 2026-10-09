@@ -55,3 +55,36 @@ If a future product explicitly requires CarPlay integration, scope it as host UI
 - [`objc2-car-play` 0.3.2](https://docs.rs/objc2-car-play/0.3.2/objc2_car_play/)
 - [Generated `CPSessionConfiguration` binding](https://docs.rs/objc2-car-play/0.3.2/src/objc2_car_play/generated/CPSessionConfiguration.rs.html)
 - [Generated `CPTemplateApplicationScene` binding](https://docs.rs/objc2-car-play/0.3.2/src/objc2_car_play/generated/CPTemplateApplicationScene.rs.html)
+
+## B182 follow-up: no pre-session CarPlay capability query
+
+Rechecked row 085 against the installed iOS 26.5 public headers and Apple's API documentation.
+No new standalone Rust-callable support, authorization, connection, or device-capability query
+was found. `CPSessionConfiguration.limitedUserInterfaces`, `contentStyle`, and
+`supportsVideoPlayback` are typed read-only values, but all describe the connected CarPlay system;
+the video property explicitly says “The connected CarPlay system supports video playback.” None
+defines a value for the no-session case or proves that this app has a permitted CarPlay category.
+
+The installed header
+`/Applications/Xcode.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS26.5.sdk/System/Library/Frameworks/CarPlay.framework/Headers/CPSessionConfiguration.h`
+requires `initWithDelegate:` and marks plain `init` and `new` unavailable. Its delegate receives
+session property changes. `CPTemplateApplicationScene` is likewise a scene lifecycle surface;
+its connect callback supplies the interface controller/window after CarPlay creates the scene.
+Apple's docs require a category-specific CarPlay entitlement granted through Apple's review and
+then configured in the signed host. This is not a runtime user-permission query and cannot be
+inferred from session properties.
+
+The values are useful inside a genuine CarPlay scene/session implementation, but wrapping them
+without that lifecycle would not provide a truthful preflight capability contract. B182 therefore
+adds no dependency or source facade and leaves row `085-cloud-accounts-communication-carplay` at
+`X`. The existing Xcode 27.x baseline caveat remains unchanged; this audit used Xcode 26.6 build
+`17F113` and iPhoneOS SDK 26.5 and did not validate a future toolchain or live CarPlay session.
+
+Primary API evidence: [CPSessionConfiguration (Objective-C)](https://developer.apple.com/documentation/carplay/cpsessionconfiguration?language=objc),
+[supportsVideoPlayback](https://developer.apple.com/documentation/carplay/cpsessionconfiguration/supportsvideoplayback),
+[Requesting CarPlay Entitlements](https://developer.apple.com/documentation/carplay/requesting-carplay-entitlements),
+[CPTemplateApplicationScene](https://developer.apple.com/documentation/carplay/cptemplateapplicationscene),
+and [CarPlay](https://developer.apple.com/documentation/carplay/)
+
+No tests, builds, app launches, Simulator or device calls, live session access, or entitlement
+queries were performed for B182

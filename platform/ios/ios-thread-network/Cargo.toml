@@ -1,0 +1,18 @@
+[package]
+name = "ios-thread-network"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "Read-only preferred Thread network availability query for entitled iOS apps"
+
+[dependencies]
+
+[target.'cfg(target_os = "ios")'.dependencies]
+block2 = { workspace = true, features = ["alloc"] }
+objc2 = { workspace = true, features = ["std"] }
+objc2-thread-network = { version = "=0.3.2", default-features = false, features = ["THClient", "block2", "std"] }
+
+[lints]
+workspace = true

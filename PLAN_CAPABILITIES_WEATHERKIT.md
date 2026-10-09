@@ -80,3 +80,37 @@ This workstream does not claim a WeatherKit fetch, typed forecast value, authori
 The audit inspected the SDK file list, the `WeatherService` declarations and availability annotations in the Swift interface, the `.tbd` export form, the local `objc2` unsupported-framework catalog, the existing `framework-network` contract, and Apple's primary WeatherKit, REST authentication, and entitlement documentation
 
 No source edit, package edit, test, build, link probe, or runtime probe was made. `xcrun --sdk iphoneos --show-sdk-version` reported `26.5`; `xcodebuild -version` reported `Xcode 26.6` and build `17F113`
+
+## B188 follow-up: no native Objective-C/C WeatherKit slice
+
+Rechecked row 091 against the installed iOS 26.5 SDK and Apple's current API documentation. The
+native `WeatherService` remains a Swift class whose forecast operations are `async throws` and
+return generic Swift `WeatherQuery` values. The framework has no public `Headers` directory or
+Objective-C module map, and its `.tbd` exports Swift-mangled symbols. The generated `objc2`
+framework inventory continues to classify WeatherKit as Swift-only. There is no native
+Objective-C/C method to bind for a Rust-only facade.
+
+Apple does document the REST route `GET /api/v1/availability/{latitude}/{longitude}` as a way to
+determine data sets available at a coordinate, but this is a separate web-service contract, not
+an Objective-C/C surface. Every request needs an Apple Developer Program signed developer token;
+Apple requires ES256, the WeatherKit key ID and issuer/subject claims, says never to distribute the
+private key, and recommends an authenticated signing service. A caller-supplied token plus the
+existing generic `framework-network` contract would still leave response decoding and WeatherKit
+attribution outside this bounded API. Returning only opaque response bytes would not produce a
+typed WeatherKit capability or data value. A REST client may be viable under a separately selected
+product contract, but B188 does not infer or implement one.
+
+No dependency, package, token handling, HTTP call, parser, or source code was added. Row
+`091-commerce-services-weatherkit-through-rest-native-http-where-appropriate` remains `X` for the
+native Rust facade, with the REST option deferred to an explicit host-owned token, typed response,
+and attribution design. This inspection used Xcode 26.6 build `17F113` and iPhoneOS SDK 26.5; the
+Xcode 27.x baseline caveat is unchanged.
+
+Primary API evidence: [WeatherService](https://developer.apple.com/documentation/weatherkit/weatherservice),
+[WeatherKit REST API](https://developer.apple.com/documentation/weatherkitrestapi),
+[REST API authentication](https://developer.apple.com/documentation/weatherkitrestapi/request-authentication-for-weatherkit-rest-api),
+[REST availability endpoint](https://developer.apple.com/documentation/weatherkitrestapi/get-api-v1-availability-_latitude_-_longitude_),
+and [WeatherAttribution](https://developer.apple.com/documentation/weatherkit/weatherattribution)
+
+No tests, builds, REST calls, token requests, app launches, Simulator or device calls, or runtime
+probes were performed for B188

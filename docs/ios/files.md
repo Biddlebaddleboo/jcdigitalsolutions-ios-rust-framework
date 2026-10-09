@@ -78,6 +78,35 @@ physical-device usage or exclusive allocation. The query uses one no-follow meta
 rejects final symlinks/directories/special entries, reads no contents, and changes no portable
 `FileBackend` behavior. See the [B109 plan](../../PLAN_IOS_FILE_ALLOCATED_BLOCKS.md).
 
+## Regular file clone
+
+`IosFiles::clone_regular_file(source, destination)` creates a native copy-on-write clone of one
+regular sandbox file at a destination that must not exist. Both paths use `AppPath` and the
+retained semantic roots. The source opens with `O_NOFOLLOW` and must pass a regular-file check;
+the destination parent uses no-follow descriptor traversal, and `fclonefileat` receives only its
+validated final component with `CLONE_NOFOLLOW_ANY | CLONE_RESOLVE_BENEATH`. Existing destination
+entries are never replaced. The syscall is expected to publish a complete clone atomically or
+create no destination, per XNU's `clonefile(2)` contract; this does not promise crash durability.
+
+The separate `IosFiles::volume_clone_support_snapshot(directory)` reports Foundation's cached
+optional `NSURLVolumeSupportsFileCloningKey` Boolean for one retained app-directory volume. It can
+help a caller decide whether to attempt a clone, but it is only a volume-level hint; it does not
+establish that a particular pair of paths, clone flags, or future call will succeed. The clone
+syscall's result remains authoritative. The snapshot is read at `IosFiles::new`, returns `None`
+when Foundation cannot provide a Boolean, and is available from iOS 10.0.
+
+The clone may share data blocks at first, but later writes to either file are private. A later
+overwrite can still fail with `ENOSPC`, so the API makes no speed, storage, or future-write promise.
+Native attributes and extended attributes follow XNU clone semantics; without `CLONE_ACL`, the
+destination inherits ACLs from its parent. Concurrent source writes are not serialized. Source
+and destination on separate filesystems return the mapped native error. The API does not inspect
+or preflight the volume-cloning resource key. It needs no usage-description key, permission, or
+entitlement. It is an iOS-only operation outside
+`framework-files::FileBackend`; it accepts no arbitrary URL, provider path, or security-scoped URL,
+and keeps the existing concurrent opened-parent directory-rename limit. The public function is
+available from iOS 10.0 in the SDK; the no-follow/beneath flags are passed on every call, with no
+weaker fallback. See the [B196 plan](../../PLAN_IOS_FILE_CLONING.md#b196-implementation).
+
 ## Single-entry kind
 
 `IosFiles::entry_kind` classifies one validated sandbox `AppPath` with the same `FileKind` values
@@ -148,6 +177,33 @@ an alignment requirement, buffer-size mandate, or performance guarantee. A nonpo
 value maps to `InvalidInput`. This query has the same required-reason Disk Space privacy-manifest
 obligation as B137 and adds no Info.plist key or entitlement. See the
 [B155 plan](../../PLAN_IOS_VOLUME_IO_SIZE.md).
+
+`IosFiles::volume_rename_support_snapshot` returns the two Foundation rename-option values cached
+by `IosFiles::new` for a semantic app-directory root. Its `IosVolumeRenameSupportSnapshot` methods
+return `Some(true)` or `Some(false)` when Foundation supplied an `NSNumber`; `None` means the
+resource value could not be read or was not a number. The values report only volume support for
+`RENAME_EXCL` and `RENAME_SWAP`; they do not promise that a later operation will succeed. The
+existing `FileBackend` still treats an unreported value as unsupported and uses its conservative
+fallback. This iOS-only query adds no portable `FileBackend` operation or permission requirement.
+See the [B172 plan](../../PLAN_IOS_VOLUME_RENAME_SUPPORT.md).
+
+`IosFiles::volume_name_support_snapshot` returns Foundation's cached case-sensitive and
+case-preserved name values for one semantic app-directory volume. `Some(false)` is a reported
+negative; `None` means the key query did not produce a Boolean `NSNumber`. These volume-level
+values may help a caller choose filename-comparison behavior, but they do not define Unicode
+normalization/collation, prevent name races, or guarantee a later create/rename result. The
+portable `AppPath` comparison and validation rules remain unchanged. See the
+[B175 plan](../../PLAN_IOS_VOLUME_NAME_SUPPORT.md).
+
+Other Foundation volume values were audited without adding standalone support snapshots. B178 declines
+`NSURLVolumeMaximumFileSizeKey` because Apple's online reference describes the returned
+`NSNumber` as Boolean while the SDK header describes a byte count; the binding does not resolve
+the numeric representation, so a Boolean must not become a false byte limit. B181 declines
+`NSURLVolumeSupportsHardLinksKey` because the file facade has no hard-link creation operation and
+B105 already reports the link count for one regular file. See the
+[B178 audit](../../PLAN_IOS_VOLUME_MAXIMUM_FILE_SIZE.md) and
+[B181 audit](../../PLAN_IOS_VOLUME_HARD_LINK_SUPPORT.md). B184 declines the volume symbolic-link support flag because the facade has no symlink operation; its no-follow policy remains in force. B187 declines the advisory-locking support flag because the facade has no lock or open-handle operation. See the [B184 audit](../../PLAN_IOS_VOLUME_SYMLINK_SUPPORT.md) and [B187 audit](../../PLAN_IOS_VOLUME_ADVISORY_LOCKING.md). B190 declines `NSURLVolumeSupportsSparseFilesKey` because the facade has no sparse-file create, hole, or extent operation, and allocated-block count does not prove sparseness. See the [B190 audit](../../PLAN_IOS_VOLUME_SPARSE_FILES.md).
+B193 identified `fclonefileat` as a concrete operation; B196 implements the bounded regular-file clone API, and B199 exposes Foundation's volume-level clone-support hint separately. The hint does not preflight or guarantee a clone call. See the [B193/B196 plan](../../PLAN_IOS_FILE_CLONING.md) and [B199 plan](../../PLAN_IOS_VOLUME_CLONING_SUPPORT.md).
 
 `IosFiles::app_directory_name_max_bytes` queries `_PC_NAME_MAX` on the retained descriptor for
 one semantic app-directory root. The result applies to direct child filename components in that
@@ -223,6 +279,18 @@ metadata useful for diagnostics such as inspecting stored creation modes; it doe
 effective access or guarantee that a later read/write will succeed. Callers must rely on the actual
 operation result. The method reads no contents and adds no portable `FileBackend` operation. See
 the [B103 plan](../../PLAN_IOS_FILE_PERMISSION_BITS.md).
+
+`IosFiles::entry_effective_access` requests Apple's `ATTR_CMN_USERACCESS` value for one validated
+entry. It reports the current process's effective-UID read, write, and execute/search mask through
+`IosEntryEffectiveAccess::{allows_read, allows_write, allows_execute_or_search}`; `bits()` retains
+the raw mask, including unnamed bits. For directories, read means list, write means add a child,
+and execute means search. The final symlink is not followed; the query does not report access to
+its target. Some volume formats do not support this attribute and return `Unsupported`. This is a
+point-in-time OS permission report, not a full access check or guarantee of a later read, write, or
+traversal; app sandbox policy, file protection, mount state, namespace races, and other checks may
+still affect an operation. The query reads no contents and adds no portable `FileBackend`
+operation, arbitrary URL support, permission prompt, or security-scope access. See the
+[B170 plan](../../PLAN_IOS_ENTRY_EFFECTIVE_ACCESS.md).
 
 ## Regular-file hard-link count
 

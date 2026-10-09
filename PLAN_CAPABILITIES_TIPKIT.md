@@ -57,3 +57,37 @@ No narrowly scoped system TipKit status/value API is safely callable from Rust u
 - [TipKit CloudKit configuration](https://developer.apple.com/documentation/tipkit/tips/configurationoption/cloudkitcontainer(_:))
 
 No tests, builds, link probes, datastore mutation, or Tip presentation were performed
+
+## B191 follow-up: no C/Objective-C TipKit status surface
+
+Rechecked row 092 against the installed iOS 26.5 interface and current Apple docs. The useful
+scalar candidate is still `Tip.status` or its Boolean projection `Tip.shouldDisplay`: Apple defines
+it as this concrete tip's current eligibility based on its rules and configured display frequency.
+The getter belongs to the Swift `Tip` protocol extension; `Tip` itself requires host-defined
+`Text`, `Image`, rule, action, and option values. Its status and updates are not Objective-C
+declarations, and there is no public TipKit header/module map or generated Rust binding in the
+installed SDK/catalog.
+
+The apparent Objective-C-adjacent `TipUIView` does not supply a status shortcut. Apple documents
+it as an `@MainActor` UIKit presentation view whose initializer takes `any Tip` and an action
+closure; this is a display API and still depends on the Swift tip value. `Tips.configure(_:)` is
+also Swift-only and loads persistent TipKit state before tips display. Neither provides a
+stateless, global framework-ready query.
+
+The installed declaration is
+`/Applications/Xcode.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS26.5.sdk/System/Library/Frameworks/TipKit.framework/Modules/TipKit.swiftmodule/arm64e-apple-ios.swiftinterface`;
+it marks `Tip` and `status` available from iOS 17.0, without `@objc`. Apple's status docs confirm
+the per-tip eligibility meaning, not app-global readiness or presentation. A truthful Rust binding
+would need a fixed-tip Swift bridge and explicit host configuration, which violates this audit's
+no-Swift boundary. B191 therefore adds no wrapper or code and leaves row
+`092-commerce-services-tipkit-only-if-system-tipkit-behavior-is-specifically-requested-otherwise-framework-owned-tip-logic-may-be-portable`
+at `X`. Xcode 26.6 build `17F113` / SDK 26.5 were inspected; the Xcode 27.x baseline caveat is
+unchanged.
+
+Primary API evidence: [Tip.status](https://developer.apple.com/documentation/tipkit/tip/status-swift.property),
+[TipUIView](https://developer.apple.com/documentation/tipkit/tipuiview),
+[TipUIView initializer](https://developer.apple.com/documentation/tipkit/tipuiview/init%28_%3Aarrowedge%3Aactionhandler%3A%29),
+and [Tips.configure(_:)](https://developer.apple.com/documentation/tipkit/tips/configure%28_%3A%29)
+
+No tests, builds, Tip presentation, datastore changes, app launches, Simulator or device calls, or
+runtime probes were performed for B191

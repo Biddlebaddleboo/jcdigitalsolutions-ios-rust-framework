@@ -76,3 +76,34 @@ This workstream does not claim RealityKit parity, AR session startup, camera acc
 The audit inspected the RealityKit and RealityFoundation SDK trees, public headers, Swift interfaces, `.tbd` exports, local generated-binding catalog, the row 095 status record, and Apple's primary RealityKit and ARKit documentation
 
 `xcrun --sdk iphoneos --show-sdk-version` reported `26.5`; `xcodebuild -version` reported `Xcode 26.6` and build `17F113`. No code edit, package edit, test, build, link probe, or runtime probe was made
+
+## B194 follow-up: no Rust-only RealityKit scene operation
+
+Rechecked row 095 against the iOS 26.5 SDK and Apple's current RealityKit docs. `ARView.init(frame:)`
+is an Objective-C-compatible `UIView` initializer, but the class is `@MainActor`, and its scene
+property is the Swift `RealityFoundation.Scene` type. The useful follow-on calls—constructing an
+`AnchorEntity`/`Entity`, attaching components, and inserting anchors into a scene—remain Swift
+types and APIs. The available initializer can construct a view shell, but it does not provide a
+Rust-owned scene, content, or rendering operation.
+
+The installed public RealityKit headers remain shader interfaces guarded by `__METAL_VERSION__`,
+not host-side C functions for scene or entity operations. `RealityFoundation` has no public header
+directory or module map, and the generated binding inventory marks both `RealityKit` and
+`RealityFoundation` Swift-only. A Metal shader alone cannot attach itself to a RealityKit scene;
+Apple's custom-material path still constructs material and entity objects through the Swift scene
+model. There is no source-backed Objective-C/C slice beyond the unusable view shell.
+
+B194 therefore adds no view wrapper, Swift bridge, package dependency, or source code. Row
+`095-maps-ar-spatial-realitykit-native-swift-residual-coverage-that-is-realistically-supportable`
+remains `X`. This inspection used Xcode 26.6 build `17F113` and iPhoneOS SDK 26.5; the Xcode 27.x
+baseline caveat remains unchanged.
+
+Primary API evidence: [ARView](https://developer.apple.com/documentation/realitykit/arview),
+[ARView `init(frame:)`](https://developer.apple.com/documentation/realitykit/arview/init%28frame%3A%29),
+[Scene](https://developer.apple.com/documentation/realitykit/scene),
+[Entity](https://developer.apple.com/documentation/realitykit/entity),
+[RealityView](https://developer.apple.com/documentation/realitykit/realityview),
+and [custom RealityKit materials](https://developer.apple.com/documentation/realitykit/modifying-realitykit-rendering-using-custom-materials)
+
+No tests, builds, ARView creation, app launch, camera access, AR session, scene mutation, render,
+or device query was performed for B194

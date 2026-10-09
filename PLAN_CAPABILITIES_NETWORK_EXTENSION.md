@@ -12,9 +12,11 @@ This is an evidence and scope recommendation only. It does not change the canoni
 
 B79 now implements and validates the bounded Personal VPN profile-status query through the generated `objc2-network-extension` 0.3.2 binding. Root integrates row 098 as a portable-contract/iOS-backend `B` partial, adds `sh platform/ios/ios-vpn/check.sh` to macOS CI, and documents the exact entitlement and deployment limits. The broad NetworkExtension/VPN family remains unsupported beyond this read-only slice; see [B79](PLAN_IOS_VPN_STATUS.md).
 
+B200 adds a second read-only snapshot through the same `NEVPNManager` preference-load callback: `isEnabled` and `isOnDemandEnabled` from the loaded caller-app configuration. It adds no setter, rule inspection, dependency, or capability row. Apple notes another enabled Personal VPN configuration can make `isEnabled` false; `isOnDemandEnabled` does not prove rules exist or cause a connection. The portable result is `PersonalVpnConfigurationFlags`, and the iOS API is `request_personal_vpn_configuration(MainThread)`; see the [updated B79/B200 plan](PLAN_IOS_VPN_STATUS.md).
+
 At the D82 audit stage, row 098 was `X` because no bounded backend was implemented. The row covers a large framework: Personal VPN, custom packet and flow tunnel providers, content filters, DNS proxy/settings, app push, URL filters, and other platform-specific services. A query of `NEVPNManager` does not implement or represent that full capability
 
-A credible future Rust slice is a read-only snapshot of the calling app's Personal VPN profile status through `NEVPNManager.sharedManager()`, `loadFromPreferencesWithCompletionHandler:`, and `connection.status`. This is a typed Objective-C API available to `objc2-network-extension` 0.3.2. The result could map the six public `NEVPNStatus` values into a portable enum and return a separate load error. It would not write preferences, start or stop a tunnel, inspect other apps' profiles, or claim the device's global VPN/routing state
+A credible Rust slice is a read-only snapshot of the calling app's Personal VPN profile status and, after a successful preference load, the two configuration flags `isEnabled` and `isOnDemandEnabled`. These are typed Objective-C APIs available through `objc2-network-extension` 0.3.2. The status result maps the six public `NEVPNStatus` values into a portable enum and returns a separate load error; B200 returns only two booleans. It does not write preferences, inspect Connect On Demand rules, start or stop a tunnel, inspect other apps' profiles, or claim the device's global VPN/routing state
 
 The Personal VPN query was an API candidate at D82; B79 has since added `framework-vpn` and `ios-vpn` for the narrow status slice only
 
@@ -36,7 +38,7 @@ Apple's Personal VPN docs describe built-in IPsec and IKEv2 configurations. A cu
 
 The generated-framework catalog in cached `objc2` 0.6.5 lists NetworkExtension's public Rust binding crate as `objc2-network-extension`. Its upstream 0.3.2 docs expose `NEVPNManager`, `NEVPNConnection`, and `NEVPNStatus`; the generated status is a transparent `NSInteger` wrapper with the six typed constants. D82 found the generated `loadFromPreferencesWithCompletionHandler` method under `block2`; B79 pins 0.3.2 with defaults disabled and only that NetworkExtension feature enabled
 
-At D82 time the repository lock and package manifests did not include `objc2-network-extension`; B79 has since added it and passed the focused compile, strict Clippy, rustdoc, feature-tree, and link/import gates. The reviewed unsafe calls, object/block lifetimes, main-thread callback context, and error mapping are recorded in [B79](PLAN_IOS_VPN_STATUS.md)
+At D82 time the repository lock and package manifests did not include `objc2-network-extension`; B79 added it and passed the focused compile, strict Clippy, rustdoc, feature-tree, and link/import gates. B200 reuses the locked crate and passed portable/device/Simulator compile, strict Clippy, warning-denied rustdoc, format, source-scope, feature-tree, and docs checks; link probes were not run. The reviewed unsafe calls, object/block lifetimes, main-thread callback context, error mapping, and configuration-flag limits are recorded in [B79/B200](PLAN_IOS_VPN_STATUS.md)
 
 An honest portable contract would report only the app-owned Personal VPN configuration status. `Invalid` must remain an explicit status value rather than a fabricated system-wide “VPN off” result. The async preference-load failure must remain distinct from a successful snapshot. The portable contract must not infer tunnel reachability, route coverage, provider health, VPN permission, or global device state from a profile status
 
@@ -51,13 +53,15 @@ An honest portable contract would report only the app-owned Personal VPN configu
 
 ## Candidate acceptance boundary
 
-A follow-up may implement only an asynchronous, read-only Personal VPN status snapshot using the caller-process `NEVPNManager` singleton and iOS 8.0 APIs. It may represent load failure plus the six public statuses. It must preserve the documented main-thread completion context, make no preference mutation or tunnel-control call, and state that the status is for this app's Personal VPN profile
+A follow-up may implement only asynchronous, read-only Personal VPN status and configuration-flag snapshots using the caller-process `NEVPNManager` singleton and iOS 8.0 APIs. Both reads occur only after the preference load succeeds. The status result represents load failure plus the six public statuses; the configuration result contains only `isEnabled` and `isOnDemandEnabled`. It must preserve the documented main-thread completion context, make no preference mutation or tunnel-control call, and state that each result describes only this app's Personal VPN profile
 
 That candidate must not claim:
 
 - all VPNs or the active system route are represented by the app's `NEVPNManager` connection
 - profile status proves network reachability, successful VPN service, or provider health
 - a successful load means the user granted VPN authorization or that a configuration exists
+- `isEnabled == false` proves that no other Personal VPN configuration is enabled
+- `isOnDemandEnabled == true` proves that Connect On Demand rules exist or that a connection will occur
 - an immediate tunnel-start result means the connection is established
 - generic NetworkExtension, packet tunnel, content filter, DNS, or app proxy support
 - entitlement approval, App Store eligibility, or host configuration from a successful Rust compile/link

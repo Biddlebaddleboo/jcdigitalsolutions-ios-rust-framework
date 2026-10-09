@@ -103,3 +103,39 @@ This workstream does not claim channel creation, channel join, microphone permis
 Inspected the installed PushToTalk module map and public headers, Xcode version and iPhoneOS SDK version, cached generated-binding catalog, current Cargo manifests and lock, row 084's status record, upstream `objc2-push-to-talk` 0.3.2 docs, and Apple primary API, entitlement, background-mode, microphone, and APNs docs
 
 No source, build, link, test, device, Simulator, entitlement, microphone prompt, push, or runtime probe was run for this audit. The row remains `X` until a separate workstream implements and validates a scoped Rust-owned PTT feature
+
+## B179 follow-up: no standalone read-only PushToTalk query
+
+Revalidated row 084 against the installed iOS 26.5 SDK declarations and Apple's current Objective-C
+API documentation. The candidate `PTChannelManager.activeChannelUUID` has a truthful, narrow
+meaning, but it is an instance property reachable only after the app creates and retains a manager
+with channel-manager and restoration delegates. Apple requires manager creation at launch to
+restore channels and receive pushes. This is operational lifecycle setup, not an isolated
+capability query, so it is not suitable as a support or authorization snapshot for the Rust-only
+facade.
+
+`PTServiceStatus` also has meaningful named values, but `setServiceStatus:forChannelUUID:` is a
+setter: Apple directs the app to report its own backend/network state to the system UI. The SDK
+does not expose a getter. The instantiation failures for `PTInstantiationErrorMissingBackgroundMode`,
+`PTInstantiationErrorMissingPushServerEnvironment`, `PTInstantiationErrorMissingEntitlement`, and
+`PTInstantiationErrorInvalidPlatform` are reported only as part of channel-manager creation; they
+do not form an independent support query and the invalid-platform error includes Simulator.
+Calling manager creation solely to inspect an error would trigger the delegate and restoration
+lifecycle the status-only contract excludes.
+
+The installed public declarations are in
+`/Applications/Xcode.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS26.5.sdk/System/Library/Frameworks/PushToTalk.framework/Headers/PTChannelManager.h`
+and `PTErrors.h`. They confirm `channelManagerWithDelegate:restorationDelegate:completionHandler:`
+as the manager factory, `activeChannelUUID` as the sole read-only manager status property, and
+`setServiceStatus:forChannelUUID:completionHandler:` as a setter. The generated upstream
+`objc2-push-to-talk` binding does not remove those instance/lifecycle requirements; the repository
+does not depend on it. Therefore B179 adds no Rust binding or facade and row 084 remains `X`.
+
+Primary API evidence: [PTChannelManager (Objective-C)](https://developer.apple.com/documentation/pushtotalk/ptchannelmanager?language=objc),
+[activeChannelUUID](https://developer.apple.com/documentation/pushtotalk/ptchannelmanager/activechanneluuid?language=objc),
+[Creating a Push to Talk app](https://developer.apple.com/documentation/pushtotalk/creating-a-push-to-talk-app),
+[PTServiceStatus](https://developer.apple.com/documentation/pushtotalk/ptservicestatus),
+and [PushToTalk](https://developer.apple.com/documentation/pushtotalk)
+
+No code, dependency, build, link probe, test, app launch, Simulator run, device call, permission
+prompt, channel operation, push operation, or live manager call was performed for B179

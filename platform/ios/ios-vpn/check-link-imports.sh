@@ -45,6 +45,8 @@ for target in aarch64-apple-ios aarch64-apple-ios-sim; do
     grep -Fq 'loadFromPreferencesWithCompletionHandler:' "$binary_strings"
     grep -Fxq 'connection' "$binary_strings"
     grep -Fxq 'status' "$binary_strings"
+    grep -Fxq 'isEnabled' "$binary_strings"
+    grep -Fxq 'isOnDemandEnabled' "$binary_strings"
     if grep -Eiq 'swift|saveToPreferencesWithCompletionHandler|removeFromPreferencesWithCompletionHandler|startVPNTunnel|stopVPNTunnel|NETunnelProvider|NEPacketTunnelProvider|NEAppProxyProvider|NEFilterProvider' "$symbols" "$binary_strings"; then
         echo "unexpected Swift runtime, profile mutation, tunnel control, or provider API in $symbols or $binary_strings" >&2
         exit 1

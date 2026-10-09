@@ -21,7 +21,7 @@ Add one read-only, asynchronous Rust query for the calling app's Personal VPN pr
 - Use a caller-owned Rust future; the native request begins when the request function runs, and dropping the future abandons Rust interest without claiming native cancellation
 - Keep Apple's callback context explicit: the preference-load callback runs on the caller's main thread
 - Require and document the Personal VPN entitlement `com.apple.developer.networking.vpn.api = ["allow-vpn"]`; a successful compile or link does not establish entitlement approval or runtime access
-- Do not read, save, or remove configuration properties; do not start or stop a tunnel; do not implement packet/flow tunnels, DNS, proxy, filter, or provider extensions
+- For the B79 status request, do not read, save, or remove configuration properties. B200 adds a separate query for only the two enabled flags; neither request saves or removes a profile or starts/stops a tunnel, packet/flow tunnel, DNS, proxy, filter, or provider extension
 - Do not claim global device VPN state, route coverage, reachability, tunnel health, or system-wide configuration
 - Add no Swift source, Swift ABI, C ABI, UI, permission prompt, or global service registry
 
@@ -75,3 +75,28 @@ Do not add or run tests in this workstream. No entitlement, user authorization, 
 - Future drop detaches Rust interest without retaining caller state or claiming cancellation; callback and waker state contains only owned `Send + Sync` values and remains safe for the documented main-thread callback
 - [x] The manifest row becomes partial (`B`) only after the implementation and focused gates pass, with the Personal VPN entitlement and all broad NetworkExtension limits stated
 - [x] CI and docs indexes invoke and describe the focused gates; no generic NetworkExtension claim is added
+
+## B200 — Personal VPN configuration flags
+
+B200 adds a second narrow read-only query to the existing row 098 partial. `ios-vpn::request_personal_vpn_configuration(MainThread)` asynchronously loads the calling app's preferences and, only after a successful load, reads `NEVPNManager.isEnabled` and `NEVPNManager.isOnDemandEnabled`. It returns `PersonalVpnConfigurationFlags { enabled, on_demand_enabled }` through `IosPersonalVpnConfigurationFuture`; the existing status API and B79 behavior remain intact. Preference-load failures, callback-thread mismatch, and caught Rust panics use the existing `PersonalVpnQueryError` contract.
+
+The two Booleans report only the loaded configuration properties. Apple documents that only one Personal VPN configuration can be enabled at once; if another is enabled, `isEnabled` is set false in preferences and a reload is needed to observe a change. `isOnDemandEnabled` reports the Connect On Demand capability flag only; B200 does not read the rule list or claim automatic connection behavior. Neither accessor is called as a setter. The request keeps the `allow-vpn` entitlement, caller-main-thread, future-drop, and iOS API-floor constraints from B79.
+
+### B200 declaration and binding evidence
+
+The installed Xcode 26.6 build `17F113` iPhoneOS 26.5 SDK declares `NEVPNManager.onDemandEnabled` with getter `isOnDemandEnabled` and `NEVPNManager.enabled` with getter `isEnabled`, both `API_AVAILABLE(ios(8.0))`, in `/Applications/Xcode.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS26.5.sdk/System/Library/Frameworks/NetworkExtension.framework/Headers/NEVPNManager.h` (header lines 115–118 and 145–148). The locally installed `objc2-network-extension` 0.3.2 binding declares `NEVPNManager::isOnDemandEnabled(&self) -> bool` and `NEVPNManager::isEnabled(&self) -> bool` in `$HOME/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/objc2-network-extension-0.3.2/src/generated/mod.rs` (the `NEVPNManager` impl around lines 738 and 790). Both generated calls are `unsafe`; implementation safety notes tie them to a retained manager and the successful preference callback.
+
+Apple documents [`isEnabled`](https://developer.apple.com/documentation/networkextension/nevpnmanager/isenabled) as the enabled state of the VPN configuration and notes the other-profile false case and reload requirement. Apple documents [`isOnDemandEnabled`](https://developer.apple.com/documentation/networkextension/nevpnmanager/isondemandenabled) as the Connect On Demand capability toggle, defaulting to false. The configuration operation adds no Swift, Swift ABI, handwritten Objective-C ABI, manager lifecycle, rule read, user prompt, or device-state query.
+
+Local SDK inspection and static gates use Xcode 26.6 / iPhoneOS SDK 26.5, which is below the repository's Xcode 27.x baseline. These results do not establish the Xcode 27.x gate result. The public API floor remains iOS 8.0, while rustc 1.94.1's minimum supported deployment target remains iOS 10.0 for device builds; the existing Simulator probe target remains iOS 14.0.
+
+### B200 focused static gates
+
+- Passed `cargo +1.94.1 check --locked -p framework-vpn --no-default-features` and strict portable Clippy
+- Passed `cargo +1.94.1 check --locked -p ios-vpn --target aarch64-apple-ios` and `cargo +1.94.1 check --locked -p ios-vpn --target aarch64-apple-ios-sim`
+- Passed `cargo +1.94.1 clippy --locked --lib -p ios-vpn --target aarch64-apple-ios -- -D warnings` and the equivalent `aarch64-apple-ios-sim` command
+- Passed `RUSTDOCFLAGS="-D warnings" cargo +1.94.1 doc --locked --no-deps -p framework-vpn -p ios-vpn --target aarch64-apple-ios`, both package formatting checks, shell syntax, static source-scope checks, `cargo +1.94.1 tree --locked -p ios-vpn --target aarch64-apple-ios -e features`, `cargo +1.94.1 xtask docs-check`, and scoped `git diff --check`
+- The package gate `sh platform/ios/ios-vpn/check.sh` also builds and inspects linked device/Simulator probes; its link/import portion was not run for B200 because this audit explicitly excludes probes
+- The source-scope gate requires both typed getter calls and rejects `setEnabled`, `setOnDemandEnabled`, `onDemandRules`, preference writes/removal, tunnel control, provider APIs, and Swift source
+- The link/import gate requires the emitted `isEnabled` and `isOnDemandEnabled` selectors and the existing NetworkExtension/Foundation/libSystem/libobjc imports
+- No tests, app runs, probe builds/executions, live manager calls, entitlement checks, or device queries were run for B200

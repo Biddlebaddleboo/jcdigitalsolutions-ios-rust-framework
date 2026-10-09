@@ -65,3 +65,35 @@ If the project later approves a minimal Swift bridge with a stable reviewed C AB
 - [AAAttribution.attributionToken()](https://developer.apple.com/documentation/adservices/aaattribution/attributiontoken%28%29)
 - [App Tracking Transparency](https://developer.apple.com/documentation/apptrackingtransparency)
 - [`objc2-ad-services` 0.3.2](https://docs.rs/objc2-ad-services/0.3.2/objc2_ad_services/)
+
+## B185 follow-up: AdAttributionKit support contract remains Swift-only
+
+Rechecked row 089 against the installed iOS 26.5 interface, framework headers, framework stub,
+and current Apple API docs. `AppImpression.isSupported` has a precise and useful contract —
+whether the framework supports app impressions on this device — and `Postback.isSupported`
+reports postback support separately. Both remain Swift static properties with no public
+Objective-C/C declaration in the SDK. `AdAttributionKit.framework/Headers/AdAttributionKit.h`
+is only an umbrella header; the Swift interface declares these getters as `Swift.Bool` and does
+not mark them `@objc`. The framework stub exposes Swift-mangled symbols, not a C ABI suitable for
+the project’s Rust-only boundary. No generated `objc2-ad-attribution-kit` binding is available.
+
+The Objective-C alternative, `AAAttribution.attributionTokenWithError:`, does not fill this gap:
+the public `AAAttribution.h` declares token generation only, and Apple's documentation says it
+generates a 24-hour attribution token for use in the attribution flow. Its `NetworkError` means
+the server cannot provide a token without unimpeded internet access. Treating this service/token
+operation as a support query would both change the data/network contract and conflate platform
+support with token generation success.
+
+No Rust-callable narrow surface is justified under the current no-Swift rule. B185 makes no code,
+binding, dependency, manifest, or row-status change; row
+`089-commerce-services-adattributionkit-adservices-as-applicable` remains `X`. This audit used
+Xcode 26.6 build `17F113` and iPhoneOS SDK 26.5; the Xcode 27.x baseline caveat is unchanged.
+
+Primary API evidence: [AppImpression.isSupported](https://developer.apple.com/documentation/adattributionkit/appimpression/issupported),
+[Postback.isSupported](https://developer.apple.com/documentation/adattributionkit/postback/issupported),
+[AAAttribution (Objective-C)](https://developer.apple.com/documentation/adservices/aaattribution?language=objc),
+[AAAttribution.attributionToken()](https://developer.apple.com/documentation/adservices/aaattribution/attributiontoken%28%29),
+and [AAAttribution NetworkError](https://developer.apple.com/documentation/adservices/aaattributionerror/networkerror)
+
+No tests, builds, token requests, network calls, app launches, or runtime/device probes were
+performed for B185

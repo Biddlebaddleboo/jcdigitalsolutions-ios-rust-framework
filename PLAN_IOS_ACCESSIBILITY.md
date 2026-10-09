@@ -2,7 +2,7 @@
 
 ## Objective
 
-Add a capability-scoped iOS extension for accessibility metadata on caller-owned UIKit `UIView` instances, using public `objc2` bindings and preserving native UIKit behavior
+Add a capability-scoped iOS extension for accessibility metadata and point-in-time focus-status queries on caller-owned UIKit `UIView` instances, using public `objc2` bindings and preserving native UIKit behavior
 
 This is a bounded metadata adapter, not a reusable view system or a claim of full accessibility coverage
 
@@ -46,14 +46,15 @@ Do not edit examples, other platform crates, shared capability manifests/indexes
 
 - Creating, laying out, retaining, or rendering UIKit views
 - Native view/controller lifecycle or general presentation
-- Dynamic accessibility blocks, announcements, focus APIs, custom actions, or custom `UIAccessibilityElement` implementations
+- Dynamic accessibility blocks, announcements, focus control/callbacks, custom actions, or custom `UIAccessibilityElement` implementations; B192 and B195 expose only point-in-time focus-status queries
 - Portable accessibility contracts or changes to `framework-ui`
 - Live VoiceOver/screen-reader behavior claims
 
 ## Status
 
-B8's implementation and guide meet the bounded metadata contract. The public API borrows only a
-`UIView` and the typed `MainThread` proof, stores the main-thread marker, and is `!Send`/`!Sync`.
+B8's implementation and guide meet the bounded metadata contract and expose point-in-time
+accessibility-focus status queries. The public API borrows only a `UIView` and the typed `MainThread`
+proof, stores the main-thread marker, and is `!Send`/`!Sync`.
 Each setter is synchronous; `is_element()` reads the current native property synchronously; text
 `None` clears through `nil`, `Some("")` remains an empty string, and `set_traits` replaces the full
 trait mask, using UIKit's `UIAccessibilityTraitNone` for an empty set. B8's seven initial
@@ -62,7 +63,7 @@ adds `Adjustable` as the eighth trait, B95 adds `NotEnabled` as the ninth, B98 a
 as the tenth, B100 adds `UpdatesFrequently` as the eleventh, B102 adds `PlaysSound` as the
 twelfth, B104 adds `CausesPageTurn` as the thirteenth, B106 adds `StartsMediaSession` as the
 fourteenth, B108 adds `AllowsDirectInteraction` as the fifteenth, and B111 adds `SummaryElement`
-as the sixteenth. Focused tests
+as the sixteenth. B180 adds `TabBar` as the seventeenth. Focused tests
 cover optional text, trait combination, empty-set behavior, order independence, and deriving masks
 only from the passed traits.
 
@@ -398,6 +399,175 @@ speech or assistive-application output. Apple documents the property in its
 [API reference](https://developer.apple.com/documentation/objectivec/nsobject-swift.class/accessibilityattributedvalue).
 This pass added and ran no tests.
 
+B169 adds `set_accessibility_attributed_user_input_labels(&[&NSAttributedString])` and
+`has_accessibility_attributed_user_input_labels()` for UIKit's
+`accessibilityAttributedUserInputLabels` property. The active iOS 26.5 SDK declares the
+nullable-resettable copied `NSArray<NSAttributedString *>` property at `UIAccessibility.h:210`
+with an iOS 13.0 floor; the header says it is synchronized with `accessibilityUserInputLabels`.
+`objc2-ui-kit` 0.3.2 exposes a typed `Retained<NSArray<NSAttributedString>>` getter and safe
+setter. The existing direct `objc2-foundation` `NSArray` and `NSAttributedString` features suffice.
+Both methods check their exact selectors and return `AccessibilityApiUnavailable` when absent,
+preserving the crate's iOS 4.0 floor. The setter preserves caller order and passes a non-null typed
+array, including for an empty slice; UIKit copies the property. The presence query reports only
+whether the property array is non-empty, and neither method invokes the iOS 17
+`accessibilityAttributedUserInputLabelsBlock`. No attributed-key validation, input recognition, or
+match guarantee is claimed. Apple documents the property in its [API reference](https://developer.apple.com/documentation/objectivec/nsobject-swift.class/accessibilityattributeduserinputlabels).
+This pass added and ran no tests.
+
+B171 adds `set_accessibility_path(Option<&UIBezierPath>)` and `has_accessibility_path()` for
+UIKit's `accessibilityPath` property. The active iOS 26.5 SDK declares the nullable copied property
+at `UIAccessibility.h:134` with an iOS 7.0 floor and requires path coordinates to be in screen space;
+`UIAccessibilityConvertPathToScreenCoordinates` is separately available at lines 136-139. The
+header says an assistive technology prefers the path over `accessibilityFrame` when highlighting.
+`objc2-ui-kit` 0.3.2 generates typed getter/setter methods under its `UIBezierPath` feature; the
+package enables that feature, whose closure includes Foundation `NSCoder`, `NSObject`, and
+`NSString`. Both methods selector-check and return `AccessibilityApiUnavailable` when absent,
+preserving the crate's iOS 4.0 floor. The setter passes the caller's path or `None` to clear it;
+UIKit copies the path. This adapter performs no coordinate conversion; the caller owns path
+construction and updates after layout or screen-position changes. The presence query reads only
+the property and neither method invokes the iOS 17 `accessibilityPathBlock`. No highlighting or
+activation result is claimed. Apple documents the property in its [API reference](https://developer.apple.com/documentation/objectivec/nsobject-swift.class/accessibilitypath).
+This pass added and ran no tests.
+
+B174 adds `accessibility_frame() -> Result<CGRect, AccessibilityApiUnavailable>` and
+`set_accessibility_frame(CGRect) -> Result<(), AccessibilityApiUnavailable>` for UIKit's
+`accessibilityFrame`. In the active iOS 26.5 SDK, `UIAccessibility.h:115-126` documents the
+property as a screen-coordinate rectangle and provides `UIAccessibilityConvertFrameToScreenCoordinates`
+separately with an iOS 7.0 floor; `accessibilityFrame` itself has no explicit iOS minimum annotation.
+Generated `objc2-ui-kit` 0.3.2 methods use `CGRect` and `MainThreadMarker` behind the already-enabled
+`objc2-core-foundation` feature. Both methods check their exact selectors and return
+`AccessibilityApiUnavailable` when absent, so this addition does not raise the crate's existing
+iOS 4.0 floor. The getter reads the property only. The setter passes the caller's rectangle through
+unchanged, performs no coordinate conversion, and does not alter the view's layout frame; Apple's
+documentation describes this property as a screen-space rectangle. Callers own a meaningful
+screen-space rectangle and updates after layout or screen-position changes. No visibility,
+highlighting, activation, or assistive-application behavior is claimed. Apple documents the property
+in its [API reference](https://developer.apple.com/documentation/uikit/uiaccessibilityelement/accessibilityframe?language=objc).
+This pass added and ran no tests.
+
+B177 adds `accessibility_identifier() -> Result<Option<String>, AccessibilityApiUnavailable>` and
+`set_accessibility_identifier(Option<&str>) -> Result<(), AccessibilityApiUnavailable>` for
+`UIAccessibilityIdentification.accessibilityIdentifier`. The active iOS 26.5 SDK declares the
+nullable copied property in `UIAccessibilityIdentification.h:18-25` with an iOS 5.0 floor and
+declares `UIView` as conforming to that protocol in the same header. `objc2-ui-kit` 0.3.2 exposes
+typed getter/setter methods through its `UIAccessibilityIdentification` feature and generated
+`UIView` conformance; the package enables that feature, whose only extra closure is Foundation
+`NSString`, already enabled directly. Both methods check their exact selectors and return
+`AccessibilityApiUnavailable` when absent, preserving the crate's iOS 4.0 floor. The getter returns
+an owned Rust string or `None` for a native nil value; the setter passes `None` to clear and UIKit
+copies supplied strings. Apple documents identifiers as values for uses such as UI Automation and
+as distinct from accessibility labels. Neither method invokes the iOS 17
+`accessibilityIdentifierBlock`. This API does not validate uniqueness, normalize strings, change
+`accessibilityLabel`, or claim assistive-application output. Apple documents the protocol and
+property in its [protocol reference](https://developer.apple.com/documentation/uikit/uiaccessibilityidentification?language=objc)
+and [property reference](https://developer.apple.com/documentation/uikit/uiaccessibilityidentification/accessibilityidentifier?language=objc).
+This pass added and ran no tests.
+
+B177 also assessed `accessibilityFrameInContainerSpace` and rejected adding it to the existing
+`AccessibilityMetadata<'view>` API. The active SDK declares that iOS 10.0 property on
+`UIAccessibilityElement` only (`UIAccessibilityElement.h:39-41`), and `objc2-ui-kit` 0.3.2 generates
+the methods on `UIAccessibilityElement`, not `UIView`. Adding an untyped selector call to the
+borrowed-view adapter would bypass the generated type boundary; adding a separate fake-element
+adapter would expand the package beyond this bounded view-metadata slice. The property remains out
+of scope.
+
+B180 adds `AccessibilityTrait::TabBar` through `UIAccessibilityTraitTabBar`. The active iOS 26.5
+SDK declares the constant in `UIAccessibilityConstants.h:106` with
+`API_AVAILABLE(ios(10.0), watchos(3.0))`; the generated constant is in the existing
+`objc2-ui-kit` 0.3.2 `UIAccessibilityConstants` feature, so no dependency or feature change is
+needed. Apple documents the trait for a view that represents an ordered list of tabs and says such
+a view must return `false` for `isAccessibilityElement`. The setter does not change that property,
+create or order tab children, or add a callback; callers must set the element flag separately and
+use this variant only on iOS 10.0 or later. This variant has an iOS 10.0 floor even though the
+selected API surface's lowest floor remains iOS 4.0. Apple documents the trait in its
+[API reference](https://developer.apple.com/documentation/uikit/uiaccessibilitytraits/tabbar).
+This pass added and ran no tests.
+
+B183 audited `UIAccessibilityTraitToggleButton` and did not add an enum variant. The active iOS
+26.5 SDK declares it in `UIAccessibilityConstants.h:109` with
+`API_AVAILABLE(ios(17.0), watchos(10.0))`. `objc2-ui-kit` 0.3.2 exposes an unconditional public
+static in the existing `UIAccessibilityConstants` feature, with no generated per-symbol runtime
+availability guard. The current `set_traits` API has no per-trait unavailable result; deployment
+targets supported by this SDK may be below iOS 17.0. Adding the constant to the shared native trait
+mapping would therefore leave no safe way for this API to report that the constant is unavailable.
+Apple defines this role for a button that toggles a value among on, off, or mixed states, and says
+to combine it with `Button` when the desired role is a switch button. The caller would also need to
+keep the value state current. The trait remains out of scope until a bounded iOS 17 availability
+contract can avoid an unconditional read of the static; the guide records the same limit in its
+[Apple-linked note](https://developer.apple.com/documentation/uikit/uiaccessibilitytraits/togglebutton?language=objc).
+This pass added and ran no tests.
+
+B186 adds `AccessibilityExpandedStatus`, `accessibility_expanded_status()`, and
+`set_accessibility_expanded_status(AccessibilityExpandedStatus)` for the scalar
+`accessibilityExpandedStatus` property. The active iOS 26.5 SDK declares that property at
+`UIAccessibility.h:233` with iOS 18.0, tvOS 18.0, and visionOS 2.0 availability; it is unavailable
+on watchOS. `objc2-ui-kit` 0.3.2 generates typed getter/setter methods using
+`UIAccessibilityExpandedStatus` and `MainThreadMarker` under the already-enabled
+`UIAccessibilityConstants` feature. Its enum values (`Unsupported`, `Expanded`, and `Collapsed`)
+are associated integer constants, not imported symbols. Both methods check their exact selectors;
+the getter returns `None` for a future unknown native value, and a missing selector returns
+`AccessibilityApiUnavailable`, preserving the crate's existing iOS 4.0 floor. The getter reads
+only the scalar property and does not invoke `accessibilityExpandedStatusBlock`. The setter changes
+metadata only and does not expand or collapse content; the iOS 18 block API can take precedence,
+so no effective-value or assistive-output claim is made when a host uses that block. The caller owns
+state accuracy. Apple documents the property and enum in its [property reference](https://developer.apple.com/documentation/objectivec/nsobject-swift.class/accessibilityexpandedstatus?language=objc)
+and [enum reference](https://developer.apple.com/documentation/uikit/uiaccessibility/expandedstatus?language=objc).
+This pass added and ran no tests.
+
+B189 audited the iOS `accessibilityElements` property and did not add an API. The active iOS 26.5
+SDK declares it in `UIAccessibilityContainer.h:50-53` as a nullable, strong `NSArray *`, available
+from iOS 8.0 and unavailable on watchOS; the category is main-actor annotated. The same header says
+containers vend separate elements, must report `isAccessibilityElement == NO`, and can use this
+array instead of implementing the dynamic count/index methods. `objc2-ui-kit` 0.3.2 exposes the
+property through its existing `UIAccessibilityContainer` feature: the getter returns an untyped
+`NSArray`, while the setter is `unsafe` and requires the array generic to match the native element
+type. `NSArray::from_slice` in `objc2-foundation` retains its inputs, and UIKit retains the assigned
+array. A safe setter would therefore own or extend the lifetime of a caller-selected accessibility
+tree, must account for mixed `UIView`/`UIAccessibilityElement` children and cycles, and must coordinate
+the container's `isAccessibilityElement` state and cleanup. Those lifecycle/tree semantics are
+outside this borrowed-view metadata adapter, which intentionally does not build a view tree or
+implement accessibility containers. Apple's [`UIAccessibilityContainer` reference](https://developer.apple.com/documentation/uikit/uiaccessibilitycontainer?language=objc)
+defines the collection as making subcomponents separately accessible; its
+[`UIAccessibilityElement` initializer](https://developer.apple.com/documentation/uikit/uiaccessibilityelement/init%28accessibilitycontainer%3A%29?language=objc)
+also requires a container to create and manage elements for non-view content. Retain the existing
+no-go unless a distinct owned-container/lifecycle API is designed. `accessibilityHeaderElements` is
+not an iOS alternative: the iOS 26.5 SDK marks it `API_UNAVAILABLE(ios, watchos)` at
+`UIAccessibility.h:218-220`. This audit added and ran no tests.
+
+B192 adds `accessibility_element_is_focused()` as a selector-guarded, point-in-time query of
+UIKit's public `accessibilityElementIsFocused` method. The active iOS 26.5 SDK declares the
+`BOOL` method at `UIAccessibility.h:318-319` with `API_AVAILABLE(ios(4.0))`, watchOS unavailable,
+and `NS_SWIFT_UI_ACTOR`. `objc2-ui-kit` 0.3.2 exposes its typed `bool` method on
+`NSObjectUIAccessibilityFocus` under the already-enabled `UIAccessibility` feature and requires a
+`MainThreadMarker`. The method reports whether an assistive technology is focused on the element;
+the adapter checks the exact selector and returns `AccessibilityApiUnavailable` if absent, so the
+crate's iOS 4.0 floor does not change. This is a synchronous boolean snapshot only: it does not
+identify the technology, move focus, or observe focus transitions. The existing focus-control,
+callback, and runtime-behavior exclusions remain. Apple documents the method in its
+[`accessibilityElementIsFocused` reference](https://developer.apple.com/documentation/objectivec/nsobject-swift.class/accessibilityelementisfocused%28%29?language=objc).
+The focused `cargo +1.94.1 check --locked --offline -p ios-accessibility --target aarch64-apple-ios`
+and `--target aarch64-apple-ios-sim`, strict library Clippy on both targets with `-D warnings`,
+`cargo +1.94.1 doc --locked --offline -p ios-accessibility --no-deps --target aarch64-apple-ios`,
+`cargo +1.94.1 fmt -p ios-accessibility -- --check`,
+`cargo +1.94.1 --locked --offline xtask docs-check`, and scoped `git diff --check` passed. This
+pass added and ran no tests or focus/runtime probes.
+
+B195 adds `accessibility_assistive_technology_focused_identifiers()` as a selector-guarded,
+point-in-time query of UIKit's `accessibilityAssistiveTechnologyFocusedIdentifiers` method. The
+active iOS 26.5 SDK declares its nullable `NSSet<UIAccessibilityAssistiveTechnologyIdentifier> *`
+return at `UIAccessibility.h:321-322` with `API_AVAILABLE(ios(9.0))`, watchOS unavailable, and
+`NS_SWIFT_UI_ACTOR`; the identifier is a typed `NSString *` at
+`UIAccessibilityConstants.h:194`. `objc2-ui-kit` 0.3.2 exposes the method as an optional typed
+`Retained<NSSet<UIAccessibilityAssistiveTechnologyIdentifier>>` on
+`NSObjectUIAccessibilityFocus`, gated by the already-enabled `UIAccessibilityConstants` feature
+and using `MainThreadMarker`. The adapter checks the exact selector, preserves native `nil` as
+`None`, copies values into Rust-owned `String`s, and sorts them lexicographically because the
+native set is unordered. It exposes identifier values opaquely and does not normalize them,
+subscribe to focus changes, or move focus. The iOS 9.0 selector guard preserves the crate's
+existing iOS 4.0 floor; no dependency or manifest change is needed. Apple documents the method in
+its [`accessibilityAssistiveTechnologyFocusedIdentifiers` reference](https://developer.apple.com/documentation/objectivec/nsobject-swift.class/accessibilityassistivetechnologyfocusedidentifiers%28%29?language=objc).
+This pass added and ran no tests or focus/runtime probes.
+
 On Xcode 26.6 build 17F113 with iPhoneOS and iPhoneSimulator SDK 26.5, these checks pass:
 
 - `cargo test --locked -p ios-accessibility` (3 focused unit tests pass; 0 doc tests)
@@ -413,15 +583,17 @@ On Xcode 26.6 build 17F113 with iPhoneOS and iPhoneSimulator SDK 26.5, these che
 
 Inspection of `UIAccessibility.h` confirms the selected nullable copied text properties and
 synchronous accessibility setters; `UIAccessibilityConstants.h` declares `UIAccessibilityTraits`
-as `uint64_t` and the seventeen referenced public constants: sixteen traits plus `UIAccessibilityTraitNone`.
+as `uint64_t` and the eighteen referenced public constants: seventeen traits plus `UIAccessibilityTraitNone`.
 `UIAccessibilityTraitAdjustable` and `UIAccessibilityTraitStartsMediaSession` have explicit iOS 4.0
 floors, `UIAccessibilityTraitCausesPageTurn` and `UIAccessibilityTraitAllowsDirectInteraction` have
 explicit iOS 5.0 floors, and `UIAccessibilityTraitHeader` has an explicit iOS 6.0 floor. The other
-eleven traits plus `UIAccessibilityTraitNone` have no explicit iOS minimum annotation. The SDK's
+eleven traits plus `UIAccessibilityTraitNone` have no explicit iOS minimum annotation;
+`UIAccessibilityTraitTabBar` has an iOS 10.0 floor. The SDK's
 `SupportedTargets.iphoneos.MinimumDeploymentTarget` and
 `SupportedTargets.iphonesimulator.MinimumDeploymentTarget` values are 12.0.
 `objc2-ui-kit` 0.3.2 uses the direct features `UIAccessibility`, `UIAccessibilityConstants`,
-`UIAccessibilityContainer`, `UIResponder`, `UIView`, and `objc2-core-foundation`;
+`UIAccessibilityContainer`, `UIAccessibilityIdentification`, `UIBezierPath`, `UIResponder`,
+`UIView`, and `objc2-core-foundation`;
 `objc2-foundation` uses `NSArray`, `NSAttributedString`, and `NSString`, and
 `objc2-core-foundation` uses `CFCGTypes`.
 
@@ -436,8 +608,10 @@ compile/link evidence only; the B92 `UIAccessibilityTraitAdjustable`, B95
 `UIAccessibilityTraitCausesPageTurn`, B106 `UIAccessibilityTraitStartsMediaSession`, B108
 `UIAccessibilityTraitAllowsDirectInteraction`, and B111 `UIAccessibilityTraitSummaryElement`
 references have no new link evidence in their respective passes.
-The B153 `CGPoint` accessors and B156 attributed-label accessors were not included in a link audit;
-this evidence pass makes no linked-symbol claim for them.
+The B153 `CGPoint` accessors, B156/B159/B162 attributed-string accessors, B169 attributed
+user-input labels, B171 accessibility-path APIs, B174 `CGRect` accessibility-frame APIs, and B177
+identifier APIs were not included in a link audit; this evidence pass makes no linked-symbol claim
+for them.
 The host remains below the Xcode 27.x planning baseline; no simulator launch, device run, live
 VoiceOver session, announcement, focus movement, accessibility audit, or UX behavior is claimed.
 No CI/G8 files were changed.

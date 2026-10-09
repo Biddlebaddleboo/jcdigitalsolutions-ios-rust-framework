@@ -5,14 +5,14 @@ edition.workspace = true
 rust-version.workspace = true
 license.workspace = true
 repository.workspace = true
-description = "Bounded UIKit accessibility metadata setters for iOS"
+description = "Bounded UIKit accessibility metadata access for iOS"
 
 [target.'cfg(target_os = "ios")'.dependencies]
 ios-runtime = { path = "../ios-runtime" }
 objc2 = { workspace = true, features = ["std"] }
 objc2-core-foundation = { workspace = true, features = ["CFCGTypes"] }
 objc2-foundation = { workspace = true, features = ["NSArray", "NSAttributedString", "NSString"] }
-objc2-ui-kit = { workspace = true, features = ["UIAccessibility", "UIAccessibilityConstants", "UIAccessibilityContainer", "UIResponder", "UIView", "objc2-core-foundation"] }
+objc2-ui-kit = { workspace = true, features = ["UIAccessibility", "UIAccessibilityConstants", "UIAccessibilityContainer", "UIAccessibilityIdentification", "UIBezierPath", "UIResponder", "UIView", "objc2-core-foundation"] }
 
 [lints]
 workspace = true

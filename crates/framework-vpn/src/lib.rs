@@ -1,7 +1,7 @@
 #![no_std]
 #![forbid(unsafe_code)]
 #![deny(missing_docs)]
-#![doc = "Portable Personal VPN status and preference-load error values."]
+#![doc = "Portable Personal VPN status, configuration-flag, and preference-load error values."]
 
 extern crate alloc;
 
@@ -55,6 +55,44 @@ impl PersonalVpnStatus {
             Self::Disconnecting => 5,
             Self::Unknown(raw) => raw,
         }
+    }
+}
+
+/// Read-only enabled flags from the calling app's Personal VPN configuration.
+///
+/// These values describe configuration properties after a successful preference load. They do
+/// not report a connection state, prove Connect On Demand rules exist or run, or describe another
+/// app's configuration. Apple may set `enabled` to `false` when another Personal VPN configuration
+/// is enabled.
+#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
+pub struct PersonalVpnConfigurationFlags {
+    enabled: bool,
+    on_demand_enabled: bool,
+}
+
+impl PersonalVpnConfigurationFlags {
+    /// Creates a snapshot of the two public `NEVPNManager` enabled properties.
+    pub const fn new(enabled: bool, on_demand_enabled: bool) -> Self {
+        Self {
+            enabled,
+            on_demand_enabled,
+        }
+    }
+
+    /// Returns whether the loaded Personal VPN configuration is enabled.
+    ///
+    /// This may be `false` because another Personal VPN configuration is enabled. It is not a
+    /// device-wide VPN state or a guarantee that a tunnel can connect.
+    pub const fn enabled(self) -> bool {
+        self.enabled
+    }
+
+    /// Returns whether Connect On Demand is enabled for the loaded configuration.
+    ///
+    /// This flag alone does not prove that rules are configured or that an automatic connection
+    /// will occur.
+    pub const fn on_demand_enabled(self) -> bool {
+        self.on_demand_enabled
     }
 }
 

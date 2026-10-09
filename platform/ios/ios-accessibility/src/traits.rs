@@ -61,6 +61,12 @@ pub enum AccessibilityTrait {
     /// The caller must provide a real summary; this adapter sets metadata only and does not control
     /// when UIKit or assistive technology reads or presents it.
     SummaryElement,
+    /// Mark a view that represents an ordered list of tabs.
+    ///
+    /// This iOS 10.0 trait is for a tab-bar container; Apple says the view must not be an
+    /// accessibility element. The caller must set `isAccessibilityElement` to `false`; this
+    /// adapter sets the trait only and does not create or order tab children.
+    TabBar,
 }
 
 pub(crate) fn fold_traits(

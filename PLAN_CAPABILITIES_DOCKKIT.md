@@ -69,3 +69,32 @@ If a separate approved Swift ABI task establishes a synchronous, ownership-safe 
 - [NSCameraUsageDescription](https://developer.apple.com/documentation/bundleresources/information-property-list/nscamerausagedescription)
 
 No tests, builds, link probes, runtime probes, camera prompts, or accessory control were performed
+
+## B197 follow-up: DockKit state remains Swift-only
+
+Rechecked row 097 against the installed iOS 26.5 headers and Swift interface plus Apple's current
+API documentation. `DockKit.h` imports Foundation but declares no manager or state property.
+`DockAccessoryManager.shared` and `isSystemTrackingEnabled` are Swift declarations; Apple's docs
+define the Boolean only as whether system tracking is enabled. It does not report accessory
+presence, active camera tracking, or device support. The corresponding Swift setter changes the
+system-tracking mode and is excluded from a read-only contract.
+
+`accessoryStateChanges` is the other plausible typed surface, but the public type is a throwing
+Swift `AsyncSequence` of dock/undock changes, not an Objective-C callback or a documented initial
+snapshot. It needs a task/sequence lifecycle and access to Swift `DockAccessory.StateChange`
+values. The local generated-binding catalog still marks DockKit Swift-only, and the framework
+stub exposes Swift-mangled symbols rather than C functions. Thus neither candidate is a
+Rust-callable Objective-C/C operation within this audit's constraints.
+
+B197 adds no ABI bridge, dependency, or code and leaves row `097-maps-ar-spatial-dockkit` at `X`.
+The inspected toolchain is Xcode 26.6 build `17F113` with iPhoneOS SDK 26.5; the Xcode 27.x
+baseline caveat remains open.
+
+Primary API evidence: [DockAccessoryManager](https://developer.apple.com/documentation/dockkit/dockaccessorymanager),
+[isSystemTrackingEnabled](https://developer.apple.com/documentation/dockkit/dockaccessorymanager/issystemtrackingenabled),
+[accessoryStateChanges](https://developer.apple.com/documentation/dockkit/dockaccessorymanager/accessorystatechanges),
+[DockAccessory.StateChanges](https://developer.apple.com/documentation/dockkit/dockaccessory/statechanges),
+and [DockKit](https://developer.apple.com/documentation/dockkit)
+
+No tests, builds, sequence iteration, state changes, camera access, accessory operations, app
+launches, Simulator or device calls, or runtime probes were performed for B197

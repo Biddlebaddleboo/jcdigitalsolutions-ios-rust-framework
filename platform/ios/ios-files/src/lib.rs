@@ -11,7 +11,9 @@ use framework_files::{
 use objc2::rc::{Retained, autoreleasepool};
 use objc2_foundation::{
     NSError, NSFileManager, NSNumber, NSSearchPathDirectory, NSSearchPathDomainMask, NSURL,
-    NSURLResourceKey, NSURLVolumeSupportsExclusiveRenamingKey, NSURLVolumeSupportsSwapRenamingKey,
+    NSURLResourceKey, NSURLVolumeSupportsCasePreservedNamesKey,
+    NSURLVolumeSupportsCaseSensitiveNamesKey, NSURLVolumeSupportsExclusiveRenamingKey,
+    NSURLVolumeSupportsFileCloningKey, NSURLVolumeSupportsSwapRenamingKey,
 };
 use std::{
     ffi::{CStr, CString},
@@ -23,6 +25,10 @@ use std::{
     },
     path::PathBuf,
 };
+
+// These public `sys/clonefile.h` macros lack Rust constants in the locked `libc` binding.
+const CLONE_NOFOLLOW_ANY: u32 = 0x0008;
+const CLONE_RESOLVE_BENEATH: u32 = 0x0010;
 
 mod bookmark;
 mod coordination;
@@ -43,8 +49,11 @@ pub struct IosFiles {
     caches: File,
     temporary: File,
     application_support: File,
-    rename_exclusive: [bool; 4],
-    rename_swap: [bool; 4],
+    rename_exclusive: [Option<bool>; 4],
+    rename_swap: [Option<bool>; 4],
+    case_sensitive_names: [Option<bool>; 4],
+    case_preserved_names: [Option<bool>; 4],
+    volume_file_cloning: [Option<bool>; 4],
     next_temporary_id: u64,
 }
 
@@ -165,6 +174,77 @@ impl IosFileOwnerIds {
     }
 }
 
+/// Point-in-time effective read, write, and execute/search permissions for one iOS entry.
+///
+/// The native mask describes the calling process's effective UID. It is not a guarantee that a
+/// later operation will succeed.
+#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
+pub struct IosEntryEffectiveAccess(u32);
+
+impl IosEntryEffectiveAccess {
+    /// Returns the raw `ATTR_CMN_USERACCESS` permission mask, including unnamed bits.
+    pub const fn bits(self) -> u32 {
+        self.0
+    }
+
+    /// Returns whether the effective permission mask includes `R_OK`.
+    pub const fn allows_read(self) -> bool {
+        self.0 & libc::R_OK as u32 != 0
+    }
+
+    /// Returns whether the effective permission mask includes `W_OK`.
+    ///
+    /// For a directory, this is the reported permission to add a child entry.
+    pub const fn allows_write(self) -> bool {
+        self.0 & libc::W_OK as u32 != 0
+    }
+
+    /// Returns whether the effective permission mask includes `X_OK`.
+    ///
+    /// For a directory, this is the reported search permission.
+    pub const fn allows_execute_or_search(self) -> bool {
+        self.0 & libc::X_OK as u32 != 0
+    }
+}
+
+/// Cached Foundation volume support for exclusive and swap rename options.
+#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
+pub struct IosVolumeRenameSupportSnapshot {
+    exclusive: Option<bool>,
+    swap: Option<bool>,
+}
+
+impl IosVolumeRenameSupportSnapshot {
+    /// Returns whether the volume reports support for `RENAME_EXCL`, or `None` if unreported.
+    pub const fn exclusive_rename_supported(self) -> Option<bool> {
+        self.exclusive
+    }
+
+    /// Returns whether the volume reports support for `RENAME_SWAP`, or `None` if unreported.
+    pub const fn swap_rename_supported(self) -> Option<bool> {
+        self.swap
+    }
+}
+
+/// Cached Foundation volume support values for case-sensitive and case-preserved names.
+#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
+pub struct IosVolumeNameSupportSnapshot {
+    case_sensitive: Option<bool>,
+    case_preserved: Option<bool>,
+}
+
+impl IosVolumeNameSupportSnapshot {
+    /// Returns whether the volume reports case-sensitive names, or `None` if unreported.
+    pub const fn case_sensitive_names_supported(self) -> Option<bool> {
+        self.case_sensitive
+    }
+
+    /// Returns whether the volume reports case-preserved names, or `None` if unreported.
+    pub const fn case_preserved_names_supported(self) -> Option<bool> {
+        self.case_preserved
+    }
+}
+
 /// A point-in-time `(st_dev, st_ino)` pair for one iOS filesystem entry.
 ///
 /// This value is not a persistent identifier, open handle, or guarantee against inode reuse.
@@ -227,8 +307,17 @@ impl IosFiles {
         let exclusive_key = unsafe { NSURLVolumeSupportsExclusiveRenamingKey };
         // SAFETY: these Foundation exports are immutable NSURL resource-key constants.
         let swap_key = unsafe { NSURLVolumeSupportsSwapRenamingKey };
+        // SAFETY: these Foundation exports are immutable NSURL resource-key constants.
+        let case_sensitive_key = unsafe { NSURLVolumeSupportsCaseSensitiveNamesKey };
+        // SAFETY: these Foundation exports are immutable NSURL resource-key constants.
+        let case_preserved_key = unsafe { NSURLVolumeSupportsCasePreservedNamesKey };
+        // SAFETY: this Foundation export is an immutable NSURL resource-key constant.
+        let file_cloning_key = unsafe { NSURLVolumeSupportsFileCloningKey };
         let rename_exclusive = urls.map(|url| volume_supports(url, exclusive_key));
         let rename_swap = urls.map(|url| volume_supports(url, swap_key));
+        let case_sensitive_names = urls.map(|url| volume_supports(url, case_sensitive_key));
+        let case_preserved_names = urls.map(|url| volume_supports(url, case_preserved_key));
+        let volume_file_cloning = urls.map(|url| volume_supports(url, file_cloning_key));
         Ok(Self {
             documents,
             caches,
@@ -236,6 +325,9 @@ impl IosFiles {
             application_support,
             rename_exclusive,
             rename_swap,
+            case_sensitive_names,
+            case_preserved_names,
+            volume_file_cloning,
             next_temporary_id: 0,
         })
     }
@@ -301,6 +393,87 @@ impl IosFiles {
             return Err(file_error(error));
         }
         Ok(WriteOutcome::new(WriteAtomicity::Atomic))
+    }
+
+    /// Clones one regular app-sandbox file to a destination that must not exist.
+    ///
+    /// Both `AppPath` values use this backend's retained semantic roots and the existing
+    /// descriptor-relative no-follow parent traversal. The source is opened with `O_NOFOLLOW`,
+    /// then checked through its open descriptor to be a regular file. `fclonefileat` receives that
+    /// descriptor and the destination parent descriptor, with `CLONE_NOFOLLOW_ANY` and
+    /// `CLONE_RESOLVE_BENEATH` for destination resolution. XNU documents the call as expected to
+    /// create the complete destination atomically or create no destination; an existing final
+    /// entry is never replaced. The operation does not stage or copy file bytes through Rust
+    /// memory.
+    ///
+    /// The result is a native copy-on-write clone: source and destination may share data blocks at
+    /// first, while later writes to either file are private to that file. A later overwrite can
+    /// still fail with `ENOSPC`. The syscall copies native file attributes and extended attributes;
+    /// the destination inherits ACLs from its parent because this method does not set `CLONE_ACL`.
+    /// Native owner and setuid/setgid handling also applies. This is not a byte-only copy, crash
+    /// durability promise, or performance/storage guarantee. The filesystem may return
+    /// `Unsupported` when it cannot clone; source and destination on distinct filesystems fail
+    /// with the mapped `EXDEV` error. A `true` volume clone-support key would not ensure this call
+    /// succeeds, so this method does not preflight that key.
+    ///
+    /// The call does not serialize concurrent source writes or destination-parent namespace
+    /// changes. It inherits the backend's limit under a concurrent rename of an already-open
+    /// parent directory: that descriptor can continue to refer to a directory moved outside the
+    /// selected root. The method accepts no arbitrary URL, provider path, or security-scoped URL.
+    ///
+    /// # Errors
+    ///
+    /// Returns `InvalidPath` for a malformed `AppPath`, `InvalidInput` for a non-regular source,
+    /// `NotFound` for a missing source or parent, and `AlreadyExists` when the destination exists.
+    /// A final source symlink is not followed. Filesystem, permission, cross-device, and other
+    /// native errors use the existing POSIX mapping with the native code preserved.
+    pub fn clone_regular_file(
+        &self,
+        source: AppPath<'_>,
+        destination: AppPath<'_>,
+    ) -> Result<(), FileError> {
+        let source_parts = path_parts(source.relative())?;
+        let destination_parts = path_parts(destination.relative())?;
+        let (source_parent, source_leaf) =
+            open_parent(self.root(source.directory())?, &source_parts)?;
+        let (destination_parent, destination_leaf) =
+            open_parent(self.root(destination.directory())?, &destination_parts)?;
+
+        // SAFETY: `source_parent` is open and `source_leaf` is one validated component. The flags
+        // reject a final source symlink and avoid blocking if a concurrent replacement is special.
+        let source_fd = unsafe {
+            libc::openat(
+                source_parent.as_raw_fd(),
+                source_leaf.as_ptr(),
+                libc::O_RDONLY | libc::O_NOFOLLOW | libc::O_CLOEXEC | libc::O_NONBLOCK,
+            )
+        };
+        if source_fd < 0 {
+            return Err(file_error(io::Error::last_os_error()));
+        }
+        // SAFETY: `openat` returned a new owned descriptor.
+        let source_file = unsafe { File::from_raw_fd(source_fd) };
+        if !source_file.metadata().map_err(file_error)?.is_file() {
+            return Err(backend_error(ErrorKind::InvalidInput, None));
+        }
+
+        let flags = CLONE_NOFOLLOW_ANY | CLONE_RESOLVE_BENEATH;
+        // SAFETY: `source_file` is an open descriptor verified as a regular file, the destination
+        // parent is an open directory descriptor, and `destination_leaf` is a validated single
+        // NUL-terminated path component. The flags enforce no-follow/beneath destination lookup.
+        let result = unsafe {
+            libc::fclonefileat(
+                source_file.as_raw_fd(),
+                destination_parent.as_raw_fd(),
+                destination_leaf.as_ptr(),
+                flags,
+            )
+        };
+        if result < 0 {
+            Err(file_error(io::Error::last_os_error()))
+        } else {
+            Ok(())
+        }
     }
 
     /// Returns one regular file's current byte length without reading its contents.
@@ -515,6 +688,96 @@ impl IosFiles {
         u64::try_from(value)
             .map(Some)
             .map_err(|_| backend_error(ErrorKind::InvalidInput, None))
+    }
+
+    /// Returns the cached rename-option support values for one semantic app-directory volume.
+    ///
+    /// `IosFiles::new` reads Foundation's `NSURLVolumeSupportsExclusiveRenamingKey` and
+    /// `NSURLVolumeSupportsSwapRenamingKey` values for the four retained app-directory roots.
+    /// `Some(false)` means Foundation reported that the option is not supported; `None` means
+    /// that the resource value could not be read or did not contain an `NSNumber`. The result is
+    /// the value cached at construction, not a fresh volume query. Support for `RENAME_EXCL` or
+    /// `RENAME_SWAP` does not guarantee a later path operation or replace the actual operation's
+    /// result. This iOS-only snapshot reads no file contents, accepts no arbitrary URL, starts no
+    /// security scope, and changes no portable `FileBackend` behavior.
+    ///
+    /// # Errors
+    ///
+    /// Returns `Unsupported` for a semantic directory that this backend does not retain.
+    pub fn volume_rename_support_snapshot(
+        &self,
+        directory: AppDirectory,
+    ) -> Result<IosVolumeRenameSupportSnapshot, FileError> {
+        let index = match directory {
+            AppDirectory::Documents => 0,
+            AppDirectory::Caches => 1,
+            AppDirectory::Temporary => 2,
+            AppDirectory::ApplicationSupport => 3,
+            _ => return Err(backend_error(ErrorKind::Unsupported, None)),
+        };
+        Ok(IosVolumeRenameSupportSnapshot {
+            exclusive: self.rename_exclusive[index],
+            swap: self.rename_swap[index],
+        })
+    }
+
+    /// Returns Foundation's cached volume-cloning support value for one app-directory volume.
+    ///
+    /// `IosFiles::new` reads `NSURLVolumeSupportsFileCloningKey` for each of its four retained
+    /// roots. `Some(true)` or `Some(false)` is Foundation's Boolean report; `None` means the
+    /// resource query failed or did not contain an `NSNumber`. This is a cached volume-level hint,
+    /// not a guarantee that a particular source/destination pair or a future
+    /// [`Self::clone_regular_file`] call will succeed. Cross-volume errors, current filesystem
+    /// state, and the clone syscall's flags remain authoritative. The snapshot reads no file
+    /// contents, accepts no arbitrary URL, starts no security scope, and changes no portable
+    /// `FileBackend` behavior.
+    ///
+    /// # Errors
+    ///
+    /// Returns `Unsupported` for a semantic directory that this backend does not retain.
+    pub fn volume_clone_support_snapshot(
+        &self,
+        directory: AppDirectory,
+    ) -> Result<Option<bool>, FileError> {
+        let index = match directory {
+            AppDirectory::Documents => 0,
+            AppDirectory::Caches => 1,
+            AppDirectory::Temporary => 2,
+            AppDirectory::ApplicationSupport => 3,
+            _ => return Err(backend_error(ErrorKind::Unsupported, None)),
+        };
+        Ok(self.volume_file_cloning[index])
+    }
+
+    /// Returns cached case-name support values for one semantic app-directory volume.
+    ///
+    /// `IosFiles::new` reads Foundation's `NSURLVolumeSupportsCaseSensitiveNamesKey` and
+    /// `NSURLVolumeSupportsCasePreservedNamesKey` values for the four retained app-directory
+    /// roots. `Some(false)` means Foundation reported that the volume does not support that
+    /// property; `None` means the value could not be read or did not contain an `NSNumber`. The
+    /// result is cached at construction, not a fresh volume query. These values do not define
+    /// Unicode normalization or collation, reserve a name, or guarantee that a later operation
+    /// will succeed. This iOS-only snapshot reads no file contents, accepts no arbitrary URL,
+    /// starts no security scope, and changes no portable `FileBackend` path behavior.
+    ///
+    /// # Errors
+    ///
+    /// Returns `Unsupported` for a semantic directory that this backend does not retain.
+    pub fn volume_name_support_snapshot(
+        &self,
+        directory: AppDirectory,
+    ) -> Result<IosVolumeNameSupportSnapshot, FileError> {
+        let index = match directory {
+            AppDirectory::Documents => 0,
+            AppDirectory::Caches => 1,
+            AppDirectory::Temporary => 2,
+            AppDirectory::ApplicationSupport => 3,
+            _ => return Err(backend_error(ErrorKind::Unsupported, None)),
+        };
+        Ok(IosVolumeNameSupportSnapshot {
+            case_sensitive: self.case_sensitive_names[index],
+            case_preserved: self.case_preserved_names[index],
+        })
     }
 
     /// Returns one regular file's filesystem-reported allocated block count.
@@ -979,6 +1242,72 @@ impl IosFiles {
         Ok(metadata.st_mode & 0o7777)
     }
 
+    /// Returns the current process user's effective read/write/execute permissions for one entry.
+    ///
+    /// This requests `ATTR_CMN_USERACCESS` from `getattrlistat` using the validated final name
+    /// relative to an already-open no-follow parent directory descriptor. `FSOPT_NOFOLLOW` keeps a
+    /// final symbolic link from redirecting the query; the result describes the final entry, not a
+    /// symlink target. The mask is for the calling process's effective UID. Use
+    /// [`IosEntryEffectiveAccess::allows_read`], [`IosEntryEffectiveAccess::allows_write`], and
+    /// [`IosEntryEffectiveAccess::allows_execute_or_search`] to interpret `R_OK`, `W_OK`, and
+    /// `X_OK`; on directories these mean read/list, add a child entry, and search. The query is a
+    /// point-in-time permission snapshot, not a guarantee that a later operation will succeed.
+    /// Some volume formats may not support `ATTR_CMN_USERACCESS`. A final symbolic link is not
+    /// followed; any returned mask is for the no-follow entry query, not the link target. This
+    /// iOS-only query reads no file contents, accepts no arbitrary URL, starts no security scope,
+    /// and keeps the documented concurrent directory-rename containment limit.
+    ///
+    /// # Errors
+    ///
+    /// Returns `NotFound` for a missing final entry, `Unsupported` if the volume does not support
+    /// `ATTR_CMN_USERACCESS`, `InvalidInput` for an unexpected or truncated attribute buffer, or
+    /// the mapped POSIX error for path traversal and metadata query failures.
+    pub fn entry_effective_access(
+        &self,
+        path: AppPath<'_>,
+    ) -> Result<IosEntryEffectiveAccess, FileError> {
+        let parts = path_parts(path.relative())?;
+        let (parent, leaf) = open_parent(self.root(path.directory())?, &parts)?;
+        let mut attributes = libc::attrlist {
+            bitmapcount: libc::ATTR_BIT_MAP_COUNT,
+            reserved: 0,
+            commonattr: libc::ATTR_CMN_USERACCESS,
+            volattr: 0,
+            dirattr: 0,
+            fileattr: 0,
+            forkattr: 0,
+        };
+        let mut buffer = [0_u32; 2];
+        // SAFETY: the parent descriptor is open; `leaf` is one validated component; the
+        // attribute list is initialized and the output buffer is writable and correctly sized.
+        // `FSOPT_NOFOLLOW` prevents following the final symbolic link.
+        let result = unsafe {
+            libc::getattrlistat(
+                parent.as_raw_fd(),
+                leaf.as_ptr(),
+                (&mut attributes as *mut libc::attrlist).cast(),
+                buffer.as_mut_ptr().cast(),
+                std::mem::size_of_val(&buffer),
+                libc::FSOPT_NOFOLLOW as libc::c_ulong,
+            )
+        };
+        if result < 0 {
+            let error = io::Error::last_os_error();
+            if error.raw_os_error() == Some(libc::EINVAL) {
+                return Err(backend_error(ErrorKind::Unsupported, error.raw_os_error()));
+            }
+            return Err(file_error(error));
+        }
+        let returned_length =
+            usize::try_from(buffer[0]).map_err(|_| backend_error(ErrorKind::InvalidInput, None))?;
+        if returned_length < std::mem::size_of::<u32>() * 2
+            || returned_length > std::mem::size_of_val(&buffer)
+        {
+            return Err(backend_error(ErrorKind::InvalidInput, None));
+        }
+        Ok(IosEntryEffectiveAccess(buffer[1]))
+    }
+
     /// Returns the point-in-time hard-link count for one regular file.
     ///
     /// The count comes from one `fstatat(..., AT_SYMLINK_NOFOLLOW)` result. The final entry must
@@ -1021,20 +1350,20 @@ impl IosFiles {
 
     fn volume_supports_exclusive_rename(&self, directory: AppDirectory) -> bool {
         match directory {
-            AppDirectory::Documents => self.rename_exclusive[0],
-            AppDirectory::Caches => self.rename_exclusive[1],
-            AppDirectory::Temporary => self.rename_exclusive[2],
-            AppDirectory::ApplicationSupport => self.rename_exclusive[3],
+            AppDirectory::Documents => self.rename_exclusive[0].unwrap_or(false),
+            AppDirectory::Caches => self.rename_exclusive[1].unwrap_or(false),
+            AppDirectory::Temporary => self.rename_exclusive[2].unwrap_or(false),
+            AppDirectory::ApplicationSupport => self.rename_exclusive[3].unwrap_or(false),
             _ => false,
         }
     }
 
     fn volume_supports_swap_rename(&self, directory: AppDirectory) -> bool {
         match directory {
-            AppDirectory::Documents => self.rename_swap[0],
-            AppDirectory::Caches => self.rename_swap[1],
-            AppDirectory::Temporary => self.rename_swap[2],
-            AppDirectory::ApplicationSupport => self.rename_swap[3],
+            AppDirectory::Documents => self.rename_swap[0].unwrap_or(false),
+            AppDirectory::Caches => self.rename_swap[1].unwrap_or(false),
+            AppDirectory::Temporary => self.rename_swap[2].unwrap_or(false),
+            AppDirectory::ApplicationSupport => self.rename_swap[3].unwrap_or(false),
             _ => false,
         }
     }
@@ -1317,7 +1646,7 @@ fn temporary_url() -> Result<Retained<NSURL>, FileError> {
     })
 }
 
-fn volume_supports(url: &NSURL, key: &NSURLResourceKey) -> bool {
+fn volume_supports(url: &NSURL, key: &NSURLResourceKey) -> Option<bool> {
     autoreleasepool(|_| {
         let mut value = None;
         // SAFETY: Apple's NSURL resource keys used here return NSNumber boolean values.
@@ -1327,7 +1656,6 @@ fn volume_supports(url: &NSURL, key: &NSURLResourceKey) -> bool {
             .ok()
             .map(|number| number.boolValue())
     })
-    .unwrap_or(false)
 }
 
 fn path_from_url(url: &NSURL) -> Result<PathBuf, FileError> {

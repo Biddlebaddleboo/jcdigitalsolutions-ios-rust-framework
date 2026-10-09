@@ -5,7 +5,7 @@ edition.workspace = true
 rust-version.workspace = true
 license.workspace = true
 repository.workspace = true
-description = "Portable Personal VPN status and native load-error values"
+description = "Portable Personal VPN status, configuration flags, and load-error values"
 
 [dependencies]
 

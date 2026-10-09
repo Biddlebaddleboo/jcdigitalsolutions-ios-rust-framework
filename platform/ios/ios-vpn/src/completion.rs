@@ -1,21 +1,21 @@
 use core::task::{Context, Poll, Waker};
 use std::sync::{Mutex, MutexGuard};
 
-use framework_vpn::{PersonalVpnQueryError, PersonalVpnStatus};
+use framework_vpn::PersonalVpnQueryError;
 
 /// One request's owned completion state shared with its native callback.
-pub(crate) struct Completion {
-    state: Mutex<State>,
+pub(crate) struct Completion<T> {
+    state: Mutex<State<T>>,
 }
 
-struct State {
+struct State<T> {
     completed: bool,
     detached: bool,
-    result: Option<Result<PersonalVpnStatus, PersonalVpnQueryError>>,
+    result: Option<Result<T, PersonalVpnQueryError>>,
     waker: Option<Waker>,
 }
 
-impl Completion {
+impl<T: Send + 'static> Completion<T> {
     /// Creates a pending request state.
     pub(crate) fn new() -> Self {
         Self {
@@ -29,7 +29,7 @@ impl Completion {
     }
 
     /// Publishes one callback result and wakes the current caller task.
-    pub(crate) fn complete(&self, result: Result<PersonalVpnStatus, PersonalVpnQueryError>) {
+    pub(crate) fn complete(&self, result: Result<T, PersonalVpnQueryError>) {
         let waker = {
             let mut state = self.lock();
             if state.completed {
@@ -49,10 +49,7 @@ impl Completion {
     }
 
     /// Reads a completed result or stores the current task waker.
-    pub(crate) fn poll(
-        &self,
-        context: &mut Context<'_>,
-    ) -> Poll<Result<PersonalVpnStatus, PersonalVpnQueryError>> {
+    pub(crate) fn poll(&self, context: &mut Context<'_>) -> Poll<Result<T, PersonalVpnQueryError>> {
         let mut state = self.lock();
         if let Some(result) = state.result.take() {
             return Poll::Ready(result);
@@ -68,7 +65,9 @@ impl Completion {
         }
         Poll::Pending
     }
+}
 
+impl<T> Completion<T> {
     /// Drops Rust interest while leaving callback state valid until the native callback ends.
     pub(crate) fn detach(&self) {
         let mut state = self.lock();
@@ -77,7 +76,7 @@ impl Completion {
         state.waker = None;
     }
 
-    fn lock(&self) -> MutexGuard<'_, State> {
+    fn lock(&self) -> MutexGuard<'_, State<T>> {
         self.state
             .lock()
             .unwrap_or_else(|poison| poison.into_inner())

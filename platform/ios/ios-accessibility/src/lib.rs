@@ -1,9 +1,11 @@
 #![deny(missing_docs)]
 #![deny(unsafe_op_in_unsafe_fn)]
-#![doc = "Bounded synchronous accessibility metadata access for caller-owned iOS UIKit views."]
+#![doc = "Bounded synchronous accessibility metadata and focus-status access for caller-owned iOS UIKit views."]
 
 #[cfg(any(target_os = "ios", test))]
 mod container_type;
+#[cfg(any(target_os = "ios", test))]
+mod expanded_status;
 #[cfg(any(target_os = "ios", test))]
 mod navigation_style;
 #[cfg(any(target_os = "ios", test))]
@@ -15,6 +17,8 @@ mod traits;
 
 #[cfg(any(target_os = "ios", test))]
 pub use container_type::AccessibilityContainerType;
+#[cfg(any(target_os = "ios", test))]
+pub use expanded_status::AccessibilityExpandedStatus;
 #[cfg(any(target_os = "ios", test))]
 pub use navigation_style::AccessibilityNavigationStyle;
 #[cfg(any(target_os = "ios", test))]
@@ -51,6 +55,7 @@ mod tests {
             AccessibilityTrait::StartsMediaSession => 1 << 13,
             AccessibilityTrait::AllowsDirectInteraction => 1 << 14,
             AccessibilityTrait::SummaryElement => 1 << 15,
+            AccessibilityTrait::TabBar => 1 << 16,
         }
     }
 

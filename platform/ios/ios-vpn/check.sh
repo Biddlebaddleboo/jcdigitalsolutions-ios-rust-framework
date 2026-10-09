@@ -24,11 +24,19 @@ if ! rg -Fq 'connection.status()' platform/ios/ios-vpn/src/platform.rs; then
     echo "no connection-status read found" >&2
     exit 1
 fi
+if ! rg -Fq 'manager.isEnabled()' platform/ios/ios-vpn/src/platform.rs; then
+    echo "no Personal VPN enabled-flag read found" >&2
+    exit 1
+fi
+if ! rg -Fq 'manager.isOnDemandEnabled()' platform/ios/ios-vpn/src/platform.rs; then
+    echo "no Connect On Demand flag read found" >&2
+    exit 1
+fi
 if ! rg -Fq 'MainThreadMarker::new()' platform/ios/ios-vpn/src/platform.rs; then
     echo "no callback main-thread check found" >&2
     exit 1
 fi
-if rg -n 'saveToPreferencesWithCompletionHandler|removeFromPreferencesWithCompletionHandler|startVPNTunnel|stopVPNTunnel|NETunnelProvider|NEPacketTunnelProvider|NEAppProxyProvider|NEFilterProvider' $source_files; then
+if rg -n 'setEnabled|setOnDemandEnabled|onDemandRules|saveToPreferencesWithCompletionHandler|removeFromPreferencesWithCompletionHandler|startVPNTunnel|stopVPNTunnel|NETunnelProvider|NEPacketTunnelProvider|NEAppProxyProvider|NEFilterProvider' $source_files; then
     echo "configuration mutation, tunnel control, or provider API found" >&2
     exit 1
 fi
