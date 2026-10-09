@@ -23,7 +23,16 @@ Reduce context usage and duplicated implementation/tooling without weakening mod
 1. **R1 shared native build support** — [PLAN_REUSE_BUILD.md](PLAN_REUSE_BUILD.md). Factor build machinery, never guessed ABI signatures.
 2. **R2 shared validation** — [PLAN_REUSE_VALIDATION.md](PLAN_REUSE_VALIDATION.md). Factor standard checks while retaining feature-specific public-API, import, symbol, availability, and ownership guards.
 3. **R3 reusable verified interop primitives** — [PLAN_REUSE_INTEROP.md](PLAN_REUSE_INTEROP.md). Only after R1 interface and R2 evidence gates are settled.
-4. **Unfinished capabilities** — Continue work explicitly retained from the completion ledger and manifest. Prefer completing meaningful workflows over endless new narrow snapshots, where technically justified. No outstanding contractual functionality is cancelled.
+4. **Stop after infrastructure integration** — Validate and hand off R1–R3; do not begin unfinished API/capability work. All deferred contractual functionality remains preserved for a separate user-authorized execution.
+
+## Current execution boundary — infrastructure only
+
+**This execution is limited to R1, R2 and R3 shared infrastructure.** P0 reconciliation is allowed only where required for their safe integration; no general backlog cleanup or new capability implementation is authorized. The previously identified D/B/F/G/API work remains deferred, not cancelled.
+
+- Codex **may spawn bounded, independently implementable infrastructure sub-workstreams** under R1/R2/R3, with existing ownership, dependency ordering, isolated worktrees where parallel-safe, explicit interface contracts and integration testing. Do not invent or renumber workstream IDs just for delegation.
+- Codex **must not spawn API, capability, application-feature or backend-expansion workstreams**, nor use infrastructure migration as a reason to complete unrelated APIs. Existing pilot code may be adapted only as necessary for infrastructure refactoring, compiler/link correctness or regression validation, preserving its public contract and observable behavior. R3 is restricted to reusing verified existing interop primitives; compiler-only proofs do not authorize production Swift async, StoreKit, Translation or App Intents APIs.
+- Complete the R1/R2/R3 scope and tests, integrate in the prescribed order, review the final diff, report exact validation, skips and blockers, perform the ordinary implementation handoff and commit without temporary planning files. **Then STOP.** Do not select another backlog item, create follow-up implementation workstreams or resume API development without a new explicit user request.
+- If a required infrastructure task is blocked, record its blocker and remaining owner rather than expanding scope into API work. Maintain all outstanding capability contracts for a later separately authorized cycle.
 
 ## Workstream identity and consolidation contract
 
@@ -63,4 +72,4 @@ R1 and R2 may work concurrently only in isolated worktrees; integrate R1 then R2
 
 ## Execution handoff
 
-Verify latest main, read this plan and assigned workstream only, implement within named ownership, integrate dependencies in order, report tests/SHA, independently validate final diff, delete temporary PLAN*.md and commit implementation without them. All changes to the planning set require approval before GitHub writes; `AGENTS.md` is outside a plan-only commit.
+Verify latest main, read this plan and assigned R1/R2/R3 infrastructure workstream only, implement within named ownership, integrate dependencies in order, report tests/SHA, independently validate the final diff, delete temporary PLAN*.md, and commit implementation without them. Stop after this handoff; do not initiate capability/API work. All changes to the planning set require approval before GitHub writes; `AGENTS.md` is outside a plan-only commit.
