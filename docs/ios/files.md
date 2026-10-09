@@ -13,9 +13,12 @@ The backend resolves Documents, Caches, and Application Support with Foundation'
 Each URL is opened once with a directory/no-follow open, and the backend retains the descriptor
 for its lifetime. These are app-sandbox locations; the sandbox backend and `Files` facade do not
 accept user-selected document-provider URLs, security-scoped bookmarks, iCloud container URLs, or
-file-provider URLs. The separate [`IosResolvedBookmark` helper](bookmark-resolution.md) resolves
-non-security-scoped Foundation bookmark data to a file URL, but does not start a security scope or
-add the URL to the sandbox `Files` facade. [A separate iOS extension](file-coordination.md)
+file-provider URLs. The separate [`IosPlainBookmarkData` helper](bookmark-resolution.md) creates
+location-only bookmark data from a caller-owned file URL with implicit scope omitted and safely
+resolves only that data through its opaque type. B83's `IosResolvedBookmark::resolve_unscoped` still
+uses an unsafe contract for raw caller-supplied bookmark data. Neither helper starts a security
+scope or adds a URL to the sandbox `Files` facade.
+[A separate iOS extension](file-coordination.md)
 coordinates caller-supplied file URLs for synchronous read/write access, but does not establish
 sandbox-root containment or file-provider lifecycle support. Callers that already hold a scoped
 file URL may balance its Foundation access lifetime with the separate
@@ -56,6 +59,86 @@ This is symlink-resistant traversal, not confinement against concurrent native d
 An already-open descriptor continues to refer to its directory inode if another native handle moves
 that directory outside the selected root; a later descriptor-relative operation can then act in the
 moved directory. The backend does not serialize that namespace mutation.
+
+## Regular file size
+
+`IosFiles::regular_file_size` returns the `u64` byte length of one regular file without reading its
+contents into a `Vec`. It accepts the same validated `AppPath` and uses the already-open semantic
+root, no-follow parent traversal, and one `fstatat(..., AT_SYMLINK_NOFOLLOW)` final-entry lookup.
+A missing path returns `NotFound`; a final symlink, directory, or special entry returns
+`InvalidInput`. The result is a point-in-time metadata snapshot and may differ from a later read if
+another handle changes or replaces the file. It is iOS-only and does not change the portable
+`framework-files` contract, follow arbitrary URLs, start a security scope, or prove stronger
+containment under concurrent parent-directory rename. See the [B90 plan](../../PLAN_IOS_FILE_SIZE.md).
+
+`IosFiles::regular_file_allocated_blocks_512` returns the filesystem-reported `st_blocks` count
+in 512-byte units for one regular file. This differs from logical file size; sparse files may
+report fewer allocated blocks than their logical size implies. It is not a promise of exact
+physical-device usage or exclusive allocation. The query uses one no-follow metadata lookup,
+rejects final symlinks/directories/special entries, reads no contents, and changes no portable
+`FileBackend` behavior. See the [B109 plan](../../PLAN_IOS_FILE_ALLOCATED_BLOCKS.md).
+
+## Single-entry kind
+
+`IosFiles::entry_kind` classifies one validated sandbox `AppPath` with the same `FileKind` values
+used by `read_directory`: regular files are `File`, directories are `Directory`, and symbolic links
+or special entries are `Other`. It inspects only the final entry with `fstatat` and
+`AT_SYMLINK_NOFOLLOW`, so it reads no file contents and does not follow a final symlink. A missing
+entry returns `NotFound`; parent traversal and metadata errors use the existing POSIX mapping. The
+answer is point-in-time and does not reserve the path for a later operation. This is an iOS-only
+helper, not a new portable `FileBackend` operation; it grants no URL or security-scope access and
+keeps the existing concurrent parent-directory rename limit. See the [B93 plan](../../PLAN_IOS_ENTRY_KIND.md).
+
+## Entry modification time
+
+`IosFiles::entry_modification_time` returns the raw POSIX seconds and nanoseconds from one
+`fstatat(..., AT_SYMLINK_NOFOLLOW)` call. It reports the final entry itself, including a symlink
+rather than its target, and accepts regular files, directories, symlinks, and special entries. The
+seconds are relative to the Unix epoch; the nanoseconds field is in `0..1_000_000_000`, though the
+filesystem may have coarser precision. Callers may set timestamps, so this is not a content
+version, reliable change token, or durability proof. A missing entry returns `NotFound`; other
+lookup errors use the existing POSIX mapping. The result does not reserve the path or change
+portable `FileBackend` semantics. See the [B96 plan](../../PLAN_IOS_FILE_MODIFICATION_TIME.md).
+
+## Entry status-change time
+
+`IosFiles::entry_status_change_time` returns the raw POSIX seconds and nanoseconds from
+`st_ctime`/`st_ctime_nsec` in one `fstatat(..., AT_SYMLINK_NOFOLLOW)` lookup. Apple defines this
+as the last file-status change time, which can change for metadata operations as well as writes;
+it is distinct from B96's data-modification time. A final symlink returns `InvalidInput` because
+Apple documents that `lstat` does not provide timestamps belonging to the link itself. The value
+is a point-in-time snapshot with filesystem-dependent precision, not a content version or reliable
+change token. It reads no contents, grants no URL or security-scope access, and changes no
+portable `FileBackend` semantics. See the [B107 plan](../../PLAN_IOS_FILE_STATUS_CHANGE_TIME.md).
+
+## Entry identity snapshot
+
+`IosFiles::entry_identity_snapshot` returns `st_dev` and `st_ino` from one
+`fstatat(..., AT_SYMLINK_NOFOLLOW)` call. The pair describes the final entry itself, including a
+symlink rather than its target, and accepts files, directories, symlinks, and special entries. It
+can help compare entries observed at about the same time, including hard-link names, but it is not
+a persistent ID or open handle; inode values may be reused after removal, and separate queries can
+race path mutation. The method reads no contents, starts no security scope, and does not reserve the
+path for a later operation. See the [B99 plan](../../PLAN_IOS_FILE_IDENTITY.md).
+
+## POSIX permission bits
+
+`IosFiles::entry_posix_permission_bits` returns `st_mode & 0o7777` for one validated path, using
+`fstatat(..., AT_SYMLINK_NOFOLLOW)`. The `u16` includes owner/group/other read, write, and execute
+bits plus set-user-ID, set-group-ID, and sticky bits. A symlink returns its own raw bits. This is
+metadata useful for diagnostics such as inspecting stored creation modes; it does not determine
+effective access or guarantee that a later read/write will succeed. Callers must rely on the actual
+operation result. The method reads no contents and adds no portable `FileBackend` operation. See
+the [B103 plan](../../PLAN_IOS_FILE_PERMISSION_BITS.md).
+
+## Regular-file hard-link count
+
+`IosFiles::regular_file_hard_link_count` returns the `st_nlink` count for one regular file from
+one `fstatat(..., AT_SYMLINK_NOFOLLOW)` call. It rejects a final symlink, directory, or special
+entry as `InvalidInput`. A count greater than one reports multiple hard links at that instant, but
+does not list aliases or prove that the count will remain unchanged; a later link, unlink, or path
+replacement may race. This is a best-effort diagnostic, not an exclusivity guard for a write. It
+reads no contents and changes no portable `FileBackend` behavior. See the [B105 plan](../../PLAN_IOS_FILE_LINK_COUNT.md).
 
 `read` rejects a final symlink, `read_directory` lists a symlink as `FileKind::Other`, and
 `exists` reports a final symlink as present without following it. `remove_file` unlinks a final

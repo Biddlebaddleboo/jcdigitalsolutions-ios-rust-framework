@@ -29,7 +29,7 @@ mod coordination;
 mod path_validation;
 mod security_scope;
 
-pub use bookmark::IosResolvedBookmark;
+pub use bookmark::{IosPlainBookmarkData, IosResolvedBookmark};
 pub use coordination::IosFileCoordinator;
 use path_validation::path_parts;
 pub use security_scope::{IosSecurityScopedAccess, SecurityScopeStartError};
@@ -46,6 +46,69 @@ pub struct IosFiles {
     rename_exclusive: [bool; 4],
     rename_swap: [bool; 4],
     next_temporary_id: u64,
+}
+
+/// A point-in-time POSIX modification timestamp reported for one iOS filesystem entry.
+#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
+pub struct IosFileModificationTime {
+    seconds_since_unix_epoch: i64,
+    nanoseconds: u32,
+}
+
+impl IosFileModificationTime {
+    /// Returns whole POSIX seconds relative to the Unix epoch.
+    pub const fn seconds_since_unix_epoch(self) -> i64 {
+        self.seconds_since_unix_epoch
+    }
+
+    /// Returns the subsecond nanosecond field reported by `stat`, in `0..1_000_000_000`.
+    ///
+    /// The filesystem may store or report a coarser precision than one nanosecond.
+    pub const fn nanoseconds(self) -> u32 {
+        self.nanoseconds
+    }
+}
+
+/// A point-in-time POSIX status-change timestamp reported for one iOS filesystem entry.
+#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
+pub struct IosFileStatusChangeTime {
+    seconds_since_unix_epoch: i64,
+    nanoseconds: u32,
+}
+
+impl IosFileStatusChangeTime {
+    /// Returns whole POSIX seconds relative to the Unix epoch.
+    pub const fn seconds_since_unix_epoch(self) -> i64 {
+        self.seconds_since_unix_epoch
+    }
+
+    /// Returns the subsecond nanosecond field reported by `stat`, in `0..1_000_000_000`.
+    ///
+    /// The filesystem may store or report a coarser precision than one nanosecond.
+    pub const fn nanoseconds(self) -> u32 {
+        self.nanoseconds
+    }
+}
+
+/// A point-in-time `(st_dev, st_ino)` pair for one iOS filesystem entry.
+///
+/// This value is not a persistent identifier, open handle, or guarantee against inode reuse.
+#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
+pub struct IosFileIdentitySnapshot {
+    device_id: u64,
+    inode_number: u64,
+}
+
+impl IosFileIdentitySnapshot {
+    /// Returns the nonnegative device identifier reported by `stat`.
+    pub const fn device_id(self) -> u64 {
+        self.device_id
+    }
+
+    /// Returns the inode number reported by `stat`.
+    pub const fn inode_number(self) -> u64 {
+        self.inode_number
+    }
 }
 
 impl IosFiles {
@@ -138,6 +201,339 @@ impl IosFiles {
             return Err(file_error(error));
         }
         Ok(WriteOutcome::new(WriteAtomicity::Atomic))
+    }
+
+    /// Returns one regular file's current byte length without reading its contents.
+    ///
+    /// The path uses the same app-sandbox root and descriptor-relative, no-follow traversal as
+    /// the `FileBackend` methods. The final entry is inspected with one
+    /// `fstatat(..., AT_SYMLINK_NOFOLLOW)` call; a final symlink, directory, or special entry is
+    /// rejected. The returned size is a point-in-time metadata snapshot and may differ from a
+    /// later read if another handle changes or replaces the file. This method does not follow
+    /// arbitrary URLs, start a security scope, or establish stronger containment than the
+    /// documented concurrent directory-rename limit.
+    ///
+    /// # Errors
+    ///
+    /// Returns `NotFound` for a missing final entry, `InvalidInput` for a non-regular entry or
+    /// invalid size, or the mapped POSIX error for path traversal and metadata lookup failures.
+    pub fn regular_file_size(&self, path: AppPath<'_>) -> Result<u64, FileError> {
+        let parts = path_parts(path.relative())?;
+        let (parent, leaf) = open_parent(self.root(path.directory())?, &parts)?;
+        let mut metadata = std::mem::MaybeUninit::<libc::stat>::uninit();
+        // SAFETY: `parent` is open, `leaf` is one validated component, and `metadata` is writable.
+        // `AT_SYMLINK_NOFOLLOW` inspects rather than follows a final symbolic link.
+        let result = unsafe {
+            libc::fstatat(
+                parent.as_raw_fd(),
+                leaf.as_ptr(),
+                metadata.as_mut_ptr(),
+                libc::AT_SYMLINK_NOFOLLOW,
+            )
+        };
+        if result < 0 {
+            return Err(file_error(io::Error::last_os_error()));
+        }
+        // SAFETY: successful `fstatat` initialized the structure.
+        let metadata = unsafe { metadata.assume_init() };
+        if metadata.st_mode & libc::S_IFMT != libc::S_IFREG {
+            return Err(backend_error(ErrorKind::InvalidInput, None));
+        }
+        u64::try_from(metadata.st_size).map_err(|_| backend_error(ErrorKind::InvalidInput, None))
+    }
+
+    /// Returns one regular file's filesystem-reported allocated block count.
+    ///
+    /// The `u64` is the `st_blocks` value in 512-byte units from one
+    /// `fstatat(..., AT_SYMLINK_NOFOLLOW)` lookup. It is distinct from logical byte length returned
+    /// by [`Self::regular_file_size`]; sparse files may report fewer allocated blocks than their
+    /// logical size implies. This is the filesystem's metadata value, not a promise of exact
+    /// physical-device usage, exclusive allocation, or a stable measure across file systems. The
+    /// final entry must be a regular file; a symbolic link, directory, or special entry is
+    /// rejected. Another handle may modify or replace the entry before a later operation. This
+    /// method reads no file contents, accepts no arbitrary URL, and does not start a security
+    /// scope or exceed the documented concurrent directory-rename containment limit.
+    ///
+    /// # Errors
+    ///
+    /// Returns `NotFound` for a missing final entry, `InvalidInput` for a non-regular entry or
+    /// negative block count, or the mapped POSIX error for path traversal and metadata lookup
+    /// failures.
+    pub fn regular_file_allocated_blocks_512(&self, path: AppPath<'_>) -> Result<u64, FileError> {
+        let parts = path_parts(path.relative())?;
+        let (parent, leaf) = open_parent(self.root(path.directory())?, &parts)?;
+        let mut metadata = std::mem::MaybeUninit::<libc::stat>::uninit();
+        // SAFETY: `parent` is open, `leaf` is one validated component, and `metadata` is writable.
+        // `AT_SYMLINK_NOFOLLOW` inspects rather than follows a final symbolic link.
+        let result = unsafe {
+            libc::fstatat(
+                parent.as_raw_fd(),
+                leaf.as_ptr(),
+                metadata.as_mut_ptr(),
+                libc::AT_SYMLINK_NOFOLLOW,
+            )
+        };
+        if result < 0 {
+            return Err(file_error(io::Error::last_os_error()));
+        }
+        // SAFETY: successful `fstatat` initialized the structure.
+        let metadata = unsafe { metadata.assume_init() };
+        if metadata.st_mode & libc::S_IFMT != libc::S_IFREG {
+            return Err(backend_error(ErrorKind::InvalidInput, None));
+        }
+        u64::try_from(metadata.st_blocks).map_err(|_| backend_error(ErrorKind::InvalidInput, None))
+    }
+
+    /// Returns the no-follow kind of one app-sandbox directory entry.
+    ///
+    /// Classification matches `read_directory`: regular files return `File`, directories return
+    /// `Directory`, and symbolic links or other entry types return `Other`. The path uses the same
+    /// validated `AppPath` and no-follow parent traversal as other sandbox methods. This reads no
+    /// file contents and does not follow the final symbolic link. The result is a point-in-time
+    /// observation; another handle may replace the entry before a later operation. It does not
+    /// accept arbitrary URLs, start a security scope, or establish stronger containment than the
+    /// documented concurrent directory-rename limit.
+    ///
+    /// # Errors
+    ///
+    /// Returns `NotFound` for a missing final entry, or the mapped POSIX error for path traversal
+    /// and metadata lookup failures.
+    pub fn entry_kind(&self, path: AppPath<'_>) -> Result<FileKind, FileError> {
+        let parts = path_parts(path.relative())?;
+        let (parent, leaf) = open_parent(self.root(path.directory())?, &parts)?;
+        self::entry_kind(parent.as_raw_fd(), leaf.as_c_str()).map_err(file_error)
+    }
+
+    /// Returns one entry's no-follow data-modification timestamp.
+    ///
+    /// The timestamp is the POSIX seconds/nanoseconds pair from `fstatat(...,
+    /// AT_SYMLINK_NOFOLLOW)`. It describes the final entry itself, including a symbolic link rather
+    /// than its target. The query uses the same validated `AppPath` and no-follow parent traversal
+    /// as other sandbox methods, reads no file contents, and accepts files, directories, symlinks,
+    /// and special entries. Filesystems may store coarser precision; callers may also set file
+    /// timestamps, so this value is not a content version, reliable change token, or durability
+    /// proof. It is a point-in-time result and another handle may replace the entry before a later
+    /// operation. This method does not accept arbitrary URLs, start a security scope, or establish
+    /// stronger containment than the documented concurrent directory-rename limit.
+    ///
+    /// # Errors
+    ///
+    /// Returns `NotFound` for a missing final entry, `InvalidInput` for a malformed timestamp
+    /// field, or the mapped POSIX error for path traversal and metadata lookup failures.
+    pub fn entry_modification_time(
+        &self,
+        path: AppPath<'_>,
+    ) -> Result<IosFileModificationTime, FileError> {
+        let parts = path_parts(path.relative())?;
+        let (parent, leaf) = open_parent(self.root(path.directory())?, &parts)?;
+        let mut metadata = std::mem::MaybeUninit::<libc::stat>::uninit();
+        // SAFETY: `parent` is open, `leaf` is one validated component, and `metadata` is writable.
+        // `AT_SYMLINK_NOFOLLOW` reads the final link's own metadata instead of following it.
+        let result = unsafe {
+            libc::fstatat(
+                parent.as_raw_fd(),
+                leaf.as_ptr(),
+                metadata.as_mut_ptr(),
+                libc::AT_SYMLINK_NOFOLLOW,
+            )
+        };
+        if result < 0 {
+            return Err(file_error(io::Error::last_os_error()));
+        }
+        // SAFETY: successful `fstatat` initialized the structure.
+        let metadata = unsafe { metadata.assume_init() };
+        let seconds_since_unix_epoch = metadata.st_mtime;
+        let nanoseconds = u32::try_from(metadata.st_mtime_nsec)
+            .map_err(|_| backend_error(ErrorKind::InvalidInput, None))?;
+        if nanoseconds >= 1_000_000_000 {
+            return Err(backend_error(ErrorKind::InvalidInput, None));
+        }
+        Ok(IosFileModificationTime {
+            seconds_since_unix_epoch,
+            nanoseconds,
+        })
+    }
+
+    /// Returns one non-symlink entry's no-follow POSIX status-change timestamp.
+    ///
+    /// The timestamp is the seconds/nanoseconds pair from `st_ctime` and `st_ctime_nsec` in one
+    /// `fstatat(..., AT_SYMLINK_NOFOLLOW)` result. Apple documents this field as the time of the
+    /// last file-status change, including changes from operations such as `chmod`, `chown`,
+    /// `link`, `rename`, `unlink`, `utimes`, and `write`. A final symbolic link is rejected
+    /// because Apple's `lstat` contract does not define its own timestamp fields. The query uses
+    /// the same validated `AppPath` and no-follow parent traversal as other sandbox methods,
+    /// reads no file contents, and accepts regular files, directories, and special entries.
+    /// Filesystems may report coarser precision; this is a point-in-time metadata observation, not
+    /// a content version, reliable change token, or durability proof. Another handle may change or
+    /// replace the entry before a later operation. This method does not accept arbitrary URLs,
+    /// start a security scope, or establish stronger containment than the documented concurrent
+    /// directory-rename limit.
+    ///
+    /// # Errors
+    ///
+    /// Returns `NotFound` for a missing final entry, `InvalidInput` for a final symbolic link or
+    /// malformed timestamp field, or the mapped POSIX error for path traversal and metadata lookup
+    /// failures.
+    pub fn entry_status_change_time(
+        &self,
+        path: AppPath<'_>,
+    ) -> Result<IosFileStatusChangeTime, FileError> {
+        let parts = path_parts(path.relative())?;
+        let (parent, leaf) = open_parent(self.root(path.directory())?, &parts)?;
+        let mut metadata = std::mem::MaybeUninit::<libc::stat>::uninit();
+        // SAFETY: `parent` is open, `leaf` is one validated component, and `metadata` is writable.
+        // `AT_SYMLINK_NOFOLLOW` prevents following a final symbolic link.
+        let result = unsafe {
+            libc::fstatat(
+                parent.as_raw_fd(),
+                leaf.as_ptr(),
+                metadata.as_mut_ptr(),
+                libc::AT_SYMLINK_NOFOLLOW,
+            )
+        };
+        if result < 0 {
+            return Err(file_error(io::Error::last_os_error()));
+        }
+        // SAFETY: successful `fstatat` initialized the structure.
+        let metadata = unsafe { metadata.assume_init() };
+        if metadata.st_mode & libc::S_IFMT == libc::S_IFLNK {
+            return Err(backend_error(ErrorKind::InvalidInput, None));
+        }
+        let seconds_since_unix_epoch = metadata.st_ctime;
+        let nanoseconds = u32::try_from(metadata.st_ctime_nsec)
+            .map_err(|_| backend_error(ErrorKind::InvalidInput, None))?;
+        if nanoseconds >= 1_000_000_000 {
+            return Err(backend_error(ErrorKind::InvalidInput, None));
+        }
+        Ok(IosFileStatusChangeTime {
+            seconds_since_unix_epoch,
+            nanoseconds,
+        })
+    }
+
+    /// Returns one entry's no-follow device and inode numbers.
+    ///
+    /// The pair is read from one `fstatat(..., AT_SYMLINK_NOFOLLOW)` result for the final entry
+    /// itself, including a symbolic link rather than its target. The query uses the same
+    /// validated `AppPath` and no-follow parent traversal as other sandbox methods. It accepts
+    /// files, directories, symlinks, and special entries, reads no file contents, and does not
+    /// open or retain the entry. Equal pairs can identify the same live inode at observation time,
+    /// such as two hard-link names; they are not globally unique or persistent, and a filesystem
+    /// may reuse an inode number after removal. Separate path queries are not atomic with later
+    /// operations and may race another handle's changes. This method does not accept arbitrary
+    /// URLs, start a security scope, or establish stronger containment than the documented
+    /// concurrent directory-rename limit.
+    ///
+    /// # Errors
+    ///
+    /// Returns `NotFound` for a missing final entry, `InvalidInput` for a negative device ID, or
+    /// the mapped POSIX error for path traversal and metadata lookup failures.
+    pub fn entry_identity_snapshot(
+        &self,
+        path: AppPath<'_>,
+    ) -> Result<IosFileIdentitySnapshot, FileError> {
+        let parts = path_parts(path.relative())?;
+        let (parent, leaf) = open_parent(self.root(path.directory())?, &parts)?;
+        let mut metadata = std::mem::MaybeUninit::<libc::stat>::uninit();
+        // SAFETY: `parent` is open, `leaf` is one validated component, and `metadata` is writable.
+        // `AT_SYMLINK_NOFOLLOW` reads the final link's own metadata instead of following it.
+        let result = unsafe {
+            libc::fstatat(
+                parent.as_raw_fd(),
+                leaf.as_ptr(),
+                metadata.as_mut_ptr(),
+                libc::AT_SYMLINK_NOFOLLOW,
+            )
+        };
+        if result < 0 {
+            return Err(file_error(io::Error::last_os_error()));
+        }
+        // SAFETY: successful `fstatat` initialized the structure.
+        let metadata = unsafe { metadata.assume_init() };
+        let device_id = u64::try_from(metadata.st_dev)
+            .map_err(|_| backend_error(ErrorKind::InvalidInput, None))?;
+        Ok(IosFileIdentitySnapshot {
+            device_id,
+            inode_number: metadata.st_ino,
+        })
+    }
+
+    /// Returns one entry's raw POSIX permission and special-mode bits.
+    ///
+    /// The result is `st_mode & 0o7777` from one `fstatat(..., AT_SYMLINK_NOFOLLOW)` lookup of the
+    /// final entry itself. It includes owner/group/other read, write, and execute bits plus the
+    /// set-user-ID, set-group-ID, and sticky bits. For a symlink, the value comes from the link
+    /// itself. These stored bits do not determine whether a later operation will succeed; this
+    /// method does not check effective access, App Sandbox policy, file-protection state, or
+    /// concurrent path changes. The query uses the same validated `AppPath` and no-follow parent
+    /// traversal as other sandbox methods, reads no file contents, and retains no descriptor.
+    /// It does not accept arbitrary URLs, start a security scope, or establish stronger
+    /// containment than the documented concurrent directory-rename limit.
+    ///
+    /// # Errors
+    ///
+    /// Returns `NotFound` for a missing final entry, or the mapped POSIX error for path traversal
+    /// and metadata lookup failures.
+    pub fn entry_posix_permission_bits(&self, path: AppPath<'_>) -> Result<u16, FileError> {
+        let parts = path_parts(path.relative())?;
+        let (parent, leaf) = open_parent(self.root(path.directory())?, &parts)?;
+        let mut metadata = std::mem::MaybeUninit::<libc::stat>::uninit();
+        // SAFETY: `parent` is open, `leaf` is one validated component, and `metadata` is writable.
+        // `AT_SYMLINK_NOFOLLOW` reads the final link's own metadata instead of following it.
+        let result = unsafe {
+            libc::fstatat(
+                parent.as_raw_fd(),
+                leaf.as_ptr(),
+                metadata.as_mut_ptr(),
+                libc::AT_SYMLINK_NOFOLLOW,
+            )
+        };
+        if result < 0 {
+            return Err(file_error(io::Error::last_os_error()));
+        }
+        // SAFETY: successful `fstatat` initialized the structure.
+        let metadata = unsafe { metadata.assume_init() };
+        Ok(metadata.st_mode & 0o7777)
+    }
+
+    /// Returns the point-in-time hard-link count for one regular file.
+    ///
+    /// The count comes from one `fstatat(..., AT_SYMLINK_NOFOLLOW)` result. The final entry must
+    /// be a regular file; a symbolic link, directory, or special entry returns `InvalidInput`
+    /// rather than following or reinterpreting it. A count greater than one reports multiple
+    /// hard links to the same inode at observation time, but does not list their paths or prove
+    /// exclusive ownership. Another handle may add or remove links, or replace the path, before a
+    /// later operation. This query reads no file contents, retains no descriptor, does not accept
+    /// arbitrary URLs, and does not start a security scope. It has the documented concurrent
+    /// directory-rename containment limit.
+    ///
+    /// # Errors
+    ///
+    /// Returns `NotFound` for a missing final entry, `InvalidInput` for a non-regular entry, or
+    /// the mapped POSIX error for path traversal and metadata lookup failures.
+    pub fn regular_file_hard_link_count(&self, path: AppPath<'_>) -> Result<u64, FileError> {
+        let parts = path_parts(path.relative())?;
+        let (parent, leaf) = open_parent(self.root(path.directory())?, &parts)?;
+        let mut metadata = std::mem::MaybeUninit::<libc::stat>::uninit();
+        // SAFETY: `parent` is open, `leaf` is one validated component, and `metadata` is writable.
+        // `AT_SYMLINK_NOFOLLOW` inspects rather than follows a final symbolic link.
+        let result = unsafe {
+            libc::fstatat(
+                parent.as_raw_fd(),
+                leaf.as_ptr(),
+                metadata.as_mut_ptr(),
+                libc::AT_SYMLINK_NOFOLLOW,
+            )
+        };
+        if result < 0 {
+            return Err(file_error(io::Error::last_os_error()));
+        }
+        // SAFETY: successful `fstatat` initialized the structure.
+        let metadata = unsafe { metadata.assume_init() };
+        if metadata.st_mode & libc::S_IFMT != libc::S_IFREG {
+            return Err(backend_error(ErrorKind::InvalidInput, None));
+        }
+        Ok(u64::from(metadata.st_nlink))
     }
 
     fn volume_supports_exclusive_rename(&self, directory: AppDirectory) -> bool {

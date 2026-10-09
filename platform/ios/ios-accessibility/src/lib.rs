@@ -30,6 +30,15 @@ mod tests {
             AccessibilityTrait::Selected => 1 << 4,
             AccessibilityTrait::StaticText => 1 << 5,
             AccessibilityTrait::SearchField => 1 << 6,
+            AccessibilityTrait::Adjustable => 1 << 7,
+            AccessibilityTrait::NotEnabled => 1 << 8,
+            AccessibilityTrait::KeyboardKey => 1 << 9,
+            AccessibilityTrait::UpdatesFrequently => 1 << 10,
+            AccessibilityTrait::PlaysSound => 1 << 11,
+            AccessibilityTrait::CausesPageTurn => 1 << 12,
+            AccessibilityTrait::StartsMediaSession => 1 << 13,
+            AccessibilityTrait::AllowsDirectInteraction => 1 << 14,
+            AccessibilityTrait::SummaryElement => 1 << 15,
         }
     }
 

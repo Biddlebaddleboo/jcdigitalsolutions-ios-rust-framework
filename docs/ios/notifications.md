@@ -37,7 +37,9 @@ The app supplies its executor or polls these executor-neutral futures itself. `I
 ## Availability and authorization
 
 `UserNotifications` center, authorization-state query, request, schedule, pending-request count, and
-calendar-trigger APIs in this backend have an iOS 10.0 floor per Xcode 26.6 iPhoneOS SDK 26.5. `UNAuthorizationStatusProvisional`
+calendar-trigger APIs in this backend have an iOS 10.0 floor per Xcode 26.6 iPhoneOS SDK 26.5. The
+`alertSetting`, `soundSetting`, and `badgeSetting` getters used by B88 share that floor.
+`UNAuthorizationStatusProvisional`
 has an iOS 12.0 floor; `UNAuthorizationStatusEphemeral` has an iOS 14.0 floor
 
 Native `NotDetermined` and `Denied` map to the matching `framework_core::AuthorizationState`.
@@ -47,6 +49,56 @@ or sound are enabled. `UserNotifications` has no `Restricted` authorization stat
 state is not synthesized; unknown native raw values map to `Unknown`. The backend does not request
 provisional authorization. It asks only for alerts because D3 models title/body text and has no
 sound or badge fields.
+
+B86 extends B4 with the iOS-only `IosNotificationsBackend::authorization_status_raw_value` future.
+It returns the raw signed `NSInteger` from `UNNotificationSettings.authorizationStatus` without
+normalization, preserving `NotDetermined` (0), `Denied` (1), `Authorized` (2), `Provisional` (3),
+`Ephemeral` (4), and future or unknown values exactly. It uses the same prompt-free
+`getNotificationSettingsWithCompletionHandler:` snapshot path as `authorization()` and does not
+change portable D3 behavior. The result is only the status observed at callback time; it does not
+prove that alerts, banners, sounds, or any specific interaction are enabled, nor that a scheduled
+notification is usable or will be delivered. The query itself does not prompt
+
+B88 adds the iOS-only `IosNotificationsBackend::notification_setting_raw_values` future. Its
+`IosNotificationSettingRawValues` result contains the raw signed `NSInteger` values for
+`UNNotificationSettings.alertSetting`, `soundSetting`, and `badgeSetting`, all read from one
+prompt-free settings callback. For each field, 0 means not supported, 1 disabled, and 2 enabled;
+unknown values pass through unchanged. These are only the app's current settings snapshot: an
+enabled alert does not guarantee on-screen presentation, and none of these values establishes
+scheduling success or delivery. B88 does not change D3. See the [B88 plan](../../PLAN_IOS_NOTIFICATION_SETTINGS.md)
+for its exact scope and validation record
+
+B91 adds `IosNotificationsBackend::notification_settings_extended_raw_values`. Its
+`IosNotificationSettingsExtendedRawValues` result reports raw signed values for
+`notificationCenterSetting` and `lockScreenSetting`; it also has separate `Option<isize>` fields for
+`criticalAlertSetting` (iOS 12+) and `timeSensitiveSetting` and `scheduledDeliverySetting` (iOS 15+).
+Each newer getter is called only when `UNNotificationSettings` responds to its selector. `None`
+means the selector is unavailable; `Some(0)` remains `NotSupported`, and any unknown signed raw
+value is preserved. All fields come from the same prompt-free settings callback
+
+These are only the app's settings snapshot, not notification content or history. A disabled lock
+screen setting does not rule out unlocked presentation. The critical-alert field reports its
+setting only: Apple requires a special entitlement to play critical sounds, and this query neither
+obtains nor verifies that entitlement. B91 does not request or create critical or time-sensitive
+notifications, and the scheduled-delivery value does not state when any request will arrive. See
+the [B91 plan](../../PLAN_IOS_NOTIFICATION_SETTINGS_EXTENDED.md) for availability, semantics, and
+the validation record
+
+B94 adds `IosNotificationsBackend::notification_settings_surface_raw_values`. It returns the raw
+signed `carPlaySetting` value and an optional raw signed `announcementSetting` value, both using
+`UNNotificationSetting` codes: 0 not supported, 1 disabled, 2 enabled; unknown values pass through.
+CarPlay is available at the iOS 10.0 floor. The Siri-announcement getter is iOS 13.0+ and is called
+only when the settings object responds to its selector; `None` means that selector is unavailable,
+while `Some(0)` means `NotSupported`. These app-specific settings reveal no notification content,
+IDs, or delivery history; they do not prove a CarPlay connection, Siri availability, or actual
+presentation. The query does not prompt
+
+B94 audited `showPreviewsSetting` but does not expose it. That iOS 11.0+ setting distinguishes
+Always, WhenAuthenticated, and Never, and directly reports the user's content-preview privacy
+choice. B4 submits content to UserNotifications and does not build a preview UI or alter system
+presentation, so this value adds no required behavior to the local scheduling backend. The system
+continues to enforce the user's preview choice. See the [B94 plan](../../PLAN_IOS_NOTIFICATION_SETTINGS_SURFACES.md)
+for this scope decision and the validation record
 
 Local notification authorization does not require a notification-specific `Info.plist` usage
 description or push entitlement. The app should request authorization in a user-understandable
@@ -139,4 +191,4 @@ The macOS CI workflow now runs this gate; no passing workflow run is recorded
 The first attempt exited 101 before either target build because `--locked` required a shared
 `Cargo.lock` refresh; no probe was built by that attempt
 
-References: [Apple's UserNotifications center](https://developer.apple.com/documentation/usernotifications/unusernotificationcenter), [authorization request guidance](https://developer.apple.com/documentation/usernotifications/asking-permission-to-use-notifications), [authorization status](https://developer.apple.com/documentation/usernotifications/unauthorizationstatus), [absolute calendar triggers](https://developer.apple.com/documentation/usernotifications/uncalendarnotificationtrigger), [request identifier replacement](https://developer.apple.com/documentation/usernotifications/unnotificationrequest/identifier), and [objc2 UserNotifications bindings](https://docs.rs/objc2-user-notifications/0.3.2/objc2_user_notifications/).
+References: [Apple's UserNotifications center](https://developer.apple.com/documentation/usernotifications/unusernotificationcenter), [notification-settings query](https://developer.apple.com/documentation/usernotifications/unusernotificationcenter/getnotificationsettings%28completionhandler%3A%29), [authorization request guidance](https://developer.apple.com/documentation/usernotifications/asking-permission-to-use-notifications), [authorization status](https://developer.apple.com/documentation/usernotifications/unauthorizationstatus), [alert setting](https://developer.apple.com/documentation/usernotifications/unnotificationsettings/alertsetting), [sound setting](https://developer.apple.com/documentation/usernotifications/unnotificationsettings/soundsetting), [badge setting](https://developer.apple.com/documentation/usernotifications/unnotificationsettings/badgesetting), [Notification Center setting](https://developer.apple.com/documentation/usernotifications/unnotificationsettings/notificationcentersetting), [Lock Screen setting](https://developer.apple.com/documentation/usernotifications/unnotificationsettings/lockscreensetting), [CarPlay setting](https://developer.apple.com/documentation/usernotifications/unnotificationsettings/carplaysetting), [Siri announcement setting](https://developer.apple.com/documentation/usernotifications/unnotificationsettings/announcementsetting), [preview setting](https://developer.apple.com/documentation/usernotifications/unnotificationsettings/showpreviewssetting), [preview modes](https://developer.apple.com/documentation/usernotifications/unshowpreviewssetting), [critical alert setting](https://developer.apple.com/documentation/usernotifications/unnotificationsettings/criticalalertsetting), [time-sensitive setting](https://developer.apple.com/documentation/usernotifications/unnotificationsettings/timesensitivesetting), [scheduled delivery setting](https://developer.apple.com/documentation/usernotifications/unnotificationsettings/scheduleddeliverysetting), [setting raw values](https://developer.apple.com/documentation/usernotifications/unnotificationsetting), [absolute calendar triggers](https://developer.apple.com/documentation/usernotifications/uncalendarnotificationtrigger), [request identifier replacement](https://developer.apple.com/documentation/usernotifications/unnotificationrequest/identifier), and [objc2 UserNotifications bindings](https://docs.rs/objc2-user-notifications/0.3.2/objc2_user_notifications/).

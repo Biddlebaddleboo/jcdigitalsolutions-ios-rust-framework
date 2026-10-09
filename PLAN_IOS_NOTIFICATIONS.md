@@ -10,8 +10,25 @@ B4 now also exposes `IosNotificationsBackend::pending_request_count`, an iOS-onl
 app's `u64` local-request count at native callback time. It claims no authorization, delivery, or
 readiness; the count may change after the native snapshot and has no ID or content
 
+B86 extends B4 with `IosNotificationsBackend::authorization_status_raw_value`, an iOS-only
+prompt-free settings future that preserves the signed native status value (including provisional,
+ephemeral, and unknown future values). It is a status snapshot only, does not establish enabled
+interactions or delivery/readiness, and leaves portable D3 normalization unchanged
+
+B86 passed locked device and Simulator checks, strict all-target Clippy, rustdoc, and the Release
+link/import gate on 2026-10-09. Xcode 26.6's iPhoneOS SDK 26.5 headers place the settings object,
+`authorizationStatus`, and `getNotificationSettingsWithCompletionHandler:` at iOS 10.0; provisional
+and ephemeral raw enum cases were added at iOS 12.0 and iOS 14.0. The probe binaries were built and
+inspected but not executed; no tests, prompt, or live settings query ran
+
 Row 031's canonical support reason now includes the iOS-only local-request count snapshot; the
 portable D3 contract stays unchanged
+
+B88 adds one prompt-free callback snapshot of raw alert, sound, and badge setting values, with unknown signed values preserved. It does not guarantee presentation, sound, badge updates, scheduling, or delivery; see `PLAN_IOS_NOTIFICATION_SETTINGS.md`
+
+B91 adds raw Notification Center and Lock Screen settings plus optional critical-alert, time-sensitive, and scheduled-delivery values from the same prompt-free settings API. Newer selectors are checked before call; `None` means selector absent and `Some(0)` means `NotSupported`. This does not verify the critical-alert entitlement or guarantee notification behavior; see `PLAN_IOS_NOTIFICATION_SETTINGS_EXTENDED.md`
+
+B94 adds raw CarPlay and optional Siri-announcement setting values from one prompt-free callback. It does not prove CarPlay connection, Siri availability, or actual presentation. The iOS 11+ preview-privacy setting was audited but is not exposed because B4 builds no preview UI and the system already enforces the choice; see `PLAN_IOS_NOTIFICATION_SETTINGS_SURFACES.md`
 
 The pending-count follow-up passed root device and Simulator checks, strict all-target Clippy,
 rustdoc, and the Release link/import gate. The compile-only example selects the new method, but no

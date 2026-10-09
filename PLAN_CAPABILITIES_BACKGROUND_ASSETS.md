@@ -2,9 +2,9 @@
 
 ## Status
 
-D72 found no global BackgroundAssets support, authorization, or readiness query. Background Assets is a host-app asset delivery system, not an OS permission or service whose presence proves that an app can fetch or install assets.
+D72 found no global BackgroundAssets support, authorization, or readiness query. Background Assets is a host-app asset delivery system, not an OS permission or service whose presence proves that an app can fetch or install assets. B97 later implements the separate unmanaged-queue count below; it does not change that finding.
 
-One narrow value snapshot is technically supportable without performing a download: `BADownloadManager.fetchCurrentDownloadsWithCompletionHandler` returns the current scheduled or in-flight queue for the app or its downloader extension. An API could report only the count of those queue entries. It must not call that count installed assets, completed downloads, available assets, or BackgroundAssets support. Keep capability row `036-background-assets-where-applicable` at its current status for this feasibility-only work; no implementation or matrix change is in scope.
+One narrow value snapshot is technically supportable without performing a download: `BADownloadManager.fetchCurrentDownloadsWithCompletionHandler` returns the current scheduled or in-flight queue for the app or its downloader extension. An API could report only the count of those queue entries. It must not call that count installed assets, completed downloads, available assets, or BackgroundAssets support. D72 kept capability row `036-background-assets-where-applicable` at its then-current status; B97's later code remains a scoped slice, not a broad support claim.
 
 An asset-pack-local-availability query also exists in the current Apple SDK, but `objc2-background-assets` 0.3.2's generated `BAAssetPackManager` API does not expose the iOS 26.4 local-status methods. Do not use an unverified raw Objective-C selector or claim this route is Rust-callable until typed binding support and its exact features are verified.
 
@@ -65,11 +65,11 @@ This value is not:
 
 A separate managed-pack API could return local availability for one caller-supplied pack ID after iOS 26.4, but its empty status is ambiguous for unknown/not-downloaded packs and the current 0.3.2 typed binding omits the relevant methods. It should remain deferred until the binding and host baseline are validated.
 
-## Feasibility result and next evidence
+## D72 feasibility result and follow-up checks
 
-A read-only queue-count snapshot is an honest, bounded candidate if a later implementation explicitly scopes row 036 to app/extension queue observation and requires a configured Background Assets host. It does not support a generic portable `BackgroundAssetsAvailable` Boolean and does not imply any download/install operation. No source code is authorized by D72; row 036 is unchanged.
+A read-only queue-count snapshot was an honest, bounded candidate if a later implementation explicitly scoped row 036 to app/extension queue observation. D72 did not support a generic portable `BackgroundAssetsAvailable` Boolean and did not authorize source code; B97 is the later, separately scoped implementation. B97 adds the unmanaged queue count and B110 adds a caller-supplied manifest-entry count to row 036 partial (`B`); neither validates host setup or readiness.
 
-Before a future implementation:
+At D72, the following checks remained before any implementation:
 
 1. Select unmanaged iOS 16.1 queue observation or managed iOS 26.4 per-pack local status; do not combine their semantics.
 2. For the queue snapshot, verify 0.3.2 feature wiring and device/Simulator compile/link, callback block lifetime, error mapping, cancellation/drop behavior, and manager completion queue. Define app/extension concurrency and whether `performWithExclusiveControl` is required.
@@ -78,11 +78,82 @@ Before a future implementation:
 5. If using managed-pack local status, verify an updated typed binding for the iOS 26.4 methods, local-status behavior for downloaded/out-of-date/obsolete packs, unknown-ID ambiguity, and async completion ownership.
 6. Validate actual background scheduling, installation, downloads, and asset reads only in a configured app and extension with representative packs; those behaviors are outside a status snapshot and must not be inferred from compile/link checks.
 
-## Deferred work
+## Still deferred after B97 and B110
 
-- No capability matrix/status JSON, Cargo/workspace/lockfile, CI, aggregate plan, or shared index edit.
-- No portable BackgroundAssets availability contract, iOS backend, downloader extension, app-group entitlement, Info.plist/manifest setup, download scheduling/cancel API, progress delegate, installation claim, or asset read API.
+- No capability matrix/status JSON, CI, aggregate plan, or shared index edit in this workstream.
+- No portable BackgroundAssets availability contract or broad iOS backend; B97 adds only the unmanaged queue count and B110 only counts entries in caller-supplied JSON. No downloader extension, app-group entitlement, Info.plist or host manifest setup inspection, download scheduling/cancel API, progress delegate, local-installation query, or asset read API.
 - No tests, probe execution, live download, or device lifecycle action.
+
+## B97 follow-up — unmanaged queue-count snapshot
+
+B97 implements the D72 queue-count candidate in `platform/ios/ios-background-assets`. The public
+Rust call `request_download_queue_count()` wraps
+`BADownloadManager.fetchCurrentDownloadsWithCompletionHandler:` and returns only the callback
+array length as `DownloadQueueCount`. It does not inspect `BADownload` objects or their nonatomic
+properties. Apple lists the method at iOS 16.1 in the installed SDK header. The method reads the
+unmanaged manager queue for the app or its extension; it does not query managed `BAAssetPack`
+state.
+
+The future starts native work when called. Its callback copies the count or the native error
+domain and `NSInteger` code into Rust-owned values. A dropped future detaches Rust interest but
+does not cancel the native request. A successful zero count means only that the callback's queue
+snapshot contained no entries. It is not a support, host-configuration, asset-installation, or
+asset-availability result. The backend neither schedules nor cancels downloads and reads no asset
+bytes.
+
+The new focused guide is [docs/ios/background-assets.md](docs/ios/background-assets.md). B97
+requires iOS 16.1 at runtime and B110 requires iOS 26.0; neither makes a Swift ABI call. These
+operations do not add portable Background Assets semantics, managed asset-pack status,
+downloader-extension code, entitlement or host-plist inspection, or a broad capability-matrix edit
+in the workstream. Root marks row 036 `B` only for B97's queue count and B110's caller-supplied
+manifest-entry count; no broad support or setup claim is made.
+
+On Rust 1.94.1, Xcode 26.6 build 17F113, and iOS SDK 26.5, host/device/Simulator checks,
+device/Simulator strict library Clippy, device/Simulator rustdoc, package formatting, and
+`cargo +1.94.1 xtask docs-check` passed. Xcode 26.6 remains below the repo's Xcode 27.x baseline.
+No tests, example probe, app, live queue query, or download lifecycle ran. See the focused API guide
+for scope and Apple references.
+
+## B110 follow-up — unmanaged manifest entry count
+
+B110 adds `inspect_asset_pack_manifest(json, app_group_id)` to the B97 `ios-background-assets`
+package. The iOS 26.0+ function parses caller-owned JSON with
+`BAAssetPackManifest.initFromData:applicationGroupIdentifier:error:` and returns only the count of
+its `assetPacks` set. It uses the generated `objc2-background-assets` 0.3.2 bindings with
+`BAAssetPack` and `BAAssetPackManifest`; it does not use a raw selector or any Swift ABI.
+
+The installed Xcode 26.6 build 17F113 / iOS SDK 26.5 `BAAssetPackManifest.h` marks the class and
+initializer available from iOS 26.0, defines the initializer as a JSON-data-to-memory operation,
+and declares `assetPacks` `readonly, copy`. The Rust wrapper copies bytes into `NSData`, converts
+the group ID to `NSString`, holds the parsed manifest alive while it reads the returned set's safe
+`count()`, then returns a fixed-width Rust value. The native parse error keeps its domain and
+`NSInteger` code.
+
+This is a manifest-description count, not a status or asset-availability result. It does not touch
+`BAAssetPackManager.sharedManager()`, whose header says its first access opts the app into automatic
+management and that a missing matching downloader-extension protocol is a programmer error. B110
+does not query local state, access asset bytes, schedule downloads, check the app-group entitlement,
+or validate a host target. The app-group ID is passed to Apple's parser for this manifest
+representation. The focused guide is [docs/ios/background-assets.md](docs/ios/background-assets.md).
+
+Rust 1.94.1 host/device/Simulator checks, strict library Clippy, and rustdoc passed for the package;
+package formatting and `cargo +1.94.1 xtask docs-check` also passed. Xcode 26.6 build 17F113 / iOS
+SDK 26.5 remains below the Xcode 27.x baseline. No tests or parser invocation ran; no app, probe,
+device, or manager call ran. Exact static gates:
+
+```sh
+cargo +1.94.1 check --locked -p ios-background-assets
+cargo +1.94.1 check --locked -p ios-background-assets --target aarch64-apple-ios
+cargo +1.94.1 check --locked -p ios-background-assets --target aarch64-apple-ios-sim
+cargo +1.94.1 clippy --locked --lib -p ios-background-assets -- -D warnings
+cargo +1.94.1 clippy --locked --lib -p ios-background-assets --target aarch64-apple-ios -- -D warnings
+cargo +1.94.1 clippy --locked --lib -p ios-background-assets --target aarch64-apple-ios-sim -- -D warnings
+cargo +1.94.1 doc --locked --no-deps -p ios-background-assets
+cargo +1.94.1 doc --locked --no-deps -p ios-background-assets --target aarch64-apple-ios
+cargo +1.94.1 doc --locked --no-deps -p ios-background-assets --target aarch64-apple-ios-sim
+cargo +1.94.1 fmt --manifest-path platform/ios/ios-background-assets/Cargo.toml -- --check
+cargo +1.94.1 xtask docs-check
+```
 
 ## Apple and binding references
 
@@ -93,6 +164,9 @@ Before a future implementation:
 - [Creating managed asset packs](https://developer.apple.com/documentation/backgroundassets/creating-managed-asset-packs)
 - [BADownloadManager](https://developer.apple.com/documentation/backgroundassets/badownloadmanager)
 - [BAAssetPackManager](https://developer.apple.com/documentation/backgroundassets/baassetpackmanager)
+- [BAAssetPackManifest](https://developer.apple.com/documentation/backgroundassets/baassetpackmanifest)
+- [BAAssetPackManifest `initFromData:applicationGroupIdentifier:error:`](https://developer.apple.com/documentation/backgroundassets/baassetpackmanifest/initfromdata%3Aapplicationgroupidentifier%3Aerror%3A)
+- [BAAssetPackManifest `assetPacks`](https://developer.apple.com/documentation/backgroundassets/baassetpackmanifest/assetpacks)
 - [BAAssetPackStatus](https://developer.apple.com/documentation/backgroundassets/baassetpackstatus)
 - [App Groups entitlement](https://developer.apple.com/documentation/bundleresources/entitlements/com.apple.security.application-groups)
 - [`objc2-background-assets` 0.3.2 crate](https://docs.rs/objc2-background-assets/0.3.2/objc2_background_assets/)

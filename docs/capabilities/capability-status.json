@@ -7,14 +7,14 @@
     "capability_count": 113,
     "portable_contract_implemented_count": 36,
     "portable_contract_partial_count": 22,
-    "partial_implementation_count": 86,
+    "partial_implementation_count": 87,
     "ios_class_counts": {
       "R": 0,
       "M": 0,
-      "B": 86,
+      "B": 87,
       "A": 0,
       "C": 0,
-      "X": 27
+      "X": 26
     }
   },
   "capabilities": [
@@ -203,7 +203,7 @@
       "entitlements": [],
       "device_only_restrictions": [],
       "swift_abi_requirement": false,
-      "metadata_verification": "Xcode_26.6_iOS_26.5_headers_verify_UIPasteboard_iOS_3.0_and_hasStrings_iOS_10.0_floor; B6 device/simulator compile and import checks only; B84 Rust formatting and diff checks only, no build; no live pasteboard query; Xcode_27_baseline_not_met",
+      "metadata_verification": "Xcode_26.6_iOS_26.5_headers_verify_UIPasteboard_iOS_3.0_and_hasStrings_iOS_10.0_floor; B6 device/simulator compile and import checks; B84 device/simulator compile, strict Clippy, rustdoc, and Release link/import checks pass with UIKit/Foundation/libobjc/libSystem and minos 10.0/14.0; no tests, consumers, probes, or live pasteboard query; Xcode_27_baseline_not_met",
       "parity_status": "not_tested_live_behavior_or_Apple_parity",
       "performance_status": "not_measured",
       "native_escape_handle_available": false,
@@ -254,8 +254,8 @@
       "portable_contract_note": "No portable facade for this capability is included in D1.",
       "ios_implementation_class": "B",
       "implementation_status": "partial",
-      "status_reason": "ios-accessibility adds synchronous setters for accessibility element status, label, hint, value, and seven standard traits on a borrowed, caller-owned UIView. The adapter requires the UIKit main thread and is !Send/!Sync; trait updates replace the full mask and may override UIKit defaults. No live VoiceOver behavior is claimed.",
-      "minimum_ios_version": "6.0",
+      "status_reason": "ios-accessibility adds synchronous setters for accessibility element status, label, hint, value, and sixteen UIKit traits on a borrowed, caller-owned UIView. The adapter requires the UIKit main thread and is !Send/!Sync; trait updates replace the full mask and may override UIKit defaults. Adjustable requires accessibilityIncrement and accessibilityDecrement; NotEnabled requires a view that does not respond to input; KeyboardKey requires key behavior; UpdatesFrequently and PlaysSound rely on host-owned value updates and activation sound; CausesPageTurn requires host page-turn behavior via accessibilityScroll:; StartsMediaSession applies only when activation starts a media session; AllowsDirectInteraction applies only to caller-marked content that supports direct touch; SummaryElement requires caller-supplied summary content. The adapter routes no input, configures no DirectTouchOptions, adds no callback or audio behavior, makes no presentation-timing promise, and makes no live VoiceOver claim.",
+      "minimum_ios_version": "4.0",
       "required_frameworks": [
         "UIKit",
         "Foundation"
@@ -265,7 +265,7 @@
       "entitlements": [],
       "device_only_restrictions": [],
       "swift_abi_requirement": false,
-      "metadata_verification": "Xcode_26.6_iOS_26.5_headers_derive_iOS_6.0_floor_from_UIAccessibilityTraitHeader; SDK_minimum_12.0; external_device_link_minos_12.0_simulator_14.0; docs/ios/accessibility.md; compile_link_import_only_no_live_VoiceOver; Xcode_27_baseline_not_met",
+      "metadata_verification": "Xcode_26.6_iOS_26.5; API_floor_iOS_4.0_from_Adjustable_and_StartsMediaSession; CausesPageTurn_and_AllowsDirectInteraction_floor_iOS_5.0; UIAccessibilityTraitHeader_floor_iOS_6.0; NotEnabled_KeyboardKey_UpdatesFrequently_PlaysSound_SummaryElement_have_no_explicit_iOS_floor; prior_link_lacks_B92_B95_B98_B100_B102_B104_B106_B108_B111_symbols; SDK_minimum_12.0; external_device_link_minos_12.0_simulator_14.0; docs/ios/accessibility.md; compile_link_import_only_no_live_VoiceOver; Xcode_27_baseline_not_met",
       "parity_status": "not_tested_live_behavior_or_Apple_parity",
       "performance_status": "not_measured",
       "native_escape_handle_available": false,
@@ -437,7 +437,7 @@
       "portable_contract_note": "No portable facade for this capability is included in D1.",
       "ios_implementation_class": "B",
       "implementation_status": "partial",
-      "status_reason": "ios-files adds synchronous coordination for caller-owned file URLs; provider access, picker flows, and security-scope lifecycle remain unsupported.",
+      "status_reason": "ios-files adds synchronous coordination for caller-owned file URLs, B83 unsafe resolution of caller-asserted plain non-security-scoped bookmark data, B85 opaque creation/resolution with NSURLBookmarkCreationWithoutImplicitSecurityScope, B90 regular-file size, B93 one-path FileKind, B96 data-modification time, B99 near-time (st_dev, st_ino), B103 raw permission and special bits, B105 hard-link count, B107 status-change time, and B109 allocated-block count for regular files. These metadata snapshots read no file contents. Mode bits do not predict effective access; identity and link count are not persistent or race-free; status-change time is not a content version or reliable change token; allocated blocks do not prove exact physical use or exclusive allocation. B101 does not expose entry creation time because st_birthtime may contain ctime without a per-entry support signal. Bookmark helpers do not grant access or start security scope; provider access, picker flows, and security-scope lifecycle remain unsupported.",
       "minimum_ios_version": null,
       "required_frameworks": [
         "Foundation"
@@ -447,7 +447,7 @@
       "entitlements": null,
       "device_only_restrictions": null,
       "swift_abi_requirement": false,
-      "metadata_verification": "PLAN_IOS_FILE_COORDINATION.md verifies the selected NSFileCoordinator and NSURL surface through objc2-foundation; no minimum iOS version is stated, and provider/security-scope behavior is excluded.",
+      "metadata_verification": "B83 resolution uses NSURLBookmarkResolutionWithoutImplicitStartAccessing from iOS 14.2 and retains an unsafe caller-scope precondition. B85 uses NSURLBookmarkCreationWithoutImplicitSecurityScope (option floor iOS 5.0; ios-files package floor iOS 10.0). B90, B93, B96, B99, B103, B105, B107, and B109 device/Simulator checks, strict Clippy, rustdoc, and format passed; docs-check passed for earlier slices. B109 confirms Darwin st_blocks uses 512-byte units; negative st_blocks is rejected. No tests, live filesystem operations, consumers, or probes ran. B101 records the ambiguous st_birthtime/ctime fallback. Xcode 26.6 / iOS SDK 26.5 is below the Xcode 27.x baseline.",
       "parity_status": "not_tested_live_behavior_or_Apple_parity",
       "performance_status": "not_measured",
       "native_escape_handle_available": false,
@@ -743,7 +743,7 @@
       "portable_contract_note": "framework-network defines portable request/response values and a static backend contract; the iOS backend is the separate B3 adapter.",
       "ios_implementation_class": "B",
       "implementation_status": "partial",
-      "status_reason": "B3 uses Foundation URLSession for the request/response model; no runtime request, local-server differential, Apple parity, or performance result is claimed.",
+      "status_reason": "B3 uses Foundation URLSession for the request/response model and accepts `NSString` response-header values as UTF-8 plus `NSNumber` values via Foundation `stringValue()`; numeric values are normalized object representations, not raw wire spelling, and unsupported object types fail as platform backend errors. No runtime request, local-server differential, Apple parity, or performance result is claimed.",
       "minimum_ios_version": "7.0",
       "required_frameworks": [
         "Foundation"
@@ -777,7 +777,7 @@
       "portable_contract_note": "framework-network defines portable request/response values and a static backend contract; ios-network implements foreground HTTP only.",
       "ios_implementation_class": "B",
       "implementation_status": "partial",
-      "status_reason": "The URLSession backend and device/simulator compile checks exist; no runtime URLSession request, local-server differential, Apple parity suite, or performance measurement is claimed.",
+      "status_reason": "The URLSession backend converts response-header `NSString` values as UTF-8 and `NSNumber` values through Foundation `stringValue()`; numeric values do not preserve raw wire spelling, and unsupported object types fail as platform backend errors. Device/Simulator checks and strict Clippy passed; no runtime URLSession request, local-server differential, Apple parity suite, or performance measurement is claimed.",
       "minimum_ios_version": "7.0",
       "required_frameworks": [
         "Foundation"
@@ -791,7 +791,7 @@
       "entitlements": [],
       "device_only_restrictions": [],
       "swift_abi_requirement": false,
-      "metadata_verification": "NSURLSession SDK availability and local-network/ATS notes are documented in docs/ios/network.md; SDK inspected on macOS Xcode 26.5.",
+      "metadata_verification": "NSURLSession SDK availability and local-network/ATS notes are documented in docs/ios/network.md; response-header conversion uses objc2-foundation 0.3.2 NSString/NSNumber bindings and was checked on Xcode 26.6 / iOS SDK 26.5; numeric NSNumber normalization is not raw-wire parity.",
       "parity_status": "not_tested_live_behavior_or_Apple_parity",
       "performance_status": "not_measured",
       "native_escape_handle_available": true,
@@ -972,7 +972,7 @@
       "portable_contract_note": "framework-notifications defines a partial one-shot local-notification contract; remote push and live delivery are excluded.",
       "ios_implementation_class": "B",
       "implementation_status": "partial",
-      "status_reason": "ios-notifications covers local authorization, one-shot schedule, request cancellation, and a UserNotifications local-request count snapshot; remote push, response delegates, and live delivery are not claimed.",
+      "status_reason": "ios-notifications covers local authorization, one-shot schedule, request cancellation, a UserNotifications local-request count snapshot, B86 raw signed UNAuthorizationStatus values including provisional, ephemeral, and unknown future codes, B88 raw alert/sound/badge setting values and B91 raw Notification Center/Lock Screen settings plus optional critical-alert, time-sensitive, and scheduled-delivery settings, with unknown signed codes preserved through prompt-free settings queries. These snapshots do not change portable D3 normalization or prove enabled interactions, scheduling readiness, or delivery; remote push, response delegates, and live delivery are not claimed. B94 adds raw CarPlay and optional Siri-announcement settings from one prompt-free query; no CarPlay connection, Siri availability, or actual presentation is implied, and preview-privacy values remain unexposed.",
       "minimum_ios_version": "10.0",
       "required_frameworks": [
         "UserNotifications",
@@ -985,7 +985,7 @@
       "entitlements": [],
       "device_only_restrictions": [],
       "swift_abi_requirement": false,
-      "metadata_verification": "Xcode_26.6_iOS_26.5_headers_verify_iOS_10_API_floor; local_permission_scope_and_local-request_count_snapshot_documented_in_docs/ios/notifications.md; no_live_prompt_or_count_or_delivery_test; Xcode_27_baseline_not_met",
+      "metadata_verification": "Xcode 26.6 / iOS SDK 26.5 headers confirm the settings/status query path at iOS 10.0; provisional and ephemeral values were added at iOS 12.0 and iOS 14.0. B86, B88, and B91 device/Simulator checks, strict Clippy, rustdoc, formatting, docs-check, zero-Swift-source, and Release link/import gates passed; B91 guards newer getters with `respondsToSelector:` and uses optional fields to distinguish selector absence from raw zero. Probes were inspected, not executed. No tests, prompt, or live settings query. Xcode 27.x baseline not met. B94 device/Simulator checks, strict Clippy, rustdoc, formatting, docs-check, zero-Swift-source, and Release link/import gates passed; no tests, probes, prompts, or live settings query.",
       "parity_status": "not_tested_live_behavior_or_Apple_parity",
       "performance_status": "not_measured",
       "native_escape_handle_available": true,
@@ -1121,24 +1121,27 @@
       "family": "Notifications/background",
       "capability": "BackgroundAssets where applicable",
       "crate_module": [
-        "framework-background::ios"
+        "ios-background-assets"
       ],
-      "crate_module_status": "planned_not_present",
+      "crate_module_status": "ios_backend_partial",
       "portability_class": "platform_exclusive",
       "portable_contract_status": "not_implemented",
       "portable_contract_note": "No portable facade for this capability is included in D1.",
-      "ios_implementation_class": "X",
-      "implementation_status": "unsupported",
-      "status_reason": "No BackgroundAssets backend exists; a separate workstream must establish where its app/asset lifecycle applies and define the supported public surface.",
-      "minimum_ios_version": null,
-      "required_frameworks": null,
-      "required_permissions": null,
+      "ios_implementation_class": "B",
+      "implementation_status": "partial",
+      "status_reason": "ios-background-assets adds an iOS 16.1+ read-only count of current unmanaged BADownloadManager queue entries and an iOS 26.0+ count of assetPacks parsed from caller-supplied manifest JSON. The parser preserves native errors and does not access BAAssetPackManager or asset files; neither operation proves Background Assets support, host configuration, installed assets, or local pack availability.",
+      "minimum_ios_version": "16.1",
+      "required_frameworks": [
+        "BackgroundAssets",
+        "Foundation"
+      ],
+      "required_permissions": [],
       "required_info_plist_keys": null,
       "entitlements": null,
       "device_only_restrictions": null,
-      "swift_abi_requirement": "not_assessed_for_absent_backend",
-      "metadata_verification": "unverified; null fields do not assert that no requirement exists",
-      "parity_status": "not_tested_no_iOS_implementation",
+      "swift_abi_requirement": false,
+      "metadata_verification": "Xcode 26.6 / iOS SDK 26.5 headers and objc2-background-assets 0.3.2 confirm typed iOS 16.1 queue and iOS 26.0 manifest APIs. Host/device/Simulator checks, strict Clippy, rustdoc, package format, and docs-check passed. No tests, probes, apps, parser invocation, live queue query, or manager calls. Xcode 27.x baseline not met.",
+      "parity_status": "not_tested_live_queue_or_Apple_parity",
       "performance_status": "not_measured",
       "native_escape_handle_available": false,
       "native_escape_handle_note": "No native escape handle is exposed by a capability facade in this row."
@@ -1157,7 +1160,7 @@
       "portable_contract_note": "framework-location defines explicit foreground authorization and one-shot current-location values; monitoring and background location are excluded.",
       "ios_implementation_class": "B",
       "implementation_status": "partial",
-      "status_reason": "ios-location implements explicit foreground authorization and a one-shot current-location request; geofencing, significant-change monitoring, continuous/background location, live permission/positioning tests, Apple parity, and performance are not claimed.",
+      "status_reason": "ios-location implements explicit foreground authorization, a one-shot current-location request, and B87's iOS 14+ prompt-free full/reduced accuracy-authorization snapshot with unknown signed values preserved; geofencing, significant-change monitoring, continuous/background location, live permission/positioning tests, Apple parity, and performance are not claimed.",
       "minimum_ios_version": "9.0",
       "required_frameworks": [
         "CoreLocation",
@@ -1172,7 +1175,7 @@
       "entitlements": [],
       "device_only_restrictions": [],
       "swift_abi_requirement": false,
-      "metadata_verification": "Xcode_26.6_iOS_26.5_headers_verify_requestLocation_iOS_9.0_floor; docs/ios/location.md; device/simulator compile and import checks only; no live permission or positioning test; Xcode_27_baseline_not_met",
+      "metadata_verification": "Xcode 26.6 / iOS SDK 26.5 headers verify requestLocation iOS 9.0 floor and CLLocationManager.accuracyAuthorization iOS 14.0 floor; B87 device/Simulator checks, strict Clippy, rustdoc, format, and Release link/import gate passed; unknown signed CLAccuracyAuthorization values remain preserved; no test, live permission, or positioning query; Xcode 27.x baseline not met",
       "parity_status": "not_tested_live_behavior_or_Apple_parity",
       "performance_status": "not_measured",
       "native_escape_handle_available": true,
@@ -3048,7 +3051,7 @@
       "portable_contract_note": "No portable contract is included; this is an iOS-only query for the calling app's own File Provider extension.",
       "ios_implementation_class": "B",
       "implementation_status": "partial",
-  "status_reason": "D85/B75 adds an iOS 11.0+ async registered-domain presence snapshot and B82 adds the returned domain count for the calling app's own File Provider extension through NSFileProviderManager.getDomainsWithCompletionHandler:. Both preserve native NSError domain/code and expose no IDs, files, sync, enablement, or other providers. The callback queue is unspecified and dropping the future does not cancel the request; see PLAN_IOS_FILEPROVIDER.md and PLAN_IOS_FILEPROVIDER_DOMAIN_COUNT.md.",
+      "status_reason": "D85/B75 adds an iOS 11.0+ async registered-domain presence snapshot and B82 adds the returned domain count for the calling app's own File Provider extension through NSFileProviderManager.getDomainsWithCompletionHandler:. Both preserve native NSError domain/code and expose no IDs, files, sync, enablement, or other providers. The callback queue is unspecified and dropping the future does not cancel the request; see PLAN_IOS_FILEPROVIDER.md and PLAN_IOS_FILEPROVIDER_DOMAIN_COUNT.md.",
       "minimum_ios_version": "11.0",
       "required_frameworks": [
         "FileProvider"
@@ -3058,8 +3061,8 @@
       "entitlements": null,
       "device_only_restrictions": [],
       "swift_abi_requirement": false,
-  "metadata_verification": "Xcode 26.6 build 17F113 / iOS SDK 26.5 FileProvider headers and objc2-file-provider 0.3.2 inspected; B75/B82 host/device/Simulator checks, strict Clippy, rustdoc, and link/import audits passed; probes inspected, not executed",
-  "parity_status": "not_tested_live_provider_registered_domains_or_count",
+      "metadata_verification": "Xcode 26.6 build 17F113 / iOS SDK 26.5 FileProvider headers and objc2-file-provider 0.3.2 inspected; B75/B82 host/device/Simulator checks, strict Clippy, rustdoc, and link/import audits passed; probes inspected, not executed",
+      "parity_status": "not_tested_live_provider_registered_domains_or_count",
       "performance_status": "not_measured",
       "native_escape_handle_available": false,
       "native_escape_handle_note": "No native provider, domain, or file handle escapes the callback."

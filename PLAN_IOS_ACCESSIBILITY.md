@@ -56,9 +56,121 @@ B8's implementation and guide meet the bounded metadata contract. The public API
 `UIView` and the typed `MainThread` proof, stores the main-thread marker, and is `!Send`/`!Sync`.
 Each setter is synchronous; text `None` clears through `nil`, `Some("")` remains an empty string,
 and `set_traits` replaces the full trait mask, using UIKit's `UIAccessibilityTraitNone` for an empty
-set. The seven framework-owned traits map to public constants from the active SDK. Focused tests
+set. B8's seven initial framework-owned traits map to public constants from the active SDK; B92
+adds `Adjustable` as the eighth trait, B95 adds `NotEnabled` as the ninth, B98 adds `KeyboardKey`
+as the tenth, B100 adds `UpdatesFrequently` as the eleventh, B102 adds `PlaysSound` as the
+twelfth, B104 adds `CausesPageTurn` as the thirteenth, B106 adds `StartsMediaSession` as the
+fourteenth, B108 adds `AllowsDirectInteraction` as the fifteenth, and B111 adds `SummaryElement`
+as the sixteenth. Focused tests
 cover optional text, trait combination, empty-set behavior, order independence, and deriving masks
-only from the passed traits. No source or guide correction was needed.
+only from the passed traits.
+
+B92 adds `AccessibilityTrait::Adjustable` through `UIAccessibilityTraitAdjustable`. The active
+iOS 26.5 SDK declares it with `API_AVAILABLE(ios(4.0), watchos(2.0))`; this lowers the selected
+surface API floor from iOS 6.0 to iOS 4.0, while the host's binary floor remains iOS 12.0 for device
+and iOS 14.0 for Simulator. Apple requires an adjustable element to implement
+`accessibilityIncrement` and `accessibilityDecrement`. The B8 adapter sets the trait only, so the
+caller must use it only for a view that supplies both methods. No callback or action implementation
+is added. This B92 pass added no tests and ran no tests; it updated the existing test fixture map
+only so its exhaustive match includes the new variant
+
+The B92 source audit confirms `UIAccessibilityTraitAdjustable` in `objc2-ui-kit` 0.3.2's generated
+`UIAccessibilityConstants` feature; the existing manifest already enables that feature. Apple's
+[trait documentation](https://developer.apple.com/documentation/uikit/uiaccessibilitytraits/adjustable?language=objc)
+and [`UIAccessibilityAction`](https://developer.apple.com/documentation/objectivec/uiaccessibilityaction?language=objc)
+both require the two methods. The active SDK has the trait declaration at
+`UIAccessibilityConstants.h:90` and the method requirements at `UIAccessibility.h:349-355`
+
+B95 adds `AccessibilityTrait::NotEnabled` through `UIAccessibilityTraitNotEnabled`. The active
+iOS 26.5 SDK declares the constant at `UIAccessibilityConstants.h:72` with
+`API_AVAILABLE(watchos(2.0))` only and no explicit iOS minimum annotation. The exact static is in
+`objc2-ui-kit` 0.3.2's generated `UIAccessibilityConstants` feature; no dependency or feature
+change is needed. Apple defines the trait as an accessibility element that is not enabled and does
+not respond to user interaction ([trait documentation](https://developer.apple.com/documentation/uikit/uiaccessibilitytraits/notenabled?language=objc)).
+The adapter changes accessibility metadata only. The caller must use this trait only when the
+underlying view or control is already disabled or otherwise does not respond to user interaction;
+setting the trait does not disable or block interaction. The selected API floor remains iOS 4.0
+from `Adjustable`. This B95 pass added no
+tests and ran no tests; it updated the existing test fixture map so its exhaustive match includes
+the new variant
+
+B98 adds `AccessibilityTrait::KeyboardKey` through `UIAccessibilityTraitKeyboardKey`. The active
+iOS 26.5 SDK declares the constant at `UIAccessibilityConstants.h:58` with
+`API_AVAILABLE(watchos(2.0))` only and no explicit iOS minimum annotation. The exact static is in
+`objc2-ui-kit` 0.3.2's generated `UIAccessibilityConstants` feature; no dependency or feature
+change is needed. Apple defines the trait as an accessibility element that behaves like a keyboard
+key ([trait documentation](https://developer.apple.com/documentation/uikit/uiaccessibilitytraits/keyboardkey?language=objc)).
+The caller must use it only for an element that already provides the key behavior; this adapter
+sets metadata only and adds no key event handling or keyboard. The selected API floor remains iOS
+4.0 from `Adjustable`. This B98 pass added no tests and ran no tests; it updated the existing test
+fixture map so its exhaustive match includes the new variant
+
+B100 adds `AccessibilityTrait::UpdatesFrequently` through `UIAccessibilityTraitUpdatesFrequently`.
+The active iOS 26.5 SDK declares it at `UIAccessibilityConstants.h:78` with
+`API_AVAILABLE(watchos(2.0))` only and no explicit iOS minimum annotation. The exact static is in
+`objc2-ui-kit` 0.3.2's generated `UIAccessibilityConstants` feature; no dependency or feature
+change is needed. Apple says to use this trait when the element's label or value changes too
+frequently to send an update notification for every change, so an assistive app may poll instead
+([trait documentation](https://developer.apple.com/documentation/uikit/uiaccessibilitytraits/updatesfrequently?language=objc)).
+This adapter sets the trait only. The caller owns label/value updates and notification policy; this
+API does not guarantee that an assistive app polls or when. The selected API floor remains iOS 4.0
+from `Adjustable`. This B100 pass added no tests and ran no tests; it updated the existing test
+fixture map so its exhaustive match includes the new variant
+
+B102 adds `AccessibilityTrait::PlaysSound` through `UIAccessibilityTraitPlaysSound`. The active
+iOS 26.5 SDK declares it at `UIAccessibilityConstants.h:55` with
+`API_AVAILABLE(watchos(2.0))` only and no explicit iOS minimum annotation. The exact static is in
+`objc2-ui-kit` 0.3.2's generated `UIAccessibilityConstants` feature; no dependency or feature
+change is needed. Apple says this trait describes an element that plays its own sound when the
+user activates it ([trait documentation](https://developer.apple.com/documentation/uikit/uiaccessibilitytraits/playssound?language=objc)).
+The caller must provide that activation sound; this adapter sets metadata only and adds no
+activation handler or audio behavior. The selected API floor remains iOS 4.0 from `Adjustable`.
+This B102 pass added no tests and ran no tests; it updated the existing test fixture map so its
+exhaustive match includes the new variant
+
+B104 adds `AccessibilityTrait::CausesPageTurn` through `UIAccessibilityTraitCausesPageTurn`. The
+active iOS 26.5 SDK declares the trait at `UIAccessibilityConstants.h:100` with
+`API_AVAILABLE(ios(5.0), watchos(2.0))`; the exact static is in `objc2-ui-kit` 0.3.2's generated
+`UIAccessibilityConstants` feature. The existing `UIAccessibility` feature also exposes
+`accessibilityScroll:` and `UIAccessibilityScrollDirectionNext`; no dependency or feature change
+is needed. The SDK declares `accessibilityScroll:` at `UIAccessibility.h:386` for iOS 4.2 and
+unavailable on watchOS, and the `Next` direction at iOS 5.0. Apple says this trait describes a page
+in a sequence: VoiceOver calls `accessibilityScroll:` with `Next` after reading the page and stops
+when new content is unchanged ([trait documentation](https://developer.apple.com/documentation/uikit/uiaccessibilitytraits/causespageturn?language=objc)).
+The caller must provide this page-turn behavior; this adapter sets metadata only. The separate
+`UIAccessibilityReadingContent` protocol supports continuous reading and is not implemented by this
+crate ([protocol documentation](https://developer.apple.com/documentation/uikit/uiaccessibilityreadingcontent?language=objc)).
+The selected API floor remains iOS 4.0 from `Adjustable`. This B104 pass added no tests and ran no
+tests; it updated the existing test fixture map so its exhaustive match includes the new variant
+
+B106 adds `AccessibilityTrait::StartsMediaSession` through `UIAccessibilityTraitStartsMediaSession`.
+The active iOS 26.5 SDK declares the constant at `UIAccessibilityConstants.h:84` with
+`API_AVAILABLE(ios(4.0), watchos(2.0))`; the exact static is in `objc2-ui-kit` 0.3.2's generated
+`UIAccessibilityConstants` feature. Apple describes it for an element whose activation starts a
+media session that should not be interrupted by assistive-app audio, such as audio recording
+([trait documentation](https://developer.apple.com/documentation/uikit/uiaccessibilitytraits/startsmediasession?language=objc)).
+The caller must use it only when activation actually starts such a media session; this adapter sets
+metadata only and adds no media or audio behavior. No assistive-audio behavior or timing is claimed.
+The selected API floor remains iOS 4.0. This B106 pass added no tests and ran no tests; it updated
+the existing test fixture map so its exhaustive match includes the new variant
+
+B108 adds `AccessibilityTrait::AllowsDirectInteraction` through
+`UIAccessibilityTraitAllowsDirectInteraction`. The active iOS 26.5 SDK declares it at
+`UIAccessibilityConstants.h:93` with `API_AVAILABLE(ios(5.0), watchos(2.0))`; the exact static is in
+`objc2-ui-kit` 0.3.2's generated `UIAccessibilityConstants` feature. Apple defines it for an
+element that represents an object users interact with directly, such as a piano keyboard
+([trait documentation](https://developer.apple.com/documentation/uikit/uiaccessibilitytraits/allowsdirectinteraction?language=objc)).
+The caller must provide the touch-interactive region and input behavior. This adapter sets metadata
+only, routes no touch events, and configures no `UIAccessibility.DirectTouchOptions`. The selected
+API floor remains iOS 4.0. This B108 pass added no tests and ran no tests; it updated the existing
+test fixture map so its exhaustive match includes the new variant
+
+B111 adds `AccessibilityTrait::SummaryElement` through `UIAccessibilityTraitSummaryElement`. The
+active iOS 26.5 SDK declares the constant at `UIAccessibilityConstants.h:69` with only
+`API_AVAILABLE(watchos(2.0))`, so it adds no explicit iOS minimum to the selected surface. The exact
+static is in `objc2-ui-kit` 0.3.2's generated `UIAccessibilityConstants` feature. Apple defines it
+for an element that provides a summary of current conditions, settings, or state when the app
+starts ([trait documentation](https://developer.apple.com/documentation/uikit/uiaccessibilitytraits/summaryelement?language=objc)). The caller must supply that summary; this setter does not control when UIKit or assistive technology reads or presents it. The selected API floor remains iOS 4.0. This B111 pass added no tests and ran no tests; it updated the existing test fixture map so its exhaustive match includes the new variant
 
 On Xcode 26.6 build 17F113 with iPhoneOS and iPhoneSimulator SDK 26.5, these checks pass:
 
@@ -75,8 +187,11 @@ On Xcode 26.6 build 17F113 with iPhoneOS and iPhoneSimulator SDK 26.5, these che
 
 Inspection of `UIAccessibility.h` confirms the selected nullable copied text properties and
 synchronous accessibility setters; `UIAccessibilityConstants.h` declares `UIAccessibilityTraits`
-as `uint64_t` and all eight referenced public constants. The header's only explicit iOS minimum in
-the selected trait set is `UIAccessibilityTraitHeader` at iOS 6.0. The SDK's
+as `uint64_t` and the seventeen referenced public constants: sixteen traits plus `UIAccessibilityTraitNone`.
+`UIAccessibilityTraitAdjustable` and `UIAccessibilityTraitStartsMediaSession` have explicit iOS 4.0
+floors, `UIAccessibilityTraitCausesPageTurn` and `UIAccessibilityTraitAllowsDirectInteraction` have
+explicit iOS 5.0 floors, and `UIAccessibilityTraitHeader` has an explicit iOS 6.0 floor. The other
+eleven traits plus `UIAccessibilityTraitNone` have no explicit iOS minimum annotation. The SDK's
 `SupportedTargets.iphoneos.MinimumDeploymentTarget` and
 `SupportedTargets.iphonesimulator.MinimumDeploymentTarget` values are 12.0.
 `objc2-ui-kit` 0.3.2 uses the direct features `UIAccessibility`, `UIAccessibilityConstants`,
@@ -85,8 +200,14 @@ the selected trait set is `UIAccessibilityTraitHeader` at iOS 6.0. The SDK's
 A temporary external Rust `cdylib` consumer linked for device and simulator with
 `IPHONEOS_DEPLOYMENT_TARGET=12.0`. `vtool -show-build` reports device minimum iOS 12.0 / SDK 26.5
 and simulator minimum iOS 14.0 / SDK 26.5. `otool -L` reports UIKit, Foundation,
-`/usr/lib/libobjc.A.dylib`, and `/usr/lib/libSystem.B.dylib`; `nm -u` reports the seven selected
-trait constants, `UIAccessibilityTraitNone`, and `objc_msgSend`. This is compile/link evidence only.
+`/usr/lib/libobjc.A.dylib`, and `/usr/lib/libSystem.B.dylib`; `nm -u` reports the original seven
+trait constants, `UIAccessibilityTraitNone`, and `objc_msgSend`. This is
+compile/link evidence only; the B92 `UIAccessibilityTraitAdjustable`, B95
+`UIAccessibilityTraitNotEnabled`, B98 `UIAccessibilityTraitKeyboardKey`, B100
+`UIAccessibilityTraitUpdatesFrequently`, B102 `UIAccessibilityTraitPlaysSound`, B104
+`UIAccessibilityTraitCausesPageTurn`, B106 `UIAccessibilityTraitStartsMediaSession`, B108
+`UIAccessibilityTraitAllowsDirectInteraction`, and B111 `UIAccessibilityTraitSummaryElement`
+references have no new link evidence in their respective passes.
 The host remains below the Xcode 27.x planning baseline; no simulator launch, device run, live
 VoiceOver session, announcement, focus movement, accessibility audit, or UX behavior is claimed.
 No CI/G8 files were changed.

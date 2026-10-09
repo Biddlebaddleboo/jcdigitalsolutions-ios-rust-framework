@@ -13,7 +13,10 @@ use framework_notifications::{
 use objc2::ClassType;
 use objc2::rc::{Retained, autoreleasepool};
 use objc2::runtime::Bool;
-use objc2_foundation::{NSArray, NSCalendar, NSDateComponents, NSError, NSString, NSTimeZone};
+use objc2::sel;
+use objc2_foundation::{
+    NSArray, NSCalendar, NSDateComponents, NSError, NSObjectProtocol, NSString, NSTimeZone,
+};
 use objc2_user_notifications::{
     UNAuthorizationOptions, UNCalendarNotificationTrigger, UNMutableNotificationContent,
     UNNotificationRequest, UNNotificationSettings, UNUserNotificationCenter,
@@ -27,6 +30,56 @@ type StartOperation<T, O> = fn(Retained<UNUserNotificationCenter>, O, Completion
 
 /// iOS authorization-query future.
 pub type IosAuthorizationFuture = IosNotificationsFuture<AuthorizationState, ()>;
+
+/// iOS future for the native signed notification-authorization status value.
+pub type IosAuthorizationStatusRawValueFuture = IosNotificationsFuture<isize, ()>;
+
+/// Raw signed alert, sound, and badge setting values from one `UNNotificationSettings` snapshot.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct IosNotificationSettingRawValues {
+    /// Raw `UNNotificationSettings.alertSetting` value.
+    pub alert: isize,
+    /// Raw `UNNotificationSettings.soundSetting` value.
+    pub sound: isize,
+    /// Raw `UNNotificationSettings.badgeSetting` value.
+    pub badge: isize,
+}
+
+/// iOS future for raw alert, sound, and badge settings.
+pub type IosNotificationSettingRawValuesFuture =
+    IosNotificationsFuture<IosNotificationSettingRawValues, ()>;
+
+/// Raw notification-center and lock-screen settings, with newer settings kept optional.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct IosNotificationSettingsExtendedRawValues {
+    /// Raw `UNNotificationSettings.notificationCenterSetting` value.
+    pub notification_center: isize,
+    /// Raw `UNNotificationSettings.lockScreenSetting` value.
+    pub lock_screen: isize,
+    /// Critical-alert setting, or `None` when the runtime settings object lacks that selector.
+    pub critical_alert: Option<isize>,
+    /// Time-sensitive setting, or `None` when the runtime settings object lacks that selector.
+    pub time_sensitive: Option<isize>,
+    /// Scheduled-delivery setting, or `None` when the runtime settings object lacks that selector.
+    pub scheduled_delivery: Option<isize>,
+}
+
+/// iOS future for additional raw notification settings.
+pub type IosNotificationSettingsExtendedRawValuesFuture =
+    IosNotificationsFuture<IosNotificationSettingsExtendedRawValues, ()>;
+
+/// Raw CarPlay and Siri-announcement settings from one native settings snapshot.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct IosNotificationSettingsSurfaceRawValues {
+    /// Raw `UNNotificationSettings.carPlaySetting` value.
+    pub car_play: isize,
+    /// Siri-announcement setting, or `None` when the runtime settings object lacks that selector.
+    pub announcement: Option<isize>,
+}
+
+/// iOS future for raw CarPlay and Siri-announcement settings.
+pub type IosNotificationSettingsSurfaceRawValuesFuture =
+    IosNotificationsFuture<IosNotificationSettingsSurfaceRawValues, ()>;
 
 /// iOS authorization-request future.
 pub type IosRequestAuthorizationFuture = IosNotificationsFuture<AuthorizationState, ()>;
@@ -143,6 +196,55 @@ impl IosNotificationsBackend {
     pub fn pending_request_count(&self) -> IosPendingRequestCountFuture {
         IosNotificationsFuture::new(&self.center, (), start_pending_request_count)
     }
+
+    /// Return the native signed authorization-status value from a prompt-free settings snapshot.
+    ///
+    /// The future preserves `UNAuthorizationStatus`'s raw `NSInteger`, including provisional,
+    /// ephemeral, and values unknown to this crate. This is only the status at callback time; it
+    /// does not prove that any notification interaction is enabled or that scheduling or delivery
+    /// will succeed.
+    pub fn authorization_status_raw_value(&self) -> IosAuthorizationStatusRawValueFuture {
+        IosNotificationsFuture::new(&self.center, (), start_authorization_status_raw_value)
+    }
+
+    /// Return raw alert, sound, and badge settings from one prompt-free settings snapshot.
+    ///
+    /// Values 0, 1, and 2 mean not supported, disabled, and enabled; unknown signed values pass
+    /// through unchanged. These values do not guarantee a visible alert, audible sound, badge
+    /// update, scheduling success, or delivery.
+    pub fn notification_setting_raw_values(&self) -> IosNotificationSettingRawValuesFuture {
+        IosNotificationsFuture::new(&self.center, (), start_notification_setting_raw_values)
+    }
+
+    /// Return additional raw notification settings from one prompt-free settings snapshot.
+    ///
+    /// The notification-center and lock-screen fields use the iOS 10.0 settings API. Newer fields
+    /// are `Some(raw)` when their native getter exists and `None` when its selector is unavailable.
+    /// `Some(0)` means `NotSupported`; unknown signed raw values remain unchanged.
+    pub fn notification_settings_extended_raw_values(
+        &self,
+    ) -> IosNotificationSettingsExtendedRawValuesFuture {
+        IosNotificationsFuture::new(
+            &self.center,
+            (),
+            start_notification_settings_extended_raw_values,
+        )
+    }
+
+    /// Return raw CarPlay and Siri-announcement settings from one prompt-free settings snapshot.
+    ///
+    /// CarPlay is available at the package's iOS 10.0 floor. Siri announcement is `Some(raw)` when
+    /// its iOS 13.0 selector exists and `None` otherwise; `Some(0)` means `NotSupported`, while
+    /// unknown signed values pass through unchanged.
+    pub fn notification_settings_surface_raw_values(
+        &self,
+    ) -> IosNotificationSettingsSurfaceRawValuesFuture {
+        IosNotificationsFuture::new(
+            &self.center,
+            (),
+            start_notification_settings_surface_raw_values,
+        )
+    }
 }
 
 impl Default for IosNotificationsBackend {
@@ -215,6 +317,121 @@ fn start_authorization(
         },
     );
     // UserNotifications copies and retains this completion block for its asynchronous query.
+    center.getNotificationSettingsWithCompletionHandler(&handler);
+}
+
+fn start_authorization_status_raw_value(
+    center: Retained<UNUserNotificationCenter>,
+    (): (),
+    completion: Completion<isize>,
+) {
+    let handler = RcBlock::new(
+        move |settings: core::ptr::NonNull<UNNotificationSettings>| {
+            let result = catch_unwind(AssertUnwindSafe(|| {
+                autoreleasepool(|_| {
+                    // SAFETY: UserNotifications supplies a non-null settings object valid for this
+                    // completion-handler invocation.
+                    let settings = unsafe { settings.as_ref() };
+                    Ok(settings.authorizationStatus().0)
+                })
+            }))
+            .unwrap_or_else(|_| Err(internal_error()));
+            completion.complete(result);
+        },
+    );
+    // This settings query is prompt-free; UserNotifications retains its copied completion block.
+    center.getNotificationSettingsWithCompletionHandler(&handler);
+}
+
+fn start_notification_setting_raw_values(
+    center: Retained<UNUserNotificationCenter>,
+    (): (),
+    completion: Completion<IosNotificationSettingRawValues>,
+) {
+    let handler = RcBlock::new(
+        move |settings: core::ptr::NonNull<UNNotificationSettings>| {
+            let result = catch_unwind(AssertUnwindSafe(|| {
+                autoreleasepool(|_| {
+                    // SAFETY: UserNotifications supplies a non-null settings object valid for this
+                    // completion-handler invocation.
+                    let settings = unsafe { settings.as_ref() };
+                    Ok(IosNotificationSettingRawValues {
+                        alert: settings.alertSetting().0,
+                        sound: settings.soundSetting().0,
+                        badge: settings.badgeSetting().0,
+                    })
+                })
+            }))
+            .unwrap_or_else(|_| Err(internal_error()));
+            completion.complete(result);
+        },
+    );
+    // This settings query is prompt-free; UserNotifications retains its copied completion block.
+    center.getNotificationSettingsWithCompletionHandler(&handler);
+}
+
+fn start_notification_settings_extended_raw_values(
+    center: Retained<UNUserNotificationCenter>,
+    (): (),
+    completion: Completion<IosNotificationSettingsExtendedRawValues>,
+) {
+    let handler = RcBlock::new(
+        move |settings: core::ptr::NonNull<UNNotificationSettings>| {
+            let result = catch_unwind(AssertUnwindSafe(|| {
+                autoreleasepool(|_| {
+                    // SAFETY: UserNotifications supplies a non-null settings object valid for this
+                    // completion-handler invocation.
+                    let settings = unsafe { settings.as_ref() };
+                    let has_critical_alert =
+                        settings.respondsToSelector(sel!(criticalAlertSetting));
+                    let has_time_sensitive =
+                        settings.respondsToSelector(sel!(timeSensitiveSetting));
+                    let has_scheduled_delivery =
+                        settings.respondsToSelector(sel!(scheduledDeliverySetting));
+                    Ok(IosNotificationSettingsExtendedRawValues {
+                        notification_center: settings.notificationCenterSetting().0,
+                        lock_screen: settings.lockScreenSetting().0,
+                        critical_alert: has_critical_alert
+                            .then(|| settings.criticalAlertSetting().0),
+                        time_sensitive: has_time_sensitive
+                            .then(|| settings.timeSensitiveSetting().0),
+                        scheduled_delivery: has_scheduled_delivery
+                            .then(|| settings.scheduledDeliverySetting().0),
+                    })
+                })
+            }))
+            .unwrap_or_else(|_| Err(internal_error()));
+            completion.complete(result);
+        },
+    );
+    // This settings query is prompt-free; UserNotifications retains its copied completion block.
+    center.getNotificationSettingsWithCompletionHandler(&handler);
+}
+
+fn start_notification_settings_surface_raw_values(
+    center: Retained<UNUserNotificationCenter>,
+    (): (),
+    completion: Completion<IosNotificationSettingsSurfaceRawValues>,
+) {
+    let handler = RcBlock::new(
+        move |settings: core::ptr::NonNull<UNNotificationSettings>| {
+            let result = catch_unwind(AssertUnwindSafe(|| {
+                autoreleasepool(|_| {
+                    // SAFETY: UserNotifications supplies a non-null settings object valid for this
+                    // completion-handler invocation.
+                    let settings = unsafe { settings.as_ref() };
+                    let has_announcement = settings.respondsToSelector(sel!(announcementSetting));
+                    Ok(IosNotificationSettingsSurfaceRawValues {
+                        car_play: settings.carPlaySetting().0,
+                        announcement: has_announcement.then(|| settings.announcementSetting().0),
+                    })
+                })
+            }))
+            .unwrap_or_else(|_| Err(internal_error()));
+            completion.complete(result);
+        },
+    );
+    // This settings query is prompt-free; UserNotifications retains its copied completion block.
     center.getNotificationSettingsWithCompletionHandler(&handler);
 }
 

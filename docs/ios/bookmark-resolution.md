@@ -15,8 +15,11 @@ this option does not apply to security-scoped bookmark data; the explicit
 scope-bearing bookmark data and does not resolve it safely. The returned URL is not proof of
 permission or continued provider availability.
 
-The stale bit is copied to `is_stale()`. This helper does not make or save a replacement bookmark. A
-stale bookmark may need replacement through an app-owned flow; this crate does not decide how to
+The stale bit is copied to `is_stale()`. The B83 resolver does not make or save a replacement
+bookmark. B85 adds `IosPlainBookmarkData::create` for a caller-owned file URL, using
+`NSURLBookmarkCreationWithoutImplicitSecurityScope`; its typed value can be resolved safely without
+passing arbitrary `NSData` to the unsafe B83 API. Neither helper saves a bookmark or grants access.
+A stale bookmark may need replacement through an app-owned flow; this crate does not decide how to
 regain user intent or access.
 
 The helper does not show a document picker, check bookmark origin or scope, start or stop a scope,
@@ -29,4 +32,4 @@ Apple references: [bookmark resolution and stale data](https://developer.apple.c
 [document picker access requirements](https://developer.apple.com/documentation/uikit/uidocumentpickerviewcontroller?changes=_4__7).
 
 See the [B83 bookmark-resolution plan](../../PLAN_IOS_BOOKMARK_RESOLUTION.md) and the separate
-[B82 FileProvider count plan](../../PLAN_IOS_FILEPROVIDER_DOMAIN_COUNT.md).
+[B85 bookmark-creation plan](../../PLAN_IOS_BOOKMARK_CREATION.md), [B82 FileProvider count plan](../../PLAN_IOS_FILEPROVIDER_DOMAIN_COUNT.md), and [D1 app-data plan](../../PLAN_IOS_APP_DATA.md).

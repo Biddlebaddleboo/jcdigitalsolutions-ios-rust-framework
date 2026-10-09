@@ -11,6 +11,18 @@ use ios_notifications::IosNotificationsBackend;
 fn main() {
     let mut backend = IosNotificationsBackend::new();
     core::mem::drop(core::hint::black_box(backend.authorization()));
+    core::mem::drop(core::hint::black_box(
+        backend.authorization_status_raw_value(),
+    ));
+    core::mem::drop(core::hint::black_box(
+        backend.notification_setting_raw_values(),
+    ));
+    core::mem::drop(core::hint::black_box(
+        backend.notification_settings_extended_raw_values(),
+    ));
+    core::mem::drop(core::hint::black_box(
+        backend.notification_settings_surface_raw_values(),
+    ));
     core::mem::drop(core::hint::black_box(backend.request_authorization()));
     core::mem::drop(core::hint::black_box(backend.pending_request_count()));
 

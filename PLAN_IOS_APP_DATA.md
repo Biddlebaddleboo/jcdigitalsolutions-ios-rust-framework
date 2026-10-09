@@ -59,6 +59,51 @@ coordinate I/O, or extend sandbox containment. See
 which adds only a registered-domain count for the calling app's own FileProvider extension; see the
 [B82 FileProvider count plan](PLAN_IOS_FILEPROVIDER_DOMAIN_COUNT.md).
 
+B85 adds `IosPlainBookmarkData::create` for a caller-owned file URL. It uses
+`NSURLBookmarkCreationWithoutImplicitSecurityScope`, returns an opaque typed value, and offers safe
+resolution only through that value; it does not grant access or add a URL to the sandbox `Files`
+facade. Arbitrary stored `NSData` still uses B83's unsafe raw resolver contract. See
+[`PLAN_IOS_BOOKMARK_CREATION.md`](PLAN_IOS_BOOKMARK_CREATION.md).
+
+B90 adds `IosFiles::regular_file_size` as an iOS-only, metadata-only snapshot under an existing
+`AppPath`. It uses the same validated path and no-follow parent traversal as `FileBackend`, then
+one final `fstatat` with `AT_SYMLINK_NOFOLLOW`; it rejects non-regular entries and returns only a
+`u64` byte length. It reads no file contents and changes no security-scope or sandbox-root
+semantics. See [`PLAN_IOS_FILE_SIZE.md`](PLAN_IOS_FILE_SIZE.md).
+
+B93 adds `IosFiles::entry_kind` as an iOS-only point-in-time classification for one validated
+`AppPath`. It reuses the `FileKind` values and no-follow `fstatat` helper used by `read_directory`;
+it reads no file contents, follows no final symlink, and changes no portable facade or access
+semantics. See [`PLAN_IOS_ENTRY_KIND.md`](PLAN_IOS_ENTRY_KIND.md).
+
+B96 adds `IosFiles::entry_modification_time` as an iOS-only raw POSIX seconds/nanoseconds snapshot
+for one validated `AppPath`. It uses no-follow `fstatat`, reports a symlink's own timestamp, and
+does not claim a content version or reliable change token. It changes no portable facade or access
+semantics. See [`PLAN_IOS_FILE_MODIFICATION_TIME.md`](PLAN_IOS_FILE_MODIFICATION_TIME.md).
+
+B101 audits an entry creation-time snapshot and records a no-go: on some filesystems `st_birthtime` contains `ctime`, and `stat` has no per-entry support signal. See [`PLAN_IOS_FILE_CREATION_TIME.md`](PLAN_IOS_FILE_CREATION_TIME.md).
+
+B99 adds `IosFiles::entry_identity_snapshot` as an iOS-only `(st_dev, st_ino)` snapshot for one
+validated `AppPath`. It reports the final entry itself without following symlinks, reads no
+contents, and is explicitly not persistent or protected from inode reuse. See
+[`PLAN_IOS_FILE_IDENTITY.md`](PLAN_IOS_FILE_IDENTITY.md).
+
+B103 adds `IosFiles::entry_posix_permission_bits` as an iOS-only raw `st_mode & 0o7777` snapshot.
+It reports stored mode bits without following a final symlink and makes no effective-access or
+future-operation claim. See [`PLAN_IOS_FILE_PERMISSION_BITS.md`](PLAN_IOS_FILE_PERMISSION_BITS.md).
+
+B105 adds `IosFiles::regular_file_hard_link_count` for regular files only. It reports `st_nlink`,
+not alias paths or exclusive ownership; non-regular entries return `InvalidInput`. See
+[`PLAN_IOS_FILE_LINK_COUNT.md`](PLAN_IOS_FILE_LINK_COUNT.md).
+
+B107 adds `IosFiles::entry_status_change_time` as a no-follow POSIX status-change time snapshot.
+It rejects final symlinks and is not a content version or reliable change token. See
+[`PLAN_IOS_FILE_STATUS_CHANGE_TIME.md`](PLAN_IOS_FILE_STATUS_CHANGE_TIME.md).
+
+B109 adds `IosFiles::regular_file_allocated_blocks_512` for regular files only. It returns raw
+`st_blocks` units of 512 bytes and does not claim exact physical storage use or exclusive
+allocation. See [`PLAN_IOS_FILE_ALLOCATED_BLOCKS.md`](PLAN_IOS_FILE_ALLOCATED_BLOCKS.md).
+
 ## Objective
 
 Implement the iOS backends for the D1 `framework-files` and `framework-preferences` contracts using public iOS filesystem/Foundation APIs. Keep the portable crates `no_std`; platform code may use the platform runtime but must not change portable semantics.

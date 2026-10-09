@@ -443,6 +443,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "ios-background-assets"
+version = "0.1.0"
+dependencies = [
+ "block2",
+ "objc2",
+ "objc2-background-assets",
+ "objc2-foundation",
+]
+
+[[package]]
 name = "ios-background-execution"
 version = "0.1.0"
 dependencies = [
@@ -1177,6 +1187,17 @@ version = "0.3.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "13a380031deed8e99db00065c45937da434ca987c034e13b87e4441f9e4090be"
 dependencies = [
+ "objc2",
+ "objc2-foundation",
+]
+
+[[package]]
+name = "objc2-background-assets"
+version = "0.3.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "db281c59a1c4cc24da38e39673ab758d3372162171db31abd1d29c250405a0e9"
+dependencies = [
+ "block2",
  "objc2",
  "objc2-foundation",
 ]

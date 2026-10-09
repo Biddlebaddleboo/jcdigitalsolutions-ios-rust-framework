@@ -17,6 +17,29 @@ if ! grep -Fq 'backend.pending_request_count()' "$probe_source"; then
     echo "iOS notifications link probe must retain the pending-request count API call" >&2
     exit 1
 fi
+if ! grep -Fq 'backend.authorization_status_raw_value()' "$probe_source"; then
+    echo "iOS notifications link probe must retain the raw authorization-status API call" >&2
+    exit 1
+fi
+if ! grep -Fq 'backend.notification_setting_raw_values()' "$probe_source"; then
+    echo "iOS notifications link probe must retain the raw alert/sound/badge API call" >&2
+    exit 1
+fi
+if ! grep -Fq 'backend.notification_settings_extended_raw_values()' "$probe_source"; then
+    echo "iOS notifications link probe must retain the extended raw settings API call" >&2
+    exit 1
+fi
+if ! grep -Fq 'backend.notification_settings_surface_raw_values()' "$probe_source"; then
+    echo "iOS notifications link probe must retain the notification-surface API call" >&2
+    exit 1
+fi
+settings_source=platform/ios/ios-notifications/src/platform.rs
+for selector in criticalAlertSetting timeSensitiveSetting scheduledDeliverySetting announcementSetting; do
+    if ! grep -Fq "respondsToSelector(sel!($selector))" "$settings_source"; then
+        echo "extended raw settings must availability-check $selector" >&2
+        exit 1
+    fi
+done
 
 cat > target/ios-notifications-link-imports-expected.txt <<'IMPORTS'
 Foundation
