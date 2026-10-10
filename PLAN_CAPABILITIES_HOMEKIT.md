@@ -2,6 +2,11 @@
 
 ## Audit scope
 
+## Completed shared tooling and HomeKit-specific evidence
+
+The PATH-installed validator is completed infrastructure, and its current `ios-homekit-identify-status` profile covers only the explicitly declared host-supplied identify snapshot assertions. This does **not** validate every HomeKit slice recorded below, authorize a prompt-triggering `HMHomeManager` initialization, or prove live accessory behavior. Continue to preserve each distinct B-numbered no-go, host-supplied-object, entitlement, availability, and test limitation in this historical record. For additional HomeKit slices, extend versioned declarative validation and optional bounded Python adapters only where they express the actual acceptance conditions; keep existing focused scripts and compiler/import gates until their coverage is matched, including negative regression tests. Read `docs/SHARED_TOOLING.md`; do not restore the engine source.
+
+
 Recheck row `072-personal-data-system-stores-homekit` for a public iOS 26.5 API that can return a
 meaningful HomeKit authorization or capability snapshot without first-manager prompting, HomeKit
 lifecycle, or user UI. This focused audit does not change the aggregate capability manifest.

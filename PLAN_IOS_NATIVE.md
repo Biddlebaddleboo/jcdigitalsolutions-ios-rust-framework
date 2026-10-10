@@ -2,6 +2,11 @@
 
 ## Status
 
+## Completed tooling baseline for outstanding B work
+
+R1/R2 build/validation tooling is installed and source-isolated. B implementations use the pinned PATH `ios-rust-build` and `ios-rust-validate` contracts described in `docs/SHARED_TOOLING.md`, without implementing compiler/SDK discovery or validation orchestration themselves. Add a declarative native `build-spec.json` and minimal Cargo bridge **only if** the particular capability actually compiles C sources; Rust-only/objc2 crates must not gain pointless build scripts. Preserve existing focused shell/ABI/import tests when the configured validator does not yet cover their capability, then migrate only with demonstrable positive and negative parity. Tool source fixes belong to separate maintenance; product API contracts, packaging, and real-device tests remain B work.
+
+
 The minimal Rust-owned UIKit app builds for the arm64 device and simulator targets, and the
 unsigned Xcode archive gate passes on Xcode 26.6 / SDK 26.5, below the Xcode 27.x plan baseline.
 An added x86_64 simulator bundle launched on iOS 18.0 and showed the adaptive-color label/button

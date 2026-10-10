@@ -2,6 +2,11 @@
 
 ## Immediate planning action
 
+## Completed tooling and current rewrite boundary
+
+R1/R2 shared native-build and validation infrastructure, pinned installation, and source isolation are completed; the former `PLAN_REUSE_BUILD.md`, `PLAN_REUSE_VALIDATION.md`, and `PLAN_TOOLING_FINALIZATION.md` were retired in commit `f3b14892a560da05a086caf9e6d30a0c9beda25e`. Do not reopen them as outstanding work. Use `docs/SHARED_TOOLING.md` for tool commands and interface details. P0 remains strictly an evidence-backed planning ownership/retirement task; it must not implement API code or tooling engines. Replace obsolete test-execution references in surviving plans with installed-tool guidance only when equivalent coverage is expressible and proved; otherwise retain unique focused gates. At the post-deletion audit there were 326 `PLAN*.md` files; historical totals are snapshots, not current counts.
+
+
 This is a planning-edit step, **not** a delayed coding executor task. The master PLAN.md is already compacted. Individually retire redundant legacy plans only after checking all acceptance conditions and transporting every unfinished obligation. Do not confuse a working status getter with an entire completed Apple capability.
 
 ## Scope
@@ -10,7 +15,7 @@ Audit `PLAN.md`, `PLAN_FOUNDATION.md`, `PLAN_SWIFT_ABI.md`, `PLAN_CAPABILITIES.m
 
 ## Verified caveat
 
-The inspected repository contains 397 `PLAN*.md` files. The manifest records 98/114 capability rows as **partial** and 16 as X. Old plan titles, existing crates, and compiler link checks alone cannot establish completion of the original requirements.
+An earlier audit inspected 397 `PLAN*.md` files (historical snapshot, not current inventory). The manifest records 98/114 capability rows as **partial** and 16 as X. Old plan titles, existing crates, and compiler link checks alone cannot establish completion of the original requirements.
 
 ## Identifier and presentation policy
 

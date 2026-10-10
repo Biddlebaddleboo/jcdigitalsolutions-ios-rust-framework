@@ -2,6 +2,11 @@
 
 ## Objective
 
+## Boundary with completed shared tooling
+
+G3 concerns **semantic differential parity and benchmarking**, not creation or repair of the already installed R1/R2 build/validation engines. `ios-rust-validate` validates only profiles registered in `tools/validation/specs/validation-v1.json`; it does not supply Apple reference implementations, candidate workloads, performance baselines, or real-device execution. Keep existing parity/benchmark harness source and independently required ABI checks. Add focused declarative validation or Python assertions only when they match the engine schema, without moving benchmark execution into a text-only guard. Preserve the no-suite `cargo xtask parity` behavior until a real reference/candidate suite exists. Consult `docs/SHARED_TOOLING.md` for tool invocation.
+
+
 Provide reusable, dependency-free harnesses for differential correctness and performance evidence. A harness is not evidence by itself: do not mark parity or performance as passed until a real Apple reference adapter and candidate run on the stated target.
 
 ## Dependencies

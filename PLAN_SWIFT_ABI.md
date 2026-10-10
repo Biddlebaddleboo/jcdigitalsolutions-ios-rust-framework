@@ -2,6 +2,11 @@
 
 ## Objective
 
+## Shared tooling versus compiler-oracle responsibilities
+
+Completed R1/R2 PATH tooling is a build/validation execution dependency, not an unfinished Swift ABI implementation workstream. Use `docs/SHARED_TOOLING.md` and declarative validation profiles for repeatable supported gates, but retain C1–C7 compiler-oracle fixtures, disassembly/layout reports and any uniquely required Swift compiler invocation. Existing installed validator profiles do not prove general Swift async entry/resume, App Intents metadata generation, Translation or StoreKit 2 production safety. Never replace compiler-lowered ABI evidence with a Python source-string check. R3 and C-series residual work remain scoped by their own verified contracts; engine defects are escalated separately.
+
+
 Implement the smallest reusable zero-Swift-source interoperability layer required for genuinely Swift-only public Apple APIs, then use it for the V1 residual capability set.
 
 The framework must consume Apple's Swift ABI/runtime; it must not build a Swift runtime clone.
