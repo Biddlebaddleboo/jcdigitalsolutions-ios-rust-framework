@@ -11,9 +11,9 @@
   "pilots": [
     {
       "id": "example-validation-fixture",
-      "package": "ios-rust-validate",
-      "manifest": "tools/ios-rust-validate/Cargo.toml",
-      "check_script": "tools/validation/fixtures/passing_adapter.py",
+      "package": "ios-homekit-identify-status",
+      "manifest": "platform/ios/ios-homekit-identify-status/Cargo.toml",
+      "check_script": "platform/ios/ios-homekit-identify-status/check.sh",
       "targets": [
         {"triple": "aarch64-apple-ios", "sdk": "iphoneos", "minimum_os": "15.0"}
       ],
