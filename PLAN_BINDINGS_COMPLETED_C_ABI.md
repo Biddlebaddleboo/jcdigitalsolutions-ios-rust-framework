@@ -21,7 +21,7 @@ Each slice reports an integrated root C ABI feature and its focused `bindings/c/
 
 ## Current mainline requalification
 
-Mainline run [38066495166](https://github.com/Biddlebaddleboo/jcdigitalsolutions-ios-rust-framework/actions/runs/38066495166) on `9b0f13630c87d6913ea011fc4300b9b9f596195f` passed all C ABI gates 235–275 on macOS 15 and Xcode 27, including F17–F22. This resolves the previously pending hosted requalification notes above. Ubuntu passed its non-Apple checks and skipped Apple-only gates. Later commits through `85db105` did not change these binding sources or gates; they add a separate archive-smoke CI step. The run proves compile, Clippy, link/import, and layout checks only; linked probes were not executed and no device/runtime behavior is claimed.
+Mainline run [38066495166](https://github.com/Biddlebaddleboo/jcdigitalsolutions-ios-rust-framework/actions/runs/38066495166) on `9b0f13630c87d6913ea011fc4300b9b9f596195f` passed all C ABI gates 235–275 on macOS 15 and Xcode 27, including F17–F22. This resolves the previously pending hosted requalification notes above. Ubuntu passed its non-Apple checks and skipped Apple-only gates. Later commits through `5704613` did not change these binding sources or gates. Commit `85db105` adds a separate archive-smoke CI step; `8e756ba` adds an unrelated Rust-owned-buffer transfer assertion and plan evidence; `5704613` records an iOS location G6 recheck. None of these later commits is validated by run `38066495166`. The run proves compile, Clippy, link/import, and layout checks only; linked probes were not executed and no device/runtime behavior is claimed.
 
 ## Remaining active work
 
