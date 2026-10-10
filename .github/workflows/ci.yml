@@ -12,9 +12,20 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [macos-15, ubuntu-24.04]
+        os: [macos-15, xcode-27, ubuntu-24.04]
     steps:
       - uses: actions/checkout@v4
+      - name: Select and record Xcode 27.x
+        if: matrix.os == 'xcode-27'
+        run: |
+          sudo xcode-select --switch /Applications/Xcode.app
+          xcodebuild -version
+          xcode_version="$(xcodebuild -version | sed -n '1s/^Xcode //p')"
+          case "$xcode_version" in
+            27.*) ;;
+            *) printf 'Expected Xcode 27.x, got %s\n' "$xcode_version" >&2; exit 1 ;;
+          esac
+          printf 'Verified Xcode %s at %s\n' "$xcode_version" "$(xcode-select -p)"
       - name: Install ripgrep for package guards
         if: runner.os == 'macOS'
         run: |
