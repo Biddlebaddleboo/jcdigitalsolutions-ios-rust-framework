@@ -14,7 +14,7 @@ diff -u target/framework-c-layout-expected.json target/framework-c-layout-actual
 
 jq -e '
   .abi_version.major == 1 and
-  .abi_version.minor == 1 and
+  .abi_version.minor == 2 and
   .options_v1.minimum_struct_size == 16 and
   .options_v1.abi_version == 1 and
   .options_v1.reserved_must_be_zero == true and
@@ -23,6 +23,14 @@ jq -e '
   (.options_v1.future_sized_struct_check | contains("struct_size >= 16")) and
   (.options_v1.future_sized_struct_check | contains("abi_version is 1")) and
   (.options_v1.future_sized_struct_check | contains("ignore all flags and trailing bytes"))
+' bindings/c/abi-manifest.json > /dev/null
+jq -e '
+  .owned_buffer_copy.symbol == "framework_owned_buffer_copy" and
+  (.owned_buffer_copy.status_mapping.null_output | contains("INVALID_ARGUMENT")) and
+  (.owned_buffer_copy.status_mapping.zero_length | contains("no allocation")) and
+  (.owned_buffer_copy.status_mapping.length_overflow_or_exceeds_rust_slice_limit | contains("INVALID_ARGUMENT")) and
+  (.owned_buffer_copy.status_mapping.allocation_or_descriptor_capacity_failure | contains("RESOURCE_EXHAUSTED")) and
+  .ownership.FrameworkOwnedBuffer.core_creator == "framework_owned_buffer_copy"
 ' bindings/c/abi-manifest.json > /dev/null
 rg -Fq 'pub use options_v1::framework_options_v1_validate' bindings/c/src/lib.rs
 rg -Fq 'pub unsafe extern "C" fn framework_options_v1_validate' bindings/c/src/options_v1.rs
@@ -43,7 +51,10 @@ nm -gU "$archive" 2>/dev/null | awk '$NF ~ /^_framework_[A-Za-z0-9_]+$/ { name=$
 jq -r '.c_symbols[]' bindings/c/abi-manifest.json | sort -u > target/framework-c-api-expected-symbols.txt
 rg -q 'uint64_t framework_abi_version\(void\);' bindings/c/include/framework.h
 rg -Fq 'FrameworkStatus framework_options_v1_validate(const FrameworkOptionsV1 *options);' bindings/c/include/framework.h
+rg -Fq 'FrameworkStatus framework_owned_buffer_copy(FrameworkSlice bytes, FrameworkOwnedBuffer *out_buffer);' bindings/c/include/framework.h
 rg -q 'void framework_owned_buffer_destroy\(FrameworkOwnedBuffer \*buffer\);' bindings/c/include/framework.h
+rg -Fq 'pub unsafe extern "C" fn framework_owned_buffer_copy' crates/framework-abi/src/lib.rs
+rg -Fq 'framework_owned_buffer_copy, framework_owned_buffer_destroy' bindings/c/src/lib.rs
 diff -u target/framework-c-api-expected-symbols.txt target/framework-c-api-symbols.txt
 
 clang -std=c11 -Wall -Wextra -Werror -pedantic -I bindings/c/include examples/c-minimal/main.c "$archive" -o target/framework-c-minimal

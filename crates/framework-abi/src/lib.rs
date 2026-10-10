@@ -17,7 +17,7 @@ use framework_core::{Error, ErrorKind, OperationId};
 /// The current major ABI version.
 pub const ABI_VERSION_MAJOR: u32 = 1;
 /// The current minor ABI version.
-pub const ABI_VERSION_MINOR: u32 = 1;
+pub const ABI_VERSION_MINOR: u32 = 2;
 
 /// A fixed-width status value for C callers.
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
@@ -286,6 +286,61 @@ impl Default for FrameworkOwnedBuffer {
             capacity: 0,
         }
     }
+}
+
+/// Copies a borrowed byte span into a new framework-owned buffer.
+///
+/// A zero-length input succeeds without allocating and may use a null data pointer. A nonempty
+/// input must have a non-null pointer. Lengths that cannot fit a Rust slice are invalid; allocation
+/// failures return [`FrameworkStatus::RESOURCE_EXHAUSTED`]. The output is reset to empty before
+/// input validation and remains empty unless the copy succeeds.
+///
+/// # Safety
+/// `out_buffer` must be non-null, properly aligned, writable for one descriptor, and contain no
+/// live owned allocation on entry. It must not overlap the input bytes. For a nonzero input
+/// length, `bytes.data()` must be aligned and readable for the full length for this call. Neither
+/// pointer is retained. Destroy a successful output exactly once with
+/// [`framework_owned_buffer_destroy`].
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn framework_owned_buffer_copy(
+    bytes: FrameworkSlice,
+    out_buffer: *mut FrameworkOwnedBuffer,
+) -> FrameworkStatus {
+    if out_buffer.is_null() {
+        return FrameworkStatus::INVALID_ARGUMENT;
+    }
+
+    // SAFETY: The caller guarantees writable, aligned output storage with no live allocation.
+    unsafe { out_buffer.write(FrameworkOwnedBuffer::default()) };
+
+    let Ok(length) = usize::try_from(bytes.length()) else {
+        return FrameworkStatus::INVALID_ARGUMENT;
+    };
+    if length > isize::MAX as usize {
+        return FrameworkStatus::INVALID_ARGUMENT;
+    }
+    let source = if length == 0 {
+        &[]
+    } else {
+        if bytes.data().is_null() {
+            return FrameworkStatus::INVALID_ARGUMENT;
+        }
+        // SAFETY: The caller guarantees a readable, aligned span of the declared length.
+        unsafe { core::slice::from_raw_parts(bytes.data(), length) }
+    };
+
+    let mut copy = Vec::new();
+    if copy.try_reserve_exact(length).is_err() {
+        return FrameworkStatus::RESOURCE_EXHAUSTED;
+    }
+    copy.extend_from_slice(source);
+    let Ok(buffer) = FrameworkOwnedBuffer::try_from_vec(copy) else {
+        return FrameworkStatus::RESOURCE_EXHAUSTED;
+    };
+
+    // SAFETY: The caller guarantees writable, aligned output storage for this call.
+    unsafe { out_buffer.write(buffer) };
+    FrameworkStatus::OK
 }
 
 impl Drop for FrameworkOwnedBuffer {

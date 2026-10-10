@@ -13,10 +13,10 @@ All five foundation crates have `#![no_std]` roots; no third-party crate appears
 - `framework-core` uses only `core`
 - `framework-alloc`, `framework-async`, `framework-abi`, and `framework-platform` each depend only on `framework-core`
 - `framework-alloc` exposes reusable `GenerationalSlab` and `BitSet` values, but no production crate uses them and no benchmark proves a runtime need
-- `framework-abi` has no C function that makes an owned buffer; `FrameworkOwnedBuffer::try_from_vec` creates Rust-owned buffers and `framework_owned_buffer_destroy` releases the original descriptor
+- `framework-abi` exposes `framework_owned_buffer_copy`, which copies a `FrameworkSlice` into a framework-owned buffer with fixed-width length checks, fallible allocation, empty-on-failure output, and explicit destruction through `framework_owned_buffer_destroy`
 - `FrameworkErrorHandle` is only a scalar value; this foundation has no function or type to create, store, or free error detail
 
-Host result: Rust `1.94.1` no-default checks for these five crates passed again on 2026-10-09 as part of the 47-crate `cargo xtask no-std-check` run. Tests, strict Clippy, rustdoc, and codegen status passed on 2026-10-08. No host check proves device or simulator linkage, runtime behavior, 32-bit target execution, or a production need for `framework-alloc`
+Host result: Rust `1.94.1` no-default checks for these five crates passed again on 2026-10-09 as part of the 47-crate `cargo xtask no-std-check` run. Tests, strict Clippy, rustdoc, and codegen status passed on 2026-10-08. On 2026-10-10, the owned-buffer factory passed no-default Cargo checks for `framework-abi` and `framework-c-api`, the optimized C static-library build and archive symbol inspection, formatting, manifest parsing, C example syntax, and static diff checks; no tests or runtime checks were run. No host check proves device or simulator linkage, runtime behavior, 32-bit target execution, or a production need for `framework-alloc`
 
 ## Implementation scope
 
@@ -206,8 +206,8 @@ Deterministic unit/property tests:
 - handle generation/stale-handle behavior;
 - wraparound policy;
 - cancellation/completion race model using controlled synchronization;
-- C ABI layout/size assertions, fixed status codes and category mapping, zero-handle sentinels, and `FrameworkOptionsV1` header values;
-- `FrameworkOwnedBuffer::try_from_vec` ownership transfer and one call to the C destructor on the original descriptor; no C-side buffer creator exists to test;
+- C ABI layout/size assertions, fixed status codes and category mapping, zero-handle sentinels, `FrameworkOptionsV1` header values, and `framework_owned_buffer_copy` null output, null/non-null empty input, overflow, allocation failure, copy, and destruction cases;
+- `FrameworkOwnedBuffer::try_from_vec` ownership transfer and one call to the C destructor on the original descriptor;
 - `catch_unwind_status` under the optional `std` feature.
 
 No real sleeps
@@ -254,7 +254,7 @@ The codegen report is structural IR evidence for `OperationId` only; it makes no
 - [docs/core/ASYNC_AND_OWNERSHIP.md](docs/core/ASYNC_AND_OWNERSHIP.md) records atomic phase values, compare-exchange ordering, result publication, waker-slot ordering, future drop behavior, and backend callback lifetime
 - [docs/core/C_ABI.md](docs/core/C_ABI.md) records C layouts, pointer-width-dependent fields, owned-buffer rules, status values, callback lifetime, options headers, and panic limits
 - `framework-alloc` remains optional reusable infrastructure without a production caller or benchmark evidence; a production caller or benchmark must justify any required runtime use
-- The owned-buffer tests cover a Rust-created `Vec<u8>` allocation and its original descriptor; no C function creates a buffer or a non-null foreign-created descriptor
+- `framework_owned_buffer_copy` now creates a C-owned descriptor from caller-provided bytes; no tests were added or run for this change
 - `FrameworkErrorHandle` has no detail object owner or destructor until a later API defines both
 - Other workstreams must keep fixed-width semantic IDs, zero sentinels, `CompactHandle` field order, generation wrap from `u32::MAX` to `1`, the single cancellation/completion winner, operation-state lifetime through backend callback teardown, and one destroy call on the original owned-buffer descriptor
 - The host test and codegen gates do not prove iOS device or simulator linking, platform runtime behavior, or 32-bit target execution

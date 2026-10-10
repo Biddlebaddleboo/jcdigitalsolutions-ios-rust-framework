@@ -7,7 +7,7 @@ mod options_v1;
 pub use framework_abi::{
     FrameworkCompletionCallback, FrameworkErrorHandle, FrameworkOperationHandle,
     FrameworkOptionsV1, FrameworkOwnedBuffer, FrameworkSlice, FrameworkStatus, FrameworkStr,
-    framework_owned_buffer_destroy,
+    framework_owned_buffer_copy, framework_owned_buffer_destroy,
 };
 pub use options_v1::framework_options_v1_validate;
 

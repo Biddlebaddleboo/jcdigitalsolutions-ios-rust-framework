@@ -71,6 +71,20 @@ uint64_t framework_abi_version(void);
  */
 FrameworkStatus framework_options_v1_validate(const FrameworkOptionsV1 *options);
 
+/*
+ * Copies bytes into a framework-owned allocation. `out_buffer` must be non-NULL, writable,
+ * aligned, empty of a live allocation on entry, and disjoint from the input span. It is reset to
+ * {NULL, 0, 0} before input validation and remains empty on failure. A nonzero input length
+ * requires a non-NULL pointer to readable bytes for the full call; a NULL input pointer is valid
+ * only when length is zero, and zero-length input succeeds without allocation. Lengths that
+ * cannot fit a Rust slice return FRAMEWORK_STATUS_INVALID_ARGUMENT; allocation or descriptor
+ * capacity failure returns FRAMEWORK_STATUS_RESOURCE_EXHAUSTED. The input is not retained. On
+ * success, destroy the original unchanged output descriptor exactly once with
+ * framework_owned_buffer_destroy. A NULL output returns FRAMEWORK_STATUS_INVALID_ARGUMENT
+ * without a write.
+ */
+FrameworkStatus framework_owned_buffer_copy(FrameworkSlice bytes, FrameworkOwnedBuffer *out_buffer);
+
 /* NULL is a no-op. Otherwise buffer must be an unchanged, live descriptor made by this framework.
  * Destroy the original descriptor once; never copy or mutate it, or destroy a copy. */
 void framework_owned_buffer_destroy(FrameworkOwnedBuffer *buffer);

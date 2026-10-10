@@ -59,7 +59,7 @@ These are reusable tools for compact identities and bounded state; no non-test c
 
 ### `framework-abi`
 
-`#![no_std]` fixed-width status and handle values, pointer-plus-length byte/UTF-8 views, versioned option headers, one-shot C callbacks, and explicitly owned buffers. It uses `alloc` only to transfer a `Vec<u8>` allocation at the ABI edge. Layout and lifecycle are in [C_ABI.md](C_ABI.md).
+`#![no_std]` fixed-width status and handle values, pointer-plus-length byte/UTF-8 views, versioned option headers, one-shot C callbacks, and explicitly owned buffers. It uses `alloc` to copy caller-provided C bytes into owned buffers and to transfer `Vec<u8>` allocations at the ABI edge. Layout and lifecycle are in [C_ABI.md](C_ABI.md).
 
 ### `framework-platform`
 

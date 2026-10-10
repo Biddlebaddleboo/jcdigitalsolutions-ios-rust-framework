@@ -22,7 +22,8 @@ jq -e '
     | ($clipboard | has("client") and has("read") and has("inputs"))
     and all([$clipboard.client, $clipboard.read, $clipboard.inputs][];
         type == "string" and length > 0)
-    and .ownership.FrameworkOwnedBuffer.creator_in_core_f1 == false
+    and .ownership.FrameworkOwnedBuffer.creator_in_core_f1 == true
+    and .ownership.FrameworkOwnedBuffer.core_creator == "framework_owned_buffer_copy"
     and .ownership.FrameworkOwnedBuffer.destroyer == "framework_owned_buffer_destroy"
     and (.ownership.FrameworkOwnedBuffer.rule | type == "string" and length > 0)
 ' bindings/c/abi-manifest.json > /dev/null
