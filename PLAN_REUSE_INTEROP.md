@@ -50,5 +50,6 @@ R3 owns `interop/swift-abi-core/**` and `interop/swift-abi-generated/**` and sco
 - PASS `sh platform/ios/ios-alarmkit-status/check-link-imports.sh` for device and arm64 Simulator; link probes not run
 - PASS `sh platform/ios/ios-photogrammetry-status/check-link-imports.sh` for device and arm64 Simulator; link probes not run
 - PASS `cargo +1.94.1 xtask docs-check`, `cargo +1.94.1 xtask zero-swift-source`, and `git diff --check`
-- No tests, host layout fixture, Simulator runtime, or physical-device query in this pass
+- PASS `sh interop/swift-abi-core/tests/check-runtime-layout.sh`: the host fixture checks valid metadata-to-layout output; null metadata and each null output arg; absent VWT; zero size; absent destroy witness; invalid alignment; zeroed outputs on failure
+- No AlarmKit or Photogrammetry Swift oracle ran for this test-only change; ActivityKit does not use this resilient-value layout function; device and arm64 Simulator ABI evidence above stays unchanged; host checks and compile/link evidence do not prove Simulator runtime or device behavior
 - Xcode 26.6 / iOS SDK 26.5 remains below the Xcode 27.x qualification baseline; AlarmKit has no x86_64 Swift IR oracle
