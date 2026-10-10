@@ -95,12 +95,12 @@ for target in aarch64-apple-ios aarch64-apple-ios-sim; do
     archive="target/$target/release/libframework_c_api.a"
     for language in c cpp; do
         case "$language" in
-            c) compiler=clang; source=target/framework-c-ios-storekit2-status-c.c; standard=c11 ;;
-            cpp) compiler=clang++; source=target/framework-c-ios-storekit2-status-cpp.cpp; standard=c++17 ;;
+            c) compiler=clang; source=target/framework-c-ios-storekit2-status-c.c; standard=c11; cpp_only_flags= ;;
+            cpp) compiler=clang++; source=target/framework-c-ios-storekit2-status-cpp.cpp; standard=c++17; cpp_only_flags=-nostdinc++ ;;
         esac
         binary="target/framework-c-ios-storekit2-status-$language-$target"
         xcrun --sdk "$sdk" "$compiler" -target "$clang_target" -std="$standard" \
-            -Wall -Wextra -Werror -pedantic -nostdlib++ -I bindings/c/include \
+            -Wall -Wextra -Werror -pedantic -nostdlib++ $cpp_only_flags -I bindings/c/include \
             "$source" "$archive" -weak_framework StoreKit -Wl,-dead_strip_dylibs -o "$binary"
         imports="target/framework-c-ios-storekit2-status-$language-$target-imports.txt"
         otool -L "$binary" > "$imports"

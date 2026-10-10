@@ -107,8 +107,8 @@ int main(void) {
 FIXTURE_C
 
 cat > target/framework-c-ios-extension-support-cpp.cpp <<'FIXTURE_CPP'
+#include <stddef.h>
 #include <framework_ios_extension_support.h>
-#include <cstddef>
 static_assert(sizeof(FrameworkIosExtensionMetadataError) == sizeof(uint32_t), "error width");
 static_assert(sizeof(FrameworkOwnedBuffer) == 24, "owned buffer size");
 static_assert(offsetof(FrameworkOwnedBuffer, capacity) == 16, "owned buffer capacity offset");

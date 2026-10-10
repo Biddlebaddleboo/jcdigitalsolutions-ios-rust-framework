@@ -86,7 +86,7 @@ for target in aarch64-apple-ios aarch64-apple-ios-sim; do
     for language in c cpp; do
         case "$language" in
             c) compiler=clang; source=target/framework-c-ios-extension-support-c.c; standard=c11; cxx_flag= ;;
-            cpp) compiler=clang++; source=target/framework-c-ios-extension-support-cpp.cpp; standard=c++17; cxx_flag=-nostdlib++ ;;
+            cpp) compiler=clang++; source=target/framework-c-ios-extension-support-cpp.cpp; standard=c++17; cxx_flag="-nostdlib++ -nostdinc++" ;;
         esac
         binary="target/framework-c-ios-extension-support-$language-$target"
         xcrun --sdk "$sdk" "$compiler" -target "$clang_target" -std="$standard" \

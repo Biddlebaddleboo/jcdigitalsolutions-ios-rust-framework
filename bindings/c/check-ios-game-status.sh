@@ -103,6 +103,7 @@ int main(void) {
 }
 FIXTURE_C
 cat > target/framework-c-ios-game-status-cpp.cpp <<'FIXTURE_CPP'
+#include <stddef.h>
 #include <framework_ios_game_status.h>
 int main() {
     uint8_t authenticated = 0;
