@@ -8,7 +8,7 @@ This is the active cross-cutting G-family validation contract. Original G1–G13
 
 `ios-rust-validate` and `ios-rust-build` are independently installed, SHA-256-verified PATH executables. Read `docs/SHARED_TOOLING.md` for installation, schemas, `--help`, `--version`, `--list`, `--explain`, `--capability`, `--changed` and `--all`. The repo-local specs are `tools/validation/specs/validation-v1.json`, `tools/validation/specs/schema-v1.json`, and the per-capability `build-spec.json` where applicable. Rust engine source no longer lives in ordinary `main`. Non-validation `xtask` functionality remains available for `docs-check`, `zero-swift-source`, no-std, ABI, codegen, dependency, SDK and link audits.
 
-Only four production validation pilots are currently registered: `ios-homekit-identify-status`, `ios-activitykit-status`, `ios-alarmkit-status`, and `ios-photogrammetry-status`. Existing checks for other capabilities remain authoritative until individually migrated. **Never call an unregistered capability validated or delete its legacy gates based on tool availability alone.**
+Four shared-native production profiles are registered for `ios-homekit-identify-status`, `ios-activitykit-status`, `ios-alarmkit-status`, and `ios-photogrammetry-status`; the current spec also registers capability-specific profiles for `ios-media-authorization` and `ios-app-lifecycle`. Existing checks for other capabilities remain authoritative until individually migrated. **Never call an unregistered capability validated or delete its legacy gates based on tool availability alone.**
 
 ## Required implementation / test invariants
 
