@@ -13,6 +13,16 @@ mapping tests now pass for every known error-kind status, non-iOS output initial
 identifier validation, and panic containment. Eight targeted tests passed; this does not claim a
 live Keychain or physical-device test
 
+CI run [38041994806](https://github.com/Biddlebaddleboo/jcdigitalsolutions-ios-rust-framework/actions/runs/38041994806)
+on `macos-15` passed Swift ABI step 229, Apple Clippy step 232, C ABI step 234, and C++17 header
+step 235; Linux Clippy step 231 was skipped on this host. The optional secure-storage gate at step
+236 built the iOS device archive, then Xcode 16.4 `nm` failed to inspect Rust 1.94.1 / LLVM 21
+`compiler_builtins` archive members with `Unknown attribute kind (102)` before the simulator build
+or final probe links. The script now uses Rust's matching `llvm-nm` for Rust static archive symbol
+inspection while retaining Apple `nm` for the final Mach-O probe. This is a tool compatibility fix;
+it does not alter the ABI or its import allowlists. Only shell syntax and diff checks were run for
+this follow-up; the gate has not yet been rerun, and no runtime or device behavior is claimed
+
 ## Objective
 
 Add a capability-scoped synchronous C ABI for the stable secure-storage contract, backed on iOS by `IosSecureStorage`. Keep the C layer as an opt-in foreign-language boundary; Rust callers continue to call `SecureStorage<IosSecureStorage>` directly.
@@ -28,6 +38,7 @@ Add a capability-scoped synchronous C ABI for the stable secure-storage contract
 
 - `bindings/c/**`
 - `docs/bindings/secure-storage.md`
+- `PLAN_BINDINGS_SECURE_STORAGE.md` for scoped implementation and CI status updates
 
 Do not edit `crates/framework-abi/**`, secure-storage contracts/backends, root workspace configuration, capability manifest, or unrelated bindings. The orchestrator owns dependency/lockfile reconciliation and shared manifest updates.
 
