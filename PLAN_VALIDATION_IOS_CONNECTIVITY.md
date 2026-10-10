@@ -63,3 +63,17 @@ or other target gates. Root owns integration and shared documentation indexes
 - Validate YAML, docs index, zero-Swift-source, and `git diff --check`
 - Report changed files, exact commands/results, imports, and runtime evidence limits; do not edit
   shared capability totals
+
+## 2026-10-10 current-main recheck
+
+At `14720ad9848be5f610be3f578ead2a16b5d3ef67`, Rust 1.94.1, Xcode 26.6 build 17F113, and iOS
+SDK 26.5:
+
+- PASS: `cargo +1.94.1 check --locked -p ios-connectivity --target aarch64-apple-ios`
+- PASS: `cargo +1.94.1 check --locked -p ios-connectivity --target aarch64-apple-ios-sim`
+- PASS: `cargo +1.94.1 clippy --locked -p ios-connectivity --all-targets --target aarch64-apple-ios -- -D warnings`
+- PASS: `cargo +1.94.1 clippy --locked -p ios-connectivity --all-targets --target aarch64-apple-ios-sim -- -D warnings`
+- PASS: `sh platform/ios/ios-connectivity/check-link-imports.sh` for device and Simulator. Both probes import exactly Network.framework and `/usr/lib/libSystem.B.dylib`; device minos is 12.0 and Simulator minos is 14.0; both use SDK 26.5.
+- PASS: `cargo +1.94.1 fmt --all -- --check`, `cargo +1.94.1 xtask docs-check`, `cargo +1.94.1 xtask zero-swift-source`, Ruby CI YAML parse, and `git diff --check`.
+
+No tests, probe execution, app, path-change query, endpoint request, live reachability, request success, or cancellation event ran. These are compile, Clippy, static link/import, format, and docs results only. Xcode 27.x qualification and a passing GitHub workflow run remain unrecorded.
