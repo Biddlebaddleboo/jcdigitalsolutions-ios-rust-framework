@@ -35,9 +35,13 @@ workflow condition. Xcode 27 qualification remains pending.
 The `macos-15` leg of run 38033435519 reached `ios-rust-validate --all` and failed the
 Photogrammetry Swift ABI oracle and AlarmKit link-import scan: default Xcode 16.4 / iOS SDK 18.5
 lacks the expected Photogrammetry ABI lowering and iOS 26 AlarmKit framework. CI now runs the
-complete registered-pilot batch only on `xcode-27`; all other macOS package gates remain on
-`macos-15`. The Xcode 27 `--all` result remains pending because its job failed earlier at the media
-gate. Xcode 27 qualification remains unpassed. Local Xcode 26.6 (build 17F113), SDK 26.5 gates pass for
+complete registered-pilot batch only on `xcode-27`; package gates run on `macos-15` except the
+Foundation Models compiler gate, which also requires Xcode 27. Runs
+[38035445897](https://github.com/Biddlebaddleboo/jcdigitalsolutions-ios-rust-framework/actions/runs/38035445897)
+and [38035509951](https://github.com/Biddlebaddleboo/jcdigitalsolutions-ios-rust-framework/actions/runs/38035509951)
+pass `Validate shared native pilot capabilities` (`ios-rust-validate --all`) on Xcode 27; run
+38035509951 also passes the Foundation Models gate on Xcode 27. The full qualification jobs remain
+in progress, and the latest Foundation Models macOS-15 skip is pending. Local Xcode 26.6 (build 17F113), SDK 26.5 gates pass for
 B47 full audio (`sh platform/ios/ios-media/check-audio-playback.sh`), B50 package
 (`sh platform/ios/ios-media/check.sh`), and F25 C link/import
 (`sh bindings/c/check-ios-videotoolbox-link.sh`); detailed results and limits are in [PLAN_IOS_OTHER_AUDIO.md](PLAN_IOS_OTHER_AUDIO.md), [PLAN_VALIDATION_IOS_OTHER_AUDIO.md](PLAN_VALIDATION_IOS_OTHER_AUDIO.md), [PLAN_IOS_VIDEOTOOLBOX.md](PLAN_IOS_VIDEOTOOLBOX.md), and [PLAN_BINDINGS_F25.md](PLAN_BINDINGS_F25.md). These local passes do not establish runtime behavior; no tests, probe execution, live codec query, or device behavior is claimed.
