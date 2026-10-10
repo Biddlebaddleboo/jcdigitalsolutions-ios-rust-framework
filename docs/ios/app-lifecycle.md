@@ -72,11 +72,13 @@ not promise cleanup time. The backend emits neither `LifecycleEvent::Terminated`
 
 ## Validation and evidence limits
 
-Run `sh platform/ios/ios-app-lifecycle/check.sh`, then the registered
-`ios-app-lifecycle` profile. Host regression tests use synthetic native state and notification
-values. Device and Simulator target checks establish compilation only; link/import checks establish
-linkage only. These checks do not launch an app, deliver a UIKit notification, exercise scene
-transitions, show runtime availability, or prove termination behavior.
+Run `ios-rust-validate --workspace-root "$PWD" --spec "$PWD/tools/validation/specs/validation-v1.json" --capability ios-app-lifecycle` for formatting, compilation,
+strict Clippy, rustdoc, the source-contract adapter, docs, and policy gates. Run
+`cargo +1.94.1 test --locked -p ios-app-lifecycle` for host regression tests; Cargo tests are not a
+schema-v1 validator gate. Tests use synthetic native state and notification values. Device and
+Simulator target checks establish compilation only; link/import checks establish linkage only.
+These checks do not launch an app, deliver a UIKit notification, exercise scene transitions, show
+runtime availability, or prove termination behavior.
 
 The iOS 4.0 floor is supported by the installed Xcode 26.6 build 17F113 / iPhoneOS SDK 26.5
 `UIKit.framework/Headers/UIApplication.h`: `UIApplicationState` at lines 62–66,

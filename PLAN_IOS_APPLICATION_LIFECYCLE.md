@@ -102,20 +102,14 @@ live Notification Center as a required unit-test oracle.
 
 ## Acceptance commands
 
-The package `check.sh` runs the host tests, device and Simulator checks, strict Clippy, rustdoc,
-formatting, and source-surface guards. Root then runs the registered `ios-app-lifecycle` profile and
-reports its structured checks without claiming runtime proof.
+The registered `ios-app-lifecycle` profile is the primary gate for formatting, host/device/Simulator
+compilation, strict Clippy, rustdoc, source-contract assertions, docs, and policy checks. Schema v1
+does not execute Cargo tests, so the package `check.sh` retains only its focused host test command.
+Neither gate claims runtime proof.
 
 ```sh
-sh platform/ios/ios-app-lifecycle/check.sh
-cargo +1.94.1 test --locked -p ios-app-lifecycle
-cargo +1.94.1 check --locked -p ios-app-lifecycle --target aarch64-apple-ios
-cargo +1.94.1 check --locked -p ios-app-lifecycle --target aarch64-apple-ios-sim
-cargo +1.94.1 clippy --locked -p ios-app-lifecycle --all-targets --target aarch64-apple-ios -- -D warnings
-cargo +1.94.1 clippy --locked -p ios-app-lifecycle --all-targets --target aarch64-apple-ios-sim -- -D warnings
-cargo +1.94.1 doc --locked --no-deps -p ios-app-lifecycle --target aarch64-apple-ios --document-private-items
-ios-rust-validate --workspace-root "$PWD" --spec "$PWD/tools/validation/specs/validation-v1.json" --explain ios-app-lifecycle
 ios-rust-validate --workspace-root "$PWD" --spec "$PWD/tools/validation/specs/validation-v1.json" --capability ios-app-lifecycle
+cargo +1.94.1 test --locked -p ios-app-lifecycle
 ```
 
 Linking and import inspection may prove target ABI/link requirements only. Do not invoke or launch

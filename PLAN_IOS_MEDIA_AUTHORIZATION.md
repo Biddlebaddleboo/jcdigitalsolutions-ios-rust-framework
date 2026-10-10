@@ -76,21 +76,23 @@ only `AVCaptureDevice` and `AVMediaFormat`, with defaults disabled. Xcode 26.6 b
 SDK 26.5 headers mark the status method iOS 7.0 and both media constants iOS 4.0. No deployment
 target is set.
 
-`./platform/ios/ios-media-authorization/check.sh` passed for B36: two host mapper tests, device and
-Simulator checks, host/device/Simulator strict Clippy, device-target rustdoc, and the status-only
-source guard. No AVFoundation authorization query, permission prompt, device enumeration, capture,
-or sample access ran. Apple usage keys are documented for future request/capture APIs, not for the
-status query.
+At the original B36 revision, the pre-consolidation `./platform/ios/ios-media-authorization/check.sh`
+passed two host mapper tests, device and Simulator checks, host/device/Simulator strict Clippy,
+device-target rustdoc, and the status-only source guard. The current script keeps only the focused
+Cargo test command; the registered validator profile owns the supported compile and source gates.
+No AVFoundation authorization query, permission prompt, device enumeration, capture, or sample
+access ran. Apple usage keys are documented for future request/capture APIs, not for the status
+query.
 
 The temporary lock resolution was restored before handoff; root integration added the dependencies
 and lock entries required by the additive request operation.
 
 The additive request operation for rows 046/047 is implemented in the current checkout. On Rust
 1.94.1, `./crates/framework-media-authorization/check.sh` passed its no-default-feature check,
-five unit tests, strict Clippy, and rustdoc. `./platform/ios/ios-media-authorization/check.sh` passed
-four host tests, iOS device and Simulator checks, strict Clippy for host and both Apple targets,
-device rustdoc, and the updated source-surface guard. The registered
-`ios-media-authorization` `ios-rust-validate --capability` profile passed its required Python
-adapter, package checks, documentation, zero-Swift-source, and diff gates; the adapter's negative
-fixture rejects removal of the AVFoundation request call. No native permission request, prompt,
+five unit tests, strict Clippy, and rustdoc. The previous version of
+`./platform/ios/ios-media-authorization/check.sh` passed four host tests, iOS device and Simulator
+checks, strict Clippy for host and both Apple targets, device rustdoc, and the source-surface guard.
+The current registered `ios-media-authorization` profile passed its required Python adapter,
+package checks, documentation, zero-Swift-source, and diff gates; the adapter rejects removal of the
+AVFoundation request call and prohibited capture/audio APIs. No native permission request, prompt,
 hardware access, capture, or sample access was executed.

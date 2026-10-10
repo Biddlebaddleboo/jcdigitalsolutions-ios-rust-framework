@@ -336,8 +336,8 @@ jobs:
         if: runner.os == 'macOS'
         run: sh platform/ios/ios-nfc/check-link-imports.sh
       - name: Check camera and microphone authorization package gates
-        if: runner.os == 'macOS'
-        run: sh platform/ios/ios-media-authorization/check.sh
+        if: matrix.os == 'macos-15'
+        run: ios-rust-validate --workspace-root "$GITHUB_WORKSPACE" --spec "$GITHUB_WORKSPACE/tools/validation/specs/validation-v1.json" --capability ios-media-authorization
       - name: Check Nearby Interaction capability package gates
         if: runner.os == 'macOS'
         run: sh platform/ios/ios-nearby/check.sh

@@ -18,9 +18,9 @@ crosses the public Rust API. A missing weak-linked ActivityKit symbol returns
 `ActivityAuthorizationError::NativeApiUnavailable`; no object returned from initialization maps to
 `NativeValueUnavailable`.
 
-Run `sh platform/ios/ios-activitykit-status/check.sh` for format, compile, strict Clippy, rustdoc,
-compiler-ABI oracle, linked import inspection, and documentation checks. Its linked example is not
-executed; the gate runs no tests or ActivityKit calls.
+Run `ios-rust-validate --workspace-root "$PWD" --spec "$PWD/tools/validation/specs/validation-v1.json" --capability ios-activitykit-status` for format, compile,
+strict Clippy, rustdoc, compiler-ABI oracle, linked import inspection, and documentation checks. Its
+linked example is not executed; the profile runs no tests or ActivityKit calls.
 
 See the [B209 ActivityKit plan](../../PLAN_CAPABILITIES_ACTIVITYKIT.md) and
 [`ios-activitykit-status`](../../platform/ios/ios-activitykit-status/README.md).

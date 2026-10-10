@@ -2,18 +2,18 @@
 
 ## Shared-tooling execution (current)
 
-The R1/R2 PATH executables are complete; use `docs/SHARED_TOOLING.md` and schema-v1 specifications rather than new build/validation machinery. This workstream has **no existing registered pilot** in `tools/validation/specs/validation-v1.json`. Retain its recorded local commands and unique media permission status mappings tests. An executor may declare a new validation profile and optional focused Python adapter; remove or replace existing checks only after equivalent positive, negative, cross-target and failure/skip parity is established. Do not claim an unregistered `ios-rust-validate --capability` run, infer runtime proof from static checks, or retrieve shared engine source. Escalate confirmed engine defects with `BUG_REPORT_*.md`.
+The current `ios-media-authorization` profile is registered in `tools/validation/specs/validation-v1.json`. Use it for format, host/device/Simulator checks, strict Clippy, rustdoc, source-contract adapter, docs, and policy gates. Schema v1 does not run Cargo tests; the package `check.sh` retains only `cargo +1.94.1 test --locked -p ios-media-authorization`. The required Python adapter owns the complete deterministic source-surface contract, including prohibited capture/audio APIs. Do not infer runtime proof from static checks or inspect shared engine source.
 
 ## Objective
 
-Add package-local host and iOS target gates for D31 and B36 without changing shared CI or validation indexes.
+Add package-local host and iOS target gates for D31 and B36; route the existing macOS package gate through the registered validator profile without changing CI trigger policy or validation indexes.
 
 ## Write scope
 
 - `PLAN_VALIDATION_IOS_MEDIA_AUTHORIZATION.md`
 - `crates/framework-media-authorization/check.sh`
 - `platform/ios/ios-media-authorization/check.sh`
-- `platform/ios/ios-media-authorization/check-surface.sh`
+- `tools/validation/adapters/check_media_authorization.py`
 
 Root owns CI, aggregate validation docs, indexes, workspace metadata, and lockfile integration. Do not edit those paths.
 
@@ -47,4 +47,4 @@ required before the scripts can run with `--locked` in the integrated checkout.
 
 ## Hosted CI requalification
 
-[GitHub Actions run 38075483431](https://github.com/Biddlebaddleboo/jcdigitalsolutions-ios-rust-framework/actions/runs/38075483431) completed successfully at source SHA `85db105389c1d0b212bc385d9b4b6a1f6e049c0b`. The `Rust checks (macos-15)` and `Rust checks (xcode-27)` jobs passed `Check camera and microphone authorization package gates`, which runs `sh platform/ios/ios-media-authorization/check.sh`. The Xcode 27 job also passed `Clippy all features on Apple host`, `Unit tests`, `Portable no_std checks`, `Rust documentation`, and `Documentation and zero-Swift-source checks`. It recorded Xcode 27.0 build `27A266a`, iPhoneOS SDK 27.0, and iPhoneSimulator SDK 27.0. The relevant Cargo manifests/lockfile, CI workflow, media-authorization crate, and iOS package inputs are unchanged through current base `4fd6482f11ceaa9d2e1b8971fbe6b63eeb80d5c5`, so this run remains applicable to those gate inputs. These results are compile, lint, test, documentation, and source-guard evidence only; they do not establish app runtime, authorization state, prompt behavior, device use, or capture behavior.
+[GitHub Actions run 38075483431](https://github.com/Biddlebaddleboo/jcdigitalsolutions-ios-rust-framework/actions/runs/38075483431) completed successfully at source SHA `85db105389c1d0b212bc385d9b4b6a1f6e049c0b`. At that revision, the `Rust checks (macos-15)` and `Rust checks (xcode-27)` jobs passed `Check camera and microphone authorization package gates`, which ran the then-current `platform/ios/ios-media-authorization/check.sh`. The Xcode 27 job also passed `Clippy all features on Apple host`, `Unit tests`, `Portable no_std checks`, `Rust documentation`, and `Documentation and zero-Swift-source` checks. It recorded Xcode 27.0 build `27A266a`, iPhoneOS SDK 27.0, and iPhoneSimulator SDK 27.0. This historical run does not validate the present profile wiring; the current CI runs the registered validator profile on macos-15 and `--all` on xcode-27. These results do not establish app runtime, authorization state, prompt behavior, device use, or capture behavior.

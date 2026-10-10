@@ -74,7 +74,7 @@ The pinned tools are host executables. They are **not** embedded into shipping i
 - `ios-alarmkit-status`: AlarmKit authorization state, availability, weak-link/import assertions.
 - `ios-photogrammetry-status`: RealityFoundation hardware-support status, Swift ABI/value-witness and linkage checks; additionally covers supported Intel simulator target.
 
-These are **pilot tests**, not proof that every Apple framework capability is supported or fully implemented. Use `--list` on the installed tool to confirm the effective list. The optional Python HomeKit adapter is `tools/validation/adapters/check_homekit_contract.py`.
+These are **pilot checks**, not proof that every Apple framework capability is supported or fully implemented. Use `--list` on the installed tool to confirm the effective list. HomeKit's getter and availability are covered by declarative source guards.
 
 ## 2. Responsibility boundaries
 
@@ -240,7 +240,7 @@ An adapter with `required: true` is an acceptance gate. Missing Python interpret
 
 ## 6. Python 3 adapter protocol
 
-Adapters are short, capability-specific subprocesses running outside shipping applications; they are not part of the native Rust fast path. The protocol is **JSON on stdin and JSON on stdout**, with diagnostics allowed on stderr. No shell invocation, no global module import into the engine. Existing examples: `tools/validation/adapters/check_homekit_contract.py`, `tools/validation/fixtures/passing_adapter.py`, `invalid_adapter.py`.
+Adapters are short, capability-specific subprocesses running outside shipping applications; they are not part of the native Rust fast path. The protocol is **JSON on stdin and JSON on stdout**, with diagnostics allowed on stderr. No shell invocation, no global module import into the engine. Existing examples: `tools/validation/fixtures/passing_adapter.py`, `invalid_adapter.py`.
 
 Each adapter declaration requires these schema-v1 fields:
 
@@ -399,7 +399,7 @@ Commit that report as a separate scoped commit if the repository task permits co
 | Build spec schema | `tools/native-build/specs/schema-v1.json`, relevant `build-spec.json` |
 | Minimal Cargo invocation | Relevant `platform/ios/<pilot>/build.rs` |
 | Validation schema | `tools/validation/specs/schema-v1.json`, `validation-v1.json` |
-| Adapter example | `tools/validation/adapters/check_homekit_contract.py` |
+| Required capability adapter | `tools/validation/adapters/check_media_authorization.py` |
 | Adapter edge-case tests | `tools/validation/fixtures/{passing_adapter.py,invalid_adapter.py,example-validation-v1.json}` |
 | Pilot compiler oracles/imports | Relevant capability `scripts/check-*.sh`, `check-link-imports.sh` |
 | Historical maintenance engine | Immutable SHA from `tools/releases/manifest-v1.tsv` **maintenance session only** |

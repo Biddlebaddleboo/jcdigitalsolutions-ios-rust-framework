@@ -177,7 +177,7 @@ B339 adds the separate `platform/ios/ios-homekit-identify-status` crate and `doc
 
 The iOS host must provide a valid live accessory from its own HomeKit lifecycle and owns the HomeKit capability, `com.apple.developer.homekit` entitlement, `NSHomeKitUsageDescription`, prior authorization, and object source/lifetime. `objc2-home-kit` 0.3.2 is pinned with only the `HMAccessory` feature and links `HomeKit.framework`; this slice does not implement a portable HomeKit contract or standalone discovery/status query. Evidence remains Xcode 26.6 build `17F113` / iOS SDK 26.5, below the repository's Xcode 27.x baseline.
 
-The focused `platform/ios/ios-homekit-identify-status/check.sh` gate passed with Rust 1.94.1: `cargo fmt --check`; locked host, arm64 iOS device, and arm64 iOS Simulator Cargo checks; strict Clippy for all three targets; host and iOS-device rustdoc; `xtask docs-check`; `xtask zero-swift-source`; and scoped `git diff --check`. It does not add or run tests, invoke HomeKit, create a manager, perform a link probe, launch an app, use a Simulator at runtime, or query a device.
+The registered `ios-homekit-identify-status` profile passed with Rust 1.94.1: package format; locked host, arm64 iOS device, and arm64 iOS Simulator Cargo checks; strict Clippy for all three targets; host and iOS-device rustdoc; HomeKit link/import inspection; docs; zero-Swift-source; and scoped `git diff --check`. It does not run tests, invoke HomeKit, create a manager, launch an app, use a Simulator at runtime, or query a device.
 
 ## B394 implementation: host-supplied `HMAccessory.profiles` count
 

@@ -143,7 +143,7 @@ perform any ActivityKit lifecycle operation. No dedicated entitlement or usage-d
 this snapshot is established by the reviewed docs. `true` does not establish that a later
 `Activity.request` succeeds, that a Live Activity is active, or that rendering is configured.
 
-The focused gate `sh platform/ios/ios-activitykit-status/check.sh` passed locally with Rust 1.94.1:
+The registered `ios-activitykit-status` profile passed locally with Rust 1.94.1:
 package formatting; host, iOS device, and arm64 Simulator checks; strict Clippy for all three;
 warnings-denied host/device rustdoc; compiler-oracle comparison for metadata, init, getter, and
 release on arm64 device and Simulator; and link/import inspection for ActivityKit and

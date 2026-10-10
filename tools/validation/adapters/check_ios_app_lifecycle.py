@@ -13,7 +13,6 @@ QUEUE_PATH = PACKAGE_ROOT + "/src/queue.rs"
 MAPPING_PATH = PACKAGE_ROOT + "/src/mapping.rs"
 OBSERVERS_PATH = PACKAGE_ROOT + "/src/observers.rs"
 CARGO_PATH = PACKAGE_ROOT + "/Cargo.toml"
-CHECK_PATH = PACKAGE_ROOT + "/check.sh"
 DOC_PATH = "docs/ios/app-lifecycle.md"
 MANIFEST_PATH = "docs/capabilities/capability-status.json"
 SPEC_PATH = "tools/validation/specs/validation-v1.json"
@@ -24,7 +23,6 @@ REQUIRED_INPUTS = {
  MAPPING_PATH,
  OBSERVERS_PATH,
  CARGO_PATH,
- CHECK_PATH,
  DOC_PATH,
  MANIFEST_PATH,
  SPEC_PATH,
@@ -159,7 +157,6 @@ def check_contract(root, sources):
  mapping = sources[MAPPING_PATH]
  observers = sources[OBSERVERS_PATH]
  package = sources[CARGO_PATH]
- check_script = sources[CHECK_PATH]
  docs = " ".join(sources[DOC_PATH].split())
  docs_lower = docs.lower()
  combined = "\n".join((library, platform, queue, mapping, observers))
@@ -172,8 +169,6 @@ def check_contract(root, sources):
 
  if 'name = "ios-app-lifecycle"' not in package:
   failures.append("iOS lifecycle Cargo package name is missing")
- if not all(target in check_script for target in ("aarch64-apple-ios", "aarch64-apple-ios-sim")):
-  failures.append("package check does not compile both iOS device and Simulator targets")
  if not check_profile_floor(sources[SPEC_PATH]):
   failures.append("registered iOS lifecycle package floor must be iOS 4.0")
  if not re.search(r"\bpub\s+struct\s+IosApplicationLifecycle\b", code):
@@ -184,12 +179,16 @@ def check_contract(root, sources):
   failures.append("ApplicationBackend implementation is missing")
  if not re.search(r"\b[A-Za-z_]\w*\s*:\s*(?:(?:ios_runtime::)?MainThread|MainThreadMarker)\b", code):
   failures.append("stored MainThread proof for main-thread affinity is missing")
+ if "main_thread.into_objc2()" not in platform_code:
+  failures.append("objc2 main-thread marker conversion is missing")
 
  for notification, event in NOTIFICATION_MAP.items():
   if not near(platform_code, notification, "LifecycleNotification::" + event):
    failures.append("UIApplication notification is not registered to its lifecycle event: " + notification)
  if "NSNotificationCenter" not in platform_code or not re.search(r"\baddObserver\w*", platform_code):
   failures.append("public Notification Center observer registration is missing")
+ if "addObserverForName_object_queue_usingBlock" not in platform_code:
+  failures.append("public Notification Center block-observer method is missing")
  if (
   "NSOperationQueue" not in platform_code
   or not near(platform_code, "NSOperationQueue::mainQueue", "add_observer", 2500)
@@ -202,6 +201,8 @@ def check_contract(root, sources):
   failures.append("observer removal from a Drop implementation is missing")
  if not re.search(r"\b[A-Za-z_]\w*observers?\s*:", platform_code, re.I):
   failures.append("notification observer tokens are not stored in a field")
+ if "ObserverOwner::new" not in platform_code:
+  failures.append("notification observer lifetime owner is missing")
 
  state_mappings = {
   "DidBecomeActive": "Foreground",

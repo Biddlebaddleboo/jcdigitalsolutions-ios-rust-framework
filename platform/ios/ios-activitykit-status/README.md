@@ -15,9 +15,8 @@ For an app that offers Live Activities, Apple requires the host to enable
 configure that host behavior, request permission, manage ActivityKit state, provide presentation,
 or implement App Intents or push updates. `Ok(true)` is not a guarantee that a later start succeeds.
 
-`sh platform/ios/ios-activitykit-status/check.sh` runs static compilation, compiler-ABI comparison,
-link/import inspection, and docs checks. The link examples are built and inspected, never executed;
-the gate runs no tests or ActivityKit calls.
+The registered `ios-activitykit-status` profile runs through `ios-rust-validate --workspace-root "$PWD" --spec "$PWD/tools/validation/specs/validation-v1.json" --capability ios-activitykit-status` and checks static compilation, compiler-ABI comparison, link/import behavior, and docs. The link examples are built
+and inspected, never executed; the profile runs no tests or ActivityKit calls.
 
 See the [ActivityKit feasibility and B209 plan](../../../PLAN_CAPABILITIES_ACTIVITYKIT.md) and
 [iOS guide](../../../docs/ios/activitykit-status.md).

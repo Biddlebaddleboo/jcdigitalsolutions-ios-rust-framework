@@ -32,4 +32,4 @@ No device/Simulator runtime query, authorization request, alarm operation, app a
 
 ## Static gates
 
-`platform/ios/ios-alarmkit-status/check.sh` runs formatting, host/device/Simulator `cargo check`, strict Clippy, rustdoc, `docs-check`, zero-Swift-source, and scoped whitespace checks. No Rust unit or integration tests are added by B280
+The registered `ios-alarmkit-status` profile runs formatting, host/device/Simulator checks, strict Clippy, rustdoc, AlarmKit link/import inspection, docs, zero-Swift-source, and scoped whitespace checks. No Rust unit or integration tests are added by B280

@@ -11,6 +11,8 @@ REQUIRED = {
   "first poll",
   "unpolled future starts no native work",
  ],
+ "platform/ios/ios-media-authorization/src/lib.rs": [],
+ "platform/ios/ios-media-authorization/src/operation.rs": [],
  "platform/ios/ios-media-authorization/src/platform.rs": [
   "impl MediaAuthorizationRequester for IosMediaAuthorization",
   "av_media_type(media)",
@@ -28,10 +30,6 @@ REQUIRED = {
   "CaptureMedia::Camera => Some(AvMediaType::Video)",
   "CaptureMedia::Microphone => Some(AvMediaType::Audio)",
  ],
- "platform/ios/ios-media-authorization/check-surface.sh": [
-  "requestAccessForMediaType_completionHandler",
-  "capture or audio-session API found in authorization adapter",
- ],
  "docs/ios/media-authorization.md": [
   "NSCameraUsageDescription",
   "NSMicrophoneUsageDescription",
@@ -47,14 +45,19 @@ REQUIRED = {
 }
 
 FORBIDDEN_NATIVE = [
+ "requestRecordPermission",
  "AVCaptureSession",
  "AVCaptureDeviceInput",
  "AVCapturePhotoOutput",
  "AVCaptureAudioDataOutput",
  "AVAudioEngine",
  "AVAudioSession",
+ "AVCaptureDevice::devices",
+ "devicesWithMediaType",
+ "defaultDeviceWithMediaType",
+ "deviceWithUniqueID",
+ "startRunning",
  "CMSampleBuffer",
- "startRunning(",
 ]
 
 
