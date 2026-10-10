@@ -113,7 +113,8 @@ host_archive=target/release/libframework_c_api.a
 clang -std=c11 -Wall -Wextra -Werror -pedantic -I bindings/c/include -I target \
     target/framework-c-media-library-status-c.c "$host_archive" \
     -o target/framework-c-media-library-status-c-host
-clang++ -std=c++17 -Wall -Wextra -Werror -pedantic -I bindings/c/include -I target \
+# These fixtures use only C ABI declarations; avoid libc++ headers at the iOS 10 compile floor.
+clang++ -nostdinc++ -std=c++17 -Wall -Wextra -Werror -pedantic -I bindings/c/include -I target \
     target/framework-c-media-library-status-cpp.cpp "$host_archive" \
     -o target/framework-c-media-library-status-cpp-host
 nm -g "$host_archive" 2>/dev/null \
@@ -147,7 +148,8 @@ for target in aarch64-apple-ios aarch64-apple-ios-sim; do
         target/framework-c-media-library-status-c.c "$archive" \
         -framework Foundation -framework MediaPlayer \
         -o "target/framework-c-media-library-status-c-$target"
-    xcrun --sdk "$sdk" clang++ -target "$clang_target" -std=c++17 -Wall -Wextra -Werror \
+    xcrun --sdk "$sdk" clang++ -target "$clang_target" -nostdinc++ -std=c++17 \
+        -Wall -Wextra -Werror \
         -pedantic -I bindings/c/include -I target \
         target/framework-c-media-library-status-cpp.cpp "$archive" \
         -framework Foundation -framework MediaPlayer \

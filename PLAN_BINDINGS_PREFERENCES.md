@@ -67,11 +67,13 @@ Xcode 27 run `38041994806` on head `51959d40530dc4b9e51a255acf6d5f1d30becdc4` pa
 header-only C++17 gate at step 235, then failed the optional preferences C ABI step 241. Its iOS
 10.0 C++ compile reached the Xcode 27 libc++ `stddef.h` shim and promoted the SDK warning
 `The selected platform is no longer supported by libc++` to an error. The C++ fixture uses C ABI
-headers only, so `check-ios-preferences.sh` now passes `-nostdinc++` for its C++ compile commands;
+headers only, so `check-ios-preferences.sh` passes `-nostdinc++` for its C++ compile commands;
 this avoids the unsupported libc++ header shim while preserving the C++ runtime link/import
-assertion for `libc++.1.dylib`, `-Werror`, and the device/Simulator minos checks. Hosted
-Xcode-27 requalification is pending. No consumer executable was run and no live preferences
-behavior is claimed
+assertion for `libc++.1.dylib`, `-Werror`, and the device/Simulator minos checks. Xcode 27 run
+`38043226353` on head `3e2c7e66538df74e88a255de4da22920146c4b05` passed the optional preferences
+C ABI compile/link step 241 in job `114187479698`. Hosted output confirmed C11/C++17 import checks
+and iOS 10.0 device / 14.0 Simulator minimums; probes were not executed. No consumer executable
+was run, and this compile/link pass does not claim preferences runtime behavior
 
 On 2026-10-08, `cargo check --offline -p framework-c-api --no-default-features --features
 ios-preferences` refreshed the shared lock and passed. It retained the workspace package

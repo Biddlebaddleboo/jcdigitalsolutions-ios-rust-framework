@@ -79,5 +79,16 @@ MediaPlayer, `libSystem.B.dylib`, and `libobjc.A.dylib`; C++ also imports `libc+
 device probe minos is 10.0 and Simulator minos is 14.0. The iOS API floor remains 9.3. No consumer
 or probe binary ran. CI and shared docs index links are integrated. No tests were added or run.
 
+Xcode 27 run `38043226353` on head `3e2c7e66538df74e88a255de4da22920146c4b05` passed the
+preferences C ABI step 241, then failed MediaPlayer C ABI step 242 in Xcode-27 job
+`114187479698`. The C++17 fixture compile for the device probe entered the Xcode 27 SDK libc++
+`stddef.h` shim and promoted `availability.h:204` warning `The selected platform is no longer
+supported by libc++` to an error under `-Werror`; the Rust checks and release archive build had
+passed. Since the fixture uses only C ABI declarations, the script now passes `-nostdinc++` to its
+C++ compile commands while retaining C++17, the libc++ runtime link/import audit for
+`libc++.1.dylib`, all framework/symbol assertions, and device 10.0 / Simulator 14.0 minos checks.
+Xcode 27 MediaPlayer requalification is pending. The failure and source correction provide no
+consumer execution or runtime-behavior evidence
+
 Do not claim live authorization, media-library access, Apple Music catalog/subscription service,
 playback availability, permission prompt behavior, or thread-safety.
