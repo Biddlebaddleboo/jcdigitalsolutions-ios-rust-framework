@@ -12,6 +12,8 @@ Expose high-level platform-neutral semantics in `crates/framework-*/`, with stab
 
 A snapshot getter is not an end-to-end operation: availability, consent, entitlements, host configuration, lifecycle and hardware may prevent real functionality. Distinguish read-only reports from mutations, prompts, background execution or cross-app access. Never invent a fallback that contradicts a prior no-go, policy limitation or Apple API entitlement.
 
+D47 defines an owned, one-shot CloudKit account-status snapshot in [`framework-cloud`](crates/framework-cloud/), with no database, data-access or account-change behavior; see [PLAN_CAPABILITIES_CLOUDKIT_ACCOUNT_STATUS.md](PLAN_CAPABILITIES_CLOUDKIT_ACCOUNT_STATUS.md)
+
 ## Async and safety contract
 
 Async-capable plans must specify start failure vs accepted operation, caller/actor requirements, exactly-once completion and callback ownership, cancellation **request** vs guarantee, drop/detach, multiple completion/callback safety, error propagation, user revocation, stale handles and shutdown. For durable/persistent operations specify authoritative state, duplicate-prevention, retry/timeout class, reconciliation and crash recovery; omit these only when not relevant. Preserve privacy, permissions, transport and application sandbox limits.

@@ -31,7 +31,7 @@ async fn account_status() -> Result<AccountStatus, framework_core::Error> {
 
 ## Operation and ownership
 
-The operation starts when its future is first polled. A backend must deliver at most one terminal result while the future is live. Dropping before first poll starts no backend work. The facade does not require native cancellation: a backend must document whether drop cancels the operation or only abandons Rust interest. The iOS CloudKit query cannot be cancelled after it starts; its callback must remain safe and discard its result after future drop.
+The operation starts when its future is first polled. If the query completes while its future remains live, the backend must resolve that future with exactly one terminal result: either a snapshot (which may include a callback error) or an operation-level framework error. Callback-backed implementations must ignore duplicate completions. Dropping before first poll starts no backend work. After first poll, cancellation versus result abandonment is backend-specific; the facade promises neither native cancellation nor continued interest. The iOS CloudKit query cannot be cancelled after it starts; its callback must remain safe and discard its result after future drop.
 
 A snapshot reports status at query time only. It does not subscribe to account-change notifications, observe future sign-in/out changes, return account names or identifiers, or prove access to CloudKit records, databases, or any other data. Database, record, query, sync, subscription, and account-change APIs are out of scope.
 

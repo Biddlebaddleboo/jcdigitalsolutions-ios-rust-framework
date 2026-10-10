@@ -41,3 +41,14 @@ Do not add an account database or user identifier API, global runtime, native ty
 ## Acceptance boundary
 
 The portable contract is complete when it compiles without default features, exposes no Apple/platform dependency types, and documents ownership, error, and operation semantics. It does not claim Apple parity or live iCloud-account behavior.
+
+## D47 evidence — 2026-10-10
+
+The portable `framework-cloud` contract and row 076 were already present at the base. This slice made the `CloudAccountBackend` sizing and exactly-once completion contract explicit, documented result discard versus cancellation on future drop, and added the D47 reference to `PLAN_CAPABILITIES.md`. Row 076 remains `implemented` for the portable contract and `partial` for iOS; its support summary matches the 114 rows, 36 implemented portable contracts and 22 partial portable contracts. `framework-cloud` depends only on workspace crate `framework-core`; no allocation or Apple/platform type appears in its portable source.
+
+- `cargo check --locked -p framework-cloud --no-default-features` — PASS
+- `cargo clippy --locked -p framework-cloud --all-targets --no-default-features -- -D warnings` — PASS
+- `cargo fmt --all -- --check` — PASS
+- `cargo xtask docs-check` — PASS; shared documentation index and zero-Swift checks passed
+- `git diff --check` — PASS
+- No tests were added or run. The all-target Clippy command compiled applicable targets only. No live account probe, Apple parity, or CloudKit data behavior is claimed.

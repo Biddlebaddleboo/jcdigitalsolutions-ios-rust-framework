@@ -94,7 +94,7 @@ impl AccountStatusSnapshot {
 }
 
 /// A compile-time-selected backend for one CloudKit account-status snapshot.
-pub trait CloudAccountBackend {
+pub trait CloudAccountBackend: Sized {
     /// The backend's concrete status-query future.
     type AccountStatusFuture<'a>: Future<Output = Result<AccountStatusSnapshot, Error>> + 'a
     where
@@ -103,7 +103,12 @@ pub trait CloudAccountBackend {
     /// Reports whether the backend API is usable in this target and context.
     fn availability(&self) -> Availability;
 
-    /// Requests one status snapshot; the backend starts it when the future is first polled.
+    /// Starts one status query on first poll.
+    ///
+    /// If the query completes while its future remains live, the backend must resolve that future
+    /// with exactly one terminal result. Callback-backed implementations must ignore duplicate
+    /// completions. Dropping the future delegates cancellation or result abandonment to the
+    /// backend; this portable facade promises neither native cancellation nor continued interest.
     fn account_status<'a>(&'a mut self) -> Self::AccountStatusFuture<'a>;
 }
 
