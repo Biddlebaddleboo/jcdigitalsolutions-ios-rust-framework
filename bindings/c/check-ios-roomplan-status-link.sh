@@ -12,6 +12,14 @@ for tool in awk cargo clang clang++ diff jq nm otool rg sed sort xcrun; do
     fi
 done
 
+sysroot=$(rustc --print sysroot)
+host=$(rustc -vV | sed -n 's/^host: //p')
+llvm_nm="$sysroot/lib/rustlib/$host/bin/llvm-nm"
+if [ ! -x "$llvm_nm" ]; then
+    echo "Rust LLVM symbol tool is required for this audit: $llvm_nm" >&2
+    exit 1
+fi
+
 sh bindings/c/check-ios-roomplan-status.sh
 
 cat > target/framework-c-ios-roomplan-status-link.c <<'FIXTURE_C'
@@ -59,7 +67,7 @@ for language in c cpp; do
     printf '%s\n' 'libSystem.B.dylib' > "$libraries.expected"
     diff -u "$libraries.expected" "$libraries"
 done
-nm -g "$host_archive" 2>/dev/null \
+"$llvm_nm" -g "$host_archive" 2>/dev/null \
     | rg -o '_framework_ios_roomplan_status_[A-Za-z0-9_]+' \
     | sed 's/^_//' | LC_ALL=C sort -u \
     > target/framework-c-ios-roomplan-status-host-archive-symbols.txt
@@ -90,7 +98,7 @@ for target in aarch64-apple-ios aarch64-apple-ios-sim; do
     IPHONEOS_DEPLOYMENT_TARGET="$deployment_target" cargo build --locked --release \
         -p framework-c-api --no-default-features --features ios-roomplan-status --target "$target"
     archive="target/$target/release/libframework_c_api.a"
-    nm -g "$archive" 2>/dev/null \
+    "$llvm_nm" -g "$archive" 2>/dev/null \
         | rg -o '_framework_ios_roomplan_status_[A-Za-z0-9_]+' \
         | sed 's/^_//' | LC_ALL=C sort -u \
         > "target/framework-c-ios-roomplan-status-$target-archive-symbols.txt"

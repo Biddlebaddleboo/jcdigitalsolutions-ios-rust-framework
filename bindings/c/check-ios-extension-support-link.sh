@@ -12,6 +12,14 @@ for tool in awk cargo clang clang++ diff jq nm otool rg sed sort strings vtool x
     fi
 done
 
+sysroot=$(rustc --print sysroot)
+host=$(rustc -vV | sed -n 's/^host: //p')
+llvm_nm="$sysroot/lib/rustlib/$host/bin/llvm-nm"
+if [ ! -x "$llvm_nm" ]; then
+    echo "Rust LLVM symbol tool is required for this audit: $llvm_nm" >&2
+    exit 1
+fi
+
 sh bindings/c/check-ios-extension-support.sh
 
 cargo build --locked --release -p framework-c-api --no-default-features \
@@ -27,13 +35,13 @@ clang -std=c11 -Wall -Wextra -Werror -pedantic -I bindings/c/include \
 clang++ -nostdlib++ -std=c++17 -Wall -Wextra -Werror -pedantic \
     -I bindings/c/include target/framework-c-ios-extension-support-cpp.cpp "$host_archive" \
     -o target/framework-c-ios-extension-support-cpp-host
-nm -g "$host_archive" 2>/dev/null \
+"$llvm_nm" -g "$host_archive" 2>/dev/null \
     | rg -o '_framework_ios_extension_support_[A-Za-z0-9_]+' \
     | sed 's/^_//' | LC_ALL=C sort -u \
     > target/framework-c-ios-extension-support-host-symbols.txt
 diff -u target/framework-c-ios-extension-support-expected-symbols.txt \
     target/framework-c-ios-extension-support-host-symbols.txt
-nm -u "$host_archive" 2>/dev/null > target/framework-c-ios-extension-support-host-undefined.txt
+"$llvm_nm" -u "$host_archive" 2>/dev/null > target/framework-c-ios-extension-support-host-undefined.txt
 if rg -q 'NSBundle|NSDictionary|NSURL|NSString|objc_|OBJC_CLASS|Foundation|ExtensionKit|PlugInKit|swift_' \
     target/framework-c-ios-extension-support-host-undefined.txt; then
     echo "Foundation, Objective-C, extension, or Swift import leaked into the host archive" >&2
@@ -118,7 +126,7 @@ for target in aarch64-apple-ios aarch64-apple-ios-sim; do
         printf '%s %s imports: %s; minos %s\n' \
             "$target" "$language" "$(tr '\n' ' ' < "$libraries")" "$actual_deployment_target"
     done
-    nm -g "$archive" 2>/dev/null \
+    "$llvm_nm" -g "$archive" 2>/dev/null \
         | rg -o '_framework_ios_extension_support_[A-Za-z0-9_]+' \
         | sed 's/^_//' | LC_ALL=C sort -u \
         > "target/framework-c-ios-extension-support-$target-archive-symbols.txt"
