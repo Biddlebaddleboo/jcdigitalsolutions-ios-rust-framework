@@ -48,6 +48,8 @@ typedef struct FrameworkIosFileProviderResultV1 {
  * domain bytes (not a File Provider domain ID), and native_error_code is its
  * exact NSInteger code represented as int64_t. The returned domain buffer is
  * owned by the framework and must be destroyed exactly once.
+ * A backend count-conversion invariant error maps to INTERNAL_ERROR and leaves
+ * the semantic result fields zero.
  *
  * Apple does not expose cancellation for this request. Destroy detaches Rust
  * interest, suppresses future readiness notification, waits for an in-flight

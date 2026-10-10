@@ -260,6 +260,9 @@ fn result_record(
         Err(FileProviderQueryError::ApiUnavailable) => {
             result.status = FrameworkStatus::UNAVAILABLE;
         }
+        Err(FileProviderQueryError::CountOutOfRange) => {
+            result.status = FrameworkStatus::INTERNAL_ERROR;
+        }
         Err(FileProviderQueryError::CallbackPanicked) => {
             result.status = FrameworkStatus::PANIC;
         }

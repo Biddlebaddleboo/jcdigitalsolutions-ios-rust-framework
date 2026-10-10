@@ -16,6 +16,8 @@ The callback can run concurrently with host work on another thread. Do not unwin
 
 Initialize the output record with an empty `native_error_domain` before each poll. Destroy a returned non-empty domain buffer with `framework_owned_buffer_destroy` before reusing the result record. A native error never becomes a false Boolean. API-floor errors use result status `FRAMEWORK_STATUS_UNAVAILABLE`; a callback panic caught by B75 uses `FRAMEWORK_STATUS_PANIC`
 
+A backend count-conversion invariant error (`FileProviderQueryError::CountOutOfRange`) uses result status `FRAMEWORK_STATUS_INTERNAL_ERROR`; the Boolean and native-error fields remain zero
+
 ## Destroy and native request lifetime
 
 Apple exposes no cancellation path for `getDomainsWithCompletionHandler:`. F16 has no cancel function. Destroy closes the per-handle readiness signal, waits for a callback already in flight, clears the original handle slot, drops the Rust future, and detaches Rust interest. Apple's request and its private completion state may remain alive until the native callback returns; destroy does not stop the request. No callback can start after destroy returns
