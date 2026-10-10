@@ -195,6 +195,8 @@ mod tests {
             &mut self,
             encoded_bytes: &[u8],
         ) -> Result<ImageMetadata, ImageMetadataError> {
+            assert_eq!(encoded_bytes.len(), self.expected_bytes.len());
+            assert_eq!(encoded_bytes.as_ptr(), self.expected_bytes.as_ptr());
             assert_eq!(encoded_bytes, self.expected_bytes);
             ImageMetadata::new(ImageDimensions::new(640, 480)?, 3)
         }

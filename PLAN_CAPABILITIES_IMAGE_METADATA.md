@@ -47,3 +47,13 @@ Do not edit root workspace/Cargo files, the canonical capability JSON, aggregate
 ## Handoff
 
 Report changed files, commit SHA, exact checks, any deviation, and unresolved backend/runtime limits. Root reconciles row 057 only after review.
+
+## Status
+
+D21 contract and docs: pass. The borrowed-input test checks slice length, pointer identity, and byte equality. API inspection found no platform type, `std`, dynamic dispatch, runtime setup, or unrelated dependency in the public contract. The crate has only the internal `framework-core` dependency and no feature flags.
+
+- `cargo +1.94.1 fmt --all -- --check` — pass
+- `cargo +1.94.1 test --locked -p framework-image` — pass, 4 tests
+- `cargo +1.94.1 check --locked -p framework-image --no-default-features` — pass
+- `git diff --check` — pass
+- `cargo +1.94.1 tree --locked -p framework-image -e features` — only `framework-core` default feature
