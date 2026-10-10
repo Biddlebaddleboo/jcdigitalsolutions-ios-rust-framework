@@ -4,6 +4,8 @@
 
 F16 source, header, ABI manifest, guide, and focused check are complete. `sh bindings/c/check-ios-file-provider.sh` passed after root refreshed Cargo.lock. The gate verified host, iOS device (minos 11.0), and iOS Simulator (minos 14.0) checks, strict Clippy, Release builds, C11/C++17 links, direct imports, and archive exports. No tests or linked-probe execution took place
 
+Xcode 27 run `38054423923`, job `114219854062`, passed Location step247 and failed FileProvider step248 because `result_record` did not handle `FileProviderQueryError::CountOutOfRange`. The adapter now maps that impossible fixed-width count conversion to `FRAMEWORK_STATUS_INTERNAL_ERROR`, preserving the existing native NSError, API-unavailable, unsupported-platform, and panic mappings. Requalification is pending; no tests or linked probes ran for this repair
+
 ## Goal
 
 Expose B75's one-shot registered-domain presence query through an opt-in C ABI. Return only a Boolean snapshot or an owned native NSError domain/code. Preserve the unspecified Apple callback queue, per-request ownership, and noncancellable native request contract. Do not add a main-thread rule, native object handle, domain identifier, global registry, or executor
