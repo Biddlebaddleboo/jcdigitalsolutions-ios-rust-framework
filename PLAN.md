@@ -10,11 +10,39 @@ Resume bounded work on genuinely unfinished framework capabilities, backends, bi
 
 Historical capability coverage is **partial, not complete** merely because a crate or scalar getter exists. `docs/capabilities/capability-status.json` defines canonical capability identities and support states. Compiler, link, simulator-runtime and physical-device proofs remain distinct. Prior Xcode 26.6 / iOS SDK 26.5 findings do not satisfy an Xcode 27.x qualification requirement. Main CI failures previously seen on non-Apple `objc2` Clippy and the iOS Files import-order audit must be triaged, not hidden or misrepresented as passing.
 
+## API resume checkpoint and deterministic continuation
+
+### Last verified API checkpoint
+
+- The last substantive `feat(ios)` implementation commit before the repository pivoted to planning consolidation and shared tooling is `ac944e80f195c810d145d51064bb1f9c3c875b49` (`feat(ios): expand bounded native snapshots`). It contains multiple bounded slices across HomeKit, accessibility, iOS files and VPN. **It is not proof that any entire capability or family is finished**, nor proof that one particular subsequent B/D/F/G identifier is next.
+- Later commits through the current planning baseline implemented/reorganized R1/R2 tooling and planning documentation; their presence is not evidence of new completed end-user capability work. R1/R2 tooling is completed; do not rebuild it. Preserve valid R3 interop residuals as separate, explicitly justified work.
+- The canonical active state is **current `main` code + tests + `docs/capabilities/capability-status.json` + surviving targeted plans**, not the age or filename of a plan. At this checkpoint the manifest reports 98 partial and 16 unsupported rows out of 114, not 98 completed capabilities. These counts must be reverified before changing the manifest.
+
+### Mandatory one-time resume reconciliation (before implementing the next API)
+
+1. Fetch and fast-forward to current remote `main`; record its full SHA. Confirm pinned `ios-rust-build` / `ios-rust-validate` installation and that `AGENTS.md` and `docs/SHARED_TOOLING.md` are in force. Do **not** fetch historical shared engine source.
+2. Read this plan, the current capability manifest, `PLAN_CAPABILITIES.md`, `PLAN_IOS_NATIVE.md`, `PLAN_BINDINGS.md`, and `PLAN_VALIDATION.md`. Use the last API commit only as a chronological checkpoint: inspect its changed paths and associated B/D/F/G decisions if needed to resolve whether work was already integrated. Do not indiscriminately load historical `PLAN_*.md` files.
+3. Build an **active residual queue** from currently incomplete requirements in the canonical manifest and their surviving targeted plans. Include relevant foundation, native iOS, C ABI, compiler/Swift ABI, validation, and performance dependencies. For each eligible item record: unchanged workstream ID, exact plan and starting symbols, current code/test evidence, unmet criteria, prerequisite IDs, write owner, required Apple host/device evidence, and `ready` / `blocked` state. Treat `research_closed`, completed one-off slices and no-go outcomes as constraints, not automatic implementation candidates. Never infer completion from a matching crate or status getter.
+4. Select the **earliest ready existing workstream in its recorded prerequisite/plan order**, with preference to closing a useful existing capability contract over inventing an unrelated scalar snapshot. If the original sequence cannot be reconstructed unambiguously, or two independent candidates have no established priority, **record the ambiguity and request selection**; do not invent a next B number. If all remaining candidates are blocked, report their prerequisites and stop rather than changing unrelated APIs.
+5. Start only the selected bounded workstream and its **necessary, explicitly owned prerequisite tasks**. Use isolated worktrees for parallel-safe independent scopes; serialize shared files. Before code changes, check its targeted plan against current source and tests; do not reimplement already integrated slices. Existing user authorization to continue the residual API plan does not override specific no-go, security, Apple SDK, or device validation gates.
+
+### Execution and checkpoint update after each integration
+
+- Follow `AGENTS.md` and `docs/SHARED_TOOLING.md`: add a declarative validator profile only for genuinely unregistered work, preserve package-local and compiler/link/ABI gates until parity is proved, and never treat skipped physical-device evidence as a pass.
+- Require the executor to report existing workstream ID, source file/symbol changes, tests and failures, limitations, final diff, and implementation commit SHA. Integrate in prerequisite order, recheck remote `main`, and rerun affected cross-workstream tests.
+- Recompute which requirements remain open from current code/tests and update their targeted plans, docs and manifest as appropriate. Record the most recent completed implementation SHA and the next **reconciled** ready workstream in this checkpoint before the next implementation cycle; do not automatically advance from a partial result or a blocked task.
+- Continue only within the user-authorized remaining scope, and stop on ambiguous priority, architectural contradiction, unauthorised expansion, tool-engine defects, or missing mandatory evidence. Engine defects use sanitized `BUG_REPORT_*.md` and separate maintenance.
+
+### Current resume state
+
+`Resume audit required`: the final pre-tooling API commit is known, but **no exact next unfinished B/D/F/G ID has been verified from the current source**. The first executor action is the bounded reconciliation above; naming an arbitrary workstream now would be a fabricated checkpoint.
+
+
 ## Active work selection and limits
 
 1. Inspect the canonical capability status/owner, the relevant family plan, then the named workstream plan and exact files/symbols. Do not scan the entire planning corpus or treat every existing plan as pending work.
 2. Classify the selected requirement against current implementation, tests and historical recorded decision: `complete`, `partial`, `blocked`, `superseded`, `not_started`, or `research_closed`. A prior `no-go` is a constraint, not an invitation to invent an implementation.
-3. Implement only user-authorized remaining work. Do not select arbitrary new backlog items after finishing an assignment. Deferred work is preserved, not canceled.
+3. Implement only user-authorized remaining work. Select only the next reconciled ready workstream using the API resume checkpoint procedure; do not invent new workstreams or extend beyond the approved residual scope. Deferred work is preserved, not canceled.
 4. Existing P/R/A/B/C/D/F/G identifiers and all capability IDs are permanent; never renumber, recycle or use retired gaps. For future workstreams allocate the next unused greater ID in its original series after consulting history.
 5. Plans specifying a past source baseline must be reconciled to latest `main` before writing. Outdated commands do not override working architecture.
 
