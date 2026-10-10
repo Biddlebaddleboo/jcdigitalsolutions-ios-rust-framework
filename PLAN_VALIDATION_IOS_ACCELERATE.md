@@ -39,3 +39,23 @@ Release link/import script, rustdoc, formatting, docs-check, zero-Swift-source, 
 passed. Both probes import only Accelerate and `libSystem.B.dylib`, retain `_vDSP_vadd`, and report
 device minos 10.0 and Simulator minos 14.0 (SDK 26.5). The probes were not executed; no tests,
 numerical result, Apple parity, live-device behavior, or performance claim is made
+
+## Hosted Xcode 27 static-gate evidence (2026-10-10)
+
+Run: [GitHub Actions run 38075483431](https://github.com/Biddlebaddleboo/jcdigitalsolutions-ios-rust-framework/actions/runs/38075483431); Xcode 27 lane; source SHA `85db105389c1d0b212bc385d9b4b6a1f6e049c0b`
+
+Pass steps: `Check iOS Accelerate device target`, `Check iOS Accelerate simulator target`, `Clippy iOS Accelerate device target`, `Clippy iOS Accelerate simulator target`, `Audit iOS Accelerate link imports`
+
+Link cmd: `sh platform/ios/ios-accelerate/check-link-imports.sh`; device/Simulator Release probe link; Accelerate/`_vDSP_vadd` import and OS-floor checks
+
+Other pass gates: `cargo fmt --all -- --check`, `cargo doc --locked --workspace --no-deps` with `ios-accelerate`, `cargo xtask docs-check`; docs-index and zero-Swift-source check in docs-check log
+
+Toolchain: Xcode 27.0 build 27A266a; iPhoneOS and iPhoneSimulator SDK 27.0; Rust 1.94.1
+
+Gate paths: `platform/ios/ios-accelerate/`, `crates/framework-format/`, `platform/ios/ios-runtime/`, `xtask/`, and workspace manifest/lockfile; no diff from run SHA to `origin/main` `7bd07d8`. Workflow delta adds only Core NFC link/import audit; G59 step definitions unchanged
+
+Gap: no `git diff --check` cmd in hosted log; required gate unverified; full G59 gate set not proven by this run
+
+Limit: static link/import proof only; no probe run; no test, numerical result, Apple parity, live-device behavior, or performance claim
+
+The hosted log has no `git diff --check` cmd, so full G59 gate coverage remains unproven. Static link/import proof only; no probe run. No test, numerical result, Apple parity, live-device behavior, or performance claim
