@@ -850,6 +850,9 @@ jobs:
         run: |
           cargo xtask linkage-audit --binary target/ios-minimal/simulator/ios-minimal.app/ios-minimal --output target/xtask/ios-simulator-linkage.json
           plutil -lint target/ios-minimal/simulator/ios-minimal.app/Info.plist
+      - name: Xcode 27 unsigned iOS archive smoke
+        if: matrix.os == 'xcode-27'
+        run: cargo xtask archive-smoke
       - name: Record Apple toolchain and SDK inventory
         if: runner.os == 'macOS'
         run: |
