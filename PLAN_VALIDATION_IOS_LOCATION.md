@@ -13,8 +13,9 @@ CoreLocation/Foundation/system imports and exactly `CLLocation`, `CLLocationMana
 binaries were inspected, not executed. The gate emitted a rustc warning that
 `IPHONEOS_DEPLOYMENT_TARGET` was 9.0 while rustc supports a minimum of 10.0; final device probe
 minos is 10.0 and Simulator minos is 14.0. Workflow parsing, docs-check, and diff checks passed.
-Xcode 26.6 / SDK 26.5 is below the plan's Xcode 27.x baseline; live permission and location
-behavior remain unverified.
+That local evidence used Xcode 26.6 / SDK 26.5, below the plan's Xcode 27.x baseline; hosted
+Xcode 27 qualification is recorded below. Live permission and location behavior remain
+unverified.
 
 A Rust source-surface guard was added to the B5 link/import script after the recorded target and
 probe run. This follow-up checks its shell syntax and source predicates only; the full gate was not
@@ -32,7 +33,21 @@ SDK 26.5:
 - PASS: `sh platform/ios/ios-location/check-link-imports.sh` for device and Simulator. Both probes import exactly CoreLocation, Foundation, `libSystem.B.dylib`, and `libobjc.A.dylib`; both feature trees contain only `CLLocation`, `CLLocationManager`, and `CLLocationManagerDelegate`. Device minos is 10.0; Simulator minos is 14.0; both use SDK 26.5.
 - PASS: `cargo +1.94.1 xtask docs-check`; Ruby CI YAML parse; `git diff --check`.
 
-No probe, test, app, permission query, or location request ran. This is compile, Clippy, static link/import, and docs evidence only; Xcode 27.x qualification and live permission/location behavior remain open.
+No probe was executed; no test, app, permission query, or location request ran in this local recheck. This is compile, Clippy, static link/import, and docs evidence only. Hosted Xcode 27 qualification and the live permission/location behavior are recorded separately below; live behavior remains unverified.
+
+## Hosted Xcode 27 CI evidence — 2026-10-10
+
+GitHub Actions run [38075483431](https://github.com/Biddlebaddleboo/jcdigitalsolutions-ios-rust-framework/actions/runs/38075483431) completed successfully for source SHA `85db105389c1d0b212bc385d9b4b6a1f6e049c0b`. All three jobs (`Rust checks (ubuntu-24.04)`, `Rust checks (macos-15)`, and `Rust checks (xcode-27)`) concluded successfully. G6's macOS-only steps passed in both macOS jobs and were skipped in Ubuntu. The Xcode 27 runner reported Xcode 27.0 build `27A266a`, iPhoneOS SDK 27.0, and iPhoneSimulator SDK 27.0.
+
+On `Rust checks (xcode-27)`, these exact steps passed:
+
+- `Check iOS location device target` — `cargo check --locked -p ios-location --target aarch64-apple-ios`
+- `Check iOS location simulator target` — `cargo check --locked -p ios-location --target aarch64-apple-ios-sim`
+- `Clippy iOS location device target` — `cargo clippy --locked -p ios-location --all-targets --target aarch64-apple-ios -- -D warnings`
+- `Clippy iOS location simulator target` — `cargo clippy --locked -p ios-location --all-targets --target aarch64-apple-ios-sim -- -D warnings`
+- `Link and audit iOS location imports` — `sh platform/ios/ios-location/check-link-imports.sh`
+
+The Xcode 27 and macOS 15 link/import gates passed for device and Simulator. They build and inspect probes; they do not execute them. This is hosted compile, strict-Clippy, and static link/import evidence at the recorded source SHA, not proof of live permission, GPS, positioning, cancellation, or device behavior. No location query or app was run.
 
 ## Objective
 
