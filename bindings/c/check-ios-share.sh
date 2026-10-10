@@ -4,6 +4,13 @@ set -eu
 root=$(CDPATH= cd -- "$(dirname -- "$0")/../.." && pwd)
 cd "$root"
 mkdir -p target
+sysroot=$(rustc --print sysroot)
+host=$(rustc -vV | sed -n 's/^host: //p')
+llvm_nm="$sysroot/lib/rustlib/$host/bin/llvm-nm"
+if [ ! -x "$llvm_nm" ]; then
+    echo "Rust LLVM symbol tool is required for this audit: $llvm_nm" >&2
+    exit 1
+fi
 
 python3 -m json.tool bindings/c/abi-manifest.json > /dev/null
 sh -n bindings/c/check-ios-share.sh
@@ -318,8 +325,8 @@ check_probe target/framework-c-share-cpp-simulator \
 for archive in "$device_archive" "$simulator_archive"; do
     imports=target/framework-c-share-imports.txt
     symbols=target/framework-c-share-symbols.txt
-    nm -u "$archive" 2> /dev/null > "$imports"
-    nm -g "$archive" 2> /dev/null > "$symbols"
+    "$llvm_nm" -u "$archive" 2> /dev/null > "$imports"
+    "$llvm_nm" -g "$archive" 2> /dev/null > "$symbols"
     rg -o 'framework_ios_share_[A-Za-z0-9_]+' "$symbols" | sort -u \
         > target/framework-c-share-archive-symbols.txt
     diff -u target/framework-c-share-expected-symbols.txt target/framework-c-share-archive-symbols.txt

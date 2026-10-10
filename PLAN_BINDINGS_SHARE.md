@@ -3,8 +3,8 @@
 ## Status
 
 F7 C ABI source, header, ABI manifest entry, guide, and compile/link-only check script are integrated
-in the local tree. The full `sh bindings/c/check-ios-share.sh` gate passed after the direct-import
-manifest update on macOS. It checks feature isolation, manifest-derived tag/layout assertions,
+in the local tree. An earlier full `sh bindings/c/check-ios-share.sh` gate passed after the
+direct-import manifest update on macOS. It checks feature isolation, manifest-derived tag/layout assertions,
 symbol parity across the manifest, public header, and iOS archives, exact C/C++ probe imports, and
 forbidden symbols in linked probes and archives. It did not run tests or probe binaries. The manual
 ownership audit found and corrected manifest and guide wording that could imply every accepted start
@@ -15,6 +15,8 @@ now requires the manifest's inactive-cancel status mapping. D6 remains unchanged
 `ShareFuture` because that type holds a borrow of its backend
 
 Repo evidence lists Xcode 26.6 and iPhoneOS/iPhoneSimulator SDK 26.5, below the Xcode 27.x baseline; no F7 pass on 27.x is in the log
+
+Integrated main run [38044959797](https://github.com/Biddlebaddleboo/jcdigitalsolutions-ios-rust-framework/actions/runs/38044959797) passed macOS Swift ABI229, Apple Clippy232, C ABI234, C++17 header235, secure-storage236, notification-response237, transfer238, and clipboard239; Linux Clippy231 was skipped. Share C ABI step240 failed immediately after device and simulator release builds. The script suppresses `nm` stderr, so the exact failing invocation is not printed. Attribution to Xcode 16.4 Apple `nm` failing to inspect Rust LLVM 21 archives is strongly supported by step236 in the same run, where `nm` reported `Unknown attribute kind (102)` (Producer `LLVM21.1.8-rust-1.94.1-stable`, Reader `LLVM APPLE_1_1700.0.13.5_0`), but remains an inference for step240. The script now uses Rust's matching `llvm-nm` for device/simulator archive import and export-symbol scans while retaining Apple `nm` for final Mach-O probes and preserving all symbol/import assertions. Static syntax and diff checks only; step240 has not been rerun. No runtime share UI or device behavior is claimed
 
 ## Objective
 
@@ -52,6 +54,7 @@ F7 relies on these B7 `IosShareSession` rules
 - `bindings/c/abi-manifest.json`
 - `bindings/c/check-ios-share.sh`
 - `docs/bindings/ios-share.md`
+- `PLAN_BINDINGS_SHARE.md` for scoped implementation and CI status updates
 
 The orchestrator owns `Cargo.lock`, root workspace membership, `PLAN_BINDINGS.md`, shared docs indexes, shared capability manifests, and CI. F7 must not edit D6, B7, F6, `framework.h`, C++, Swift, or B15 paths
 
