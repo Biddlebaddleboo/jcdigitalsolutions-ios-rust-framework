@@ -207,14 +207,14 @@ availability semantics; [F15](../PLAN_BINDINGS_LOCATION.md) defines Location ope
 poll, cancel, and destroy semantics, with its focused gate passed and probes unexecuted.
 The [F16 FileProvider C ABI](../PLAN_BINDINGS_FILEPROVIDER.md) defines borrowed identifier and owned
 result-buffer semantics; its host/device/Simulator gate passed, with link probes not executed.
-The [F17 Vision C ABI](../PLAN_BINDINGS_F17.md) defines a synchronous revision-membership query; its
+The [F17 Vision C ABI](../PLAN_BINDINGS_COMPLETED_C_ABI.md) defines a synchronous revision-membership query; its
 focused host/device/Simulator gate passed and does not execute consumers or probes.
-The [F18 ProximityReader C ABI](../PLAN_BINDINGS_F18.md) defines only the Tap to Pay device-model
+The [F18 ProximityReader C ABI](../PLAN_BINDINGS_COMPLETED_C_ABI.md) defines only the Tap to Pay device-model
 predicate; it does not establish payment readiness.
-The [F19 CommonCrypto C ABI](../PLAN_BINDINGS_F19.md) exposes one iOS SHA-256 operation only,
-the [F20 ModelIO C ABI](../PLAN_BINDINGS_F20.md) exposes only the extension-support Boolean,
-the [F21 Sign in with Apple C ABI](../PLAN_BINDINGS_F21.md) exposes one prior-user query with a
-single arbitrary-queue completion and no cancellation. The [F22 Accelerate C ABI](../PLAN_BINDINGS_F22.md)
+The [F19 CommonCrypto C ABI](../PLAN_BINDINGS_COMPLETED_C_ABI.md) exposes one iOS SHA-256 operation only,
+the [F20 ModelIO C ABI](../PLAN_BINDINGS_COMPLETED_C_ABI.md) exposes only the extension-support Boolean,
+the [F21 Sign in with Apple C ABI](../PLAN_BINDINGS_COMPLETED_C_ABI.md) exposes one prior-user query with a
+single arbitrary-queue completion and no cancellation. The [F22 Accelerate C ABI](../PLAN_BINDINGS_COMPLETED_C_ABI.md)
 exposes only equal-length f32 vector addition through vDSP, and the [F23 key-support C ABI](../PLAN_BINDINGS_F23.md)
 exposes only P-256 public-key suitability for ECDSA/SHA-256 message verification. Their focused gates do not execute
 consumers or probes. The [P-256 key-support guide](bindings/ios-key-support.md) and the [F24 MPS status C ABI](../PLAN_BINDINGS_F24.md)

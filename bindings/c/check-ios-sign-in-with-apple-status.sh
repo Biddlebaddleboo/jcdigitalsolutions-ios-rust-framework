@@ -18,7 +18,6 @@ if [ "$source_symbol" != "$header_symbol" ]; then
 fi
 
 if rg -n '[[:blank:]]+$' \
-    PLAN_BINDINGS_F21.md \
     docs/bindings/ios-sign-in-with-apple-status.md \
     "$source" "$header" bindings/c/check-ios-sign-in-with-apple-status.sh; then
     echo "F21 file has trailing whitespace" >&2
