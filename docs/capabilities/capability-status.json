@@ -1651,13 +1651,13 @@
       "family": "Camera/audio/media",
       "capability": "ShazamKit/SoundAnalysis",
       "crate_module": [
-        "framework-audio",
+        "framework-media",
         "ios-sound-analysis"
       ],
       "crate_module_status": "portable_contract_and_ios_backend_partial",
       "portability_class": "portable_with_platform_extensions",
       "portable_contract_status": "implemented",
-      "portable_contract_note": "framework-audio defines only whether the built-in SoundAnalysis version 1 classifier request is recognized.",
+      "portable_contract_note": "framework-media defines only whether the built-in SoundAnalysis version 1 classifier request is recognized.",
       "ios_implementation_class": "B",
       "implementation_status": "partial",
       "status_reason": "B46 reports whether the built-in SoundAnalysis version 1 classifier request is recognized; it creates no analyzer, supplies no audio, and requests no microphone access.",
