@@ -145,10 +145,12 @@
       ]
     },
     {
-      "abi_scripts": [],
+      "abi_scripts": [
+        "platform/ios/ios-media-authorization/check-link-imports.sh"
+      ],
       "abi_targets": [
         {
-          "minimum_os": "7.0",
+          "minimum_os": "10.0",
           "sdk": "iphoneos",
           "triple": "aarch64-apple-ios"
         },
@@ -171,7 +173,11 @@
         "PLAN_IOS_MEDIA_AUTHORIZATION.md",
         "PLAN_IOS_NATIVE.md"
       ],
-      "expected_imports": [],
+      "expected_imports": [
+        "AVFoundation.framework",
+        "Foundation.framework",
+        "objc_msgSend"
+      ],
       "fmt_all": false,
       "guards": [
         {
@@ -210,6 +216,8 @@
         "platform/ios/ios-media-authorization/Cargo.toml",
         "platform/ios/ios-media-authorization/check.sh",
         "platform/ios/ios-media-authorization/check-surface.sh",
+        "platform/ios/ios-media-authorization/check-link-imports.sh",
+        "platform/ios/ios-media-authorization/examples/media_authorization_link_probe.rs",
         "platform/ios/ios-media-authorization/src/lib.rs",
         "platform/ios/ios-media-authorization/src/operation.rs",
         "platform/ios/ios-media-authorization/src/platform.rs",
@@ -227,14 +235,15 @@
       ],
       "shell_scripts": [
         "platform/ios/ios-media-authorization/check.sh",
-        "platform/ios/ios-media-authorization/check-surface.sh"
+        "platform/ios/ios-media-authorization/check-surface.sh",
+        "platform/ios/ios-media-authorization/check-link-imports.sh"
       ],
       "source_dirs": [
         "platform/ios/ios-media-authorization"
       ],
       "targets": [
         {
-          "minimum_os": "7.0",
+          "minimum_os": "10.0",
           "sdk": "iphoneos",
           "triple": "aarch64-apple-ios"
         },
@@ -256,8 +265,11 @@
             "platform/ios/ios-media-authorization/src/request.rs",
             "platform/ios/ios-media-authorization/src/status.rs",
             "platform/ios/ios-media-authorization/check-surface.sh",
+            "platform/ios/ios-media-authorization/check-link-imports.sh",
+            "platform/ios/ios-media-authorization/examples/media_authorization_link_probe.rs",
             "docs/ios/media-authorization.md",
-            "docs/capabilities/capability-status.json"
+            "docs/capabilities/capability-status.json",
+            "tools/validation/specs/validation-v1.json"
           ],
           "required": true,
           "evidence_type": "source-contract-consistency",

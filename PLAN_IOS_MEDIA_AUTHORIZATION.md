@@ -57,8 +57,9 @@ a numbered B/D workstream ID:
 
 Acceptance is the portable lazy-request tests, iOS host callback-state tests, device and Simulator
 compile/Clippy/rustdoc checks, the source-surface guard, and the registered
-`ios-media-authorization` validator profile. These gates do not invoke AVFoundation or display a
-permission prompt.
+`ios-media-authorization` validator profile. The profile must link a real Rust consumer for device
+and Simulator, inspect AVFoundation/Foundation/Objective-C imports and the emitted deployment
+minimum with `vtool`, and leave both probes unexecuted.
 
 ## Checks
 
@@ -73,8 +74,11 @@ B36 is complete in isolated worktree `/Users/john/Projects/.worktrees/jcdig-medi
 `7b5513fa2a4864d21a594cbf1fbd43951427155d`. `objc2-av-foundation = 0.3.2` exposes the exact
 `authorizationStatusForMediaType:` method and video/audio constants on iOS; enabled features are
 only `AVCaptureDevice` and `AVMediaFormat`, with defaults disabled. Xcode 26.6 build 17F113 / iOS
-SDK 26.5 headers mark the status method iOS 7.0 and both media constants iOS 4.0. No deployment
-target is set.
+SDK 26.5 headers mark the status method iOS 7.0 and both media constants iOS 4.0. The public API
+availability floor remains iOS 7.0. With Rust 1.94.1 and no explicit deployment override, the
+registered Release consumer link probe emits a device minimum of iOS 10.0 and Simulator minimum
+of iOS 14.0, verified with `vtool`; these effective Rust target floors are distinct from API
+availability.
 
 `./platform/ios/ios-media-authorization/check.sh` passed for B36: two host mapper tests, device and
 Simulator checks, host/device/Simulator strict Clippy, device-target rustdoc, and the status-only
@@ -97,6 +101,8 @@ hardware access, capture, or sample access was executed.
 
 The callback liveness fix at `9646b3b` maps a panic during status conversion to
 `MediaAuthorizationStatus::Unknown` before completing the pending request. The regression
-`callback_status_panic_completes_unknown_and_wakes_once` passed with the five-test host suite; the
-registered media-authorization profile passed again after integration. Simulator execution and
-physical-device runtime remain unverified.
+`callback_status_panic_completes_unknown_and_wakes_once` passed with the five-test host suite. The
+registered device/Simulator release link probe verifies AVFoundation, Foundation, Objective-C
+message dispatch, both authorization selectors, no Swift runtime imports, and the measured 10.0 /
+14.0 emitted floors; it does not execute either binary. Simulator execution and physical-device
+runtime remain unverified.

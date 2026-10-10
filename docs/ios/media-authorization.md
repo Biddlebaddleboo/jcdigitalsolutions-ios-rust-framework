@@ -46,9 +46,11 @@ input, session, audio engine, or output and do not access samples.
 
 The installed Xcode 26.6 build 17F113 / iOS SDK 26.5 public `AVCaptureDevice.h` marks
 `authorizationStatusForMediaType:` available from iOS 7.0. `AVMediaTypeVideo` and `AVMediaTypeAudio`
-are available from iOS 4.0 in `AVMediaFormat.h`; the effective API floor is iOS 7.0. The crate sets
-no deployment target. SDK suggested deployment targets are build defaults, not the declared API
-floor.
+are available from iOS 4.0 in `AVMediaFormat.h`; the public API availability floor remains iOS 7.0.
+With Rust 1.94.1, a release Rust consumer link emits Mach-O minimum iOS 10.0 for device and 14.0
+for Simulator, as inspected with `vtool`. Those are effective Rust target floors, not API
+availability claims. The registered link probe checks imports, selectors, zero Swift-runtime
+imports, and both emitted floors without executing the binary.
 
 The adapter uses exact `objc2-av-foundation = 0.3.2` with default features disabled and only
 `AVCaptureDevice`, `AVMediaFormat`, and `block2`; direct `block2` use enables only its `alloc`
