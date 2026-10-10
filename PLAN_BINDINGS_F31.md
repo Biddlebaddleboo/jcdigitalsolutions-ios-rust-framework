@@ -69,8 +69,12 @@ shared lock edge. Host/device/Simulator feature graphs, checks, Clippy, and rust
 and C++17 header syntax fixtures passed. The link gate passed host C/C++ imports of only
 `libSystem.B.dylib` and device/Simulator C/C++ imports of `RoomPlan` plus `libSystem.B.dylib`; the
 required public `RoomCaptureSession` metadata accessor and `isSupported` getter imports and iOS
-16.0 minos passed. No tests, consumers, probes, or RoomPlan calls ran. No passing CI workflow run is
-recorded, and Xcode 26.6 / SDK 26.5 is below the Xcode 27.x baseline
+16.0 minos passed. No tests, consumers, probes, or RoomPlan calls ran. No passing CI workflow run
+had been recorded at this validation point, and Xcode 26.6 / SDK 26.5 is below the Xcode 27.x
+baseline. Mainline run
+[38066495166](https://github.com/Biddlebaddleboo/jcdigitalsolutions-ios-rust-framework/actions/runs/38066495166)
+later passed the F31 C ABI gates as part of steps 235–275 on macOS 15 and Xcode 27. Linked probes
+were not executed; this is not runtime or device evidence.
 
 ## Root integration
 

@@ -19,6 +19,10 @@ F19 archive-reader follow-up: CommonCrypto251 was skipped after Vision249 failed
 
 Each slice reports an integrated root C ABI feature and its focused `bindings/c/check-ios-*.sh` gate. Records establish compilation, static-link checks, import/selector allowlists, C11/C++17 consumer links and no-unwanted-feature checks; **the binaries were not run**. Preserve pointer/length/alignment preconditions, initialization of outputs, no pointer retention, exact platform availability, error mapping, async completion ownership and feature isolation when extending them. F21's async operation is an Objective-C callback bridge, **not** proof of a general Swift async task-entry API.
 
+## Current mainline requalification
+
+Mainline run [38066495166](https://github.com/Biddlebaddleboo/jcdigitalsolutions-ios-rust-framework/actions/runs/38066495166) on `9b0f13630c87d6913ea011fc4300b9b9f596195f` passed all C ABI gates 235–275 on macOS 15 and Xcode 27, including F17–F22. This resolves the previously pending hosted requalification notes above. Ubuntu passed its non-Apple checks and skipped Apple-only gates. Later commits through `85db105` did not change these binding sources or gates; they add a separate archive-smoke CI step. The run proves compile, Clippy, link/import, and layout checks only; linked probes were not executed and no device/runtime behavior is claimed.
+
 ## Remaining active work
 
 Keep `PLAN_BINDINGS.md` and every other F-series plan active pending their own proof. In particular, do not retire F23 or F24 on the basis of another branch's readiness, nor assume that new calls in F25–F33 have finished integration. R2 validation may consolidate mechanical scripts but must preserve the distinct negative ABI assertions and all static-versus-runtime evidence limitations.

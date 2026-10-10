@@ -76,7 +76,11 @@ The source/API facts and entitlement/runtime limits are recorded in `PLAN_IOS_GA
   `libSystem.B.dylib`, and `libobjc.A.dylib`; no Swift runtime or unrelated capability framework imported.
   Device minos was 10.0 and Simulator minos was 14.0; the SDK API floor remains iOS 4.1
 - Linked consumers were inspected but not executed. No tests, auth handler, sign-in prompt, live player read,
-  signed entitlement check, or Game Center UI ran. No passing CI workflow run is recorded
+  signed entitlement check, or Game Center UI ran. No passing CI workflow run had been recorded at this validation point.
+  Mainline run
+  [38066495166](https://github.com/Biddlebaddleboo/jcdigitalsolutions-ios-rust-framework/actions/runs/38066495166)
+  later passed the F33 C ABI gates as part of steps 235–275 on macOS 15 and Xcode 27; linked probes
+  were not executed, and no runtime or device evidence is claimed.
 - Both gates passed in the integrated checkout after root wiring; linked consumers were inspected but not
   executed
 

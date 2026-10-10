@@ -76,7 +76,11 @@ SDK 26.5. This toolchain is below the repository's Xcode 27.x baseline
   framework plus `libSystem.B.dylib`; the StoreKit getter symbol is a weak external import. No direct Swift
   runtime import was present. Device minos was 10.0 and Simulator minos was 14.0
 - Linked consumers were inspected but not executed. No tests, live StoreKit query, transaction, purchase, or
-  runtime check below iOS 15.0 ran. No passing CI workflow run is recorded
+  runtime check below iOS 15.0 ran. No passing CI workflow run had been recorded at this validation point.
+  Mainline run
+  [38066495166](https://github.com/Biddlebaddleboo/jcdigitalsolutions-ios-rust-framework/actions/runs/38066495166)
+  later passed the F32 C ABI gates as part of steps 235–275 on macOS 15 and Xcode 27; linked probes
+  were not executed, and no runtime or device evidence is claimed.
 - Both gates passed in the integrated checkout after root wiring; linked consumers were inspected but not
   executed
 

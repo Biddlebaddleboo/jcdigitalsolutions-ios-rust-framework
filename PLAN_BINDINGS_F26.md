@@ -54,9 +54,15 @@ F26 is integrated in the root checkout. `sh bindings/c/check-ios-camera-device-s
 feature isolation, strict Clippy, Release archives, C11/C++17 links, exact AVFoundation/libSystem/libobjc
 device and Simulator imports, symbol/string filters, and minos 10.0/14.0 passed. Host C imported only
 libSystem; host C++ also imported libc++. Foundation was removed by dead stripping. Both gates are
-wired in macOS CI; no passing workflow run is recorded. Local validation used Xcode 26.6 build 17F113
+wired in macOS CI; no passing workflow run had been recorded at this validation point. Local
+validation used Xcode 26.6 build 17F113
 and iOS/iOS Simulator SDK 26.5; no linked consumers/probes were executed. No Rust tests or live camera
 query ran
+
+Mainline run
+[38066495166](https://github.com/Biddlebaddleboo/jcdigitalsolutions-ios-rust-framework/actions/runs/38066495166)
+later passed the F26 C ABI gates as part of steps 235–275 on macOS 15 and Xcode 27. Linked
+probes were not executed; this is not runtime or device evidence.
 
 The integrated static gate also asserts source, header, guide, plan, and manifest output-pointer
 preconditions: valid aligned writable storage for the full synchronous call, caller protection from

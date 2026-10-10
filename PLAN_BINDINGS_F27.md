@@ -46,3 +46,8 @@ F27 owns `bindings/c/src/ios_core_ml_status.rs`, `bindings/c/include/framework_i
 - No tests, consumers, linked probes, Core ML model loads, inference, live device-list calls, parity, or performance checks were run
 - Exact device/Simulator C and C++ direct imports are CoreML, Foundation, `libSystem.B.dylib`, and `libobjc.A.dylib`; host C and C++ import only `libSystem.B.dylib`. C++ links use `-nostdlib++`; device minos is 11.0 and Simulator minos is 14.0
 - The installed host is Xcode 26.6 build 17F113 with iPhoneOS and Simulator SDK 26.5, below PLAN.md's Xcode 27.x baseline
+
+Mainline run
+[38066495166](https://github.com/Biddlebaddleboo/jcdigitalsolutions-ios-rust-framework/actions/runs/38066495166)
+later passed the F27 C ABI gates as part of steps 235–275 on macOS 15 and Xcode 27. Linked
+probes were not executed; no Core ML model, inference, or live device-list behavior is claimed.
