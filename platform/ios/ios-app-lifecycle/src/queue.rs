@@ -117,6 +117,14 @@ mod tests {
     }
 
     #[test]
+    fn initial_state_does_not_enqueue_an_event() {
+        let mut events = EventQueue::new(Some(ApplicationState::Foreground));
+
+        assert_eq!(events.last_state, Some(ApplicationState::Foreground));
+        assert_eq!(events.pop(), None);
+    }
+
+    #[test]
     fn consecutive_duplicate_state_changes_are_coalesced() {
         let mut events = EventQueue::new(Some(ApplicationState::Foreground));
         events.apply(LifecycleNotification::DidBecomeActive);
