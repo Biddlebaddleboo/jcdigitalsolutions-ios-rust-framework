@@ -4,6 +4,9 @@
 
 > **Scope and evidence:** This handbook describes the interfaces verified in repository `Biddlebaddleboo/jcdigitalsolutions-ios-rust-framework` at commit `8b68d2909de9b5e926130265ba241c80ab653e99`. It is a usage guide, not a certification that all CI checks pass. At the inspected commit, shared-tool artifact CI passed while ordinary macOS and Ubuntu CI each retained a separately observed failure. Verify the current `main` SHA and current binary `--help`/`--version` before acting on a later revision.
 
+
+**Hosted Actions trigger policy:** Both framework workflows (`.github/workflows/ci.yml` and `.github/workflows/shared-tools.yml`) are `workflow_dispatch` only; neither runs automatically on push or pull request. Existing in-flight Actions runs are unaffected. Manual clean-host qualification remains available when required and must be associated with the exact intended commit; a blocked local gate is not a pass.
+
 ## Tooling ownership and version boundary (October 2026)
 
 The maintained implementation of `ios-rust-build` and `ios-rust-validate` now lives in the private `Biddlebaddleboo/jcdigitalsolutions-rust-tooling` repository. Normal framework sessions consume **version-pinned, checksummed binaries** and must not clone, inspect, or modify engine source. API-specific checks, specs, fixtures and adapters remain framework-owned.
