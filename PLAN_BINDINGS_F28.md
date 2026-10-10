@@ -79,5 +79,8 @@ are exactly Foundation, Speech, `libSystem.B.dylib`, and `libobjc.A.dylib`. C++ 
 Simulator; the API floor is iOS 10.0
 
 No tests, linked consumers, or probes were executed. Xcode 26.6 build 17F113 and iOS SDK 26.5
-were used; this is below the repository's Xcode 27.x baseline. No passing CI workflow run is
-recorded
+were used; this is below the repository's Xcode 27.x baseline. No passing CI workflow run had been
+recorded at this validation point. Mainline run
+[38066495166](https://github.com/Biddlebaddleboo/jcdigitalsolutions-ios-rust-framework/actions/runs/38066495166)
+later passed the F28 C ABI gates as part of steps 235–275 on macOS 15 and Xcode 27. Linked probes
+were not executed; this is not runtime or device evidence.

@@ -88,4 +88,7 @@ asset-request, and Swift surfaces were absent
 
 Validation used Rust 1.94.1, Xcode 26.6 build 17F113, and iOS SDK 26.5, below the repository's
 Xcode 27.x baseline. No tests or linked consumers/probes were executed, and no passing CI workflow
-run is recorded
+run had been recorded at this validation point. Mainline run
+[38066495166](https://github.com/Biddlebaddleboo/jcdigitalsolutions-ios-rust-framework/actions/runs/38066495166)
+later passed the F29 C ABI gates as part of steps 235–275 on macOS 15 and Xcode 27. Linked probes
+were not executed; this is not runtime or device evidence.

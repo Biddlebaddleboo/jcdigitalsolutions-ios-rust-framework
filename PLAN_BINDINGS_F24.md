@@ -45,3 +45,8 @@ Root-owned integration files were already wired on the `c55410d14c57c3ffdc1982cf
 `sh bindings/c/check-ios-mps-status-link.sh` passed. It checks host/device/Simulator feature isolation, default-off MPS bindings and `MPSCore`-only binding features; host/device/Simulator check and strict Clippy; Release archives; C11/C++17 host/device/Simulator links; exact import sets; `_MPSGetPreferredDevice` and `_objc_release`; forbidden Swift, Objective-C messaging, and unrelated GPU/MPS imports; export parity; and final minos 12.2/device and 14.0/Simulator. Probes were linked and inspected, never executed
 
 Root integration is complete: the Cargo feature/dependency, module/re-export, ABI manifest and lock entries, both macOS CI gates, and links from `docs/DOCUMENTATION.md` and `docs/bindings/cpp.md` are present. The link gate establishes import and deployment shape only, not a live preferred-device result or MPS workload support
+
+Mainline run
+[38066495166](https://github.com/Biddlebaddleboo/jcdigitalsolutions-ios-rust-framework/actions/runs/38066495166)
+later passed the F24 C ABI gates as part of steps 235–275 on macOS 15 and Xcode 27. Linked
+probes were not executed; no live MPS query or device behavior is claimed.

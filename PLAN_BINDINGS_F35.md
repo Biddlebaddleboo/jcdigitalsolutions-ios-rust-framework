@@ -43,3 +43,9 @@ Implementation is complete in this workstream. The C ABI is version 1.3; `Framew
 - PASS: Rust formatting check, ABI manifest JSON/value inspection, C11 and C++17 header syntax, and C minimal example syntax.
 - Not run: Cargo tests, `bindings/c/check.sh`, linked C example, and any runtime check.
 - Host compilation and syntax checks do not prove C runtime allocation behavior, panic injection, 32-bit execution, or iOS device/simulator linkage.
+
+Mainline run
+[38066495166](https://github.com/Biddlebaddleboo/jcdigitalsolutions-ios-rust-framework/actions/runs/38066495166)
+later passed the C API header, layout, symbol, and consumer check on macOS 15 and Xcode 27, with
+the C ABI gates 235–275 also passing on both Apple lanes. The linked C example and C ABI probes
+were not executed; no runtime allocation or device behavior is claimed.

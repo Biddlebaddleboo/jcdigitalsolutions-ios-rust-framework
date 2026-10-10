@@ -67,7 +67,10 @@ signed, approved, entitled, launchable, or compatible with a host
 Host C/C++ imported only `libSystem.B.dylib`; device and Simulator C/C++ imported exactly
 Foundation, `libSystem.B.dylib`, and `libobjc.A.dylib`. Device and Simulator minos were 12.0 and
 14.0. The link probes were inspected, not executed. The gates ran on Xcode 26.6 (build 17F113) / iOS
-SDK 26.5; no passing CI workflow run is recorded
+SDK 26.5; no passing CI workflow run had been recorded at this validation point. Mainline run
+[38066495166](https://github.com/Biddlebaddleboo/jcdigitalsolutions-ios-rust-framework/actions/runs/38066495166)
+later passed the F30 C ABI gates as part of steps 235–275 on macOS 15 and Xcode 27. Linked probes
+were not executed; this is not runtime or device evidence.
 
 The gates may compile, link, and inspect C/C++ consumers and probes. They must not execute them.
 No tests, extension load, live metadata read, install/approval query, or host launch is part of F30

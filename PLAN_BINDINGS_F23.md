@@ -46,3 +46,8 @@ Root owns `bindings/c/Cargo.toml`, `bindings/c/src/lib.rs`, `bindings/c/abi-mani
 Root integration is complete on the `bf544b2` baseline: the C API has target-iOS optional dependencies on `framework-key-support` and `ios-key-support`, the feature edge `ios-key-support = ["dep:framework-key-support", "dep:ios-key-support"]`, cfg-gated module and re-export, and the `.optional_capabilities.ios_key_support` manifest entry. Cargo.lock is current, both F23 gates are in macOS CI, and the aggregate binding plan and documentation index link this API
 
 The link gate checks host/device/Simulator feature isolation and strict Clippy, builds Release archives, links C11/C++17 probes without executing them, and inspects CoreFoundation, Security, `libSystem.B.dylib` (+ `libc++.1.dylib` for C++), `_SecKeyCreateWithData`, `_SecKeyIsAlgorithmSupported`, forbidden Keychain/key-generation/signature-operation imports, export parity, and target minima 10.0/device and 14.0/Simulator
+
+Mainline run
+[38066495166](https://github.com/Biddlebaddleboo/jcdigitalsolutions-ios-rust-framework/actions/runs/38066495166)
+later passed the F23 C ABI gates as part of steps 235–275 on macOS 15 and Xcode 27. Linked
+probes were not executed; no live key query or device behavior is claimed.

@@ -49,8 +49,9 @@ links
 F25 is integrated in the root checkout. `sh bindings/c/check-ios-videotoolbox.sh` passed Rust
 formatting, both shell syntax checks, ABI manifest syntax/contract, source/header symbol agreement,
 whitespace, and standalone C11/C++17 header compilation. `sh bindings/c/check-ios-videotoolbox-link.sh`
-passed again after root integration. Both gates are wired in macOS CI; no passing workflow run is
-recorded. Local validation used Xcode 26.6 (build 17F113), iPhoneOS SDK 26.5, and iPhoneSimulator
+passed again after root integration. Both gates are wired in macOS CI; no passing workflow run had
+been recorded at this validation point. Local validation used Xcode 26.6 (build 17F113), iPhoneOS
+SDK 26.5, and iPhoneSimulator
 SDK 26.5; this remains below the planned Xcode 27.x baseline
 
 `sh bindings/c/check-ios-videotoolbox-link.sh` passed host/device/Simulator feature-tree isolation,
@@ -88,6 +89,11 @@ source-equivalent commit `3900cd1`; later commits through `2a38984` are docs/CI-
 Xcode 26.6 (build 17F113), SDK 26.5, Rust/Cargo 1.94.1, tools 0.1.0. Feature isolation + exact
 linked-import audit: PASS; device minos 11.0, Simulator minos 14.0. Scope: C11/C++17 link/import
 compile only. No tests, consumers, probe binaries, or runtime codec query ran
+
+Mainline run
+[38066495166](https://github.com/Biddlebaddleboo/jcdigitalsolutions-ios-rust-framework/actions/runs/38066495166)
+later passed the F25 C ABI gates as part of steps 235–275 on macOS 15 and Xcode 27. The link
+probes were not executed; this is not runtime or device evidence.
 
 ## Acceptance and limits
 
