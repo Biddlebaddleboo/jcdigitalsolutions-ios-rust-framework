@@ -5,6 +5,14 @@ root=$(CDPATH= cd -- "$(dirname -- "$0")/../.." && pwd)
 cd "$root"
 mkdir -p target
 
+rustc_sysroot=$(rustc --print sysroot)
+rustc_host=$(rustc -vV | sed -n 's/^host: //p')
+llvm_nm="$rustc_sysroot/lib/rustlib/$rustc_host/bin/llvm-nm"
+if [ ! -x "$llvm_nm" ]; then
+    echo "Rust LLVM symbol tool is required for Rust archive scans: $llvm_nm" >&2
+    exit 1
+fi
+
 for tool in awk cargo clang clang++ diff jq nm otool rg sed sort strings xcrun; do
     if ! command -v "$tool" >/dev/null 2>&1; then
         echo "$tool is required for the F33 link/import gate" >&2
@@ -49,7 +57,7 @@ for language in c cpp; do
     diff -u "target/framework-c-ios-game-status-$language-host-libraries-expected.txt" \
         "target/framework-c-ios-game-status-$language-host-libraries.txt"
 done
-nm -g "$host_archive" 2>/dev/null \
+"$llvm_nm" -g "$host_archive" 2>/dev/null \
     | rg -o '_framework_ios_game_status_[A-Za-z0-9_]+' \
     | sed 's/^_//' | LC_ALL=C sort -u > target/framework-c-ios-game-status-host-archive-symbols.txt
 diff -u "$expected_symbols" target/framework-c-ios-game-status-host-archive-symbols.txt
@@ -122,7 +130,7 @@ for target in aarch64-apple-ios aarch64-apple-ios-sim; do
         printf '%s %s imports %s; minos %s; consumer not executed\n' \
             "$target" "$language" "$(tr '\n' ' ' < "target/framework-c-ios-game-status-$language-$target-libraries.txt")" "$actual_deployment_target"
     done
-    nm -g "$archive" 2>/dev/null \
+    "$llvm_nm" -g "$archive" 2>/dev/null \
         | rg -o '_framework_ios_game_status_[A-Za-z0-9_]+' \
         | sed 's/^_//' | LC_ALL=C sort -u \
         > "target/framework-c-ios-game-status-$target-archive-symbols.txt"
