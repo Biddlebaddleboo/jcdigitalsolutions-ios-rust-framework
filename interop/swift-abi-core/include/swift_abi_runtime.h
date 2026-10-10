@@ -53,6 +53,44 @@ static inline bool swift_abi_value_storage_alignment(
     return true;
 }
 
+/* `metadata` must be compiler-proven Swift type metadata whose preceding word holds a valid
+ * `SwiftValueWitnessTable` pointer; the caller ensures both reads are valid
+ * On success, `witnesses_out` borrows that table and size is nonzero; alignment is read from
+ * witness flags, validated as a power of two, and raised to at least `sizeof(void *)`
+ * With all output pointers valid, failure leaves the witness pointer null and size/alignment zero
+ * The caller owns allocated storage and calls `swift_abi_destroy_and_free_value` exactly once
+ * after a successful Swift value init; this helper does not alloc, init, copy, or destroy values
+ */
+static inline bool swift_abi_value_storage_layout_from_metadata(
+    const void *metadata,
+    const struct SwiftValueWitnessTable **witnesses_out,
+    uintptr_t *size_out,
+    uintptr_t *alignment_out) {
+    if (witnesses_out == NULL || size_out == NULL || alignment_out == NULL) {
+        return false;
+    }
+    *witnesses_out = NULL;
+    *size_out = 0;
+    *alignment_out = 0;
+    if (metadata == NULL) {
+        return false;
+    }
+
+    const struct SwiftValueWitnessTable *const *const witnesses_location =
+        (const struct SwiftValueWitnessTable *const *)metadata;
+    const struct SwiftValueWitnessTable *const witnesses = witnesses_location[-1];
+    uintptr_t alignment = 0;
+    if (witnesses == NULL || witnesses->size == 0 || witnesses->destroy == NULL ||
+        !swift_abi_value_storage_alignment(witnesses, &alignment)) {
+        return false;
+    }
+
+    *witnesses_out = witnesses;
+    *size_out = witnesses->size;
+    *alignment_out = alignment;
+    return true;
+}
+
 static inline bool swift_abi_allocate_value_storage(
     void **value_out,
     uintptr_t alignment,

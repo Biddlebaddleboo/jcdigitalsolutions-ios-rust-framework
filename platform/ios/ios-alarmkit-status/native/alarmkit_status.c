@@ -62,11 +62,16 @@ uint8_t framework_alarm_manager_authorization_state(void *manager, uint8_t *stat
     if (response.metadata == NULL) {
         return 2;
     }
-    const struct SwiftValueWitnessTable *const witnesses =
-        ((const struct SwiftValueWitnessTable *const *)response.metadata)[-1];
-    if (witnesses == NULL ||
+    const struct SwiftValueWitnessTable *witnesses = NULL;
+    uintptr_t value_size = 0;
+    uintptr_t alignment = 0;
+    if (!swift_abi_value_storage_layout_from_metadata(
+            response.metadata,
+            &witnesses,
+            &value_size,
+            &alignment) ||
         (witnesses->flags & SWIFT_ABI_VALUE_WITNESS_HAS_ENUM_WITNESSES) == 0 ||
-        witnesses->size == 0 || witnesses->get_enum_tag == NULL || witnesses->destroy == NULL) {
+        witnesses->get_enum_tag == NULL) {
         return 4;
     }
 
@@ -78,13 +83,8 @@ uint8_t framework_alarm_manager_authorization_state(void *manager, uint8_t *stat
         return 4;
     }
 
-    uintptr_t alignment = 0;
-    if (!swift_abi_value_storage_alignment(witnesses, &alignment)) {
-        return 4;
-    }
-
     void *value = NULL;
-    if (!swift_abi_allocate_value_storage(&value, alignment, witnesses->size)) {
+    if (!swift_abi_allocate_value_storage(&value, alignment, value_size)) {
         return 5;
     }
 

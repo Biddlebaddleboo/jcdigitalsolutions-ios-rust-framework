@@ -24,3 +24,31 @@ Cover failure after initialization, null pointers, unknown enum, alignment, owne
 ## Ownership and handoff
 
 R3 owns `interop/swift-abi-core/**` and `interop/swift-abi-generated/**` and scoped bridge source; R1 owns pilot build scripts, R2 owns check infrastructure. Report newly shared symbols, migrated call sites, before/after ABI evidence, errors/cancellation limitations, tests and SHA.
+
+## R3 residual — resilient-value layout
+
+- Rust `SwiftRetained` already covers ActivityKit/AlarmKit class ownership
+- The shared C header already has metadata layout, aligned alloc, and destroy/free helpers
+- Source compare found one duplicate in AlarmKit `AuthorizationState` and Photogrammetry `Limits`: read VWT at `metadata[-1]`, require nonzero size and destroy witness, derive storage alignment
+- AlarmKit also requires enum witnesses and `get_enum_tag`; Photogrammetry `Limits` is a resilient struct
+- `swift_abi_value_storage_layout_from_metadata` now shares only the common metadata-to-layout path as C `static inline`
+- The helper requires a compiler-proven metadata pointer with a readable preceding `SwiftValueWitnessTable` pointer, rejects zero size or invalid alignment, returns a borrowed table, and leaves valid outputs null/zero on failure
+- The caller owns metadata memory validity and allocated value storage, then calls `swift_abi_destroy_and_free_value` once after successful Swift value init
+- Each thunk retains its own init, enum tag, result mapping, and error codes; ActivityKit is unchanged because its scalar `Bool` path has no Swift value
+- No Cargo feature, Rust API, Apple symbol, thunk signature, framework link, error code, or target floor changed
+- C6 async no-go unchanged; no task entry/resume, executor, async, or cancellation support added
+
+### R3 check evidence
+
+- Before: AlarmKit and Photogrammetry had two direct `metadata[-1]` VWT reads and duplicate size/destroy/alignment checks
+- After: both use `swift_abi_value_storage_layout_from_metadata`; device/Simulator IR still has the same Apple declarations, Swift calls, `sret`, enum tag, destroy, and link symbols
+- PASS `cargo +1.94.1 fmt --all -- --check`
+- PASS `cargo +1.94.1 check --locked --offline -p swift-abi-core -p swift-abi-generated`
+- PASS `sh platform/ios/ios-activitykit-status/scripts/check-swiftcall.sh` for device and arm64 Simulator
+- PASS `sh platform/ios/ios-photogrammetry-status/check-swiftcall.sh` for device and arm64 Simulator
+- PASS AlarmKit Swift oracle and C thunk IR compile for arm64 iOS 26.0 device and arm64 iOS 26.0 Simulator, using the oracle source and symbol record in `PLAN_CAPABILITIES_ALARMKIT.md`
+- PASS `sh platform/ios/ios-alarmkit-status/check-link-imports.sh` for device and arm64 Simulator; link probes not run
+- PASS `sh platform/ios/ios-photogrammetry-status/check-link-imports.sh` for device and arm64 Simulator; link probes not run
+- PASS `cargo +1.94.1 xtask docs-check`, `cargo +1.94.1 xtask zero-swift-source`, and `git diff --check`
+- No tests, host layout fixture, Simulator runtime, or physical-device query in this pass
+- Xcode 26.6 / iOS SDK 26.5 remains below the Xcode 27.x qualification baseline; AlarmKit has no x86_64 Swift IR oracle

@@ -57,19 +57,19 @@ uint8_t framework_photogrammetry_session_limits(
         return 1;
     }
 
-    const struct SwiftValueWitnessTable *const witnesses =
-        ((const struct SwiftValueWitnessTable *const *)limits_response.metadata)[-1];
-    if (witnesses == NULL || witnesses->size == 0 || witnesses->destroy == NULL) {
-        return 3;
-    }
-
+    const struct SwiftValueWitnessTable *witnesses = NULL;
+    uintptr_t value_size = 0;
     uintptr_t alignment = 0;
-    if (!swift_abi_value_storage_alignment(witnesses, &alignment)) {
+    if (!swift_abi_value_storage_layout_from_metadata(
+            limits_response.metadata,
+            &witnesses,
+            &value_size,
+            &alignment)) {
         return 3;
     }
 
     void *limits = NULL;
-    if (!swift_abi_allocate_value_storage(&limits, alignment, witnesses->size)) {
+    if (!swift_abi_allocate_value_storage(&limits, alignment, value_size)) {
         return 4;
     }
 
