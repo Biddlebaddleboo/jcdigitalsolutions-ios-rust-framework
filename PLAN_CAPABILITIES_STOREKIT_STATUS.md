@@ -22,3 +22,11 @@ Apple marks `SKPaymentQueue` unsupported and marks `canMakePayments` as deprecat
 ## Validation
 
 Run `sh platform/ios/ios-storekit-status/scripts/check.sh`
+
+## D55 completion evidence — 2026-10-10
+
+Reviewed and completed from base `1ac40c6159cdfc480d9c05eabc522834b6df2066`. The product implementation was already present and met the scope; no API, package, guide, matrix, or manifest change was needed. `src/lib.rs` exports only `legacy_can_make_payments` on iOS, returns `false` below iOS 3.0, and calls only `SKPaymentQueue::canMakePayments`. Its Rust docs and `docs/ios/storekit-status.md` state StoreKit 1 deprecation and the StoreKit 2 replacement and exclude queue, product, account, transaction, entitlement, and payment UI behavior. The package selects `objc2-store-kit` 0.3.2 with workspace default features disabled and only `SKPaymentQueue` enabled.
+
+Installed and inspected pinned `ios-rust-build` and `ios-rust-validate` 0.1.0 (`source_sha=2289e6a73257b696f6ae5ecd61ee20fd16ab8b37`, Rust 1.94.1). `ios-rust-validate --list` does not register this package, so its package-owned `scripts/check.sh` is the applicable gate. `sh platform/ios/ios-storekit-status/scripts/check.sh` passed: format, host/device/Simulator package checks, strict Clippy, host/device rustdoc, Release device/Simulator link-probe builds and import/source inspection (exactly Foundation, StoreKit, libSystem.B.dylib, libobjc.A.dylib; no Swift runtime), docs, zero-Swift, and diff checks.
+
+No tests were run. Device and Simulator probe binaries were built and inspected only; they were not executed. This records compile/link/import evidence, not runtime StoreKit behavior or live payment eligibility.
