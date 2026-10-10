@@ -26,3 +26,22 @@ passing CI workflow run is recorded
 - Target checks prove compilation, symbol resolution, and load-command scope only
 - Do not execute CoreText on a Simulator or device, claim exact font output, or infer native parity
   from host fixture values
+
+## 2026-10-10 current-main recheck
+
+At source tree `4cf1a796a6dbb6a5f6fbaa4424fbb298e8ba0762`, Rust 1.94.1, Xcode 26.6 build
+17F113, and iOS SDK 26.5:
+
+- PASS: `cargo +1.94.1 check --locked -p ios-ui --target aarch64-apple-ios` and the matching
+  `aarch64-apple-ios-sim` check
+- PASS: strict all-target Clippy for both targets with `-D warnings`
+- PASS: `sh platform/ios/ios-ui/check-text-metrics-link-imports.sh`. The C SDK-header assertions
+  passed for `sizeof(CGFloat) == 8`, `_Alignof(CGFloat) == 8`, `sizeof(CTFontUIFontType) == 4`,
+  and the five declared function signatures. Both Release probes import exactly CoreFoundation,
+  CoreText, and `libSystem.B.dylib`; both retain `_CTFontCreateUIFontForLanguage`,
+  `_CTFontGetAscent`, `_CTFontGetDescent`, `_CTFontGetLeading`, and `_CFRelease`. Device minimum
+  OS is 12.0; Simulator minimum OS is 14.0; both use SDK 26.5. Swift/Python runtime and source
+  guards passed.
+
+No passing CI workflow run is recorded. The probe executables were not run; these results do not
+establish runtime font metrics, exact font output, or UIKit parity.
