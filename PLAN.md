@@ -19,9 +19,15 @@ reproduced the same `xcode-27` import-list failure: expected `CoreMedia` + `libS
 [38034156057](https://github.com/Biddlebaddleboo/jcdigitalsolutions-ios-rust-framework/actions/runs/38034156057)
 adds failure diagnostics and confirms Xcode `27.0` build `27A266a`, SDK `27.0`, device target
 minimum iOS `12.0`, `LC_LOAD_DYLIB @rpath/libswiftCoreMedia.dylib`, and undefined `_CMTimeMake`.
-This is a strong dylib dependency, not a weak load. The device link therefore does not yet prove
-iOS 12.0/12.1 runtime availability or a safe deployment path; do not accept the import until that
-is resolved. In run 38034156057 Ubuntu passes and the `xcode-27` job fails at the media import gate.
+This is a strong dylib dependency, not a weak load. The B22 fix at `31df44f` now constructs the
+public `CMTime` fields directly with `CMTimeFlags::Valid` and epoch zero, avoiding `CMTimeMake` and
+its strong Swift runtime dependency while preserving the iOS 12.0 device floor. Strict local
+device/Simulator link-import and layout checks pass on Xcode 26.6 / SDK 26.5; this is not Xcode 27
+qualification or runtime proof. Run [38035161806](https://github.com/Biddlebaddleboo/jcdigitalsolutions-ios-rust-framework/actions/runs/38035161806)
+uses pre-fix `a66b4ca`: Ubuntu passes, Xcode 27 fails at the old media import gate, and macOS
+package gates remain in progress. Post-fix run
+[38035445897](https://github.com/Biddlebaddleboo/jcdigitalsolutions-ios-rust-framework/actions/runs/38035445897)
+is queued at `31df44f`; Xcode 27 qualification remains pending.
 The `macos-15` leg of run 38033435519 reached `ios-rust-validate --all` and failed the
 Photogrammetry Swift ABI oracle and AlarmKit link-import scan: default Xcode 16.4 / iOS SDK 18.5
 lacks the expected Photogrammetry ABI lowering and iOS 26 AlarmKit framework. CI now runs the
