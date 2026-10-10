@@ -34,12 +34,14 @@ No event/reminder fetch or enumeration, event creation or edits, write-only requ
 ## Validation
 
 ~~~sh
-cargo fmt --all -- --check
-cargo test -p framework-calendar
-cargo check -p framework-calendar --no-default-features
+cargo +1.94.1 fmt --all -- --check
+cargo +1.94.1 test --locked --offline -p framework-calendar
+cargo +1.94.1 check --locked --offline -p framework-calendar --no-default-features
 git diff --check
 ~~~
 
 ## Status
 
-Complete. `framework-calendar` is `no_std`, forbids unsafe code, and has no Apple dependency. The fake-backend tests cover status forwarding, `WriteOnly` versus `FullAccess`, and lazy explicit request start. `cargo test -p framework-calendar` passed with 3 tests; `cargo check -p framework-calendar --no-default-features`, workspace format, and `git diff --check` passed in the package gate.
+Reconciled against current base `95f201c0ecccf624ea78f726e83d5e340bea4df1`; the existing portable API already met the required static/no_std contract. Clarified that `Unknown` differs from `NotDetermined`, made unpolled-drop semantics explicit, and strengthened deterministic tests to observe backend method invocation separately from future polling. Added error kind/native-code preservation coverage.
+
+Current worktree evidence with Rust `1.94.1`: workspace formatting passed; the package test suite passed all 5 tests; the package no-default-features check passed; `git diff --check` passed. The locked offline dependency tree contains only `framework-core` below `framework-calendar`. Production code uses `core` plus framework-owned `framework-core` types; `std` is test-only under `cfg(test)`, and the crate has no allocator, unsafe code, dynamic dispatch, or native EventKit dependency. No iOS prompt, EventKit runtime, or event-data behavior was exercised or asserted.

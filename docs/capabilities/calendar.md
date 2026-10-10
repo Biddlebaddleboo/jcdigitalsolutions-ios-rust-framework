@@ -14,15 +14,15 @@ async fn request<B: CalendarAuthorizationBackend>(
 }
 ~~~
 
-`Calendar<B>` owns the explicitly supplied backend. Backend selection is static, and associated futures use `core::future::Future`; there is no boxed trait object, executor, **Send** requirement, registry, or hidden initialization. `authorization_status` is a non-prompting query. Only an explicit `request_full_access` operation may prompt, and a backend must defer native work until that future is first polled.
+`Calendar<B>` owns the explicitly supplied backend. Backend selection is static, and associated futures use `core::future::Future`; there is no boxed trait object, executor, **Send** requirement, registry, or hidden initialization. `authorization_status` is a non-prompting query. Only an explicit `request_full_access` operation may prompt. Creating a request future, or dropping it before its first poll, starts no backend work; a backend may start prompt-capable work only when that future is first polled.
 
 ## Status and result semantics
 
-`CalendarAuthorizationStatus` distinguishes `NotDetermined`, `Restricted`, `Denied`, `WriteOnly`, `FullAccess`, and `Unknown`. `WriteOnly` is not equivalent to `FullAccess`: it reports permission to save new events without full Calendar event-data access. The contract reports a write-only state but does not offer a write-only permission request.
+`CalendarAuthorizationStatus` distinguishes `Unknown`, `NotDetermined`, `Restricted`, `Denied`, `WriteOnly`, and `FullAccess`. `Unknown` means the backend could not classify a reported status; it is distinct from `NotDetermined`, which means no user decision has been made. `WriteOnly` is not equivalent to `FullAccess`: it reports permission to save new events without full Calendar event-data access. The contract reports a write-only state but does not offer a write-only permission request.
 
 The result of a request is the authorization status queried after native completion, not a callback grant Boolean. Dropping a pending request future abandons its result; it cannot promise to dismiss a native prompt already shown. Native callback state must remain safe until completion and complete at most once. Errors retain their portable `ErrorKind` and optional signed `PlatformErrorCode` through `CalendarError::Backend`.
 
-The portable crate contains no Apple framework types, event values, strings, heap buffers, unsafe code, or platform-specific permission details. It does not fetch or modify events or reminders.
+The portable crate depends only on `framework-core` and `core`; it is allocator-free `no_std` code with no Apple framework types, event values, strings, heap buffers, unsafe code, or platform-specific permission details. It does not fetch or modify events or reminders.
 
 ## Scope and checks
 

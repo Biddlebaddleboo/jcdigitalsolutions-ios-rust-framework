@@ -17,7 +17,7 @@ extern crate std;
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
 #[non_exhaustive]
 pub enum CalendarAuthorizationStatus {
-    /// The platform has not yet asked the user or the status cannot be classified.
+    /// The platform returned an authorization status this contract cannot classify.
     Unknown,
     /// The platform has not yet asked the user.
     NotDetermined,
@@ -59,11 +59,11 @@ impl CalendarError {
 ///
 /// `authorization_status` must not prompt. `request_full_access` is the only prompt-capable
 /// operation in this contract, and a backend must defer native work until its returned future is
-/// first polled. Its result is the status queried after native request completion, not merely a
-/// callback's grant Boolean. Dropping a pending future detaches the caller from its result; it
-/// cannot promise to dismiss a native prompt already shown. Callback state must stay valid until
-/// the native callback completes and must complete at most once. No executor or `Send` requirement
-/// is imposed.
+/// first polled. Dropping an unpolled future starts no backend work. Its result is the status
+/// queried after native request completion, not merely a callback's grant Boolean. Dropping a
+/// pending future detaches the caller from its result; it cannot promise to dismiss a native prompt
+/// already shown. Callback state must stay valid until the native callback completes and must
+/// complete at most once. No executor or `Send` requirement is imposed.
 pub trait CalendarAuthorizationBackend {
     /// Reports current Calendar event authorization without prompting.
     fn authorization_status(&self) -> CalendarAuthorizationStatus;
@@ -108,9 +108,9 @@ impl<B: CalendarAuthorizationBackend> Calendar<B> {
 
     /// Explicitly requests full access to Calendar event data.
     ///
-    /// The returned future starts native work only when first polled. The result is based on a
-    /// status query after the native completion callback. Dropping it abandons the result but
-    /// cannot be assumed to dismiss a prompt already shown.
+    /// Creating or dropping the returned future before its first poll starts no backend work.
+    /// The result is based on a status query after the native completion callback. Dropping a
+    /// pending future abandons the result but cannot be assumed to dismiss a prompt already shown.
     pub async fn request_full_access(
         &mut self,
     ) -> Result<CalendarAuthorizationStatus, CalendarError> {
@@ -130,11 +130,12 @@ mod tests {
 
     struct FakeBackend {
         status: CalendarAuthorizationStatus,
-        requested: Rc<Cell<usize>>,
+        requests: Rc<Cell<usize>>,
+        polls: Rc<Cell<usize>>,
     }
 
     struct FakeRequest {
-        requested: Rc<Cell<usize>>,
+        polls: Rc<Cell<usize>>,
         status: CalendarAuthorizationStatus,
     }
 
@@ -143,7 +144,7 @@ mod tests {
 
         fn poll(self: core::pin::Pin<&mut Self>, _context: &mut Context<'_>) -> Poll<Self::Output> {
             let this = self.get_mut();
-            this.requested.set(this.requested.get() + 1);
+            this.polls.set(this.polls.get() + 1);
             Poll::Ready(Ok(this.status))
         }
     }
@@ -159,8 +160,9 @@ mod tests {
             Self: 'a;
 
         fn request_full_access<'a>(&'a mut self) -> Self::RequestFullAccessFuture<'a> {
+            self.requests.set(self.requests.get() + 1);
             FakeRequest {
-                requested: self.requested.clone(),
+                polls: self.polls.clone(),
                 status: self.status,
             }
         }
@@ -173,6 +175,14 @@ mod tests {
     }
 
     #[test]
+    fn unknown_and_not_determined_are_distinct_statuses() {
+        assert_ne!(
+            CalendarAuthorizationStatus::Unknown,
+            CalendarAuthorizationStatus::NotDetermined
+        );
+    }
+
+    #[test]
     fn write_only_and_full_access_are_distinct_statuses() {
         assert_ne!(
             CalendarAuthorizationStatus::WriteOnly,
@@ -181,36 +191,63 @@ mod tests {
     }
 
     #[test]
-    fn status_query_does_not_start_a_request() {
-        let requested = Rc::new(Cell::new(0));
+    fn status_query_forwards_backend_status_without_starting_a_request() {
+        let requests = Rc::new(Cell::new(0));
+        let polls = Rc::new(Cell::new(0));
         let calendar = Calendar::new(FakeBackend {
             status: CalendarAuthorizationStatus::WriteOnly,
-            requested: requested.clone(),
+            requests: requests.clone(),
+            polls: polls.clone(),
         });
 
         assert_eq!(
             calendar.authorization_status(),
             CalendarAuthorizationStatus::WriteOnly
         );
-        assert_eq!(requested.get(), 0);
+        assert_eq!(requests.get(), 0);
+        assert_eq!(polls.get(), 0);
     }
 
     #[test]
     fn explicit_request_starts_when_the_facade_future_is_polled() {
-        let requested = Rc::new(Cell::new(0));
+        let requests = Rc::new(Cell::new(0));
+        let polls = Rc::new(Cell::new(0));
         let mut calendar = Calendar::new(FakeBackend {
             status: CalendarAuthorizationStatus::FullAccess,
-            requested: requested.clone(),
+            requests: requests.clone(),
+            polls: polls.clone(),
         });
-        let mut future = pin!(calendar.request_full_access());
+        let unpolled = calendar.request_full_access();
+        assert_eq!(requests.get(), 0);
+        assert_eq!(polls.get(), 0);
+        drop(unpolled);
+        assert_eq!(requests.get(), 0);
+        assert_eq!(polls.get(), 0);
 
-        assert_eq!(requested.get(), 0);
+        let mut future = pin!(calendar.request_full_access());
+        assert_eq!(requests.get(), 0);
+        assert_eq!(polls.get(), 0);
         let waker = Waker::from(Arc::new(NoopWake));
         let mut context = Context::from_waker(&waker);
         assert!(matches!(
             future.as_mut().poll(&mut context),
             Poll::Ready(Ok(CalendarAuthorizationStatus::FullAccess))
         ));
-        assert_eq!(requested.get(), 1);
+        assert_eq!(requests.get(), 1);
+        assert_eq!(polls.get(), 1);
+    }
+
+    #[test]
+    fn backend_error_preserves_kind_and_optional_platform_code() {
+        let code = PlatformErrorCode::new(-42).unwrap();
+        let error = CalendarError::Backend(
+            Error::new(ErrorKind::PermissionDenied).with_platform_code(code),
+        );
+        assert_eq!(error.kind(), ErrorKind::PermissionDenied);
+        assert_eq!(error.platform_code(), Some(code));
+
+        let error = CalendarError::Backend(Error::new(ErrorKind::Unavailable));
+        assert_eq!(error.kind(), ErrorKind::Unavailable);
+        assert_eq!(error.platform_code(), None);
     }
 }
