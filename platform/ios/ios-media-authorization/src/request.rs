@@ -7,7 +7,6 @@ use core::pin::Pin;
 use core::task::{Context, Poll};
 use framework_media_authorization::{CaptureMedia, MediaAuthorization, MediaAuthorizationStatus};
 use objc2_av_foundation::{AVCaptureDevice, AVMediaTypeAudio, AVMediaTypeVideo};
-use std::panic::{AssertUnwindSafe, catch_unwind};
 use std::sync::Arc;
 
 /// A lazy AVFoundation camera/microphone authorization request.
@@ -54,9 +53,8 @@ impl IosMediaAuthorizationFuture {
         let completion = Arc::clone(&self.completion);
         let media = self.media;
         let handler = RcBlock::new(move |_| {
-            let _ = catch_unwind(AssertUnwindSafe(|| {
-                completion.complete(IosMediaAuthorization::authorization_status(media));
-            }));
+            completion
+                .complete_from_callback(|| IosMediaAuthorization::authorization_status(media));
         });
         // SAFETY: This public iOS 7+ AVFoundation API accepts only AVMediaTypeVideo or
         // AVMediaTypeAudio. The native method copies the escaping completion block and invokes it

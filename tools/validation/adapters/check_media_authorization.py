@@ -20,7 +20,7 @@ REQUIRED = {
   "fn start(&mut self)",
   "if self.started",
   "AVCaptureDevice::requestAccessForMediaType_completionHandler",
-  "completion.complete(IosMediaAuthorization::authorization_status(media))",
+  "complete_from_callback(|| IosMediaAuthorization::authorization_status(media))",
   "impl Drop for IosMediaAuthorizationFuture",
   "self.completion.detach()",
  ],
