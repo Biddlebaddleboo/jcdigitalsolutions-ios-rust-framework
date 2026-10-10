@@ -26,3 +26,9 @@ Additionally assert no shipping `.swift` source; inspect a Release-linked iOS ar
 
 ## Evidence limits and handoff
 Passing these gates proves only the checks actually executed. It does not prove hardware availability, provisioning or `Info.plist`, NFC prompts, session startup, tag scanning/reads/writes, background reading or simulator NFC behavior. Report exact commands, artifact/target, imports, skipped gates, original-regression coverage and commit SHA. Do not retrieve historical engine source; escalate engine defects through `BUG_REPORT_*.md`.
+
+## Hosted CI requalification
+
+[GitHub Actions run 38075483431](https://github.com/Biddlebaddleboo/jcdigitalsolutions-ios-rust-framework/actions/runs/38075483431) completed successfully at source SHA `85db105389c1d0b212bc385d9b4b6a1f6e049c0b`. In both `Rust checks (macos-15)` and `Rust checks (xcode-27)`, the run passed `Check portable NFC contract without default features`, `Test portable NFC contract` (one unit test passed), `Clippy portable NFC contract`, `Check iOS Core NFC device target`, `Check iOS Core NFC Simulator target`, `Clippy iOS Core NFC device target`, and `Clippy iOS Core NFC Simulator target`. Ubuntu passed the portable NFC checks; its Apple-target steps were skipped. The Xcode 27 job recorded Xcode 27.0 build `27A266a`, iPhoneOS SDK 27.0, and iPhoneSimulator SDK 27.0. The NFC package/workflow and shared Cargo inputs for these gates are unchanged through current base `4fd6482f11ceaa9d2e1b8971fbe6b63eeb80d5c5`.
+
+The run has no Core NFC Release link/import audit for a linked artifact, so the required `CoreNFC`/`Foundation` imports, `objc2-core-nfc` dependency boundary, and unrelated-framework/Swift-runtime exclusions remain pending. The run also has no `git diff --check` gate for this slice. Compile, lint, and unit-test results do not establish NFC hardware availability, provisioning, prompts, session lifecycle, tag operations, or simulator/device runtime behavior.

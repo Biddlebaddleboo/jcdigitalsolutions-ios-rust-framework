@@ -32,3 +32,7 @@ Do not edit shared CI, root Cargo files, capability manifests, docs indexes, agg
 - `git diff --check`
 
 All iOS gates are compile/lint checks only. They do not execute the device-capability query or prove simulator/device runtime behavior, session authorization, session start, peer discovery, or ranging.
+
+## Hosted CI requalification
+
+[GitHub Actions run 38075483431](https://github.com/Biddlebaddleboo/jcdigitalsolutions-ios-rust-framework/actions/runs/38075483431) completed successfully at source SHA `85db105389c1d0b212bc385d9b4b6a1f6e049c0b`. The `Rust checks (macos-15)` and `Rust checks (xcode-27)` jobs passed `Check Nearby Interaction capability package gates`, running `sh platform/ios/ios-nearby/check.sh`; that script covers formatting, portable tests/no-default-feature check/strict Clippy, device and Simulator checks/strict Clippy, and `git diff --check`. The Xcode 27 job recorded Xcode 27.0 build `27A266a`, iPhoneOS SDK 27.0, and iPhoneSimulator SDK 27.0. The Nearby package/workflow and shared Cargo inputs for these gates are unchanged through current base `4fd6482f11ceaa9d2e1b8971fbe6b63eeb80d5c5`. These results are package, compile, lint, and source-diff checks only; they do not execute the status query or establish hardware, authorization, session, peer-discovery, or ranging runtime behavior.

@@ -44,3 +44,7 @@ establish app runtime, authorization state, prompt behavior, device use, or capt
 The locked package scripts ran with a temporary resolved `Cargo.lock` containing
 `objc2-av-foundation 0.3.2`; that lock edit was restored before handoff. Root lock integration is
 required before the scripts can run with `--locked` in the integrated checkout.
+
+## Hosted CI requalification
+
+[GitHub Actions run 38075483431](https://github.com/Biddlebaddleboo/jcdigitalsolutions-ios-rust-framework/actions/runs/38075483431) completed successfully at source SHA `85db105389c1d0b212bc385d9b4b6a1f6e049c0b`. The `Rust checks (macos-15)` and `Rust checks (xcode-27)` jobs passed `Check camera and microphone authorization package gates`, which runs `sh platform/ios/ios-media-authorization/check.sh`. The Xcode 27 job also passed `Clippy all features on Apple host`, `Unit tests`, `Portable no_std checks`, `Rust documentation`, and `Documentation and zero-Swift-source checks`. It recorded Xcode 27.0 build `27A266a`, iPhoneOS SDK 27.0, and iPhoneSimulator SDK 27.0. The relevant Cargo manifests/lockfile, CI workflow, media-authorization crate, and iOS package inputs are unchanged through current base `4fd6482f11ceaa9d2e1b8971fbe6b63eeb80d5c5`, so this run remains applicable to those gate inputs. These results are compile, lint, test, documentation, and source-guard evidence only; they do not establish app runtime, authorization state, prompt behavior, device use, or capture behavior.
