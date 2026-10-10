@@ -6,7 +6,7 @@
 let execution = BackgroundExecution::new(IosBackgroundExecution::new());
 let Some(main_thread) = MainThread::current() else { return; };
 let Ok(lease) = execution.begin(main_thread) else { return; };
-let expiry = lease.expiry_signal();
+let expiry = lease.expiry();
 while app_has_bounded_work() && !expiry.is_expired() {
     run_one_bounded_unit();
 }

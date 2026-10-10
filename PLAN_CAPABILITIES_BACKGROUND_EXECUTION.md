@@ -46,11 +46,14 @@ Root owns workspace and lock integration, capability JSON and counts, shared ind
 
 ## Local validation evidence
 
-Rust 1.94.1 checks passed in the isolated D23 worktree:
+Rust 1.94.1 checks passed in the isolated D23 worktree based on `8b26a426d0e92d97ba2d0456346218dce8e1e8f1` on 2026-10-09:
 
-- `cargo +1.94.1 check --locked -p framework-background-execution --no-default-features`
-- `cargo +1.94.1 clippy --locked -p framework-background-execution --all-targets -- -D warnings`
+- `cargo +1.94.1 check --locked --offline -p framework-background-execution --no-default-features`
+- `cargo +1.94.1 clippy --locked --offline -p framework-background-execution --all-targets -- -D warnings`
 - `cargo +1.94.1 fmt --manifest-path crates/framework-background-execution/Cargo.toml -- --check`
+- `git diff --check`
+
+The portable guide example now calls `BackgroundExecutionLease::expiry()`; `expiry_signal()` is an iOS adapter convenience, not part of the D23 portable trait. The crate has no dedicated test files or inline test module, and no test command was run. B28/G22 files remain read-only; no UIKit runtime behavior is claimed.
 
 ## Handoff
 
