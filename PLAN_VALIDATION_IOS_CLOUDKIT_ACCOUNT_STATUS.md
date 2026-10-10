@@ -35,12 +35,18 @@ validation on Rust 1.94.1 / Xcode 26.6 build 17F113 / iPhoneOS and iPhoneSimulat
 Both link probes import CloudKit, Foundation, `/usr/lib/libSystem.B.dylib`, and
 `/usr/lib/libobjc.A.dylib`; neither imports a Swift runtime or unrelated capability framework. The
 examples were built but not executed. Formatting, docs-index, zero-Swift, and diff checks are
-passed through the package gate. No live account query, entitlement validation, CloudKit
-data operation, simulator launch, or passing CI workflow run is claimed. Xcode 26.6 / SDK 26.5 is
-below the required Xcode 27.x plan baseline.
+passed through the package gate. No live account query, entitlement validation, CloudKit data
+operation, or simulator launch is claimed. The local Xcode 26.6 / SDK 26.5 result is below the
+required Xcode 27.x plan baseline; hosted Xcode 27 static-gate evidence is recorded below.
 
 ## Acceptance boundary
 
 These gates establish compilation, lint, and bounded link/import evidence only. They do not establish
 live account status, signed entitlement configuration, CloudKit database access, account-change
 observation, Apple parity, or performance.
+
+## Hosted Xcode 27 static-gate evidence (2026-10-10)
+
+The Xcode 27 lane in [GitHub Actions run 38075483431](https://github.com/Biddlebaddleboo/jcdigitalsolutions-ios-rust-framework/actions/runs/38075483431) passed step `Check CloudKit account-status contract and iOS gates`, which ran `sh platform/ios/ios-cloud/check-cloudkit.sh` at source SHA `85db105389c1d0b212bc385d9b4b6a1f6e049c0b`. The runner recorded Xcode 27.0 build 27A266a, iPhoneOS and iPhoneSimulator SDK 27.0, and Rust 1.94.1. The script's portable check/strict Clippy, device/Simulator check/strict Clippy, device/Simulator link/import gates, formatter, docs-index, zero-Swift-source, and diff checks passed; both import-gate logs state that the binary was not executed. The `crates/framework-cloud/`, `platform/ios/ios-cloud/`, workspace manifest/lockfile, `xtask/`, and `.github/workflows/ci.yml` gate inputs are unchanged from the run SHA through current `origin/main` `5b59d9d`.
+
+This does not establish live account status, signed entitlement configuration, CloudKit database access, account-change observation, Apple parity, or performance.
