@@ -81,7 +81,8 @@ else
 fi
 
 metadata="$scratch/unpacked/tool-metadata.json"
-for field in "\"schema_version\":1" "\"release_id\":\"$release_id\"" "\"source_sha\":\"$source_sha\"" "\"host_triple\":\"$host\"" "\"rustc_version\":\"$rustc_version\""; do
+origin="https://github.com/Biddlebaddleboo/jcdigitalsolutions-ios-rust-framework/tree/$source_sha"
+for field in "\"schema_version\":1" "\"release_id\":\"$release_id\"" "\"source_sha\":\"$source_sha\"" "\"origin\":\"$origin\"" "\"host_triple\":\"$host\"" "\"rustc_version\":\"$rustc_version\""; do
   grep -F "$field" "$metadata" >/dev/null || fail "tool metadata does not match pin: $field"
 done
 for tool in ios-rust-build ios-rust-validate; do

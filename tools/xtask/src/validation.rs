@@ -1731,7 +1731,7 @@ fn explain(pilot: &Pilot) {
     }
 }
 
-fn explain_json(pilot: &Pilot) {
+fn explain_json(pilot: &Pilot) -> Result<(), String> {
     let targets = pilot
         .targets
         .iter()
@@ -1803,32 +1803,37 @@ fn explain_json(pilot: &Pilot) {
             })
         })
         .collect::<Vec<_>>();
-    println!(
-        "{}",
-        serde_json::json!({
-            "schema_version": 1,
-            "id": pilot.id,
-            "package": pilot.package,
-            "inputs": {
-                "manifest": pilot.manifest,
-                "check_script": pilot.check_script,
-                "source_dirs": pilot.source_dirs,
-                "scoped_files": pilot.scoped_files,
-                "docs": pilot.docs
-            },
-            "targets": targets,
-            "abi_targets": abi_targets,
-            "expected_imports": pilot.expected_imports,
-            "abi_oracles_and_link_scans": pilot.abi_scripts,
-            "guards": guards,
-            "commands": commands,
-            "adapters": adapters,
-            "evidence_limitations": [
-                "compile, link and import evidence do not prove simulator execution",
-                "compile, link and import evidence do not prove physical-device runtime behavior"
-            ]
-        })
-    );
+    let output = serde_json::json!({
+        "schema_version": 1,
+        "id": pilot.id,
+        "package": pilot.package,
+        "inputs": {
+            "manifest": pilot.manifest,
+            "check_script": pilot.check_script,
+            "source_dirs": pilot.source_dirs,
+            "scoped_files": pilot.scoped_files,
+            "docs": pilot.docs
+        },
+        "targets": targets,
+        "abi_targets": abi_targets,
+        "expected_imports": pilot.expected_imports,
+        "abi_oracles_and_link_scans": pilot.abi_scripts,
+        "guards": guards,
+        "commands": commands,
+        "adapters": adapters,
+        "evidence_limitations": [
+            "compile, link and import evidence do not prove simulator execution",
+            "compile, link and import evidence do not prove physical-device runtime behavior"
+        ]
+    })
+    .to_string();
+    if output.len() > MAX_RESULT_JSON_BYTES {
+        return Err(format!(
+            "validation explanation exceeds the {MAX_RESULT_JSON_BYTES} byte output limit"
+        ));
+    }
+    println!("{output}");
+    Ok(())
 }
 
 pub(crate) fn run_at(
@@ -1873,7 +1878,7 @@ pub(crate) fn run_at(
     let (mode, value) = mode.ok_or_else(|| "usage: ios-rust-validate --workspace-root PATH --spec PATH (--list | --explain ID | --capability ID | --changed EXPLICIT_BASE | --all) [--format human|json]".to_owned())?;
     if mode == "--list" {
         if format_json {
-            println!(
+            let output = format!(
                 "{{\"schema_version\":1,\"pilots\":[{}]}}",
                 pilots
                     .iter()
@@ -1881,6 +1886,12 @@ pub(crate) fn run_at(
                     .collect::<Vec<_>>()
                     .join(",")
             );
+            if output.len() > MAX_RESULT_JSON_BYTES {
+                return Err(format!(
+                    "validation pilot list exceeds the {MAX_RESULT_JSON_BYTES} byte output limit"
+                ));
+            }
+            println!("{output}");
         } else {
             for pilot in pilots {
                 println!("{}", pilot.id);
@@ -1892,7 +1903,7 @@ pub(crate) fn run_at(
         let spec = pilot_from(value.unwrap(), pilots)
             .ok_or_else(|| format!("unknown capability `{}`", value.unwrap()))?;
         if format_json {
-            explain_json(spec);
+            explain_json(spec)?;
         } else {
             explain(spec);
         }

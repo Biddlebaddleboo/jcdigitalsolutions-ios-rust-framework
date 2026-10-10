@@ -66,6 +66,9 @@ jobs:
           if command -v shasum >/dev/null 2>&1; then (cd "$RUNNER_TEMP/ios-rust-tools/bin" && shasum -a 256 ios-rust-build ios-rust-validate > "$RUNNER_TEMP/ios-rust-tools/SHA256SUMS"); else (cd "$RUNNER_TEMP/ios-rust-tools/bin" && sha256sum ios-rust-build ios-rust-validate > "$RUNNER_TEMP/ios-rust-tools/SHA256SUMS"); fi
           tar -C "$RUNNER_TEMP/ios-rust-tools" -czf "$RUNNER_TEMP/ios-rust-tools-${host}.tar.gz" bin tool-metadata.json SHA256SUMS
           if command -v shasum >/dev/null 2>&1; then shasum -a 256 "$RUNNER_TEMP/ios-rust-tools-${host}.tar.gz" > "$RUNNER_TEMP/ios-rust-tools-${host}.tar.gz.sha256"; else sha256sum "$RUNNER_TEMP/ios-rust-tools-${host}.tar.gz" > "$RUNNER_TEMP/ios-rust-tools-${host}.tar.gz.sha256"; fi
+          tools/install-tools.sh --prefix "$RUNNER_TEMP/verified-ios-rust-tools"
+          "$RUNNER_TEMP/verified-ios-rust-tools/bin/ios-rust-build" --version --format json
+          "$RUNNER_TEMP/verified-ios-rust-tools/bin/ios-rust-validate" --version --format json
       - name: Upload immutable-source build artifact
         uses: actions/upload-artifact@v4
         with:

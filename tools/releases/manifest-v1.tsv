@@ -1,0 +1,4 @@
+host_triple	release_id	source_sha	rustc_version	tool_version	archive_path	archive_sha256
+aarch64-apple-darwin	ios-rust-tools-0.1.0+954b0985ba830d119c7a86949b8c396cf4f0f514	954b0985ba830d119c7a86949b8c396cf4f0f514	rustc 1.94.1 (e408947bf 2026-03-25)	0.1.0	tools/releases/ios-rust-tools-aarch64-apple-darwin.tar.gz	5214aa0407fbb7809f749da8c675ce30abda05aaab28d85eb35d067d2e74b72e
+x86_64-unknown-linux-gnu	ios-rust-tools-0.1.0+954b0985ba830d119c7a86949b8c396cf4f0f514	954b0985ba830d119c7a86949b8c396cf4f0f514	rustc 1.94.1 (e408947bf 2026-03-25)	0.1.0	tools/releases/ios-rust-tools-x86_64-unknown-linux-gnu.tar.gz	7a52fe9eefb80a26e3a9736d303269399dce1acfc870ed6ac9bb3da2611278be
+x86_64-apple-darwin	ios-rust-tools-0.1.0+954b0985ba830d119c7a86949b8c396cf4f0f514	954b0985ba830d119c7a86949b8c396cf4f0f514	rustc 1.94.1 (e408947bf 2026-03-25)	0.1.0	tools/releases/ios-rust-tools-x86_64-apple-darwin.tar.gz	13d2f26d48bfddd3b8f366d7b71ff16c1b4f4074c19f956c7c0e0be510958acf

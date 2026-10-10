@@ -11,6 +11,7 @@ use std::process::{Command, Output, Stdio};
 
 const RERUN_ENV: [&str; 2] = ["SDKROOT", "DEVELOPER_DIR"];
 const MAX_BUILD_SPEC_BYTES: usize = 65_536;
+const MAX_BUILD_RESULT_BYTES: usize = 1_048_576;
 
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
 /// A native CPU architecture supported by the iOS build config.
@@ -438,10 +439,18 @@ pub fn run_cli(args: &[String]) -> Result<(), String> {
         .lines()
         .map(str::to_owned)
         .collect::<Vec<_>>();
-    println!(
-        "{}",
-        serde_json::json!({"schema_version":1,"status":"ok","directives":directives})
-    );
+    let output = serde_json::json!({
+        "schema_version":1,
+        "status":"ok",
+        "directives":directives
+    })
+    .to_string();
+    if output.len() > MAX_BUILD_RESULT_BYTES {
+        return Err(format!(
+            "build result exceeds the {MAX_BUILD_RESULT_BYTES} byte output limit"
+        ));
+    }
+    println!("{output}");
     Ok(())
 }
 
