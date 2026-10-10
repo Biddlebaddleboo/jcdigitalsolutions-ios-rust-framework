@@ -100,8 +100,9 @@ impl ReplayKitAvailability {
 
 /// A point-in-time report that the built-in SoundAnalysis classifier request is recognized.
 ///
-/// This value does not report microphone access, custom-model support, analysis success, or
-/// ShazamKit catalog availability.
+/// A `true` value means the built-in version 1 classifier request was constructed successfully
+/// and exposed a nonempty known-classification list. This value does not imply microphone access,
+/// model execution, analysis success, custom-model support, or ShazamKit catalog access.
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
 pub struct SoundAnalysisSupportSnapshot {
     built_in_classifier_available: bool,
