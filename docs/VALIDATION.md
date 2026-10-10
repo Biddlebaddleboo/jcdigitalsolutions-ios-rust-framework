@@ -27,6 +27,9 @@ cargo test -p parity-harness
 cargo test -p bench-harness
 ```
 
+
+**CI execution policy:** `.github/workflows/ci.yml` and `.github/workflows/shared-tools.yml` run only through manual `workflow_dispatch`. Do not automatically launch GitHub Actions for routine local changes or pushes. Required clean-host checks remain independently dispatchable; until explicitly run, their results are unverified, not PASS.
+
 ## Agent workflow and maintained tool ownership
 
 For ordinary framework API development, `AGENTS.md` and `docs/SHARED_TOOLING.md` define the authoritative **validator-first** workflow. `ios-rust-validate` and `ios-rust-build` are maintained in private `Biddlebaddleboo/jcdigitalsolutions-rust-tooling`; the framework carries pinned verified binaries and its own API-specific specs, adapters, checks and fixtures. Always verify the installed executable version and available flags before invocation.
