@@ -21,9 +21,13 @@ adds failure diagnostics and confirms Xcode `27.0` build `27A266a`, SDK `27.0`, 
 minimum iOS `12.0`, `LC_LOAD_DYLIB @rpath/libswiftCoreMedia.dylib`, and undefined `_CMTimeMake`.
 This is a strong dylib dependency, not a weak load. The device link therefore does not yet prove
 iOS 12.0/12.1 runtime availability or a safe deployment path; do not accept the import until that
-is resolved. In run 38034156057 Ubuntu passes and the `xcode-27` job fails at the media import gate;
-the `macos-15` job is still in progress. Xcode 27 qualification remains unpassed. Local Xcode 26.6
-(build 17F113), SDK 26.5 gates pass for
+is resolved. In run 38034156057 Ubuntu passes and the `xcode-27` job fails at the media import gate.
+The `macos-15` leg of run 38033435519 reached `ios-rust-validate --all` and failed the
+Photogrammetry Swift ABI oracle and AlarmKit link-import scan: default Xcode 16.4 / iOS SDK 18.5
+lacks the expected Photogrammetry ABI lowering and iOS 26 AlarmKit framework. CI now runs the
+complete registered-pilot batch only on `xcode-27`; all other macOS package gates remain on
+`macos-15`. The Xcode 27 `--all` result remains pending because its job failed earlier at the media
+gate. Xcode 27 qualification remains unpassed. Local Xcode 26.6 (build 17F113), SDK 26.5 gates pass for
 B47 full audio (`sh platform/ios/ios-media/check-audio-playback.sh`), B50 package
 (`sh platform/ios/ios-media/check.sh`), and F25 C link/import
 (`sh bindings/c/check-ios-videotoolbox-link.sh`); detailed results and limits are in [PLAN_IOS_OTHER_AUDIO.md](PLAN_IOS_OTHER_AUDIO.md), [PLAN_VALIDATION_IOS_OTHER_AUDIO.md](PLAN_VALIDATION_IOS_OTHER_AUDIO.md), [PLAN_IOS_VIDEOTOOLBOX.md](PLAN_IOS_VIDEOTOOLBOX.md), and [PLAN_BINDINGS_F25.md](PLAN_BINDINGS_F25.md). These local passes do not establish runtime behavior; no tests, probe execution, live codec query, or device behavior is claimed.

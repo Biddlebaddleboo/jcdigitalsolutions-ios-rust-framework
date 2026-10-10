@@ -26,6 +26,11 @@ jobs:
             *) printf 'Expected Xcode 27.x, got %s\n' "$xcode_version" >&2; exit 1 ;;
           esac
           printf 'Verified Xcode %s at %s\n' "$xcode_version" "$(xcode-select -p)"
+      - name: Record selected Xcode on macOS runners
+        if: runner.os == 'macOS' && matrix.os != 'xcode-27'
+        run: |
+          xcodebuild -version
+          printf 'Selected Xcode path: %s\n' "$(xcode-select -p)"
       - name: Install ripgrep for package guards
         if: runner.os == 'macOS'
         run: |
@@ -397,7 +402,7 @@ jobs:
         if: runner.os == 'macOS'
         run: sh platform/ios/ios-storekit2-status/check.sh
       - name: Validate shared native pilot capabilities
-        if: runner.os == 'macOS'
+        if: matrix.os == 'xcode-27'
         run: ios-rust-validate --workspace-root "$GITHUB_WORKSPACE" --spec "$GITHUB_WORKSPACE/tools/validation/specs/validation-v1.json" --all
       - name: Check MatterSupport request API status
         if: runner.os == 'macOS'
