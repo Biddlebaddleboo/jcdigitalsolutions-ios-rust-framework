@@ -63,6 +63,16 @@ create/destroy plus byte `get`, `set`, and `remove` calls. Reuse F1 `FrameworkSt
 
 ## Validation record
 
+Xcode 27 run `38041994806` on head `51959d40530dc4b9e51a255acf6d5f1d30becdc4` passed the
+header-only C++17 gate at step 235, then failed the optional preferences C ABI step 241. Its iOS
+10.0 C++ compile reached the Xcode 27 libc++ `stddef.h` shim and promoted the SDK warning
+`The selected platform is no longer supported by libc++` to an error. The C++ fixture uses C ABI
+headers only, so `check-ios-preferences.sh` now passes `-nostdinc++` for its C++ compile commands;
+this avoids the unsupported libc++ header shim while preserving the C++ runtime link/import
+assertion for `libc++.1.dylib`, `-Werror`, and the device/Simulator minos checks. Hosted
+Xcode-27 requalification is pending. No consumer executable was run and no live preferences
+behavior is claimed
+
 On 2026-10-08, `cargo check --offline -p framework-c-api --no-default-features --features
 ios-preferences` refreshed the shared lock and passed. It retained the workspace package
 resolution for `ios-media-library-status` and `objc2-media-player` added by the row-090 workstream.

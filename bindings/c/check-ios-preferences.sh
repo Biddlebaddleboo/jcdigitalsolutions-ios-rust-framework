@@ -166,7 +166,8 @@ FIXTURE_CPP
 host_archive=target/release/libframework_c_api.a
 clang -std=c11 -Wall -Wextra -Werror -pedantic -I bindings/c/include -I target \
     target/framework-c-preferences-c.c "$host_archive" -o target/framework-c-preferences-c-host
-clang++ -std=c++17 -Wall -Wextra -Werror -pedantic -I bindings/c/include -I target \
+# The fixtures use only C ABI declarations; avoid libc++ headers at the iOS 10 compile floor.
+clang++ -nostdinc++ -std=c++17 -Wall -Wextra -Werror -pedantic -I bindings/c/include -I target \
     target/framework-c-preferences-cpp.cpp "$host_archive" \
     -o target/framework-c-preferences-cpp-host
 nm -g "$host_archive" 2>/dev/null \
@@ -191,7 +192,8 @@ for target in aarch64-apple-ios aarch64-apple-ios-sim; do
     xcrun --sdk "$sdk" clang -target "$clang_target" -std=c11 -Wall -Wextra -Werror \
         -pedantic -I bindings/c/include -I target target/framework-c-preferences-c.c \
         "$archive" -framework Foundation -o "target/framework-c-preferences-c-$target"
-    xcrun --sdk "$sdk" clang++ -target "$clang_target" -std=c++17 -Wall -Wextra -Werror \
+    xcrun --sdk "$sdk" clang++ -target "$clang_target" -nostdinc++ -std=c++17 \
+        -Wall -Wextra -Werror \
         -pedantic -I bindings/c/include -I target target/framework-c-preferences-cpp.cpp \
         "$archive" -framework Foundation -o "target/framework-c-preferences-cpp-$target"
 
