@@ -10,6 +10,7 @@ Rust apps call Rust directly; C/C++/Python are opt-in outer bindings over the sa
 - Audit F23–F33 and earlier unclosed F plans individually; don't infer integrated status from isolated worktrees or test scripts.
 - Preserve async operation ownership: exactly-once completion when promised, correct callback/context lifecycle, no callback after destroy unless explicitly contracted; distinguish cancel/detach vs completion. Specific F5 transfer/F7 share semantics remain capability-owned; never substitute a generic process-wide operation registry.
 - Finish optional C++ and Python layers only as explicitly scoped, preserving native ownership and failure/cancellation semantics; Python interpreter costs are opt-in and must not bleed into core.
+- F34 (`PLAN_BINDINGS_F34.md`) adds and documents an explicit transfer-aware `OwnedBuffer::from_transfer` factory; acceptance is a C++17 syntax-only consumer compile for both transferred and absent results, with no tests or runtime claim.
 - Validate header manifest parity, symbol exports, ABI version negotiation and stable error mapping. No silent wider same-major struct forward compatibility if inputs never promised it.
 
 ## Validation and handoff

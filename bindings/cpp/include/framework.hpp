@@ -23,6 +23,15 @@ class OwnedBuffer final {
 public:
   explicit OwnedBuffer(FrameworkOwnedBuffer &descriptor) noexcept
       : descriptor_(&descriptor) {}
+
+  /** Adopt only when a C API explicitly transferred ownership.
+   * Use the API's presence/ownership output; buffer length is not a signal.
+   */
+  static OwnedBuffer from_transfer(FrameworkOwnedBuffer &descriptor,
+                                   bool ownership_transferred) noexcept {
+    return OwnedBuffer(ownership_transferred ? &descriptor : nullptr);
+  }
+
   ~OwnedBuffer() noexcept { reset(); }
 
   OwnedBuffer(const OwnedBuffer &) = delete;
@@ -52,6 +61,9 @@ public:
   }
 
 private:
+  explicit OwnedBuffer(FrameworkOwnedBuffer *descriptor) noexcept
+      : descriptor_(descriptor) {}
+
   void reset() noexcept {
     if (descriptor_ != nullptr) {
       framework_owned_buffer_destroy(descriptor_);
