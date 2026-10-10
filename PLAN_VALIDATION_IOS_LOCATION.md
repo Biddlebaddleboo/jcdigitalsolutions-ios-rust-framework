@@ -20,6 +20,20 @@ A Rust source-surface guard was added to the B5 link/import script after the rec
 probe run. This follow-up checks its shell syntax and source predicates only; the full gate was not
 rerun because it builds Release probes.
 
+## 2026-10-10 focused recheck
+
+At `8e756ba0287a547ff769e55e649460282de6296a`, Rust 1.94.1, Xcode 26.6 build 17F113, and iOS
+SDK 26.5:
+
+- PASS: `cargo +1.94.1 check --locked -p ios-location --target aarch64-apple-ios`
+- PASS: `cargo +1.94.1 check --locked -p ios-location --target aarch64-apple-ios-sim`
+- PASS: `cargo +1.94.1 clippy --locked -p ios-location --all-targets --target aarch64-apple-ios -- -D warnings`
+- PASS: `cargo +1.94.1 clippy --locked -p ios-location --all-targets --target aarch64-apple-ios-sim -- -D warnings`
+- PASS: `sh platform/ios/ios-location/check-link-imports.sh` for device and Simulator. Both probes import exactly CoreLocation, Foundation, `libSystem.B.dylib`, and `libobjc.A.dylib`; both feature trees contain only `CLLocation`, `CLLocationManager`, and `CLLocationManagerDelegate`. Device minos is 10.0; Simulator minos is 14.0; both use SDK 26.5.
+- PASS: `cargo +1.94.1 xtask docs-check`; Ruby CI YAML parse; `git diff --check`.
+
+No probe, test, app, permission query, or location request ran. This is compile, Clippy, static link/import, and docs evidence only; Xcode 27.x qualification and live permission/location behavior remain open.
+
 ## Objective
 
 Add persistent iOS device and simulator compile/lint gates for the integrated B5 Core Location backend. Record precisely that these checks do not prove live permission, GPS, cancellation, or positioning behavior.
