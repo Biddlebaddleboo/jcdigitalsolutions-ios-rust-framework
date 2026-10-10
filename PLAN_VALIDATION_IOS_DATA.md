@@ -70,3 +70,17 @@ or other target gates. Root owns capability counts and shared indexes
   behavior, parity, allocation behavior under memory pressure, or performance
 - Run `cargo xtask docs-check`, `cargo xtask zero-swift-source`, workflow YAML parsing, and
   `git diff --check`; do not edit the shared capability totals
+
+## 2026-10-10 current-main recheck
+
+At `790a18db95d8a9b8a8ee5ae331222135f0957d26`, Rust 1.94.1, Xcode 26.6 build 17F113, and iOS
+SDK 26.5:
+
+- PASS: `cargo +1.94.1 check --locked -p ios-data --target aarch64-apple-ios`
+- PASS: `cargo +1.94.1 check --locked -p ios-data --target aarch64-apple-ios-sim`
+- PASS: `cargo +1.94.1 clippy --locked -p ios-data --all-targets --target aarch64-apple-ios -- -D warnings`
+- PASS: `cargo +1.94.1 clippy --locked -p ios-data --all-targets --target aarch64-apple-ios-sim -- -D warnings`
+- PASS: `sh platform/ios/ios-data/check-link-imports.sh` for device and Simulator. Both probes import exactly CoreFoundation.framework and `/usr/lib/libSystem.B.dylib`; device minos is 10.0 and Simulator minos is 14.0; both use SDK 26.5. The forbidden-symbol scan passes, with expected `_CFDataCreate`, `_CFDataGetBytes`, `_CFDataGetLength`, and `_CFRelease` imports.
+- PASS: `cargo +1.94.1 clippy --locked --workspace --all-targets --all-features -- -D warnings`, `cargo +1.94.1 fmt --all -- --check`, `cargo +1.94.1 xtask docs-check`, `cargo +1.94.1 xtask zero-swift-source`, Ruby CI YAML parse, and `git diff --check`.
+
+No test, probe execution, app, live `CFData` use, parity, memory-pressure allocation query, or performance measurement ran. These are compile, Clippy, static link/import, format, and docs results only. Xcode 27.x qualification and a passing GitHub workflow run remain unrecorded.
