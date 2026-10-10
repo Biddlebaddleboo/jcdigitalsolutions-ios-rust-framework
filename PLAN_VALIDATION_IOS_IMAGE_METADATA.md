@@ -1,5 +1,9 @@
 # PLAN_VALIDATION_IOS_IMAGE_METADATA.md — Workstream G20: ImageIO Metadata Validation Gate
 
+## Shared-tooling execution (current)
+
+The R1/R2 PATH executables are complete; use `docs/SHARED_TOOLING.md` and schema-v1 specifications rather than new build/validation machinery. This workstream has **no existing registered pilot** in `tools/validation/specs/validation-v1.json`. Retain its recorded local commands and unique ImageIO binary linkage and metadata invariants tests. An executor may declare a new validation profile and optional focused Python adapter; remove or replace existing checks only after equivalent positive, negative, cross-target and failure/skip parity is established. Do not claim an unregistered `ios-rust-validate --capability` run, infer runtime proof from static checks, or retrieve shared engine source. Escalate confirmed engine defects with `BUG_REPORT_*.md`.
+
 ## Objective
 
 Provide package-local CI commands and an import audit for the integrated D21/B26 metadata-only slice. This plan does not edit shared CI or global validation docs.

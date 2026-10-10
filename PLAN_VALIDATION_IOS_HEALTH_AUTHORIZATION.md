@@ -1,5 +1,9 @@
 # PLAN_VALIDATION_IOS_HEALTH_AUTHORIZATION.md — Workstream G25: Health Authorization Validation
 
+## Shared-tooling execution (current)
+
+The R1/R2 PATH executables are complete; use `docs/SHARED_TOOLING.md` and schema-v1 specifications rather than new build/validation machinery. This workstream has **no existing registered pilot** in `tools/validation/specs/validation-v1.json`. Retain its recorded local commands and unique HealthKit permission/entitlement and portable tests tests. An executor may declare a new validation profile and optional focused Python adapter; remove or replace existing checks only after equivalent positive, negative, cross-target and failure/skip parity is established. Do not claim an unregistered `ios-rust-validate --capability` run, infer runtime proof from static checks, or retrieve shared engine source. Escalate confirmed engine defects with `BUG_REPORT_*.md`.
+
 ## Objective
 
 Validate D26's portable request semantics and B31's public iOS bindings without treating compilation or request-flow completion as HealthKit authorization evidence.
