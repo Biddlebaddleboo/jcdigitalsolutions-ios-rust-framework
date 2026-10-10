@@ -1,5 +1,9 @@
 # PLAN_VALIDATION_IOS_ACCELERATE.md — Workstream G59: Accelerate Compile and Link Gates
 
+## Shared-tooling execution (current)
+
+R1/R2 tooling is complete and installed on PATH; consult `docs/SHARED_TOOLING.md`. This capability is **not registered** in the current four-pilot `tools/validation/specs/validation-v1.json`; do not claim an `ios-rust-validate --capability ios-accelerate` PASS. Retain the existing focused shell/Cargo checks below, especially vDSP public Accelerate imports and equal-length wrapper safety. When implementing new acceptance coverage, add schema-v1 declarative rules and, only if necessary, bounded Python adapters; replace repeated formatting/lint orchestration **only after** matching the original positive and negative gates. Existing recorded commands remain requirements/evidence as labeled. Never inspect or change the historical shared engine source; report engine defects in a sanitized `BUG_REPORT_*.md`.
+
 ## Objective
 
 Gate B65's direct C `vDSP_vadd` call and safe equal-length slice wrapper without running a numerical

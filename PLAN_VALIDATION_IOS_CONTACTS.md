@@ -1,5 +1,9 @@
 # PLAN_VALIDATION_IOS_CONTACTS.md — Workstream G23: iOS Contacts Package Gates
 
+## Shared-tooling execution (current)
+
+R1/R2 tooling is complete and installed on PATH; consult `docs/SHARED_TOOLING.md`. This capability is **not registered** in the current four-pilot `tools/validation/specs/validation-v1.json`; do not claim an `ios-rust-validate --capability ios-contacts` PASS. Retain the existing focused shell/Cargo checks below, especially portable Contacts tests, permissions and ABI. When implementing new acceptance coverage, add schema-v1 declarative rules and, only if necessary, bounded Python adapters; replace repeated formatting/lint orchestration **only after** matching the original positive and negative gates. Existing recorded commands remain requirements/evidence as labeled. Never inspect or change the historical shared engine source; report engine defects in a sanitized `BUG_REPORT_*.md`.
+
 ## Objective
 
 Record and provide package-local compile/lint gates for the D24 portable Contacts contract and B29 iOS authorization backend. Central CI integration remains an orchestrator-owned follow-up.

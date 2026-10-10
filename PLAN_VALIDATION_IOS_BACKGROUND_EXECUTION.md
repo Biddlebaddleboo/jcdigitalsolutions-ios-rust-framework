@@ -1,5 +1,9 @@
 # PLAN_VALIDATION_IOS_BACKGROUND_EXECUTION.md — Workstream G22: UIKit Background-Execution Gates
 
+## Shared-tooling execution (current)
+
+R1/R2 tooling is complete and installed on PATH; consult `docs/SHARED_TOOLING.md`. This capability is **not registered** in the current four-pilot `tools/validation/specs/validation-v1.json`; do not claim an `ios-rust-validate --capability ios-background-execution` PASS. Retain the existing focused shell/Cargo checks below, especially UIKit background lifecycle and no_std/feature tests. When implementing new acceptance coverage, add schema-v1 declarative rules and, only if necessary, bounded Python adapters; replace repeated formatting/lint orchestration **only after** matching the original positive and negative gates. Existing recorded commands remain requirements/evidence as labeled. Never inspect or change the historical shared engine source; report engine defects in a sanitized `BUG_REPORT_*.md`.
+
 ## Status
 
 G22 implements and runs D23/B28 no-std, target compile/link, lint, docs, format, source, and diff gates. It does not prove a live UIKit task.

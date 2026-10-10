@@ -1,5 +1,9 @@
 # PLAN_VALIDATION_IOS_CONNECTIVITY.md — Workstream G12: iOS Connectivity Gates
 
+## Shared-tooling execution (current)
+
+R1/R2 tooling is complete and installed on PATH; consult `docs/SHARED_TOOLING.md`. This capability is **not registered** in the current four-pilot `tools/validation/specs/validation-v1.json`; do not claim an `ios-rust-validate --capability ios-connectivity` PASS. Retain the existing focused shell/Cargo checks below, especially network state and availability/import assertions. When implementing new acceptance coverage, add schema-v1 declarative rules and, only if necessary, bounded Python adapters; replace repeated formatting/lint orchestration **only after** matching the original positive and negative gates. Existing recorded commands remain requirements/evidence as labeled. Never inspect or change the historical shared engine source; report engine defects in a sanitized `BUG_REPORT_*.md`.
+
 ## Status
 
 CI wiring, the B18 `ios-connectivity` crate, and its focused link/import script are present. On 2026-10-08, the device/simulator checks, strict Clippy gates, and link/import script passed independently on Rust 1.94.1 with Xcode 26.6 build 17F113 and SDK 26.5. The direct imports are exactly Network.framework and `/usr/lib/libSystem.B.dylib`; the probes were linked, not executed. G12 local validation is complete, but this is not evidence of a passing CI workflow run or live connectivity/path behavior
