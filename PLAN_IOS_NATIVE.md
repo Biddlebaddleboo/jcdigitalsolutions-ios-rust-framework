@@ -36,6 +36,12 @@ implementation advances existing manifest capability rows 046/047 without changi
 historical scope; see the additive operation sections in `PLAN_CAPABILITIES_MEDIA_AUTHORIZATION.md`
 and `PLAN_IOS_MEDIA_AUTHORIZATION.md`.
 
+B453 is [PLAN_IOS_APPLICATION_LIFECYCLE.md](PLAN_IOS_APPLICATION_LIFECYCLE.md): it connects the
+existing `framework_app::ApplicationBackend` contract to aggregate UIKit application state and
+lifecycle notifications through a capability-scoped `ios-app-lifecycle` crate for row
+`001-core-app-ui-application-lifecycle`. It does not replace B81 scene snapshots or add per-scene
+delegate events.
+
 Read first:
 - `docs/IOS_BUILD.md`
 - `docs/OBJC_INTEROP.md`

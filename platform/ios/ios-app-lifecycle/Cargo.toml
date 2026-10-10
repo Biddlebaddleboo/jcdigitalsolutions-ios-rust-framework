@@ -1,0 +1,22 @@
+[package]
+name = "ios-app-lifecycle"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "UIKit application lifecycle backend for iOS"
+
+[dependencies]
+framework-app = { path = "../../../crates/framework-app" }
+framework-core.workspace = true
+
+[target.'cfg(target_os = "ios")'.dependencies]
+block2.workspace = true
+ios-runtime = { path = "../ios-runtime" }
+objc2 = { workspace = true, features = ["std"] }
+objc2-foundation = { workspace = true, features = ["std", "NSNotification", "NSObject", "NSOperation", "NSString", "block2"] }
+objc2-ui-kit = { workspace = true, features = ["std", "UIApplication", "UIResponder"] }
+
+[lints]
+workspace = true

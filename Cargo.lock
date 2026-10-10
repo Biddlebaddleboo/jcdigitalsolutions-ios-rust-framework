@@ -453,6 +453,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "ios-app-lifecycle"
+version = "0.1.0"
+dependencies = [
+ "block2",
+ "framework-app",
+ "framework-core",
+ "ios-runtime",
+ "objc2",
+ "objc2-foundation",
+ "objc2-ui-kit",
+]
+
+[[package]]
 name = "ios-app-scenes"
 version = "0.1.0"
 dependencies = [

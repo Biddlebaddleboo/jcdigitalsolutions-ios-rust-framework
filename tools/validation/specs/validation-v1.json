@@ -1,6 +1,14 @@
 {
   "dependency_edges": [
     [
+      "ios-app-lifecycle",
+      "framework-app"
+    ],
+    [
+      "ios-app-lifecycle",
+      "ios-runtime"
+    ],
+    [
       "ios-media-authorization",
       "framework-media-authorization"
     ],
@@ -34,6 +42,101 @@
     ]
   ],
   "pilots": [
+    {
+      "abi_scripts": [],
+      "abi_targets": [
+        {
+          "minimum_os": "4.0",
+          "sdk": "iphoneos",
+          "triple": "aarch64-apple-ios"
+        },
+        {
+          "minimum_os": "14.0",
+          "sdk": "iphonesimulator",
+          "triple": "aarch64-apple-ios-sim"
+        }
+      ],
+      "adapters": [
+        {
+          "deadline_seconds": 10,
+          "evidence_type": "source-contract-consistency",
+          "id": "ios-app-lifecycle-contract",
+          "input_paths": [
+            "platform/ios/ios-app-lifecycle/src/lib.rs",
+            "platform/ios/ios-app-lifecycle/src/platform.rs",
+            "platform/ios/ios-app-lifecycle/src/queue.rs",
+            "platform/ios/ios-app-lifecycle/src/mapping.rs",
+            "platform/ios/ios-app-lifecycle/src/observers.rs",
+            "platform/ios/ios-app-lifecycle/Cargo.toml",
+            "platform/ios/ios-app-lifecycle/check.sh",
+            "docs/ios/app-lifecycle.md",
+            "docs/capabilities/capability-status.json",
+            "tools/validation/specs/validation-v1.json"
+          ],
+          "interpreter": "python3",
+          "minimum_version": "3.9",
+          "required": true,
+          "script": "tools/validation/adapters/check_ios_app_lifecycle.py",
+          "stderr_limit_bytes": 4096,
+          "stdout_limit_bytes": 4096,
+          "temporary_space_bytes": 1048576
+        }
+      ],
+      "cargo_tree": false,
+      "check_script": "platform/ios/ios-app-lifecycle/check.sh",
+      "clippy_all_targets": true,
+      "clippy_lib": false,
+      "docs": [
+        "docs/ios/app-lifecycle.md",
+        "docs/capabilities/capability-status.json"
+      ],
+      "expected_imports": [
+        "Foundation.framework",
+        "UIKit.framework",
+        "objc_msgSend"
+      ],
+      "fmt_all": false,
+      "guards": [],
+      "id": "ios-app-lifecycle",
+      "manifest": "platform/ios/ios-app-lifecycle/Cargo.toml",
+      "offline": false,
+      "package": "ios-app-lifecycle",
+      "rustdoc_warnings": false,
+      "scoped_files": [
+        "Cargo.lock",
+        "platform/ios/ios-app-lifecycle/Cargo.toml",
+        "platform/ios/ios-app-lifecycle/check.sh",
+        "platform/ios/ios-app-lifecycle/check-surface.sh",
+        "platform/ios/ios-app-lifecycle/src/lib.rs",
+        "platform/ios/ios-app-lifecycle/src/platform.rs",
+        "platform/ios/ios-app-lifecycle/src/queue.rs",
+        "platform/ios/ios-app-lifecycle/src/mapping.rs",
+        "platform/ios/ios-app-lifecycle/src/observers.rs",
+        "docs/capabilities/capability-status.json",
+        "docs/ios/app-lifecycle.md",
+        "tools/validation/adapters/check_ios_app_lifecycle.py",
+        "tools/validation/specs/validation-v1.json"
+      ],
+      "shell_scripts": [
+        "platform/ios/ios-app-lifecycle/check.sh",
+        "platform/ios/ios-app-lifecycle/check-surface.sh"
+      ],
+      "source_dirs": [
+        "platform/ios/ios-app-lifecycle"
+      ],
+      "targets": [
+        {
+          "minimum_os": "4.0",
+          "sdk": "iphoneos",
+          "triple": "aarch64-apple-ios"
+        },
+        {
+          "minimum_os": "14.0",
+          "sdk": "iphonesimulator",
+          "triple": "aarch64-apple-ios-sim"
+        }
+      ]
+    },
     {
       "abi_scripts": [],
       "abi_targets": [
@@ -743,6 +846,21 @@
     {
       "path": "tools/validation/",
       "global": true
+    },
+    {
+      "path": "platform/ios/ios-app-lifecycle/",
+      "node": "ios-app-lifecycle",
+      "global": false
+    },
+    {
+      "path": "crates/framework-app/",
+      "node": "framework-app",
+      "global": false
+    },
+    {
+      "path": "platform/ios/ios-runtime/",
+      "node": "ios-runtime",
+      "global": false
     },
     {
       "path": "crates/framework-media-authorization/",
