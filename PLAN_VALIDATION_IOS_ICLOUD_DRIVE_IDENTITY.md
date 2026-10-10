@@ -1,5 +1,9 @@
 # PLAN_VALIDATION_IOS_ICLOUD_DRIVE_IDENTITY.md — Workstream G29: iCloud Drive Identity Validation
 
+## Installed shared-tooling boundary
+
+The R1/R2 build and validation engines are already installed, pinned PATH tools; use `docs/SHARED_TOOLING.md` rather than reimplementing their internals. This workstream is **not a registered pilot** in the current `tools/validation/specs/validation-v1.json`, so do not claim a passing `ios-rust-validate --capability` command for it. The existing focused package scripts, CI checks and command/evidence records below remain required until a schema-v1 declarative profile demonstrably reproduces all applicable checks, including iCloud entitlement, cloud-token ambiguity, no-default-feature checks. Only remove duplicate commands after proving positive, deliberately failing negative, dependency-selection and fail/skip parity. Optional Python adapters must be narrowly scoped and cannot substitute for a real compiler/link or device gate. Tool engine defects are reported in sanitized `BUG_REPORT_*.md`; ordinary API work never retrieves historical engine source.
+
 ## Objective
 
 Provide focused package-local validation for D30/B35 without editing shared CI or root metadata.
