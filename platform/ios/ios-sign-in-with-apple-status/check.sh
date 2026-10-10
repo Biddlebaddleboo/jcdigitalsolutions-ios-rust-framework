@@ -5,6 +5,9 @@ repo_root=$(git -C "$package_dir" rev-parse --show-toplevel)
 cd "$repo_root"
 package=ios-sign-in-with-apple-status
 
+# Fetch target-only bindings before the offline device and simulator checks.
+cargo +1.94.1 check --locked -p "$package" --target aarch64-apple-ios
+
 for target in aarch64-apple-ios aarch64-apple-ios-sim; do
     cargo check --locked --offline -p "$package" --target "$target"
     cargo clippy --locked --offline -p "$package" --target "$target" -- -D warnings
