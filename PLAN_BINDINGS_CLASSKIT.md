@@ -95,6 +95,18 @@ import assertion, ClassKit/Foundation and Objective-C imports, symbol/selector c
 11.3 and Simulator 14.0 minos, and the iOS 11.3 API/runtime floor. Xcode 27 ClassKit
 requalification is pending; no consumer execution or runtime behavior is claimed.
 
+macOS 15 run `38052963155` on head `03710be8ccd73c8e17069ff0aa4879778c7c11be`, job
+`114215657938`, also failed ClassKit step 246. Its log shows the preceding F13 Maps check passed and
+the ClassKit host Release archive built, then `check-ios-classkit-deep-link.sh` exited 1 before
+fixture output and without a diagnostic. The script used Apple `nm` for host Rust-archive export
+and undefined-symbol scans and device/Simulator Rust-archive export scans, with stderr suppressed.
+This matches the adjacent Maps archive-reader failure; the exact failing `nm` invocation was not
+printed. The gate now resolves `llvm-nm` from the active Rust sysroot/host and uses it only for
+Rust archive scans. Apple `nm` remains in use for final linked Mach-O fixture inspection. Export,
+import, framework, selector, deployment-minimum, and feature-isolation assertions are unchanged.
+Xcode 27 and macOS 15 ClassKit requalification is pending; no probe execution or runtime behavior
+is claimed.
+
 ## Root integration steps
 
 After the root lock refresh, add `sh bindings/c/check-ios-classkit-deep-link.sh` beside the other C
