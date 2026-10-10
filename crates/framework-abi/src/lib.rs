@@ -298,10 +298,12 @@ impl Default for FrameworkOwnedBuffer {
 /// input validation and remains empty unless the copy succeeds.
 ///
 /// # Safety
-/// `out_buffer` must be non-null, properly aligned, writable for one descriptor, and contain no
-/// live owned allocation on entry. It must not overlap the input bytes. For a nonzero input
-/// length, `bytes.data()` must be aligned and readable for the full length for this call. Neither
-/// pointer is retained. Destroy a successful output exactly once with
+/// A null `out_buffer` returns [`FrameworkStatus::INVALID_ARGUMENT`]. Otherwise, `out_buffer`
+/// must be properly aligned, writable for one descriptor, and contain no live owned allocation on
+/// entry. It must not overlap the input bytes. Lengths that cannot fit a Rust slice and null data
+/// for a nonzero length are rejected before dereference. For other nonzero lengths, `bytes.data()`
+/// must be aligned and readable for the full length for this call. Neither pointer is retained.
+/// Destroy a successful output exactly once with
 /// [`framework_owned_buffer_destroy`].
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn framework_owned_buffer_copy(
@@ -787,6 +789,92 @@ mod tests {
         unsafe {
             framework_owned_buffer_destroy(core::ptr::null_mut());
         }
+    }
+
+    fn assert_empty_owned_buffer(buffer: &FrameworkOwnedBuffer) {
+        assert!(buffer.data().is_null());
+        assert_eq!(buffer.length(), 0);
+        assert_eq!(buffer.capacity(), 0);
+    }
+
+    #[test]
+    fn owned_buffer_copy_handles_null_output_and_both_empty_input_shapes() {
+        let null_input = FrameworkSlice {
+            data: ptr::null(),
+            length: 0,
+        };
+        // SAFETY: the null output is rejected before dereference; the empty input is not read.
+        assert_eq!(
+            unsafe { framework_owned_buffer_copy(null_input, ptr::null_mut()) },
+            FrameworkStatus::INVALID_ARGUMENT
+        );
+
+        let mut output = FrameworkOwnedBuffer::default();
+        // SAFETY: `output` is aligned writable empty storage and the null input has zero length.
+        assert_eq!(
+            unsafe { framework_owned_buffer_copy(null_input, &mut output) },
+            FrameworkStatus::OK
+        );
+        assert_empty_owned_buffer(&output);
+
+        let nonnull_source = [0u8; 1];
+        let nonnull_empty_input = FrameworkSlice {
+            data: nonnull_source.as_ptr(),
+            length: 0,
+        };
+        // SAFETY: `output` is still an empty descriptor; the zero-length input is not read.
+        assert_eq!(
+            unsafe { framework_owned_buffer_copy(nonnull_empty_input, &mut output) },
+            FrameworkStatus::OK
+        );
+        assert_empty_owned_buffer(&output);
+    }
+
+    #[test]
+    fn owned_buffer_copy_rejects_oversized_and_null_nonempty_spans() {
+        let mut output = FrameworkOwnedBuffer::default();
+        let oversized_input = FrameworkSlice {
+            data: ptr::null(),
+            length: u64::MAX,
+        };
+        // SAFETY: oversized lengths are rejected before either pointer is dereferenced.
+        assert_eq!(
+            unsafe { framework_owned_buffer_copy(oversized_input, &mut output) },
+            FrameworkStatus::INVALID_ARGUMENT
+        );
+        assert_empty_owned_buffer(&output);
+
+        let null_nonempty_input = FrameworkSlice {
+            data: ptr::null(),
+            length: 1,
+        };
+        // SAFETY: null data with a nonzero length is rejected before dereference.
+        assert_eq!(
+            unsafe { framework_owned_buffer_copy(null_nonempty_input, &mut output) },
+            FrameworkStatus::INVALID_ARGUMENT
+        );
+        assert_empty_owned_buffer(&output);
+    }
+
+    #[test]
+    fn owned_buffer_copy_copies_bytes_and_c_destruction_releases_the_copy() {
+        let mut source = [0, 1, 0xff, 3];
+        let input = FrameworkSlice::from_bytes(&source).unwrap();
+        let mut output = FrameworkOwnedBuffer::default();
+        // SAFETY: `output` is aligned writable empty storage and `source` remains live/readable.
+        assert_eq!(
+            unsafe { framework_owned_buffer_copy(input, &mut output) },
+            FrameworkStatus::OK
+        );
+        assert_eq!(output.as_bytes(), Some(&source[..]));
+        source[0] = 9;
+        assert_eq!(source[0], 9);
+        assert_eq!(output.as_bytes(), Some(&[0, 1, 0xff, 3][..]));
+
+        // SAFETY: `output` is the original live descriptor returned by the copy function.
+        unsafe { framework_owned_buffer_destroy(&mut output) };
+        assert_empty_owned_buffer(&output);
+        drop(output);
     }
 
     #[test]

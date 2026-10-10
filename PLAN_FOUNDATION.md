@@ -270,11 +270,25 @@ Foundation requalification on Rust `1.94.1`:
 
 The formatter also expanded two pre-existing one-line handle constructors in `framework-abi`; no behavior changed. This is host test and structural IR evidence only; no device/Simulator runtime, 32-bit execution, or performance claim is made.
 
+### Owned-buffer copy acceptance requalification (2026-10-10)
+
+Tests now cover `framework_owned_buffer_copy` null output, null and non-null zero-length inputs, oversized lengths, null nonempty data, byte-copy independence, output destruction/reset, and fallible allocation. The allocation failure case uses a separate one-test integration binary with a one-shot size-matched allocator failure, so failure injection cannot race the library's parallel unit tests. The safety contract records that null output, unrepresentable lengths, and null nonempty spans return `INVALID_ARGUMENT` before dereference.
+
+- `cargo +1.94.1 check --locked -p framework-core -p framework-alloc -p framework-async -p framework-abi -p framework-platform --no-default-features` — PASS
+- `cargo +1.94.1 test --locked -p framework-abi --all-features` — PASS, 10 unit tests and 1 allocation-failure integration test
+- `cargo +1.94.1 clippy --locked -p framework-core -p framework-alloc -p framework-async -p framework-abi -p framework-platform --all-targets -- -D warnings` — PASS
+- `cargo +1.94.1 clippy --locked -p framework-abi --all-features --all-targets -- -D warnings` — PASS
+- `cargo +1.94.1 doc --locked --all-features -p framework-core -p framework-alloc -p framework-async -p framework-abi -p framework-platform --no-deps` — PASS
+- `rustfmt +1.94.1 --check crates/framework-abi/src/lib.rs crates/framework-abi/tests/owned_buffer_copy_allocation_failure.rs` — PASS
+- `git diff --check` — PASS
+
+Allocation failure is deterministically injected at the allocator boundary, not produced by host memory exhaustion. No C consumer runtime, device/Simulator runtime, 32-bit execution, or performance claim is made.
+
 - The representation table in [docs/core/FOUNDATION.md](docs/core/FOUNDATION.md) records size, alignment, array stride, scalar domains, sentinel values, slab capacity, and generation wrap behavior
 - [docs/core/ASYNC_AND_OWNERSHIP.md](docs/core/ASYNC_AND_OWNERSHIP.md) records atomic phase values, compare-exchange ordering, result publication, waker-slot ordering, future drop behavior, and backend callback lifetime
 - [docs/core/C_ABI.md](docs/core/C_ABI.md) records C layouts, pointer-width-dependent fields, owned-buffer rules, status values, callback lifetime, options headers, and panic limits
 - `framework-alloc` remains optional reusable infrastructure without a production caller or benchmark evidence; a production caller or benchmark must justify any required runtime use
-- `framework_owned_buffer_copy` now creates a C-owned descriptor from caller-provided bytes; no tests were added or run for this change
+- `framework_owned_buffer_copy` creates a C-owned descriptor from caller-provided bytes; its null/output/empty/overflow/allocation/copy/destruction cases are covered by the 2026-10-10 requalification above
 - `FrameworkErrorDetailHandle` is a direct opaque pointer with explicit create/view/destroy semantics; it does not encode pointers into the existing `FrameworkErrorHandle(u64)`
 - Other workstreams must keep fixed-width semantic IDs, zero sentinels, `CompactHandle` field order, generation wrap from `u32::MAX` to `1`, the single cancellation/completion winner, operation-state lifetime through backend callback teardown, and one destroy call on the original owned-buffer descriptor
 - The host test and codegen gates do not prove iOS device or simulator linking, platform runtime behavior, or 32-bit target execution
