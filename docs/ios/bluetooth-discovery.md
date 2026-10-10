@@ -73,10 +73,11 @@ policy and must stop scans when appropriate.
 
 ## Dependency and validation limits
 
-The iOS crate uses `objc2-core-bluetooth` 0.3.2 with default features disabled and only
-`CBManager`, `CBCentralManager`, `CBPeer`, `CBPeripheral`, `CBUUID`, and `dispatch2` enabled. It uses
-`objc2-foundation` only for `NSString`, `NSObject`, `NSUUID`, and `NSValue`. The portable contract
-exposes no Apple binding type.
+The iOS crate uses `objc2-core-bluetooth` 0.3.2 with default features disabled and explicitly
+enables `CBManager`, `CBCentralManager`, `CBPeer`, `CBPeripheral`, `CBUUID`, and `dispatch2`. It
+disables `objc2-foundation` defaults and directly enables only `NSString`, `NSObject`, `NSUUID`, and
+`NSValue`; the selected generated CoreBluetooth APIs also activate their required Foundation and
+`bitflags` feature dependencies. The portable contract exposes no Apple binding type.
 
 The device/simulator check and Clippy gates compile the bindings only. They do not instantiate a
 manager, request permission, show UI, scan a radio, discover a device, validate RSSI, prove queue

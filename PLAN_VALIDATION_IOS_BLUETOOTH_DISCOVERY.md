@@ -29,3 +29,25 @@ Portable queue/fixed-value tests use fake or copy-only values; host tests do not
 
 ## Handoff
 Record exactly which gates executed, toolchain/SDK/target versions, commands, skips and failed evidence. For a future validator registration prove parity (including a deliberately failing guard) before retiring direct scripts. Suspected engine defects require a sanitized `BUG_REPORT_*.md` and separate tooling maintenance.
+
+## D29 execution record — 2026-10-09
+
+Host: Xcode 26.6 (17F113), iPhoneOS and iPhoneSimulator SDK 26.5, `rustc 1.94.1 (e408947bf 2026-03-25)`. Rust targets `aarch64-apple-ios` and `aarch64-apple-ios-sim` were installed. The pinned `ios-rust-build` and `ios-rust-validate` 0.1.0 host tools were installed from this checkout; their source SHA is `2289e6a73257b696f6ae5ecd61ee20fd16ab8b37`. `ios-rust-validate --list` did not include `ios-bluetooth`, so no D29 validator-profile result is claimed.
+
+PASS:
+- `cargo +1.94.1 fmt --all -- --check`
+- `cargo +1.94.1 test --locked -p framework-bluetooth` — 4 passed
+- `cargo +1.94.1 check --locked -p framework-bluetooth --no-default-features`
+- `cargo +1.94.1 test --locked -p ios-bluetooth` — 5 passed
+- `cargo +1.94.1 check --locked -p ios-bluetooth --target aarch64-apple-ios`
+- `cargo +1.94.1 clippy --locked -p ios-bluetooth --all-targets --target aarch64-apple-ios -- -D warnings`
+- `cargo +1.94.1 check --locked -p ios-bluetooth --target aarch64-apple-ios-sim`
+- `cargo +1.94.1 clippy --locked -p ios-bluetooth --all-targets --target aarch64-apple-ios-sim -- -D warnings`
+- `RUSTDOCFLAGS="-D warnings" cargo +1.94.1 doc --locked -p framework-bluetooth -p ios-bluetooth --no-deps`
+- `cargo +1.94.1 xtask docs-check`
+- `cargo +1.94.1 xtask zero-swift-source`
+- `cargo +1.94.1 tree --locked -p ios-bluetooth --target aarch64-apple-ios -e features` — reviewed the package's explicit objc2 feature set and generated API feature closure; defaults remain disabled for the Objective-C framework crates.
+
+The package-local `check-targets.sh` contains the same four device/simulator check and strict Clippy commands; they were run individually above, so the wrapper was not run as duplicate evidence. Native-import audit: SKIPPED because no separate D29 package-local final-link/native-import assertion or linked app target exists. Cargo target checks and Clippy compile the bindings but do not prove the linked app's final import set.
+
+`git diff --check` is run after the D29 documentation updates and before commit. No prompt, scan, app, device, or simulator runtime test was run. No runtime, permission, radio, peer-discovery, RSSI, callback-teardown, background, or restoration behavior is claimed. No required D29 test/build/doc gate failed or was skipped.
