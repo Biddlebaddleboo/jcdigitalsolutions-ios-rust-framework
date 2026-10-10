@@ -67,9 +67,12 @@ is in progress on both Apple hosts. Xcode 27 run
 passed B22 steps 50–55, shared validation, Foundation Models, Sign-in step 150, and B47 step 178;
 its job later failed at MediaPlayer step 225 because this branch predates `5240fda`. The macOS 15
 job in [38037886558](https://github.com/Biddlebaddleboo/jcdigitalsolutions-ios-rust-framework/actions/runs/38037886558)
-passed B47 step 178 and MediaPlayer step 225; its Clippy steps 231–232 remain pending. These
-targeted results validate each repair on Apple CI, but the combined mainline qualification and
-downstream Clippy results remain pending. Local Xcode 26.6 (build 17F113), SDK 26.5 gates also pass for
+passed B47 step 178 and MediaPlayer step 225, then failed at step 229 (`Swift ABI retained class
+ownership Rust caller probe`), skipping Clippy steps 231–232. Integrated mainline run
+[38037910253](https://github.com/Biddlebaddleboo/jcdigitalsolutions-ios-rust-framework/actions/runs/38037910253)
+also passed B47 and MediaPlayer on macOS at steps 178 and 225, then failed at the same step 229;
+Clippy remains unverified. Its Xcode 27 job is still active and has not yet reached B47. The
+combined mainline qualification and Apple Clippy results remain pending. Local Xcode 26.6 (build 17F113), SDK 26.5 gates also pass for
 B47 full audio (`sh platform/ios/ios-media/check-audio-playback.sh`), B50 package
 (`sh platform/ios/ios-media/check.sh`), and F25 C link/import
 (`sh bindings/c/check-ios-videotoolbox-link.sh`); detailed results and limits are in [PLAN_IOS_OTHER_AUDIO.md](PLAN_IOS_OTHER_AUDIO.md), [PLAN_VALIDATION_IOS_OTHER_AUDIO.md](PLAN_VALIDATION_IOS_OTHER_AUDIO.md), [PLAN_IOS_VIDEOTOOLBOX.md](PLAN_IOS_VIDEOTOOLBOX.md), and [PLAN_BINDINGS_F25.md](PLAN_BINDINGS_F25.md). These local passes do not establish runtime behavior; no tests, probe execution, live codec query, or device behavior is claimed.
