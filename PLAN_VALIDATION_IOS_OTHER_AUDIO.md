@@ -22,11 +22,15 @@ Swift-runtime symbols; and audits deployment metadata. It links but does not run
 
 These gates do not query live audio state, determine source identity, test mixing policy, establish
 behavior under audio-session changes, or provide Apple parity/performance evidence. The host Xcode
-26.6 / iOS SDK 26.5 remains below the Xcode 27.x plan baseline
+26.6 / iOS SDK 26.5 result is local evidence only and does not qualify the Xcode 27.x CI lane
 
 ## Status
 
-The package gate and exact Release import allowlist are wired in CI. The local gate passed on Xcode
-26.6 / iOS SDK 26.5 for device and Simulator targets. Both linked probes import exactly AVFoundation,
-CoreFoundation, CoreMedia, Foundation, libobjc, and libSystem; their deployment versions are 12.0
-and 14.0. They were not executed, and no CI workflow run is recorded
+The package gate and exact Release import allowlist are wired in CI. The full
+`sh platform/ios/ios-media/check-audio-playback.sh` gate passed locally at source-equivalent commit
+`1c8553f` (same source as `2a38984` except for the CI workflow), using Xcode 26.6 build 17F113, iOS
+SDK 26.5, Rust/Cargo 1.94.1, and pinned tooling 0.1.0. No checks were skipped. Both linked probes
+import exactly AVFoundation, CoreFoundation, CoreMedia, Foundation, libobjc, and libSystem; verified
+deployment floors are iOS 12.0 for device and iOS 14.0 for Simulator. The default feature graph
+excludes VideoToolbox. The probes linked but were not executed; this is not live audio/runtime
+evidence

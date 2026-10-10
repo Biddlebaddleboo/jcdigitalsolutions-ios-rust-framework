@@ -24,8 +24,10 @@ metadata, command center, remote command, interruption observer, or live source 
 ## Status
 
 The adapter is implemented as `ios_media::other_audio_playback_snapshot()` in
-`platform/ios/ios-media/src/audio_playback.rs`. `check-audio-playback.sh` passed locally on Xcode
-26.6 / iOS SDK 26.5 for the portable no-default/strict-Clippy gate, iOS device and Simulator
-compile/strict-Clippy gates, rustdoc, dependency-feature audit, and Release import/symbol surface.
-The Apple probe linked but did not run, and no live audio query or passing CI run is claimed. The
-separate CoreMedia value adapter remains unchanged
+`platform/ios/ios-media/src/audio_playback.rs`. The full
+`sh platform/ios/ios-media/check-audio-playback.sh` gate passed locally at source-equivalent commit
+`1c8553f` (same source as `2a38984` except for the CI workflow): Xcode 26.6 build 17F113, iOS SDK
+26.5, Rust/Cargo 1.94.1, and pinned tooling 0.1.0. No checks were skipped. The verified deployment
+floors are iOS 12.0 for device and iOS 14.0 for Simulator; the default feature graph excludes
+VideoToolbox. The Apple probe linked but did not run, so this records no live audio query or runtime
+behavior. The separate CoreMedia value adapter remains unchanged
