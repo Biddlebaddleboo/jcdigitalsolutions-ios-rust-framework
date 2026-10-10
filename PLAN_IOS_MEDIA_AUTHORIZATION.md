@@ -94,3 +94,9 @@ device rustdoc, and the updated source-surface guard. The registered
 adapter, package checks, documentation, zero-Swift-source, and diff gates; the adapter's negative
 fixture rejects removal of the AVFoundation request call. No native permission request, prompt,
 hardware access, capture, or sample access was executed.
+
+The callback liveness fix at `9646b3b` maps a panic during status conversion to
+`MediaAuthorizationStatus::Unknown` before completing the pending request. The regression
+`callback_status_panic_completes_unknown_and_wakes_once` passed with the five-test host suite; the
+registered media-authorization profile passed again after integration. Simulator execution and
+physical-device runtime remain unverified.

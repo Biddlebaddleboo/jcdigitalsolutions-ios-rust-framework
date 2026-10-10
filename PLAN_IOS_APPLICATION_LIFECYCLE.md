@@ -62,11 +62,11 @@ description, user action, or system configuration is needed.
 ## Observer ownership and safety
 
 Retain all native Notification Center observer tokens in `IosApplicationLifecycle`; remove every
-token in `Drop` on the main thread. Closures capture only shared event state and must not capture the
-backend or its token collection. Route observer callbacks through the main queue and contain panics
-with `ios_runtime::ffi::catch_unwind`; no panic may unwind through Objective-C/Blocks. Do not add a
-global observer, callback registry, executor, process-wide service, worker thread, or UIKit delegate
-object.
+token in `Drop` on the main thread. Closures capture only a weak reference to event state and must
+not capture the backend or its token collection. Route observer callbacks through the main queue and
+contain panics with `ios_runtime::ffi::catch_unwind`; no panic may unwind through Objective-C/Blocks.
+Do not add a global observer, callback registry, executor, process-wide service, worker thread, or
+UIKit delegate object.
 
 ## App aggregate versus scene lifecycle
 

@@ -46,8 +46,9 @@ remains the latest state known to the backend. Unknown future `UIApplicationStat
 ## Threading, ownership, and availability
 
 Create, query, poll, and drop the backend on UIKit's main thread. The backend owns its five
-Notification Center observer tokens and removes each token on drop. Native callback closures own
-only the backend event state; they do not retain the backend or observer-token collection. Callbacks
+Notification Center observer tokens and removes each token on drop. Native callback closures hold
+only a weak reference to backend event state; they do not retain the backend or observer-token
+collection. A callback that arrives after teardown cannot update or resurrect that state. Callbacks
 run on the main queue, and panics are contained before a callback returns through Objective-C.
 
 The backend is available in an iOS application after construction. It needs no user permission,
