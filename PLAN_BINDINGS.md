@@ -7,7 +7,7 @@ Primary source `bindings/c/**` (exports, ABI manifest, public headers, check scr
 Rust apps call Rust directly; C/C++/Python are opt-in outer bindings over the same core. Stable C ABI exposes only fixed-width scalars, versioned records where supported, explicit lengths, opaque handles, explicit statuses/ownership and callbacks. Never expose Rust layouts, Objective-C/Swift wrappers or Future directly. No panic unwinds across C. No implicit allocation/foreign runtime dependency in Rust-only builds. Compile/link/feature flags isolate Apple-specific bindings.
 
 ## Remaining implementation scope
-- Reconciliation against `origin/main` `85db105` found F1–F33 source, public headers, and named
+- Reconciliation against `origin/main` `5704613` found F1–F33 source, public headers, and named
   validation paths present; F8 is closed by design, and F17–F22 are the six closed slices recorded
   in `PLAN_BINDINGS_COMPLETED_C_ABI.md`. F23–F37 have surviving scoped plans and current
   source/integration evidence; F36's root-workspace exclusion was recorded in `54de39b`. Mainline
@@ -15,8 +15,11 @@ Rust apps call Rust directly; C/C++/Python are opt-in outer bindings over the sa
   on `9b0f13630c87d6913ea011fc4300b9b9f596195f` passed all C ABI gates 235–275 on macOS 15 and
   Xcode 27; Ubuntu passed its non-Apple gates and skipped Apple-only checks. These results establish
   compile, Clippy, link/import, and layout evidence, not runtime or physical-device behavior. No
-  later commit through `85db105` changed binding sources or C ABI gate wiring; they only changed
-  planning/docs and added an independent archive-smoke CI step. No incomplete F-series
+  later commit through `5704613` changed binding sources or C ABI gate wiring. Commit `85db105`
+  adds an independent archive-smoke CI step; `8e756ba` adds an unrelated Rust-owned-buffer
+  transfer assertion and plan evidence; `5704613` records an iOS location G6 recheck. None of
+  these later commits is covered by run `38066495166`.
+  No incomplete F-series
   implementation item after F37 is explicitly selected as ready in `PLAN.md`; do not invent F38 or
   promote broad future compatibility/test goals into a new workstream.
 - F23 (`PLAN_BINDINGS_F23.md`) is integrated behind the opt-in `ios-key-support` feature: its ABI manifest, Cargo.lock, macOS CI gates, guide, and documentation links are present. The static and device/Simulator link-import gates pass; linked probes were not executed, and no tests or live query ran.
