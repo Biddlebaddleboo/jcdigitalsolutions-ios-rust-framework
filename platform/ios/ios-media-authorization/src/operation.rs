@@ -48,6 +48,14 @@ impl CompletionCell {
         true
     }
 
+    /// Converts a callback result; a panic resolves as `Unknown` without unwinding across the
+    /// native callback boundary.
+    pub(crate) fn complete_from_callback(&self, status: impl FnOnce() -> MediaAuthorizationStatus) {
+        let status = std::panic::catch_unwind(std::panic::AssertUnwindSafe(status))
+            .unwrap_or(MediaAuthorizationStatus::Unknown);
+        self.complete(status);
+    }
+
     /// Returns one status or saves the current task's waker.
     pub(crate) fn poll(&self, context: &mut Context<'_>) -> Poll<MediaAuthorizationStatus> {
         let mut state = self.lock();
@@ -131,5 +139,23 @@ mod tests {
         assert!(cell.complete(MediaAuthorizationStatus::Denied));
         assert_eq!(wake_count.0.load(Ordering::SeqCst), 0);
         assert!(cell.poll(&mut context).is_pending());
+    }
+
+    #[test]
+    fn callback_status_panic_completes_unknown_and_wakes_once() {
+        let cell = CompletionCell::new();
+        let wake_count = Arc::new(WakeCount(AtomicUsize::new(0)));
+        let waker = Waker::from(Arc::clone(&wake_count));
+        let mut context = Context::from_waker(&waker);
+
+        assert!(cell.poll(&mut context).is_pending());
+        cell.complete_from_callback(|| panic!("status conversion failed"));
+
+        assert_eq!(wake_count.0.load(Ordering::SeqCst), 1);
+        assert_eq!(
+            cell.poll(&mut context),
+            Poll::Ready(MediaAuthorizationStatus::Unknown)
+        );
+        assert_eq!(wake_count.0.load(Ordering::SeqCst), 1);
     }
 }
