@@ -8,9 +8,11 @@ and ran `ownership.cpp` with its local destroy stub. Static traits and runtime c
 move-only state, a pointer to the original descriptor, no descriptor change before release, and one
 destroy call per descriptor. The `nm -u` checks found only `framework_abi_version` for the core
 app, only `framework_owned_buffer_destroy` for the RAII app, and no unresolved symbol for the stub.
-This is ABI 1.0 evidence only; the current fixtures expect ABI 1.1. `OwnedBuffer` still
-requires a live framework-created descriptor whose fields stay unchanged until C destroy; the
-descriptor must outlive the guard, with no second guard. The prior F3 gate used `-nostdlib++`; no
+This is ABI 1.0 evidence only. The version fixtures accept major 1 with minor 1 or later, so
+additive ABI 1.x releases do not fail an exact-minor check. The ownership stub reports ABI 1.1.
+`OwnedBuffer` still requires a live framework-created descriptor whose fields stay unchanged until
+C destroy; the descriptor must outlive the guard, with no second guard. The prior F3 gate used
+`-nostdlib++`; no
 C++ runtime symbol was required, and that gate made no final-binary import claim
 
 F1's ABI 1.0 host app linked and ran with output `framework ABI 1.0`. ABI 1.1 adds
@@ -20,7 +22,7 @@ sources. `bindings/c/tests/header_cpp.cpp` asserts the validator signature and t
 4-aligned `FrameworkOptionsV1` layout with offsets 0, 4, 8, and 12; these values match
 `bindings/c/abi-manifest.json`
 
-`clang++ -std=c++17 -fno-exceptions -fno-rtti -Wall -Wextra -Werror -pedantic -I bindings/c/include -I bindings/cpp/include -fsyntax-only` passed for `bindings/cpp/tests/consumer.cpp`, `bindings/cpp/tests/owner-consumer.cpp`, `bindings/cpp/tests/ownership.cpp`, `bindings/c/tests/header_cpp.cpp`, and `bindings/c/tests/secure_storage_header_cpp.cpp`. `format_tool=$(xcrun -f clang-format); "$format_tool" --dry-run --Werror bindings/c/tests/header_cpp.cpp` and `git diff --check -- PLAN_BINDINGS_CPP.md bindings/c/tests/header_cpp.cpp` passed. After the fresh locked ABI 1.1 release build recorded in `PLAN_BINDINGS_CORE.md`, a temporary C++17 app that calls `framework_options_v1_validate` compiled and linked to `target/abi11-fresh-target/release/libframework_c_api.a` with `-nostdlib++`; its object had only `_framework_options_v1_validate` undefined, and the linked binary defines that symbol with no `nm -u` output. `otool -L` lists only `/usr/lib/libSystem.B.dylib`; `otool -Iv` lists no import records. The app source stayed in `target/abi11-link-only`; no checked-in link-only gate was added. No F3 implementation or contract gap was found. The post-ABI-1.1 `sh bindings/cpp/check.sh` gate remains unverified; it runs the ABI-version app, RAII app, and ownership stub. No passing CI run is recorded, so ABI 1.1 runtime evidence for F3 remains absent
+`clang++ -std=c++17 -fno-exceptions -fno-rtti -Wall -Wextra -Werror -pedantic -I bindings/c/include -I bindings/cpp/include -fsyntax-only` passed for `bindings/cpp/tests/consumer.cpp`, `bindings/cpp/tests/owner-consumer.cpp`, `bindings/cpp/tests/ownership.cpp`, `bindings/c/tests/header_cpp.cpp`, and `bindings/c/tests/secure_storage_header_cpp.cpp`. `format_tool=$(xcrun -f clang-format); "$format_tool" --dry-run --Werror bindings/c/tests/header_cpp.cpp` and `git diff --check -- PLAN_BINDINGS_CPP.md bindings/c/tests/header_cpp.cpp` passed. After the fresh locked ABI 1.1 release build recorded in `PLAN_BINDINGS_CORE.md`, a temporary C++17 app that calls `framework_options_v1_validate` compiled and linked to `target/abi11-fresh-target/release/libframework_c_api.a` with `-nostdlib++`; its object had only `_framework_options_v1_validate` undefined, and the linked binary defines that symbol with no `nm -u` output. `otool -L` lists only `/usr/lib/libSystem.B.dylib`; `otool -Iv` lists no import records. The app source stayed in `target/abi11-link-only`; no checked-in link-only gate was added. No F3 implementation or contract gap was found. The post-ABI-1.1 `sh bindings/cpp/check.sh` gate remains unverified; it runs the ABI-version app, RAII app, and ownership stub. Xcode 27 workflow run `38040954950` passed the corrected C API gate at step 234, then failed at step 235 (`Header-only C++17 binding check`). The preceding C API log reports ABI 1.3, while both C++ version fixtures required exact minor 1; those guards now accept later minor versions within major 1. The hosted C++ gate must be rerun to confirm the linked consumers. No post-correction app execution or runtime proof is claimed
 
 ## Objective
 

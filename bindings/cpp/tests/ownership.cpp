@@ -28,7 +28,7 @@ extern "C" void framework_owned_buffer_destroy(FrameworkOwnedBuffer *buffer) {
 
 int main() {
   const framework::AbiVersion version = framework::AbiVersion::current();
-  if (version.major != 1 || version.minor != 1)
+  if (version.major != 1 || version.minor < 1)
     return 1;
 
   uint8_t bytes[] = {4, 5, 6};
