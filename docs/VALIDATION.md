@@ -169,30 +169,37 @@ behavior is claimed. Hosted run `38075483431` passed the Xcode 27 package gate. 
 G50 `platform/ios/ios-core-ml-status/scripts/check.sh` passed in the integrated checkout on Rust
 1.94.1 / Xcode 26.6 / iPhoneOS SDK 26.5. Host/device/Simulator checks, strict Clippy, rustdoc, and
 CoreML/Foundation/libSystem/libobjc link/import/symbol audits passed; probes were built, not
-executed. No live compute-device list, model compatibility, or prediction behavior is claimed. See
-the [focused G50 plan](../PLAN_VALIDATION_IOS_COREML.md).
+executed. Hosted run `38075483431` passed the Xcode 27 package gate and optional Core ML status C ABI
+compile/link-import checks; the C consumers/probes were not executed. No live compute-device list,
+model compatibility, or prediction behavior is claimed. See the [focused G50 plan](../PLAN_VALIDATION_IOS_COREML.md).
 
 G51 `platform/ios/ios-vision/check.sh` passed in the integrated checkout. Portable no-default check,
 strict Clippy/docs, iOS host/device/Simulator checks, strict Clippy, feature-surface gates, and exact
 Vision/Foundation/libobjc/libSystem imports passed. Device/Simulator probes were built, not
-executed; no image or recognition was performed. See the [focused G51 plan](../PLAN_VALIDATION_IOS_VISION.md).
+executed. Hosted run `38075483431` passed the Xcode 27 package gate and optional Vision revision C
+ABI gate; its probe was not executed. No image or recognition was performed. See the
+[focused G51 plan](../PLAN_VALIDATION_IOS_VISION.md).
 
 G52 `platform/ios/ios-speech-status/scripts/check.sh` passed in the integrated checkout. Host,
 device, and Simulator checks, strict Clippy, rustdoc, source-surface checks, exact Speech/Foundation/
 libobjc/libSystem imports, docs, and zero-Swift gates passed. Probes were built, not executed; no live
-authorization, prompt, audio, or recognition behavior is claimed. See the [focused G52 plan](../PLAN_VALIDATION_IOS_SPEECH_STATUS.md).
+authorization, prompt, audio, or recognition behavior is claimed. Hosted run `38075483431` passed
+the Xcode 27 package gate and optional Speech status C ABI compile/link-import checks; probes were
+not executed. See the [focused G52 plan](../PLAN_VALIDATION_IOS_SPEECH_STATUS.md).
 
 G53 `platform/ios/ios-natural-language-status/scripts/check.sh` passed in the integrated checkout.
 Host, device, and Simulator checks, strict Clippy, rustdoc, source-surface checks, exact
 NaturalLanguage/Foundation/libobjc/libSystem imports, docs, and zero-Swift gates passed. Probes were
-built, not executed; no live asset state, model load, or vector operation is claimed. See the
+built, not executed. Hosted run `38075483431` passed the Xcode 27 package gate and optional Natural
+Language status C ABI compile/link-import checks; consumers/probes were not executed. No live asset
+state, model load, or vector operation is claimed. See the
 [focused G53 plan](../PLAN_VALIDATION_IOS_NATURALLANGUAGE_STATUS.md).
 
 G54 `platform/ios/ios-storekit-status/scripts/check.sh` passed in the integrated checkout. Host,
 device, and Simulator checks, strict Clippy, rustdoc, source/feature guards, exact StoreKit/Foundation/
 libobjc/libSystem imports, docs, and zero-Swift gates passed. Probes were built, not executed; no live
-purchase ability, product availability, account state, or transaction behavior is claimed. See the
-[focused G54 plan](../PLAN_VALIDATION_IOS_STOREKIT_STATUS.md).
+purchase ability, product availability, account state, or transaction behavior is claimed. Hosted
+run `38075483431` passed the Xcode 27 package gate. See the [focused G54 plan](../PLAN_VALIDATION_IOS_STOREKIT_STATUS.md).
 
 G55 `platform/ios/ios-roomplan/check.sh` passed in the integrated checkout. Portable `no_std`,
 host/device/arm64 Simulator checks, strict Clippy, rustdoc, the compiler-oracle `swiftcall` audit,

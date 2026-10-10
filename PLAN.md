@@ -166,7 +166,8 @@ The current source-validation baseline is `d717f8ae4324bf2abc782816c7fb2e10dfa92
 - G35–G40: run `38075483431` passed the six hosted Apple package-gate steps on macOS 15 and Xcode 27; Ubuntu correctly skipped those macOS-only steps. The evidence is compile/lint/link only, not runtime or hardware proof. See the six targeted G35–G40 validation plans.
 - G41, G42, and G46–G49: hosted run `38075483431` passed the named Xcode 27 package gates; evidence and limits are in their targeted plans. No runtime or hardware behavior is established. No G43–G45 targeted validation plan exists.
 - G30, G33, and G34: hosted run `38075483431` passed their named Xcode 27 gates. G31's hosted compile/Clippy/unit gates passed, but its required CoreNFC Release link/import audit remains open. G32 has no targeted validation plan; no plan was invented.
-- Next validation evidence queue: hosted Xcode 27 requalification for existing G50–G54 and G55–G59 targeted plans is active in independent subagent workstreams. G60 has no targeted validation-plan file, so no gate-to-ID mapping is inferred. These static gates do not establish runtime behavior. No implementation-ready B/D, F, or replacement successor is recorded. Do not invent a workstream ID or capability scope.
+- G50–G54: hosted run `38075483431` passed all five named Xcode 27 package gates; G50–G53 also passed their wired C ABI checks where present. Consumers and probes were not executed; no runtime behavior is established.
+- Next validation evidence queue: hosted Xcode 27 requalification for existing G55–G59 targeted plans is active in a subagent workstream. G60 has no targeted validation-plan file, so no gate-to-ID mapping is inferred. These static gates do not establish runtime behavior. No implementation-ready B/D, F, or replacement successor is recorded. Do not invent a workstream ID or capability scope.
 
 ## Active work selection and limits
 
