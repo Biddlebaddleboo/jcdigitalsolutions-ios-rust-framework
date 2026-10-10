@@ -71,8 +71,8 @@ passed B47 step 178 and MediaPlayer step 225, then failed at step 229 (`Swift AB
 ownership Rust caller probe`), skipping Clippy steps 231–232. Integrated mainline run
 [38037910253](https://github.com/Biddlebaddleboo/jcdigitalsolutions-ios-rust-framework/actions/runs/38037910253)
 also passed B47 and MediaPlayer on macOS at steps 178 and 225, then failed at the same step 229;
-Clippy remains unverified. Its Xcode 27 job is still active and has not yet reached B47. The
-step-229 diagnostic is that `otool -L` did not use the expected `@rpath/libswiftCore.dylib`
+Clippy remains unverified. Its Xcode 27 job also passed B47 step 178 and MediaPlayer step 225,
+then failed at step 229 and skipped Clippy. The step-229 diagnostic is that `otool -L` did not use the expected `@rpath/libswiftCore.dylib`
 spelling on the hosted arm64 runner. Commit `0f35e0a` matches the `libswiftCore.dylib` basename
 instead, retaining the import, active `LC_RPATH`, and exactly-one-runtime-load assertions. The
 pre-fix probe passed on local x86_64 macOS and did not reproduce the hosted path difference; only
