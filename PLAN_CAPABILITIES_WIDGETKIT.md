@@ -173,13 +173,29 @@ only by constructing `swift::Array<uint8_t>` and calling a compiler-generated `m
 Swift helper. That helper has no WidgetKit declaration and cannot be shipped under the repository's
 zero-Swift-source rule.
 
+A read-only B436 recheck found a related public Swift-side C++ overlay initializer:
+`String.init(_ cxxStringView: std.string_view)`. The Swift standard-library implementation reads
+`cxxStringView.__dataUnsafe()` and `cxxStringView.size()` into a bounded buffer, then calls
+`String(decoding:as:)`; for valid UTF-8 such as Rust `&str`, this consumes the full span and
+preserves embedded NUL. The initializer is marked `@_alwaysEmitIntoClient` in Swift 6.3 and 6.4,
+not `@export(implementation)`. It is therefore a Swift client-side implementation, not a standalone
+exported Swift ABI symbol or C ABI thunk. The compiler's C++ `swift::String` overlay still exposes
+only `String(const char*)` and `String(const std::string&)`; it has no `std::string_view`
+constructor. The latter continues to call the NUL-terminated `String(cString:)` symbol above. No
+generated C++ constructor or exported C/Swift ABI thunk for the `std::string_view` initializer is
+present in the checked project interface or official C++ overlay, so Rust cannot call it safely
+without a Swift source helper or an unsupported/manual ABI call.
+
+Primary references: [Swift 6.3 `String.swift` C++ overlay](https://github.com/swiftlang/swift/blob/swift-6.3-RELEASE/stdlib/public/Cxx/std/String.swift), [Swift 6.4 `String.swift` C++ overlay](https://github.com/swiftlang/swift/blob/swift-6.4.0-RELEASE/stdlib/public/Cxx/std/String.swift), [Swift 6.3 `_SwiftStdlibCxxOverlay.h`](https://github.com/swiftlang/swift/blob/swift-6.3-RELEASE/lib/PrintAsClang/_SwiftStdlibCxxOverlay.h), and [Apple Xcode 16.3 release notes](https://developer.apple.com/documentation/Xcode-Release-Notes/xcode-16_3-release-notes), which announce Swift `String` initialization from C++ `std::string_view`.
+
 The compiler-generated Objective-C++ Foundation bridge offers an `NSString` initializer, but its
 generated body calls the underscored Swift overlay symbol
 `_$sSS10FoundationE36_unconditionallyBridgeFromObjectiveCySSSo8NSStringCSgFZ`. B436 explicitly
 excludes undocumented/private runtime symbols, and the repository has no existing production
 Foundation-to-`swift::String` adapter to reuse. This workstream therefore does not guess String
-storage, silently truncate input, add a Swift helper, or use that underscored bridge. No WidgetKit
-API or behavior was changed.
+storage, silently truncate input, add a Swift helper, call the client-side initializer through an
+unsupported/manual ABI, or use that underscored bridge. No WidgetKit API, input semantics, or
+behavior was changed; B436 remains blocked.
 
 Prerequisite to resume B436: a supported compiler/runtime or generated C++ API must provide exact
 UTF-8 pointer-and-length construction of Swift `String` without shipping Swift source, relying on
