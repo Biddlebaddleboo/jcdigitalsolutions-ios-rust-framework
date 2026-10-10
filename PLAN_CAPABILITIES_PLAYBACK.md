@@ -33,3 +33,21 @@ aggregate validation docs.
 - Do not add or run tests in this resumed pass.
 - Record iOS runtime and hardware limits in B48/G42; a portable value check is not HDR parity
   evidence.
+
+## Resumed-pass evidence — 2026-10-10
+
+The scoped implementation already meets the D43 contract: `crates/framework-audio` is `#![no_std]`,
+forbids unsafe code, and exposes only the boolean `HdrPlaybackEligibility` snapshot with a const
+constructor and accessor. `docs/capabilities/playback.md` excludes media-item, asset, active-playback,
+player, and actual display-output claims. No source or capability-doc change was needed.
+
+The following host checks pass on Rust 1.94.1:
+
+- `cargo check --package framework-audio --no-default-features`
+- `cargo clippy --package framework-audio --no-default-features -- -D warnings`
+- `RUSTDOCFLAGS="-D warnings" cargo doc --package framework-audio --no-default-features --no-deps`
+
+Pinned shared tools 0.1.0 were installed and version-checked from source SHA
+`2289e6a73257b696f6ae5ecd61ee20fd16ab8b37`; no D43 validator profile is registered. No tests were
+added or run. These host checks do not establish iOS runtime, player, decode, HDR display-output, or
+hardware parity; B48/G42 remain the source for their recorded platform-gate and runtime limits.
