@@ -113,7 +113,8 @@ host_archive=target/release/libframework_c_api.a
 clang -std=c11 -Wall -Wextra -Werror -pedantic -I bindings/c/include -I target \
     target/framework-c-call-observer-c.c "$host_archive" \
     -o target/framework-c-call-observer-c-host
-clang++ -std=c++17 -Wall -Wextra -Werror -pedantic -I bindings/c/include -I target \
+# These fixtures use only C ABI declarations; avoid libc++ headers at the iOS 12 compile floor.
+clang++ -nostdinc++ -std=c++17 -Wall -Wextra -Werror -pedantic -I bindings/c/include -I target \
     target/framework-c-call-observer-cpp.cpp "$host_archive" \
     -o target/framework-c-call-observer-cpp-host
 nm -g "$host_archive" 2>/dev/null \
@@ -147,10 +148,20 @@ for target in aarch64-apple-ios aarch64-apple-ios-sim; do
             cpp) compiler=clang++; source=target/framework-c-call-observer-cpp.cpp; standard=c++17 ;;
         esac
         binary="target/framework-c-call-observer-$language-$target"
-        xcrun --sdk "$sdk" "$compiler" -target "$clang_target" -std="$standard" \
-            -Wall -Wextra -Werror -pedantic -I bindings/c/include -I target \
-            "$source" "$archive" -framework CallKit -framework Foundation -lobjc \
-            -o "$binary"
+        case "$language" in
+            c)
+                xcrun --sdk "$sdk" "$compiler" -target "$clang_target" -std="$standard" \
+                    -Wall -Wextra -Werror -pedantic -I bindings/c/include -I target \
+                    "$source" "$archive" -framework CallKit -framework Foundation -lobjc \
+                    -o "$binary"
+                ;;
+            cpp)
+                xcrun --sdk "$sdk" "$compiler" -target "$clang_target" -nostdinc++ \
+                    -std="$standard" -Wall -Wextra -Werror -pedantic \
+                    -I bindings/c/include -I target "$source" "$archive" \
+                    -framework CallKit -framework Foundation -lobjc -o "$binary"
+                ;;
+        esac
         libraries="target/framework-c-call-observer-$language-$target-libraries.txt"
         otool -L "$binary" | awk 'NR > 1 { path = $1; sub(/^.*\//, "", path); print path }' \
             | LC_ALL=C sort > "$libraries"
