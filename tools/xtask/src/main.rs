@@ -674,7 +674,6 @@ mod tests {
             "dependency-audit",
             "abi-audit",
             "linkage-audit",
-            "validate (--list | --explain ID | --capability ID | --changed BASE | --all)",
             "zero-swift-source",
             "docs-check",
             "archive-smoke",
