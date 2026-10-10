@@ -5,6 +5,14 @@ root=$(CDPATH= cd -- "$(dirname -- "$0")/../.." && pwd)
 cd "$root"
 mkdir -p target
 
+sysroot=$(rustc --print sysroot)
+host=$(rustc -vV | sed -n 's/^host: //p')
+llvm_nm="$sysroot/lib/rustlib/$host/bin/llvm-nm"
+if [ ! -x "$llvm_nm" ]; then
+    echo "Rust LLVM symbol tool is required for this audit: $llvm_nm" >&2
+    exit 1
+fi
+
 python3 -m json.tool bindings/c/abi-manifest.json > /dev/null
 sh -n bindings/c/check-ios-file-provider.sh
 cargo fmt --manifest-path bindings/c/Cargo.toml --package framework-c-api -- --check
@@ -151,12 +159,12 @@ clang -std=c11 -Wall -Wextra -Werror -pedantic -I bindings/c/include -I target \
 clang++ -std=c++17 -Wall -Wextra -Werror -pedantic -I bindings/c/include -I target \
     target/framework-c-ios-file-provider-cpp.cpp "$host_archive" \
     -o target/framework-c-ios-file-provider-cpp-host
-nm -g "$host_archive" 2>/dev/null \
+"$llvm_nm" -g "$host_archive" 2>/dev/null \
     | rg -o '_framework_ios_file_provider_[A-Za-z0-9_]+' | sed 's/^_//' | sort -u \
     > target/framework-c-ios-file-provider-host-symbols.txt
 diff -u target/framework-c-ios-file-provider-expected-symbols.txt \
     target/framework-c-ios-file-provider-host-symbols.txt
-nm -u "$host_archive" 2>/dev/null > target/framework-c-ios-file-provider-host-undefined.txt
+"$llvm_nm" -u "$host_archive" 2>/dev/null > target/framework-c-ios-file-provider-host-undefined.txt
 if rg -q 'FileProvider|NSFileProvider|objc_msgSend|OBJC_CLASS|UIKit|swift_|Py[A-Z_]' \
     target/framework-c-ios-file-provider-host-undefined.txt; then
     echo "Apple, Swift, or Python import leaked into the host archive" >&2
@@ -228,7 +236,7 @@ for target in aarch64-apple-ios aarch64-apple-ios-sim; do
         printf '%s %s imports and iOS %s minimum verified; probe not executed\n' \
             "$target" "$language" "$deployment_target"
     done
-    nm -g "$archive" 2>/dev/null \
+    "$llvm_nm" -g "$archive" 2>/dev/null \
         | rg -o '_framework_ios_file_provider_[A-Za-z0-9_]+' \
         | sed 's/^_//' | sort -u \
         > "target/framework-c-ios-file-provider-$target-archive-symbols.txt"
