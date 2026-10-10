@@ -30,7 +30,7 @@ for target in aarch64-apple-ios aarch64-apple-ios-sim; do
     symbols="target/ios-connection-link-symbols-$target.txt"
 
     otool -L "$binary" > "$imports"
-    awk 'NR > 1 { path = $1; sub(/^.*\//, "", path); print path }' "$imports" | sort > "$libraries"
+    awk 'NR > 1 { path = $1; sub(/^.*\//, "", path); print path }' "$imports" | LC_ALL=C sort > "$libraries"
     diff -u target/ios-connection-link-imports-expected.txt "$libraries"
 
     nm -u "$binary" > "$symbols"
