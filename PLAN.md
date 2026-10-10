@@ -62,9 +62,14 @@ strict import, and B22 CMTime gates pass on Xcode 26.6 / SDK 26.5. Commit `5240f
 MediaPlayer check's Cargo feature quote patterns without weakening either assertion; its focused
 package gate passes locally, including device/Simulator checks and strict Clippy. Mainline run
 [38037910253](https://github.com/Biddlebaddleboo/jcdigitalsolutions-ios-rust-framework/actions/runs/38037910253)
-is queued for those integrated changes. Earlier branch runs 38037843804 and 38037886558 are also
-queued for the respective changes. Thus the fixes are implemented and locally checked, but their
-Xcode 27/macOS CI requalification remains pending. Local Xcode 26.6 (build 17F113), SDK 26.5 gates also pass for
+is in progress on both Apple hosts. Xcode 27 run
+[38037843804](https://github.com/Biddlebaddleboo/jcdigitalsolutions-ios-rust-framework/actions/runs/38037843804)
+passed B22 steps 50–55, shared validation, Foundation Models, Sign-in step 150, and B47 step 178;
+its job later failed at MediaPlayer step 225 because this branch predates `5240fda`. The macOS 15
+job in [38037886558](https://github.com/Biddlebaddleboo/jcdigitalsolutions-ios-rust-framework/actions/runs/38037886558)
+passed B47 step 178 and MediaPlayer step 225; its Clippy steps 231–232 remain pending. These
+targeted results validate each repair on Apple CI, but the combined mainline qualification and
+downstream Clippy results remain pending. Local Xcode 26.6 (build 17F113), SDK 26.5 gates also pass for
 B47 full audio (`sh platform/ios/ios-media/check-audio-playback.sh`), B50 package
 (`sh platform/ios/ios-media/check.sh`), and F25 C link/import
 (`sh bindings/c/check-ios-videotoolbox-link.sh`); detailed results and limits are in [PLAN_IOS_OTHER_AUDIO.md](PLAN_IOS_OTHER_AUDIO.md), [PLAN_VALIDATION_IOS_OTHER_AUDIO.md](PLAN_VALIDATION_IOS_OTHER_AUDIO.md), [PLAN_IOS_VIDEOTOOLBOX.md](PLAN_IOS_VIDEOTOOLBOX.md), and [PLAN_BINDINGS_F25.md](PLAN_BINDINGS_F25.md). These local passes do not establish runtime behavior; no tests, probe execution, live codec query, or device behavior is claimed.
