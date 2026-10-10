@@ -161,7 +161,8 @@ The current source-validation baseline is `d717f8ae4324bf2abc782816c7fb2e10dfa92
 - C ABI: current source/gate review and run `38066495166` evidence are recorded in `PLAN_BINDINGS.md`; that run applies only to SHA `9b0f13630c87d6913ea011fc4300b9b9f596195f` and gates 235–275. No selected ready F item follows F37; do not invent F38.
 - B/D: B436 remains blocked; D70 is retired in `PLAN_CAPABILITIES_CLOSED_FEASIBILITY.md` with B212/B285 no-implementation findings; D97 has no WidgetKit successor. No ready B/D item remains. Do not invent an ID or product scope.
 - Replacement review: `PLAN_REPLACEMENTS.md` defers unselected Apple-operation candidates; `PLAN_REPLACEMENTS_HTTP.md` has no credible replacement candidate; parity work lacks reference/candidate workloads. No replacement item is ready.
-- Next queue item: G3 current harness-gate evidence, then reconcile whether G4 has any bounded work; real Apple reference adapters, candidate workloads, and device parity/performance evidence remain absent. G8–G18 and G21–G29 are completed or rechecked as recorded; G19/G20 evidence is current above. No implementation-ready B/D, F, or replacement successor is recorded. Do not invent a workstream ID or capability scope.
+- G3: hosted run `38075483431` passed the current harness/workspace gates, including 5 bench, 7 parity, and 7 xtask tests. Fake-adapter tests are not real parity; no Apple reference adapter, candidate suite, workload, or performance result exists. See `PLAN_VALIDATION_HARNESS.md`.
+- Next queue item: G4 hosted static-gate evidence; URLSession runtime parity/performance remain blocked on a named candidate, deterministic local fixture, and representative-device evidence. G6–G20 and G21–G29 are complete or rechecked as recorded. No implementation-ready B/D, F, or replacement successor is recorded. Do not invent a workstream ID or capability scope.
 
 ## Active work selection and limits
 
