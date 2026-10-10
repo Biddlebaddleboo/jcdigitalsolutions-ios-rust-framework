@@ -25,3 +25,13 @@ The SDK does not declare a main-thread requirement for this class method. Appleâ
 - Build but do not execute device and simulator link probes; inspect the exact Speech/Foundation import allowlist, Objective-C symbols, and absence of Swift runtime symbols
 - Do not add or run tests, request permission, create a recognizer, accept audio, or start recognition
 - These gates prove source and link shape only. They do not prove service availability, microphone access, authorization prompt behavior, network availability, or recognition success
+
+## D53 execution evidence â€” 2026-10-10
+
+- Product source and package docs already meet this boundary; no product edit was needed
+- Pinned `ios-rust-build` and `ios-rust-validate` 0.1.0 installed for `x86_64-apple-darwin`; both report source SHA `2289e6a73257b696f6ae5ecd61ee20fd16ab8b37`
+- `ios-rust-validate --workspace-root "$PWD" --spec "$PWD/tools/validation/specs/validation-v1.json" --explain ios-speech-status` returned `unknown capability`; no validator pilot is registered for this package
+- `sh platform/ios/ios-speech-status/scripts/check.sh` passed source guards, `cargo fmt --check`, host `cargo check`, strict host Clippy, host rustdoc, device and simulator checks/Clippy, device rustdoc, zero-Swift-source, shared docs index, and `git diff --check`
+- Device and simulator release link probes built and passed `otool`, `nm`, and `strings` inspection; imports matched exactly `Foundation`, `Speech`, `libSystem.B.dylib`, and `libobjc.A.dylib`; `_objc_msgSend` and the Speech class/method names were present; no Swift runtime symbol was found
+- Probe executables were not run; no test, permission request, recognizer creation, audio input, recognition request, or recognition task was used
+- Evidence does not establish live authorization, service availability, microphone access, prompt behavior, network availability, or recognition success; `Authorized` remains only the app's saved authorization state
