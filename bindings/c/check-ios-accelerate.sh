@@ -59,7 +59,7 @@ rg -q '#\[cfg\(not\(target_os = "ios"\)\)\]' \
 rg -q 'FrameworkStatus::UNSUPPORTED' bindings/c/src/ios_accelerate.rs
 for file in bindings/c/src/ios_accelerate.rs \
     bindings/c/include/framework_ios_accelerate.h \
-    docs/bindings/ios-accelerate.md PLAN_BINDINGS_F22.md; do
+    docs/bindings/ios-accelerate.md; do
     rg -F -q 'keep both inputs immutable' "$file"
     rg -F -q 'unsynchronized output access' "$file"
     rg -F -q 'for the full call' "$file"

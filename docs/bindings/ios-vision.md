@@ -8,6 +8,6 @@ The query is available from iOS 13.0. An earlier iOS runtime returns `FRAMEWORK_
 
 The output address must point to valid, properly aligned writable `uint8_t` memory for the full synchronous call. The caller must prevent unsynchronized access to the output. The wrapper does not prove memory validity or retain the address. No callback, handle, object, owned buffer, or native error crosses C. The API adds no main-thread rule or thread-safety guarantee
 
-This status does not create `VNRecognizeTextRequest`, create a request handler, read an image, run recognition, check language support, or claim model readiness or recognition success. See [D52](../../PLAN_CAPABILITIES_VISION.md), [B57](../../PLAN_IOS_VISION.md), and [F17](../../PLAN_BINDINGS_F17.md)
+This status does not create `VNRecognizeTextRequest`, create a request handler, read an image, run recognition, check language support, or claim model readiness or recognition success. See [D52](../../PLAN_CAPABILITIES_VISION.md), [B57](../../PLAN_IOS_VISION.md), and [F17](../../PLAN_BINDINGS_COMPLETED_C_ABI.md)
 
 `sh bindings/c/check-ios-vision.sh` passed the host, device, and Simulator build-only gates. Its C/C++ link probes were not executed
