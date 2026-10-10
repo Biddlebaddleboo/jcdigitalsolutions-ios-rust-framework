@@ -2,7 +2,7 @@
 
 ## Status
 
-D22 portable source and guide are implemented. In isolated temporary workspace `/tmp/photos-ios-check.zHPcdc`, three deterministic tests, no-default-features check, strict Clippy, and rustdoc pass on Rust 1.94.1. The temporary workspace resolved the same package versions as the implementation; root owns the shared lock integration
+D22 portable source and guide are present, and the workspace `Cargo.lock` contains `framework-photos`. On Rust 1.94.1, package format, three deterministic tests, no-default-features check, strict Clippy, and rustdoc pass in this worktree. No live PhotoKit prompt or authorization/asset access behavior was demonstrated; host app plist setup was not checked
 
 ## Objective
 
@@ -41,15 +41,17 @@ Root owns workspace and lock integration, CI, canonical capability status, aggre
 
 ## Validation record
 
-In isolated workspace `/tmp/photos-ios-check.zHPcdc`, Rust 1.94.1 passes:
+In this worktree, Rust 1.94.1 passes:
 
 - `cargo +1.94.1 fmt --manifest-path crates/framework-photos/Cargo.toml -- --check`
-- `cargo +1.94.1 test --locked --offline -p framework-photos` — three tests pass
+- `cargo +1.94.1 test --locked --offline -p framework-photos` — three tests pass: Limited preservation, first-poll start/result, and drop before first poll
 - `cargo +1.94.1 check --locked --offline -p framework-photos --no-default-features`
 - `cargo +1.94.1 clippy --locked --offline --all-targets -p framework-photos -- -D warnings`
 - `cargo +1.94.1 doc --locked --offline -p framework-photos --no-deps`
+- `cargo +1.94.1 tree --locked --offline -e normal -p framework-photos` — no external dependencies
+- `git diff --check`
 
-No shared workspace or lock file was edited by D22
+The portable crate uses `#![no_std]`, has no Apple/platform types or normal dependencies, and exposes a generic static backend facade without executor or `Send` bounds. No native prompt, permission outcome, host plist validity, or asset operation is claimed
 
 ## Apple API basis
 
