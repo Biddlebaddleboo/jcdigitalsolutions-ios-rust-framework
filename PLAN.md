@@ -50,9 +50,10 @@ confirms the macOS 15 Foundation Models step is skipped; run
 [38036063176](https://github.com/Biddlebaddleboo/jcdigitalsolutions-ios-rust-framework/actions/runs/38036063176)
 passes both `ios-rust-validate --all` and the Foundation Models gate on Xcode 27. In run
 [38036184360](https://github.com/Biddlebaddleboo/jcdigitalsolutions-ios-rust-framework/actions/runs/38036184360),
-the post-prefetch Sign in with Apple step also passed on Xcode 27; that job remains in progress
-through later gates. Mainline recheck 38036234051 remains pending, so this is not a full
-qualification-lane pass. Local Xcode 26.6 (build 17F113), SDK 26.5 gates pass for
+the post-prefetch Sign in with Apple step passed on Xcode 27, but step 178 later failed the B47
+audio link/import check: `CoreMedia` was expected and `libswiftCoreMedia` was found. Mainline
+recheck 38036234051 remains in progress, so this is not a full qualification-lane pass. Local
+Xcode 26.6 (build 17F113), SDK 26.5 gates pass for
 B47 full audio (`sh platform/ios/ios-media/check-audio-playback.sh`), B50 package
 (`sh platform/ios/ios-media/check.sh`), and F25 C link/import
 (`sh bindings/c/check-ios-videotoolbox-link.sh`); detailed results and limits are in [PLAN_IOS_OTHER_AUDIO.md](PLAN_IOS_OTHER_AUDIO.md), [PLAN_VALIDATION_IOS_OTHER_AUDIO.md](PLAN_VALIDATION_IOS_OTHER_AUDIO.md), [PLAN_IOS_VIDEOTOOLBOX.md](PLAN_IOS_VIDEOTOOLBOX.md), and [PLAN_BINDINGS_F25.md](PLAN_BINDINGS_F25.md). These local passes do not establish runtime behavior; no tests, probe execution, live codec query, or device behavior is claimed.
