@@ -53,7 +53,11 @@ selected BackgroundTasks symbol/selector scan and forbidden Swift/Python/runtime
 framework scan pass. Device minimum OS is 13.0; Simulator minimum OS is 14.0; both use SDK 26.5.
 `git diff --check` passes for this evidence update.
 
-This is Xcode 26.6 static compile, Clippy, documentation, and link/import evidence only. Xcode 27.x
-qualification remains open; no CI workflow run was part of this recheck. No scheduled/live task,
-callback, expiration, completion, app launch, Simulator behavior, or physical-device behavior is
-established.
+## 2026-10-10 hosted Xcode 27 gates
+
+Workflow run `38075483431` on source SHA `85db105389c1d0b212bc385d9b4b6a1f6e049c0b` passed
+the portable app-refresh no-default check/Clippy, device and Simulator `ios-background-tasks`
+check/strict Clippy, and `check-link-imports.sh` gates in the Xcode 27 lane. The run used Xcode
+27.0 build `27A266a`, iPhoneOS/iPhoneSimulator SDK 27.0, and passed with Ubuntu and macOS 15 jobs.
+This adds hosted Xcode 27 static/link evidence; it does not establish a scheduled/live task,
+callback, expiration, completion, app launch, Simulator behavior, or physical-device behavior.
