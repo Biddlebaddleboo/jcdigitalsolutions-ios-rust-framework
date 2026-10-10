@@ -5,6 +5,14 @@ root=$(CDPATH= cd -- "$(dirname -- "$0")/../.." && pwd)
 cd "$root"
 mkdir -p target
 
+rustc_sysroot=$(rustc --print sysroot)
+rustc_host=$(rustc -vV | sed -n 's/^host: //p')
+llvm_nm="$rustc_sysroot/lib/rustlib/$rustc_host/bin/llvm-nm"
+if [ ! -x "$llvm_nm" ]; then
+    echo "Rust LLVM symbol tool is required for Rust archive scans: $llvm_nm" >&2
+    exit 1
+fi
+
 for tool in awk cargo clang clang++ diff jq nm otool rg sed sort strings vtool xcrun; do
     if ! command -v "$tool" >/dev/null 2>&1; then
         echo "$tool is required for the F27 link-import gate" >&2
@@ -42,12 +50,12 @@ clang -std=c11 -Wall -Wextra -Werror -pedantic -I bindings/c/include \
 clang++ -nostdlib++ -std=c++17 -Wall -Wextra -Werror -pedantic -I bindings/c/include \
     target/framework-c-ios-core-ml-status-cpp.cpp "$host_archive" \
     -o target/framework-c-ios-core-ml-status-cpp-host
-nm -g "$host_archive" 2>/dev/null \
+"$llvm_nm" -g "$host_archive" 2>/dev/null \
     | rg -o '_framework_ios_core_ml_status_[A-Za-z0-9_]+' \
     | sed 's/^_//' | LC_ALL=C sort -u \
     > target/framework-c-ios-core-ml-status-host-symbols.txt
 diff -u "$expected_symbols" target/framework-c-ios-core-ml-status-host-symbols.txt
-nm -u "$host_archive" 2>/dev/null > target/framework-c-ios-core-ml-status-host-undefined.txt
+"$llvm_nm" -u "$host_archive" 2>/dev/null > target/framework-c-ios-core-ml-status-host-undefined.txt
 if rg -q 'MLModel|availableComputeDevices|CoreML|objc_|OBJC_CLASS|swift_' \
     target/framework-c-ios-core-ml-status-host-undefined.txt; then
     echo "Core ML, Objective-C, or Swift import leaked into the host archive" >&2
@@ -127,7 +135,7 @@ for target in aarch64-apple-ios aarch64-apple-ios-sim; do
             exit 1
         fi
     done
-    nm -g "$archive" 2>/dev/null \
+    "$llvm_nm" -g "$archive" 2>/dev/null \
         | rg -o '_framework_ios_core_ml_status_[A-Za-z0-9_]+' \
         | sed 's/^_//' | LC_ALL=C sort -u \
         > "target/framework-c-ios-core-ml-status-$target-archive-symbols.txt"

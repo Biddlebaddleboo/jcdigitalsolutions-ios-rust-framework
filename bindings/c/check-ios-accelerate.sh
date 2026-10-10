@@ -5,6 +5,14 @@ root=$(CDPATH= cd -- "$(dirname -- "$0")/../.." && pwd)
 cd "$root"
 mkdir -p target
 
+rustc_sysroot=$(rustc --print sysroot)
+rustc_host=$(rustc -vV | sed -n 's/^host: //p')
+llvm_nm="$rustc_sysroot/lib/rustlib/$rustc_host/bin/llvm-nm"
+if [ ! -x "$llvm_nm" ]; then
+    echo "Rust LLVM symbol tool is required for Rust archive scans: $llvm_nm" >&2
+    exit 1
+fi
+
 python3 -m json.tool bindings/c/abi-manifest.json > /dev/null
 sh -n bindings/c/check-ios-accelerate.sh
 cargo fmt --package framework-c-api -- --check
@@ -147,12 +155,12 @@ clang -std=c11 -Wall -Wextra -Werror -pedantic -I bindings/c/include \
 clang++ -std=c++17 -Wall -Wextra -Werror -pedantic -I bindings/c/include \
     target/framework-c-ios-accelerate-cpp.cpp "$host_archive" \
     -o target/framework-c-ios-accelerate-cpp-host
-nm -g "$host_archive" 2>/dev/null \
+"$llvm_nm" -g "$host_archive" 2>/dev/null \
     | rg -o '_framework_ios_accelerate_[A-Za-z0-9_]+' | sed 's/^_//' | sort -u \
     > target/framework-c-ios-accelerate-host-symbols.txt
 diff -u target/framework-c-ios-accelerate-expected-symbols.txt \
     target/framework-c-ios-accelerate-host-symbols.txt
-nm -u "$host_archive" 2>/dev/null \
+"$llvm_nm" -u "$host_archive" 2>/dev/null \
     > target/framework-c-ios-accelerate-host-undefined.txt
 if rg -q 'vDSP_vadd|Accelerate|UIKit|Metal|objc|swift_' \
     target/framework-c-ios-accelerate-host-undefined.txt; then
@@ -222,7 +230,7 @@ for target in aarch64-apple-ios aarch64-apple-ios-sim; do
         printf '%s %s Accelerate/_vDSP_vadd imports and iOS %s minimum verified; probe not executed\n' \
             "$target" "$language" "$deployment_target"
     done
-    nm -g "$archive" 2>/dev/null \
+    "$llvm_nm" -g "$archive" 2>/dev/null \
         | rg -o '_framework_ios_accelerate_[A-Za-z0-9_]+' | sed 's/^_//' | sort -u \
         > "target/framework-c-ios-accelerate-$target-archive-symbols.txt"
     diff -u target/framework-c-ios-accelerate-expected-symbols.txt \
