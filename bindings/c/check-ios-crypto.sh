@@ -49,7 +49,7 @@ diff -u target/framework-c-ios-crypto-expected-symbols.txt \
 rg -q '#\[cfg\(not\(target_os = "ios"\)\)\]' bindings/c/src/ios_crypto.rs
 rg -q 'FrameworkStatus::UNSUPPORTED' bindings/c/src/ios_crypto.rs
 for file in bindings/c/src/ios_crypto.rs bindings/c/include/framework_ios_crypto.h \
-    docs/bindings/ios-crypto.md PLAN_BINDINGS_F19.md; do
+    docs/bindings/ios-crypto.md; do
     rg -F -q 'keep input immutable' "$file"
     rg -F -q 'prevent unsynchronized' "$file"
     rg -F -q 'output access for the full call' "$file"
