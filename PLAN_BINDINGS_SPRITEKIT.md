@@ -74,6 +74,16 @@ UIKit, `libSystem.B.dylib`, and `libobjc.A.dylib`; C++ adds `libc++.1.dylib`. Li
 Simulator probes report `minos` 12.0 and 14.0. These are SDK-specific validation targets; the B70
 API floor remains iOS 7.0. The probes were linked and inspected, not executed; no tests were run.
 
+Xcode 27 run `38047131769` on head `a2c8dba55875aa4f7d85abe254f9c90e850cd8e4` passed the
+MediaPlayer C ABI step 242, then failed SpriteKit C ABI step 243 in job `114198818165`. The device
+C11 probe linked with minos 12.0; the following C++17 compile entered the Xcode 27 SDK libc++
+`stddef.h` shim and promoted `availability.h:204` warning `The selected platform is no longer
+supported by libc++` to an error under `-Werror`. Since the fixtures use only C ABI declarations,
+`check-ios-spritekit.sh` now passes `-nostdinc++` to its C++ host/device/Simulator compile commands
+while retaining C++17, the `libc++.1.dylib` runtime import assertion, all framework/symbol/selector
+checks, device 12.0 and Simulator 14.0 minos checks, and the iOS 7.0 API-floor record. Xcode 27
+SpriteKit requalification is pending; no consumer or probe execution/runtime behavior is claimed
+
 - `python3 -m json.tool bindings/c/abi-manifest.json > /dev/null`
 - `sh -n bindings/c/check-ios-spritekit.sh`
 - `cargo fmt --manifest-path bindings/c/Cargo.toml --package framework-c-api -- --check`
