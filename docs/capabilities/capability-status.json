@@ -1443,20 +1443,22 @@
       "crate_module_status": "portable_contract_and_ios_backend_partial",
       "portability_class": "portable_with_platform_extensions",
       "portable_contract_status": "implemented",
-      "portable_contract_note": "framework-media-authorization defines camera authorization-status values only; it does not create capture sessions or expose media.",
+      "portable_contract_note": "framework-media-authorization defines camera authorization status and explicit request operations; iOS requests do not create capture sessions or expose media.",
       "ios_implementation_class": "B",
       "implementation_status": "partial",
-      "status_reason": "B36 queries camera authorization status only; D57/B62 also queries default-video-device presence. Neither requests permission, creates a capture session, or accesses media samples.",
+      "status_reason": "B36 provides a non-prompting camera authorization query; an additive MediaAuthorizationRequester operation explicitly requests camera permission. D57/B62 also queries default-video-device presence. No operation creates a capture session or accesses media samples.",
       "minimum_ios_version": "4.0",
       "required_frameworks": [
         "AVFoundation"
       ],
       "required_permissions": [],
-      "required_info_plist_keys": [],
+      "required_info_plist_keys": [
+        "NSCameraUsageDescription"
+      ],
       "entitlements": [],
       "device_only_restrictions": null,
       "swift_abi_requirement": false,
-      "metadata_verification": "PLAN_IOS_CAMERA_DEVICE_STATUS.md verifies the default-video-device query from iOS 4.0; PLAN_IOS_MEDIA_AUTHORIZATION.md verifies camera authorizationStatus from iOS 7.0; NSCameraUsageDescription applies before future authorization requests or capture/input setup, not these queries.",
+      "metadata_verification": "PLAN_IOS_CAMERA_DEVICE_STATUS.md verifies the default-video-device query from iOS 4.0; Xcode 26.6 build 17F113 / iOS SDK 26.5 AVCaptureDevice.h declares authorizationStatusForMediaType: and requestAccessForMediaType:completionHandler: from iOS 7.0; the Rust 1.94.1 package checks and ios-media-authorization validator profile pass; no permission prompt or capture ran; NSCameraUsageDescription is required for the explicit request, not the status query.",
       "parity_status": "not_tested_live_behavior_or_Apple_parity",
       "performance_status": "not_measured",
       "native_escape_handle_available": false,
@@ -1473,20 +1475,22 @@
       "crate_module_status": "portable_contract_and_ios_backend_partial",
       "portability_class": "portable_with_platform_extensions",
       "portable_contract_status": "implemented",
-      "portable_contract_note": "framework-media-authorization defines microphone authorization-status values only; it does not create audio I/O or expose samples.",
+      "portable_contract_note": "framework-media-authorization defines microphone authorization status and explicit request operations; iOS requests do not create audio I/O or expose samples.",
       "ios_implementation_class": "B",
       "implementation_status": "partial",
-      "status_reason": "B36 queries microphone authorization status only; it does not request permission, enumerate devices, create an audio session, or access samples.",
+      "status_reason": "B36 provides a non-prompting microphone authorization query; an additive MediaAuthorizationRequester operation explicitly requests microphone permission. It does not enumerate devices, create an audio session, or access samples.",
       "minimum_ios_version": "7.0",
       "required_frameworks": [
         "AVFoundation"
       ],
       "required_permissions": [],
-      "required_info_plist_keys": [],
+      "required_info_plist_keys": [
+        "NSMicrophoneUsageDescription"
+      ],
       "entitlements": [],
       "device_only_restrictions": null,
       "swift_abi_requirement": false,
-      "metadata_verification": "PLAN_IOS_MEDIA_AUTHORIZATION.md verifies authorizationStatusForMediaType: from iOS 7.0; NSMicrophoneUsageDescription applies before future requests or audio capture, not this status query; no entitlement or sample access is included.",
+      "metadata_verification": "Xcode 26.6 build 17F113 / iOS SDK 26.5 AVCaptureDevice.h declares authorizationStatusForMediaType: and requestAccessForMediaType:completionHandler: from iOS 7.0; the Rust 1.94.1 package checks and ios-media-authorization validator profile pass; no permission prompt or capture ran; NSMicrophoneUsageDescription is required for the explicit request, not the status query; no entitlement or sample access is included.",
       "parity_status": "not_tested_live_behavior_or_Apple_parity",
       "performance_status": "not_measured",
       "native_escape_handle_available": false,

@@ -1,14 +1,14 @@
-use framework_media_authorization::{CaptureMedia, MediaAuthorization, MediaAuthorizationStatus};
+use framework_media_authorization::{
+    CaptureMedia, MediaAuthorization, MediaAuthorizationRequester, MediaAuthorizationStatus,
+};
 use objc2_av_foundation::{
     AVAuthorizationStatus, AVCaptureDevice, AVMediaTypeAudio, AVMediaTypeVideo,
 };
 
+use crate::request::IosMediaAuthorizationFuture;
 use crate::status::{AvMediaType, av_media_type, map_av_authorization_status};
 
-/// A zero-sized AVFoundation implementation of the status-only media contract.
-///
-/// This query does not prompt, create a capture device/input/session, or access camera or
-/// microphone samples.
+/// A zero-sized AVFoundation implementation of camera and microphone authorization.
 pub struct IosMediaAuthorization;
 
 impl MediaAuthorization for IosMediaAuthorization {
@@ -34,5 +34,30 @@ impl MediaAuthorization for IosMediaAuthorization {
         let status: AVAuthorizationStatus =
             unsafe { AVCaptureDevice::authorizationStatusForMediaType(media_type) };
         map_av_authorization_status(status.0)
+    }
+}
+
+impl MediaAuthorizationRequester for IosMediaAuthorization {
+    type RequestAuthorizationFuture<'a>
+        = IosMediaAuthorizationFuture
+    where
+        Self: 'a;
+
+    fn request_authorization(
+        &mut self,
+        media: CaptureMedia,
+    ) -> Self::RequestAuthorizationFuture<'_> {
+        IosMediaAuthorizationFuture::new(media)
+    }
+}
+
+impl IosMediaAuthorization {
+    /// Requests camera or microphone authorization when the returned future is first polled.
+    ///
+    /// The host app must provide the matching `NSCameraUsageDescription` or
+    /// `NSMicrophoneUsageDescription` key. Dropping a pending future abandons its Rust result but
+    /// does not cancel or dismiss native authorization UI.
+    pub fn request_authorization(&mut self, media: CaptureMedia) -> IosMediaAuthorizationFuture {
+        <Self as MediaAuthorizationRequester>::request_authorization(self, media)
     }
 }

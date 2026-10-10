@@ -57,3 +57,26 @@ No native authorization query, permission prompt, hardware query, or capture ope
 these are outside this portable status-only workstream. Root-owned workspace integration and
 canonical rows 046 and 047 were read-only; those rows remain partial for broader camera/microphone
 capture support.
+
+## Additive request operation for existing capability rows 046 and 047
+
+The original D31 status-only contract remains unchanged. This selected capability increment adds a
+separate `MediaAuthorizationRequester` trait to the same portable crate without creating or reusing
+a numbered D/B workstream:
+
+- Requests select exactly one `CaptureMedia` value and return a future yielding
+  `MediaAuthorizationStatus`.
+- Prompt-capable work starts only on the first poll; dropping an unpolled future starts no request.
+- Dropping a pending future abandons the Rust result but does not claim native request or prompt
+  cancellation.
+- A request reports authorization only. It does not enumerate hardware, create sessions, access
+  samples, capture, record, or configure audio.
+- Existing `MediaAuthorization` status implementations remain source-compatible and
+  non-prompting.
+
+Acceptance: deterministic portable tests cover lazy start and media selection; the iOS adapter uses
+only the public AVFoundation `requestAccessForMediaType:completionHandler:` API and maps completion
+to a fresh native authorization-status query; package checks cover device and Simulator targets
+plus the no-capture source guard. The host app owns the matching `NSCameraUsageDescription` or
+`NSMicrophoneUsageDescription` purpose string. Compile/test gates do not invoke AVFoundation or
+display a permission prompt.

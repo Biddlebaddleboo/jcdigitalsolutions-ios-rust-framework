@@ -1,6 +1,10 @@
 {
   "dependency_edges": [
     [
+      "ios-media-authorization",
+      "framework-media-authorization"
+    ],
+    [
       "ios-activitykit-status",
       "swift-abi-core"
     ],
@@ -30,6 +34,130 @@
     ]
   ],
   "pilots": [
+    {
+      "abi_scripts": [],
+      "abi_targets": [
+        {
+          "minimum_os": "7.0",
+          "sdk": "iphoneos",
+          "triple": "aarch64-apple-ios"
+        },
+        {
+          "minimum_os": "14.0",
+          "sdk": "iphonesimulator",
+          "triple": "aarch64-apple-ios-sim"
+        }
+      ],
+      "cargo_tree": false,
+      "check_script": "platform/ios/ios-media-authorization/check.sh",
+      "clippy_all_targets": true,
+      "clippy_lib": false,
+      "docs": [
+        "docs/capabilities/media-authorization.md",
+        "docs/capabilities/capability-status.json",
+        "docs/ios/media-authorization.md",
+        "PLAN.md",
+        "PLAN_CAPABILITIES_MEDIA_AUTHORIZATION.md",
+        "PLAN_IOS_MEDIA_AUTHORIZATION.md",
+        "PLAN_IOS_NATIVE.md"
+      ],
+      "expected_imports": [],
+      "fmt_all": false,
+      "guards": [
+        {
+          "message": "explicit AVFoundation media authorization request is required",
+          "must_exist": true,
+          "path": "platform/ios/ios-media-authorization/src/request.rs",
+          "text": "requestAccessForMediaType_completionHandler"
+        },
+        {
+          "message": "capture sessions are outside this authorization capability",
+          "must_exist": false,
+          "path": "platform/ios/ios-media-authorization/src/request.rs",
+          "text": "AVCaptureSession"
+        },
+        {
+          "message": "audio engines are outside this authorization capability",
+          "must_exist": false,
+          "path": "platform/ios/ios-media-authorization/src/request.rs",
+          "text": "AVAudioEngine"
+        },
+        {
+          "message": "Objective-C block support is required for asynchronous authorization",
+          "must_exist": true,
+          "path": "platform/ios/ios-media-authorization/Cargo.toml",
+          "text": "features = [\"AVCaptureDevice\", \"AVMediaFormat\", \"block2\"]"
+        }
+      ],
+      "id": "ios-media-authorization",
+      "manifest": "platform/ios/ios-media-authorization/Cargo.toml",
+      "offline": false,
+      "package": "ios-media-authorization",
+      "rustdoc_warnings": false,
+      "scoped_files": [
+        "Cargo.lock",
+        "crates/framework-media-authorization/src/lib.rs",
+        "platform/ios/ios-media-authorization/Cargo.toml",
+        "platform/ios/ios-media-authorization/check.sh",
+        "platform/ios/ios-media-authorization/check-surface.sh",
+        "platform/ios/ios-media-authorization/src/lib.rs",
+        "platform/ios/ios-media-authorization/src/operation.rs",
+        "platform/ios/ios-media-authorization/src/platform.rs",
+        "platform/ios/ios-media-authorization/src/request.rs",
+        "platform/ios/ios-media-authorization/src/status.rs",
+        "docs/capabilities/media-authorization.md",
+        "docs/capabilities/capability-status.json",
+        "docs/ios/media-authorization.md",
+        "PLAN.md",
+        "PLAN_CAPABILITIES_MEDIA_AUTHORIZATION.md",
+        "PLAN_IOS_MEDIA_AUTHORIZATION.md",
+        "PLAN_IOS_NATIVE.md",
+        "tools/validation/adapters/check_media_authorization.py",
+        "tools/validation/specs/validation-v1.json"
+      ],
+      "shell_scripts": [
+        "platform/ios/ios-media-authorization/check.sh",
+        "platform/ios/ios-media-authorization/check-surface.sh"
+      ],
+      "source_dirs": [
+        "platform/ios/ios-media-authorization"
+      ],
+      "targets": [
+        {
+          "minimum_os": "7.0",
+          "sdk": "iphoneos",
+          "triple": "aarch64-apple-ios"
+        },
+        {
+          "minimum_os": "14.0",
+          "sdk": "iphonesimulator",
+          "triple": "aarch64-apple-ios-sim"
+        }
+      ],
+      "adapters": [
+        {
+          "id": "media-authorization-request-contract",
+          "interpreter": "python3",
+          "minimum_version": "3.9",
+          "script": "tools/validation/adapters/check_media_authorization.py",
+          "input_paths": [
+            "crates/framework-media-authorization/src/lib.rs",
+            "platform/ios/ios-media-authorization/src/platform.rs",
+            "platform/ios/ios-media-authorization/src/request.rs",
+            "platform/ios/ios-media-authorization/src/status.rs",
+            "platform/ios/ios-media-authorization/check-surface.sh",
+            "docs/ios/media-authorization.md",
+            "docs/capabilities/capability-status.json"
+          ],
+          "required": true,
+          "evidence_type": "source-contract-consistency",
+          "deadline_seconds": 10,
+          "stdout_limit_bytes": 4096,
+          "stderr_limit_bytes": 4096,
+          "temporary_space_bytes": 1048576
+        }
+      ]
+    },
     {
       "abi_scripts": [
         "platform/ios/ios-homekit-identify-status/check-link-imports.sh"
@@ -615,6 +743,16 @@
     {
       "path": "tools/validation/",
       "global": true
+    },
+    {
+      "path": "crates/framework-media-authorization/",
+      "node": "framework-media-authorization",
+      "global": false
+    },
+    {
+      "path": "platform/ios/ios-media-authorization/",
+      "node": "ios-media-authorization",
+      "global": false
     },
     {
       "path": "tools/releases/",

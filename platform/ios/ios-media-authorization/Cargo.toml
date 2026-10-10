@@ -5,13 +5,14 @@ edition.workspace = true
 rust-version.workspace = true
 license.workspace = true
 repository.workspace = true
-description = "Status-only AVFoundation camera and microphone authorization adapter"
+description = "AVFoundation camera and microphone authorization adapter"
 
 [dependencies]
 framework-media-authorization = { path = "../../../crates/framework-media-authorization", version = "0.1.0" }
 
 [target.'cfg(target_os = "ios")'.dependencies]
-objc2-av-foundation = { workspace = true, features = ["AVCaptureDevice", "AVMediaFormat"] }
+block2 = { workspace = true, features = ["alloc"] }
+objc2-av-foundation = { workspace = true, features = ["AVCaptureDevice", "AVMediaFormat", "block2"] }
 
 [lints]
 workspace = true
