@@ -27,6 +27,18 @@ cargo test -p parity-harness
 cargo test -p bench-harness
 ```
 
+## Agent workflow and maintained tool ownership
+
+For ordinary framework API development, `AGENTS.md` and `docs/SHARED_TOOLING.md` define the authoritative **validator-first** workflow. `ios-rust-validate` and `ios-rust-build` are maintained in private `Biddlebaddleboo/jcdigitalsolutions-rust-tooling`; the framework carries pinned verified binaries and its own API-specific specs, adapters, checks and fixtures. Always verify the installed executable version and available flags before invocation.
+
+An API change is not adequately validated solely because Codex ran a collection of ad hoc `cargo`, `clang`, `swiftc` or shell checks. Where schema v1 supports a capability, declare its inputs, required checks and reverse dependencies in `tools/validation/specs/validation-v1.json`; execute the registered profile and include a meaningful negative regression. Native package scripts and compiler/link oracles remain the sources of distinct correctness assertions; registration orchestrates them rather than deleting or weakening them. If a required check is not expressible in schema v1, preserve its direct and CI gate and report that integration gap rather than claiming full validator coverage.
+
+Do not require a Python adapter for every API. Add a bounded, deterministic adapter only when existing declarative or native checks cannot express a distinct necessary assertion, and register its requiredness and evidence type. Do not write a Python wrapper around Cargo merely to satisfy an adapter count. Report accurate PASS, FAIL, SKIPPED and ERROR-BLOCKED outcomes; compilation, linkage, simulator runtime and device runtime are separate forms of evidence.
+
+**Release distinction:** the checked-in `tools/releases/manifest-v1.tsv` still selects the older 0.1.0 historical release. The newer private engine includes optional `--watch`, uncommitted immutable snapshots, resource-aware parallel scheduling, incremental caching and recovery, but these must not be assumed for the currently pinned binary. Once a separate release upgrade is safely verified and promoted, use the installed binary's advertised native watch mode for local Codex feedback; do not commit routine reports or require a Git commit to check uncommitted local edits. GitHub Actions remains separate clean-commit qualification. See `docs/SHARED_TOOLING.md` for release, rollback and diagnostic guidance.
+
+The detailed standalone commands below remain useful as explicit native regression procedures and CI evidence; they are not instructions to bypass the registered validator or rerun all checks after every small API edit.
+
 ## Shared native pilot validation
 
 `ios-rust-validate` is limited to HomeKit identify status, photogrammetry status, AlarmKit status, and ActivityKit status. Each pilot keeps its existing feature, negative, public-import, symbol, availability, ownership, and compiler-oracle assertions; the installed runner owns command selection, target/SDK preflight, result formatting, and changed-file selection. `--explain ID` reports declared inputs, gate names, targets, SDKs, deployment floors, required and optional checks, expected public imports, ABI oracles, source guards, adapters, evidence limits, and effective commands. `--changed BASE` requires an explicit Git commit/ref, includes tracked, untracked, and deleted worktree paths, and expands shared-tool changes through the dependency graph; unknown dependencies select all pilots. CI and each pilot `check.sh` call the PATH executable directly. Required missing or invalid Python adapters report `error-blocked`, never pass; optional adapter failures remain visible in structured results without blocking unrelated required gates.
