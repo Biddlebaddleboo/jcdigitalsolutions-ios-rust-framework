@@ -252,6 +252,24 @@ The codegen report is structural IR evidence for `OperationId` only; it makes no
 
 ## Recorded evidence and limits
 
+### Owned-buffer transfer regression requalification (2026-10-10)
+
+The `FrameworkOwnedBuffer::try_from_vec` regression now captures the input `Vec` allocation pointer and capacity before transfer, then verifies pointer identity, fixed-width length/capacity, and byte contents after transfer. It calls `framework_owned_buffer_destroy` once on that original descriptor, verifies the descriptor resets to empty, then drops the descriptor to cover the no-second-release path. `cargo +1.94.1 test --locked -p framework-abi --all-features` passed all 7 tests, including the optional `std` panic boundary.
+
+Foundation requalification on Rust `1.94.1`:
+
+- `cargo +1.94.1 check --locked -p framework-core -p framework-alloc -p framework-async -p framework-abi -p framework-platform --no-default-features` — PASS
+- `cargo +1.94.1 test --locked -p framework-abi --all-features` — PASS, 7 tests
+- `cargo +1.94.1 test --locked -p framework-core -p framework-alloc -p framework-async -p framework-platform` — PASS, 21 tests (7, 5, 7, and 2)
+- `cargo +1.94.1 clippy --locked -p framework-core -p framework-alloc -p framework-async -p framework-abi -p framework-platform --all-targets -- -D warnings` — PASS
+- `cargo +1.94.1 clippy --locked -p framework-abi --all-features --all-targets -- -D warnings` — PASS
+- `cargo +1.94.1 doc --locked --all-features -p framework-core -p framework-alloc -p framework-async -p framework-abi -p framework-platform --no-deps` — PASS
+- `cargo +1.94.1 run --locked -p xtask -- codegen-audit --output target/xtask/codegen-audit-foundation-20261010.json` — PASS, four target IR checks
+- `rustfmt +1.94.1 --check crates/framework-core/src/lib.rs crates/framework-async/src/lib.rs crates/framework-alloc/src/lib.rs crates/framework-abi/src/lib.rs` — PASS
+- `git diff --check` — PASS
+
+The formatter also expanded two pre-existing one-line handle constructors in `framework-abi`; no behavior changed. This is host test and structural IR evidence only; no device/Simulator runtime, 32-bit execution, or performance claim is made.
+
 - The representation table in [docs/core/FOUNDATION.md](docs/core/FOUNDATION.md) records size, alignment, array stride, scalar domains, sentinel values, slab capacity, and generation wrap behavior
 - [docs/core/ASYNC_AND_OWNERSHIP.md](docs/core/ASYNC_AND_OWNERSHIP.md) records atomic phase values, compare-exchange ordering, result publication, waker-slot ordering, future drop behavior, and backend callback lifetime
 - [docs/core/C_ABI.md](docs/core/C_ABI.md) records C layouts, pointer-width-dependent fields, owned-buffer rules, status values, callback lifetime, options headers, and panic limits
