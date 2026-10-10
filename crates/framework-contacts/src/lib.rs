@@ -69,9 +69,11 @@ impl ContactsError {
 /// [`authorization_status`](Self::authorization_status) must not show a permission prompt. A
 /// request may prompt only after its returned future is first polled. Dropping an unpolled future
 /// must have no prompt side effect. Dropping a started future abandons interest in its result but
-/// cannot be assumed to dismiss a system prompt already shown; callback state must remain safe
-/// until the native operation reaches one terminal outcome. A live future yields its result at
-/// most once. No global service, dynamic dispatch, or executor is required by this contract.
+/// cannot be assumed to dismiss a system prompt already shown. Callback state must not borrow
+/// future-owned storage and must remain valid until the native operation reaches one terminal
+/// outcome. The first terminal completion becomes one future result; duplicate native completions
+/// must not produce another result. A live future yields its result at most once. No global
+/// service, dynamic dispatch, or executor is required by this contract.
 pub trait ContactsBackend {
     /// Reports whether the backend's authorization facility is available in this context.
     fn availability(&self) -> Availability;
@@ -89,7 +91,9 @@ pub trait ContactsBackend {
     ///
     /// The backend must start prompt-capable native work only when this future is first polled.
     /// A completed denial or limited grant is an authorization result, not inherently an
-    /// operation error. Dropping the future cannot be assumed to cancel a prompt already shown.
+    /// operation error. Dropping the future cannot be assumed to cancel a prompt already shown;
+    /// callback state must remain valid until native completion without borrowing future-owned
+    /// storage. Duplicate native completions must not produce another future result.
     fn request_authorization<'a>(&'a mut self) -> Self::RequestAuthorizationFuture<'a>;
 }
 
@@ -178,6 +182,14 @@ mod tests {
     #[test]
     fn authorization_values_keep_limited_separate_from_full_access() {
         assert_eq!(core::mem::size_of::<ContactsAuthorization>(), 1);
+        assert_eq!(ContactsAuthorization::Unknown as u8, 0);
+        assert_eq!(ContactsAuthorization::NotDetermined as u8, 1);
+        assert_eq!(ContactsAuthorization::Restricted as u8, 2);
+        assert_eq!(ContactsAuthorization::Denied as u8, 3);
+        assert_eq!(ContactsAuthorization::Authorized as u8, 4);
+        assert_eq!(ContactsAuthorization::Limited as u8, 5);
+        assert!(!ContactsAuthorization::Unknown.allows_contact_access());
+        assert!(!ContactsAuthorization::NotDetermined.allows_contact_access());
         assert!(ContactsAuthorization::Authorized.allows_contact_access());
         assert!(ContactsAuthorization::Authorized.is_full_access());
         assert!(ContactsAuthorization::Limited.allows_contact_access());
@@ -194,10 +206,16 @@ mod tests {
         };
         let requests = backend.requests.clone();
         let mut contacts = Contacts::new(backend);
+        assert_eq!(contacts.availability(), Availability::Available);
         assert_eq!(
             contacts.authorization_status(),
             ContactsAuthorization::Limited
         );
+        assert_eq!(requests.get(), 0);
+
+        let future = contacts.request_authorization();
+        assert_eq!(requests.get(), 0);
+        drop(future);
         assert_eq!(requests.get(), 0);
 
         assert_eq!(requests.get(), 0);

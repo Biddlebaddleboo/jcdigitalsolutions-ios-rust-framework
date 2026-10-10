@@ -18,8 +18,9 @@ initialization, allocation, or executor selection. `authorization_status()` is a
 query. `request_authorization()` is an explicit operation; a native backend must defer its
 prompt-capable call until the returned future is first polled. Dropping an unpolled future has no
 prompt side effect. Dropping a started future abandons the result but cannot be assumed to dismiss
-a system prompt. Native callback state must remain safe until one terminal result, and a live
-future yields at most one result.
+a system prompt. Callback state must not borrow future-owned storage and must remain valid until one
+terminal native outcome. The first terminal completion becomes one future result; duplicate native
+completions must not produce another result. A live future yields its result at most once.
 
 The D24 contract covers authorization status/request only. It makes no claim about enumeration,
 fetch, contact fields, identifiers, writes, selection UI, or access to any particular contact.
