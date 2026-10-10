@@ -1,61 +1,32 @@
-# PLAN_VALIDATION_IOS_NETWORK.md — Workstream G4: iOS Network Target Gates
+# PLAN_VALIDATION_IOS_NETWORK.md — G4: iOS Network Target Gates
 
-## Objective
+## Status and scope
 
-Keep the iOS foreground HTTP backend's device and simulator build contracts in macOS CI.
+G4's macOS static `ios-network` gates and documentation were integrated. This plan remains authoritative for preserving their correctness and for explicitly outstanding URLSession runtime/parity evidence, **not** for rebuilding R1/R2 engines. Start with `PLAN_IOS_NETWORK.md`, `.github/workflows/ci.yml`, `platform/ios/ios-network/check-link-imports.sh`, `docs/ios/network.md`, and `docs/VALIDATION.md`.
 
-## Dependencies
+## Verified facts
 
-Requires `PLAN_IOS_NETWORK.md` and the integrated `ios-network` crate.
-Uses the existing Rust target installation and CI toolchain; add no dependencies.
+- Historically, locked checks and strict all-target Clippy passed for `ios-network` on `aarch64-apple-ios` and `aarch64-apple-ios-sim`; CI includes those checks after target installation.
+- The package link probe verified `Foundation`, `libSystem.B.dylib`, and `libobjc.A.dylib` direct imports, rejecting specified Swift/Python runtime and unrelated capability patterns. The probe *does not run* or start a URLSession request.
+- Ten deterministic host unit tests passed for conversions and completion/drop races. The link-only example explicitly drops its unpolled future without starting a request.
+- CI YAML parsing, `cargo xtask docs-check`, and `git diff --check` previously passed. This is historical evidence only; subsequent changes require revalidation.
+- No Apple runtime reference implementation/result, deterministic local-server differential, real URLSession execution, or measured HTTP replacement parity exists. Xcode 26.6/SDK 26.5 is not Xcode 27.x qualification.
 
-## Write scope
+## Installed tooling usage and requirements
 
-- `.github/workflows/ci.yml`
-- `docs/VALIDATION.md`
+`ios-rust-build` and `ios-rust-validate` are installed, source-isolated tools (`docs/SHARED_TOOLING.md`). `ios-network` is **not** a registered four-pilot validator capability in the inspected `tools/validation/specs/validation-v1.json`; do not invent a passing `--capability ios-network` invocation. Keep the following gates in CI/local execution unless a schema-v1 profile is added and exact positive/negative parity established:
 
-Do not alter HTTP API semantics, iOS backend code, the global capability manifest, or unrelated CI jobs.
+- Locked device and simulator `cargo check`; locked strict `cargo clippy --all-targets -- -D warnings` on both Apple targets.
+- `sh platform/ios/ios-network/check-link-imports.sh`, retaining exact import allowlist, excluded dependencies and compile/link-only proof.
+- Existing host unit tests, CI YAML syntax verification, docs-check and diff-check.
+- Preserve non-network-dependent CI: no public endpoint requests, timing sleeps or external HTTP service dependencies.
 
-## Required gates
+A new profile may factor routine Cargo checks into declarative gates; specialized binary imports, async cancellation/drop races and runtime tests cannot be replaced by Python text-pattern assertions. Engine fixes are not G4 work; create `BUG_REPORT_*.md` for a reproducible tool defect and stop that affected work.
 
-- On macOS, run locked `cargo check` for `ios-network` on `aarch64-apple-ios` and `aarch64-apple-ios-sim`.
-- On macOS, run Clippy with `-D warnings` for all targets of `ios-network` on both targets.
-- Keep host workspace tests as the only source of host runtime-test claims; do not add endpoint/network-dependent CI tests.
-- Update validation docs to separate compile/lint gates from device/simulator URLSession runtime evidence.
+## Open parity and performance requirements
 
-## Status and evidence
+Do not claim runtime parity without a named candidate and an Apple runner exercising current URLSession and the candidate against **the same deterministic local fixture**, with normalized response/error comparison. Record runner/app revision, Xcode/SDK, device/simulator model and OS build, fixture revision, request, status/headers/body, normalized error results, cancellation/drop behavior, and deviations. Benchmarking additionally requires predeclared representative physical-device Release A/B evidence under `PLAN_REPLACEMENTS_HTTP.md` (E1); scaffolded harnesses are not measurements. Keep parity, elapsed time and linked-artifact evidence distinct.
 
-- CI has locked device/simulator `cargo check`, strict all-target Clippy, and `sh platform/ios/ios-network/check-link-imports.sh` gates for `ios-network` under macOS conditions after both Apple Rust targets are installed
-- Pass: `cargo check --locked -p ios-network --target aarch64-apple-ios`; `cargo check --locked -p ios-network --target aarch64-apple-ios-sim`
-- Pass: `cargo clippy --locked -p ios-network --all-targets --target aarch64-apple-ios -- -D warnings`; `cargo clippy --locked -p ios-network --all-targets --target aarch64-apple-ios-sim -- -D warnings`. The link-only example now explicitly drops the unpolled future without a `let _` binding; no URLSession task starts
-- Pass: `sh platform/ios/ios-network/check-link-imports.sh`; it links device and simulator probes and verifies direct imports `Foundation`, `libSystem.B.dylib`, and `libobjc.A.dylib` while rejecting the script's selected Swift/Python/runtime and unrelated-capability symbol patterns. The probes do not run
-- Pass: `ruby -e 'require "yaml"; YAML.parse_file(".github/workflows/ci.yml"); puts "CI YAML parse passed"'`; `cargo xtask docs-check`; `git diff --check`
-- `cargo test --locked -p ios-network` passed 10 deterministic host unit tests for conversions and operation completion/drop races. No endpoint request, local-server differential, URLSession runtime, or HTTP parity claim is made; G4 probes are link-only and were not executed
-- `docs/VALIDATION.md` records exact target commands and compile/link limits
+## Ownership and handoff
 
-## Parity and measurement evidence blocker
-
-No Apple runtime reference result can be recorded by the current harness. The host tests exercise
-portable conversions and completion-cell races; the device/Simulator checks compile and lint, and
-the Release probes link but are not executed. [`docs/ios/network.md`](docs/ios/network.md#validation-status)
-records that this crate has no integration-test app/runner. The recorded Xcode 26.6 environment is
-below the repository's Xcode 27.x baseline in [`PLAN_IOS_NETWORK.md`](PLAN_IOS_NETWORK.md), and
-[`E1`](PLAN_REPLACEMENTS_HTTP.md) found no replacement candidate to compare. A future parity result
-requires a named candidate plus an Apple runner that exercises both the current URLSession baseline
-and candidate against the same deterministic local fixture. Performance evidence additionally
-requires the predeclared, representative physical-device Release A/B gate in E1. Until those
-prerequisites exist, a new harness without observed URLSession reference outputs would assert no
-parity and is not added.
-
-When that blocker clears, the separate manual runtime record must identify the runner/app revision,
-Xcode and SDK, device or Simulator model and OS build, fixture revision, exact request inputs,
-observed response status/headers/body, portable error result where applicable, and any expected
-normalization. Record candidate-versus-URLSession parity separately from timing; do not promote
-compile, Clippy, or link/import results to runtime evidence. Keep the fixture local and deterministic;
-do not add a live endpoint or timing-dependent test to CI.
-
-## Validation and handoff
-
-- Verify the workflow YAML and run the same cargo commands locally where the installed Apple SDK permits.
-- Run `cargo xtask docs-check` and `git diff --check`.
-- Report changed files, commit SHA, checks, deviations, and unresolved assumptions.
+G4 owns only matching scoped validation/CI documentation; product HTTP semantics, iOS backend implementation and global manifest remain with their existing workstreams. Verify current `main`; list changed files, exact checks (including skipped/unavailable gates), CI YAML result, SHA, and unresolved reference/runtime evidence. Avoid broad source searches unless paths moved or failing code requires them.

@@ -1,31 +1,18 @@
-# PLAN_VALIDATION_IOS_BLUETOOTH.md — Workstream G26: iOS Bluetooth Package Gates
+# PLAN_VALIDATION_IOS_BLUETOOTH.md — G26: Bluetooth package gates
 
-## Objective
+## Scope and dependencies
+G26 covers D27 `framework-bluetooth` and B32 `ios-bluetooth` package-local validation. D29's central-discovery-specific checks are retained separately in `PLAN_VALIDATION_IOS_BLUETOOTH_DISCOVERY.md`; do not collapse their semantics into a generic Bluetooth build result. Current prerequisites include the integrated `objc2-core-bluetooth` 0.3.2 lockfile dependency and installed Apple Rust device/simulator targets plus SDKs.
 
-Provide package-local compile/lint gates for D27/B32. Central discovery gates are in [PLAN_VALIDATION_IOS_BLUETOOTH_DISCOVERY.md](PLAN_VALIDATION_IOS_BLUETOOTH_DISCOVERY.md). Central CI integration remains an orchestrator-owned follow-up.
+## Implementation ownership
+Read the package-local scripts under `platform/ios/ios-bluetooth/scripts/**` and `docs/ios/bluetooth.md`. G26 may update this plan, those scripts and that guide. CI, workspace/lockfile, canonical capability data, aggregate plan/index, `tools/xtask`, shared engine source and Bluetooth runtime behavior are outside G26's write scope. CI integration is an orchestrator-owned follow-up.
 
-## Dependencies
+## Using completed shared tooling
+R1/R2 binaries are pinned installed tools (`docs/SHARED_TOOLING.md`). Bluetooth G26/D29 does **not** yet appear among the four registered validator pilots. Retain package-local test scripts as the accepted entrypoints. For an authorized new declarative profile, cover host portable tests, iOS compile/lint, dependency-feature and link/import checks, and D29-specific assertions; test a deliberate negative regression before retiring any old gate. Optional Python adapters are capability-specific and may not replace hardware proof.
 
-- D27 `framework-bluetooth` and B32 `ios-bluetooth` are present
-- The integrated workspace lockfile resolves `objc2-core-bluetooth` 0.3.2
-- Both Apple Rust targets and Xcode SDKs are installed on the macOS validation host
+## Required tests and evidence
+- `cargo test -p framework-bluetooth`; `cargo check -p framework-bluetooth --no-default-features`.
+- Locked `cargo check -p ios-bluetooth` and strict all-targets Clippy on both `aarch64-apple-ios` and `aarch64-apple-ios-sim`.
+- Formatting, documentation and package-local link/import checks, feature-tree inspection, `git diff --check`, and any additional D29 discovery-specific commands documented in its plan.
+- Verify lockfile prerequisite, API availability floor and Bluetooth usage-description key; do not add live prompt/signing/simulator UI or device-consent automation.
 
-## Write scope
-
-- `PLAN_VALIDATION_IOS_BLUETOOTH.md`
-- Package-local scripts under `platform/ios/ios-bluetooth/scripts/**`
-- `docs/ios/bluetooth.md`
-
-Do not edit `.github/workflows/ci.yml`, root workspace files or lockfile, canonical capability data, aggregate plans/indexes, `tools/xtask`, or Bluetooth runtime behavior.
-
-## Required gates
-
-- Portable contract: `cargo test -p framework-bluetooth` and `cargo check -p framework-bluetooth --no-default-features`
-- iOS device and simulator: locked `cargo check -p ios-bluetooth` and strict Clippy with `-D warnings` on `aarch64-apple-ios` and `aarch64-apple-ios-sim`
-- Run formatting, docs/link checks, dependency-feature review, and `git diff --check`
-- State that these gates do not instantiate a manager, show permission UI, verify authorization on hardware, test the radio, or perform scans/connections
-- Do not add live prompt, signing, simulator UI, Bluetooth-device, or device-consent automation
-
-## Handoff
-
-Report exact commands/results, the lockfile prerequisite for locked target gates, API floor, usage-description key, changed files, deviations, and unresolved assumptions. CI and shared validation-index integration are separate owner work.
+These gates do **not** instantiate a manager, show permission UI, prove hardware authorization, scan or connect, test radio performance, or validate physical-device behavior. Record exact commands/results, SDK/toolchain, imports, skips, changed files, deviations, remaining assumptions and SHA. Suspected shared-engine defects use a sanitized `BUG_REPORT_*.md`, not an in-task engine repair.
