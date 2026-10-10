@@ -6,7 +6,7 @@ Expose one opt-in C query over B68's preferred-device-presence Boolean. Do not e
 
 ## Status
 
-F24 is fully wired and validated in isolated branch `workstream/bindings-f24` at `/private/tmp/jcds-bindings-f24`. The feature/dependency edge, module/re-export, ABI entry, and lockfile are present in this branch. `cargo +1.94.1 check --offline -p framework-c-api --no-default-features --features ios-mps-status --target aarch64-apple-ios` passed and refreshed the isolated lockfile. `sh bindings/c/check-ios-mps-status.sh` and `sh bindings/c/check-ios-mps-status-link.sh` passed. Host/device/Simulator feature isolation, strict Clippy, Release archives, C11/C++17 links, exact imports, symbols, and deployment minima passed. C/C++ consumers were linked and inspected, not executed; no tests or live MPS query ran
+F24 is integrated in the root checkout. The optional target-iOS dependency and feature edge, cfg-gated module/export, ABI manifest entry, Cargo.lock edge, macOS CI gates, guide, and documentation links are present. On the `c55410d14c57c3ffdc1982cf62ae3180dd18c468` root baseline, `sh bindings/c/check-ios-mps-status.sh` passed its format, shell syntax, manifest/source/header contract, whitespace, and standalone C11/C++17 header checks. `sh bindings/c/check-ios-mps-status-link.sh` passed feature isolation, host/device/Simulator checks and strict Clippy, Release archive builds, C11/C++17 links, exact imports/symbols, and device/Simulator minima of iOS 12.2/14.0. Linked C/C++ probes were inspected but not executed; no tests or live MPS query ran. The gates establish build and link/import shape only, not runtime behavior or MPS workload support
 
 ## Backend contract and availability
 
@@ -36,7 +36,7 @@ G62 records exact imports Foundation, Metal, MetalPerformanceShaders, `libSystem
 - `docs/bindings/ios-mps-status.md`
 - this plan
 
-This isolated branch also contains F24 integration edits to `Cargo.toml`, `Cargo.lock`, `bindings/c/Cargo.toml`, `bindings/c/src/lib.rs`, and `bindings/c/abi-manifest.json`. Root normally owns these shared files; merge the F24-only hunks with concurrent feature/lock changes. The copied B68 package and B68 plans/docs in this validation worktree are context only and are already owned by root
+Root-owned integration files were already wired on the `c55410d14c57c3ffdc1982cf62ae3180dd18c468` baseline: `bindings/c/Cargo.toml`, `bindings/c/src/lib.rs`, `bindings/c/abi-manifest.json`, `Cargo.lock`, `.github/workflows/ci.yml`, `docs/DOCUMENTATION.md`, and `docs/bindings/cpp.md`
 
 ## Static gate and root integration
 
@@ -44,4 +44,4 @@ This isolated branch also contains F24 integration edits to `Cargo.toml`, `Cargo
 
 `sh bindings/c/check-ios-mps-status-link.sh` passed. It checks host/device/Simulator feature isolation, default-off MPS bindings and `MPSCore`-only binding features; host/device/Simulator check and strict Clippy; Release archives; C11/C++17 host/device/Simulator links; exact import sets; `_MPSGetPreferredDevice` and `_objc_release`; forbidden Swift, Objective-C messaging, and unrelated GPU/MPS imports; export parity; and final minos 12.2/device and 14.0/Simulator. Probes were linked and inspected, never executed
 
-Root integration remaining: merge the F24-only Cargo/lock/feature/module/export/ABI-manifest hunks without replacing concurrent work; add both F24 gates to macOS CI; record F24 in `PLAN_BINDINGS.md`; add `docs/bindings/ios-mps-status.md` to the binding index. Do not copy the B68 context files from this worktree when B68 is already present in the root checkout. These link checks establish import and deployment shape only, not a live preferred-device result or MPS workload support
+Root integration is complete: the Cargo feature/dependency, module/re-export, ABI manifest and lock entries, both macOS CI gates, and links from `docs/DOCUMENTATION.md` and `docs/bindings/cpp.md` are present. The link gate establishes import and deployment shape only, not a live preferred-device result or MPS workload support
