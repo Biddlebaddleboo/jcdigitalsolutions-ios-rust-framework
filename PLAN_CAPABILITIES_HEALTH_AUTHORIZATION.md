@@ -27,4 +27,12 @@ Document the borrowed request ownership, type-family limits, status privacy cave
 
 ## Status and evidence
 
-Implemented in isolated worktree `/private/tmp/d26-healthkit-worktree` from base `7b5513fa2a4864d21a594cbf1fbd43951427155`. Five focused tests pass; the portable crate passes `--no-default-features`. No root integration or commit is included in this handoff.
+Revalidated against current root commit `6e388c4` (`fix(calendar): clarify lazy auth contract`); D26 implementation files are already present there. On Rust `1.94.1`, these focused checks pass:
+
+- `cargo +1.94.1 fmt --all -- --check`
+- `cargo +1.94.1 test --locked --offline -p framework-health-authorization` — five unit tests pass; zero doctests
+- `cargo +1.94.1 check --locked --offline -p framework-health-authorization --no-default-features`
+- `cargo +1.94.1 tree --locked --offline -e normal -p framework-health-authorization --depth 4` — only the internal `framework-core` dependency; no third-party dependency
+- `git diff --check`
+
+The portable contract is `#![no_std]`; its API uses borrowed identifiers and separate read/share slices, validates empty/NUL identifiers, empty requests, and non-sample share types, distinguishes request acceptance from completion, and exposes no permission/grant state. HealthKit query/write/sample access, privacy-sensitive clinical records, observers, and background delivery remain excluded. These checks do not establish native HealthKit runtime behavior, permission UI, entitlement validity, or sample access.
