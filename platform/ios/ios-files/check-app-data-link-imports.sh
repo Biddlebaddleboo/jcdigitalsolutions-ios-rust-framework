@@ -45,7 +45,7 @@ for package in ios-files ios-preferences; do
         build_info="target/ios-app-data-$package-build-$target.txt"
 
         otool -L "$binary" > "$imports"
-        awk 'NR > 1 { path = $1; sub(/^.*\//, "", path); print path }' "$imports" | sort > "$libraries"
+        awk 'NR > 1 { path = $1; sub(/^.*\//, "", path); print path }' "$imports" | LC_ALL=C sort > "$libraries"
         diff -u "target/ios-app-data-$package-imports-expected.txt" "$libraries"
 
         nm -u "$binary" > "$symbols"
