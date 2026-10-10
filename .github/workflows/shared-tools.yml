@@ -1,15 +1,7 @@
 name: Shared tool artifacts
 
+# Private tooling/release qualification is explicitly requested, never push-triggered.
 on:
-  push:
-    branches: [main]
-    paths:
-      - Cargo.lock
-      - Cargo.toml
-      - tools/releases/manifest-v1.tsv
-      - tools/releases/README.md
-      - tools/install-tools.sh
-      - .github/workflows/shared-tools.yml
   workflow_dispatch:
 
 permissions:
