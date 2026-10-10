@@ -60,6 +60,25 @@ for target in aarch64-apple-ios aarch64-apple-ios-sim; do
         ' >&2
         echo "--- nm -u $binary" >&2
         nm -u "$binary" >&2 || true
+        if command -v dyld_info >/dev/null 2>&1; then
+            echo "--- dyld_info -imports $binary" >&2
+            dyld_info -imports "$binary" >&2 || true
+        fi
+        for stub in "$sdk/System/Library/Frameworks/CoreMedia.framework/CoreMedia.tbd" "$sdk/usr/lib/swift/libswiftCoreMedia.tbd"; do
+            if [ -r "$stub" ]; then
+                echo "--- SDK stub symbol metadata $stub" >&2
+                awk '
+                    /^(targets:|install-name:|reexported-libraries:|exports:|  - targets:|    libraries:)/ { print }
+                    {
+                        if (match($0, /CMTimeMake|FORCE_LOAD/)) {
+                            start = RSTART - 80
+                            if (start < 1) start = 1
+                            print "  " substr($0, start, 160)
+                        }
+                    }
+                ' "$stub" >&2
+            fi
+        done
         echo "--- vtool -show-build $binary" >&2
         vtool -show-build "$binary" >&2 || true
         exit 1
