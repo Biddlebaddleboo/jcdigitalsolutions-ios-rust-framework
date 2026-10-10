@@ -20,6 +20,25 @@ The descriptor must be a live value created by a framework API, must remain at t
 
 `OwnedBuffer` is a generic guard, not a feature switch. An enabled C API may return a `FrameworkOwnedBuffer` inside an output record. Keep that record live at the same address through guard destruction; keep the descriptor unchanged until `framework_owned_buffer_destroy` runs, then destroy the guard before the API reuses the record
 
+`framework::ErrorDetail` is a move-only owner for a live `FrameworkErrorDetailHandle` returned by a successful `framework_error_detail_create` call. It calls `framework_error_detail_destroy` exactly once when destroyed or replaced by move assignment; copying is disabled, and a moved-from owner does not destroy the handle. Construct it only after ownership was returned to the caller. It adds no allocation or runtime dependency.
+
+Call `ErrorDetail::view(out)` to retrieve an `ErrorDetailView`. The method's return value is the C view-call result; `out.status` is the stored `FrameworkStatus`, copied unchanged even when it is an unknown future code. `out.message` is a borrowed UTF-8 `std::string_view` over the object's bytes, including any embedded NUL, and is valid only while the owning `ErrorDetail` remains alive. Do not retain it past owner destruction or race destruction against a view. On a failed call, `out` is empty/defaulted. No error-code translation or message allocation occurs.
+
+```cpp
+#include <framework.hpp>
+
+void inspect(FrameworkErrorDetailHandle handle) {
+    framework::ErrorDetail detail(handle); // handle must be live and owned here.
+    framework::ErrorDetailView view{};
+    if (detail.view(view) == FRAMEWORK_STATUS_OK) {
+        const FrameworkStatus stored_status = view.status;
+        const std::string_view borrowed_message = view.message;
+        (void)stored_status;
+        (void)borrowed_message;
+    }
+}
+```
+
 Use `OwnedBuffer` only after the API contract transfers ownership; buffer length alone does not signal absence. After `FRAMEWORK_STATUS_OK`, `framework_ios_secure_storage_read` transfers `out_secret`, and `framework_ios_preferences_get` transfers `out_value`, when `out_found == 1`; `framework_ios_clipboard_read` transfers `out_text` when `out_has_value == 1`. Use `OwnedBuffer::from_transfer(out_secret, out_found == 1)` (with the matching output names for each API) to guard only transferred descriptors. Destroy each transferred descriptor exactly once, even when its length is zero. A zero presence byte leaves the default empty descriptor unguarded. For `framework_ios_file_provider_operation_poll`, keep `native_error_domain` empty before each poll; after call status `FRAMEWORK_STATUS_OK` and `out_ready == 1`, destroy a non-empty domain buffer before record reuse. Keep that record at its original address through guard destruction
 
 ```cpp

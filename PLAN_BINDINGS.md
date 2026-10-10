@@ -13,6 +13,7 @@ Rust apps call Rust directly; C/C++/Python are opt-in outer bindings over the sa
 - F34 (`PLAN_BINDINGS_F34.md`) adds and documents an explicit transfer-aware `OwnedBuffer::from_transfer` factory; acceptance is a C++17 syntax-only consumer compile for both transferred and absent results, with no tests or runtime claim.
 - F35 (`PLAN_BINDINGS_F35.md`) adds an optional direct-owned opaque C error-detail object with fixed-width stored status, copied UTF-8 diagnostics, a borrowed view, and explicit destruction; it preserves the existing `FrameworkErrorHandle(u64)` layout.
 - F36 (`PLAN_BINDINGS_F36.md`) adds an isolated optional PyO3 extension with an immutable Python `OwnedBytes` value over the existing owned-buffer C ABI; it adds no PyO3 or CPython dependency to Rust/C workspace builds.
+- F37 (`PLAN_BINDINGS_F37.md`) adds a C++17 move-only `framework::ErrorDetail` owner and borrowed `std::string_view` access for the F35 direct-owned error-detail handle; stored status codes pass through unchanged.
 - Validate header manifest parity, symbol exports, ABI version negotiation and stable error mapping. No silent wider same-major struct forward compatibility if inputs never promised it.
 
 ## Validation and handoff

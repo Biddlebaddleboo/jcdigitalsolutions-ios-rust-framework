@@ -2,6 +2,7 @@
 #define FRAMEWORK_CPP_FRAMEWORK_HPP
 
 #include <framework.h>
+#include <string_view>
 
 namespace framework {
 
@@ -72,6 +73,74 @@ private:
   }
 
   FrameworkOwnedBuffer *descriptor_;
+};
+
+struct ErrorDetailView final {
+  FrameworkStatus status;
+  std::string_view message;
+};
+
+/** Move-only owner for one live `FrameworkErrorDetailHandle`.
+ * The message returned by `view()` is borrowed and remains valid only while
+ * this owner remains alive.
+ */
+class ErrorDetail final {
+public:
+  explicit ErrorDetail(FrameworkErrorDetailHandle detail) noexcept
+      : detail_(detail) {}
+
+  ~ErrorDetail() noexcept { reset(); }
+
+  ErrorDetail(const ErrorDetail &) = delete;
+  ErrorDetail &operator=(const ErrorDetail &) = delete;
+
+  ErrorDetail(ErrorDetail &&other) noexcept : detail_(other.detail_) {
+    other.detail_ = nullptr;
+  }
+
+  ErrorDetail &operator=(ErrorDetail &&other) noexcept {
+    if (this != &other) {
+      reset();
+      detail_ = other.detail_;
+      other.detail_ = nullptr;
+    }
+    return *this;
+  }
+
+  FrameworkStatus view(ErrorDetailView &out_view) const noexcept {
+    out_view = {};
+    if (detail_ == nullptr) {
+      return FRAMEWORK_STATUS_INVALID_ARGUMENT;
+    }
+    FrameworkStatus status = FRAMEWORK_STATUS_OK;
+    FrameworkStr message{};
+    const FrameworkStatus result =
+        framework_error_detail_view(detail_, &status, &message);
+    if (result != FRAMEWORK_STATUS_OK) {
+      return result;
+    }
+    if (message.length == 0) {
+      out_view = {status, {}};
+      return FRAMEWORK_STATUS_OK;
+    }
+    if (message.data == nullptr) {
+      return FRAMEWORK_STATUS_INTERNAL_ERROR;
+    }
+    out_view = {status,
+                std::string_view(reinterpret_cast<const char *>(message.data),
+                                 static_cast<size_t>(message.length))};
+    return FRAMEWORK_STATUS_OK;
+  }
+
+private:
+  void reset() noexcept {
+    if (detail_ != nullptr) {
+      framework_error_detail_destroy(detail_);
+      detail_ = nullptr;
+    }
+  }
+
+  FrameworkErrorDetailHandle detail_;
 };
 
 } // namespace framework
