@@ -45,9 +45,10 @@ view.
   linked successfully. `nm -gU` found `_PyInit_framework_python` and
   `_framework_owned_buffer_copy`; `otool -L` found only `libiconv` and `libSystem`, with no
   `libpython` dependency.
-- [ ] Preserve root integration for a separate change: exclude `bindings/python` from the root
-  `bindings/*` workspace glob. Before this exclusion, root `cargo metadata --no-deps` reports
-  multiple workspace roots. Required root hunk:
+- [x] Preserve root integration in separate commit `c7ff494` by excluding `bindings/python` from
+  the root `bindings/*` workspace glob. `cargo +1.94.1 metadata --no-deps --format-version 1`
+  succeeds with no `framework-python` package in root metadata. `Cargo.lock` was not part of the
+  integration commit, so no root lockfile update was required. The root exclusion is:
 
   ```toml
   exclude = ["examples/c-minimal", "bindings/cpp", "bindings/python", "platform/ios/callkit", "tools/validation", "tools/native-build", "tools/releases", "tools/native-build-support", "tools/ios-rust-validate"]
