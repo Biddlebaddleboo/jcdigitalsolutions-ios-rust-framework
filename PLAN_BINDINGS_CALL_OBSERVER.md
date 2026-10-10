@@ -77,6 +77,18 @@ iOS 10.0. The consumers were not executed. No tests or live CallKit queries were
 snapshot's live-call visibility and runtime latency remain unverified; the backend may block while
 CallKit provides initial state.
 
+Xcode 27 run `38048808184` on head `c78e8597fa1c497167105a6250825fd93d3cb2cc` passed the
+preferences C ABI step 241, MediaPlayer step 242, and SpriteKit step 243, then failed CallKit C ABI
+step 244 in Xcode-27 job `114203611456`. The device C11 probe linked with minos 12.0; the following
+C++17 compile entered the Xcode 27 SDK libc++ `stddef.h` shim and promoted `availability.h:204`
+warning `The selected platform is no longer supported by libc++` to an error under `-Werror`.
+Since the fixtures use only C ABI declarations, `check-ios-call-observer.sh` now passes
+`-nostdinc++` to its C++ host/device/Simulator compile commands while retaining C++17, the
+`libc++.1.dylib` runtime import assertion, CallKit/Foundation and Objective-C import checks,
+symbols/selectors, device 12.0 and Simulator 14.0 minos checks, and D76's iOS 10.0 API floor.
+Xcode 27 CallKit requalification is pending; no consumer or probe execution/runtime behavior is
+claimed
+
 ## Root integration steps
 
 After F12 adds its optional path dependency, refresh the root lock with:
