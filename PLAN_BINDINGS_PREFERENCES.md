@@ -94,6 +94,21 @@ are the validation target floors, not an established minimum OS claim for `NSUse
 `xcodebuild -version` reported Xcode 26.6, build 17F113. No live defaults behavior or consuming-app
 privacy-manifest compliance is validated. No tests were added or run.
 
+Integrated main run [38046056707](https://github.com/Biddlebaddleboo/jcdigitalsolutions-ios-rust-framework/actions/runs/38046056707)
+passed macOS Swift ABI229, format230, Apple Clippy232, CI unit-test step233, C ABI234, C++17
+header235, secure-storage236, notification-response237, transfer238, clipboard239, and share240;
+Linux Clippy231 was skipped. Preferences step241 emitted successful device and simulator C11/C++17
+link-import and deployment-minimum checks, then exited 1 during its final Rust archive inspections.
+The script suppresses `nm` stderr, so the exact failed invocation is not recorded; attribution to
+Xcode 16.4 Apple `nm` rejecting Rust LLVM 21 archive members is strongly supported by secure-storage
+step236 in the same job, where `nm` emitted `Unknown attribute kind (102)` (Producer
+`LLVM21.1.8-rust-1.94.1-stable`, Reader `LLVM APPLE_1_1700.0.13.5_0`), but remains an inference for
+step241. The script now uses Rust's matching `llvm-nm` for host, device, and simulator archive
+symbol/import scans, while retaining Apple `nm` for final Mach-O probe binaries and preserving all
+symbol, import, and deployment assertions. This follow-up has only static syntax and diff validation;
+step241 has not been rerun. The probes were not executed, and no preferences runtime behavior is
+claimed
+
 ## Scope used
 
 - `bindings/c/**` capability files, the focused binding doc, and its CI step

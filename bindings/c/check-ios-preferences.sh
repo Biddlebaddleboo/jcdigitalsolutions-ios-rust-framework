@@ -4,6 +4,13 @@ set -eu
 root=$(CDPATH= cd -- "$(dirname -- "$0")/../.." && pwd)
 cd "$root"
 mkdir -p target
+sysroot=$(rustc --print sysroot)
+host=$(rustc -vV | sed -n 's/^host: //p')
+llvm_nm="$sysroot/lib/rustlib/$host/bin/llvm-nm"
+if [ ! -x "$llvm_nm" ]; then
+    echo "Rust LLVM symbol tool is required for this audit: $llvm_nm" >&2
+    exit 1
+fi
 
 python3 -m json.tool bindings/c/abi-manifest.json > /dev/null
 sh -n bindings/c/check-ios-preferences.sh
@@ -170,7 +177,7 @@ clang -std=c11 -Wall -Wextra -Werror -pedantic -I bindings/c/include -I target \
 clang++ -nostdinc++ -std=c++17 -Wall -Wextra -Werror -pedantic -I bindings/c/include -I target \
     target/framework-c-preferences-cpp.cpp "$host_archive" \
     -o target/framework-c-preferences-cpp-host
-nm -g "$host_archive" 2>/dev/null \
+"$llvm_nm" -g "$host_archive" 2>/dev/null \
     | rg -o '_framework_ios_preferences_[A-Za-z0-9_]+' | sed 's/^_//' | sort -u \
     > target/framework-c-preferences-archive-symbols.txt
 diff -u target/framework-c-preferences-expected-symbols.txt \
@@ -235,10 +242,10 @@ for target in aarch64-apple-ios aarch64-apple-ios-sim; do
     archive="target/$target/release/libframework_c_api.a"
     symbols="target/framework-c-preferences-$target-archive-symbols.txt"
     imports="target/framework-c-preferences-$target-archive-imports.txt"
-    nm -g "$archive" 2>/dev/null | rg -o '_framework_ios_preferences_[A-Za-z0-9_]+' \
+    "$llvm_nm" -g "$archive" 2>/dev/null | rg -o '_framework_ios_preferences_[A-Za-z0-9_]+' \
         | sed 's/^_//' | sort -u > "$symbols"
     diff -u target/framework-c-preferences-expected-symbols.txt "$symbols"
-    nm -u "$archive" 2>/dev/null > "$imports"
+    "$llvm_nm" -u "$archive" 2>/dev/null > "$imports"
     for selector in NSUserDefaults standardUserDefaults objectForKey: setObject:forKey: removeObjectForKey:; do
         strings "$archive" | rg -q "$selector"
     done
