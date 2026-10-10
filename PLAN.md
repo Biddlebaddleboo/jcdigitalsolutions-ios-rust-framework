@@ -52,8 +52,19 @@ passes both `ios-rust-validate --all` and the Foundation Models gate on Xcode 27
 [38036184360](https://github.com/Biddlebaddleboo/jcdigitalsolutions-ios-rust-framework/actions/runs/38036184360),
 the post-prefetch Sign in with Apple step passed on Xcode 27, but step 178 later failed the B47
 audio link/import check: `CoreMedia` was expected and `libswiftCoreMedia` was found. Mainline
-recheck 38036234051 remains in progress, so this is not a full qualification-lane pass. Local
-Xcode 26.6 (build 17F113), SDK 26.5 gates pass for
+recheck [38036234051](https://github.com/Biddlebaddleboo/jcdigitalsolutions-ios-rust-framework/actions/runs/38036234051)
+completed with the same Xcode 27 B47 import failure; its macOS 15 lane reached step 225 and found
+a separate false-negative in the MediaPlayer feature guard. Commit `776dd7d` isolates B22's
+CoreMedia time API behind the default-preserving `core-media-time` feature and runs B47 audio
+checks with `--no-default-features`, so the audio-only link profile excludes CoreMedia while
+existing default consumers retain `IosMediaTime`. The focused local B47 audio, full ios-media,
+strict import, and B22 CMTime gates pass on Xcode 26.6 / SDK 26.5. Commit `5240fda` corrects the
+MediaPlayer check's Cargo feature quote patterns without weakening either assertion; its focused
+package gate passes locally, including device/Simulator checks and strict Clippy. Mainline run
+[38037910253](https://github.com/Biddlebaddleboo/jcdigitalsolutions-ios-rust-framework/actions/runs/38037910253)
+is queued for those integrated changes. Earlier branch runs 38037843804 and 38037886558 are also
+queued for the respective changes. Thus the fixes are implemented and locally checked, but their
+Xcode 27/macOS CI requalification remains pending. Local Xcode 26.6 (build 17F113), SDK 26.5 gates also pass for
 B47 full audio (`sh platform/ios/ios-media/check-audio-playback.sh`), B50 package
 (`sh platform/ios/ios-media/check.sh`), and F25 C link/import
 (`sh bindings/c/check-ios-videotoolbox-link.sh`); detailed results and limits are in [PLAN_IOS_OTHER_AUDIO.md](PLAN_IOS_OTHER_AUDIO.md), [PLAN_VALIDATION_IOS_OTHER_AUDIO.md](PLAN_VALIDATION_IOS_OTHER_AUDIO.md), [PLAN_IOS_VIDEOTOOLBOX.md](PLAN_IOS_VIDEOTOOLBOX.md), and [PLAN_BINDINGS_F25.md](PLAN_BINDINGS_F25.md). These local passes do not establish runtime behavior; no tests, probe execution, live codec query, or device behavior is claimed.
