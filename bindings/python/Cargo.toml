@@ -1,0 +1,36 @@
+[workspace]
+resolver = "3"
+
+[workspace.package]
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.85"
+license = "MIT OR Apache-2.0"
+repository = "https://github.com/Biddlebaddleboo/jcdigitalsolutions-ios-rust-framework"
+
+[package]
+name = "framework-python"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "Optional Python extension bindings for framework-owned byte values"
+
+[lib]
+name = "framework_python"
+crate-type = ["cdylib"]
+
+[dependencies]
+framework-abi = { path = "../../crates/framework-abi", version = "0.1.0" }
+pyo3 = { version = "=0.29.0", default-features = false, features = ["abi3-py39", "macros"] }
+
+[build-dependencies]
+pyo3-build-config = { version = "=0.29.0", default-features = false }
+
+[lints.rust]
+unsafe_op_in_unsafe_fn = "deny"
+unused_must_use = "deny"
+
+[lints.clippy]
+all = "warn"
