@@ -1,38 +1,49 @@
-# PLAN_VALIDATION.md — active cross-cutting validation
+# PLAN_VALIDATION.md — Active validation obligations and evidence
 
-## Canonical implementation and historical evidence
-Entry points: `tools/xtask/src/{main,audits,codegen,no_std_link,sdk_inventory}.rs`, `.github/workflows/ci.yml`, `docs/VALIDATION.md`, package-local `check.sh` and `check-link-imports.sh`, and `PLAN_REUSE_VALIDATION.md`. G1–G131 historical gate-by-gate report, including its evidence and unresolved notes, is preserved at Git `36e3090a79a2fdbc8f348ccb89fe773c3dbb1247:PLAN_VALIDATION.md`. Historic green local static proofs are **not** device/runtime execution. Xcode 26.6/SDK 26.5 does not establish required Xcode 27.x qualification.
+## Authority and scope
 
-## Reusable validation workstream
-Follow `PLAN_REUSE_VALIDATION.md`: shared deterministic command harness; preserve capability-specific negative API assertions, exact imports/exports, availability, ABI size/alignment/ownership, forbidden Swift source, no_std, feature isolation and device/simulator split. Changed-file selection must include reverse dependencies; nonexistent SDK/device cannot count as passed. CI must remain at least as strict during migration.
+This is the active cross-cutting G-family validation contract. Original G1–G131 evidence and accumulated decisions remain recoverable in the historical `PLAN_VALIDATION.md` at Git `36e3090a79a2fdbc8f348ccb89fe773c3dbb1247`. Completed or consolidated bounded gate IDs remain permanent; do not reactivate them solely because their evidence is included here. Reverify the current `main` SHA and consult each assigned `PLAN_VALIDATION_*.md` only where its distinct acceptance criteria remain open.
 
-## Required remaining validation
-- Verify all portable `no_std` and minimal-linked binaries; inspect unneeded runtime/framework linkage, dependencies and binary size.
-- Preserve compile/lint/link/import **versus executed** evidence distinction; keep required iOS device, simulator, signing, permissions, entitlement and real-background validations open.
-- Maintain independent C11/C++17 ABI consumer compile/link, symbol/version/header parity, callbacks, no unwind through FFI, pointer/provenance/ownership and async cancellation.
-- Parity harness `xtask parity` currently unavailable until Apple reference and Rust candidate suite exist; do not claim parity or performance speedups from scaffolding.
-- Validate Xcode 27.x support separately from earlier Xcode 26.6 archive smoke.
-- Preserve documentation freshness, capability matrix, source/ABI/public-API audits and relevant hardware benchmark evidence.
+## Current tool architecture
 
-## Scope ownership and tests
-R2 exclusively owns xtask/CI; capability workstreams own their package-level semantic tests. Run `cargo +1.94.1 fmt --all -- --check`, workspace locked check/tests/strict Clippy, no-std checks and link probe, docs-check, zero-swift-source, target-linked checks, examples and archive smoke as available. Final independent audit reviews current main, feature isolation, linked frameworks, unsafe assumptions, unsupported rows, full diff and physical-device evidence. Report commands, platform, checks, skips, blockers and SHA; no fabricated successes.
+`ios-rust-validate` and `ios-rust-build` are independently installed, SHA-256-verified PATH executables. Read `docs/SHARED_TOOLING.md` for installation, schemas, `--help`, `--version`, `--list`, `--explain`, `--capability`, `--changed` and `--all`. The repo-local specs are `tools/validation/specs/validation-v1.json`, `tools/validation/specs/schema-v1.json`, and the per-capability `build-spec.json` where applicable. Rust engine source no longer lives in ordinary `main`. Non-validation `xtask` functionality remains available for `docs-check`, `zero-swift-source`, no-std, ABI, codegen, dependency, SDK and link audits.
 
-## Closed bounded validation workstreams (G14–G16)
+Only four production validation pilots are currently registered: `ios-homekit-identify-status`, `ios-activitykit-status`, `ios-alarmkit-status`, and `ios-photogrammetry-status`. Existing checks for other capabilities remain authoritative until individually migrated. **Never call an unregistered capability validated or delete its legacy gates based on tool availability alone.**
 
-These three package-specific *static-gate implementation* objectives have been integrated. Their original complete contracts and test evidence remain in Git at `bf4e3be4f2072d34b5c0d62f76ba6405e692a352`; preserve the existing scripts, CI coverage and reported limitations. Their closure does not establish runtime behavior, Xcode 27 qualification, or physical-device execution.
+## Required implementation / test invariants
 
-- **G14** `PLAN_VALIDATION_IOS_URL.md`: `ios-url` strict Foundation URL compile/lint, device/simulator framework-import inspection and CI wiring; exact URL selector checks, minimum iOS 17, link-only evidence. Baseline: `bf4e3be4f2072d34b5c0d62f76ba6405e692a352:PLAN_VALIDATION_IOS_URL.md`.
-- **G15** `PLAN_VALIDATION_IOS_GEOMETRY.md`: `framework-ui::Frame::intersection` and `ios-ui::geometry::intersection` CoreGraphics link/layout checks; device/simulator static checks passed. Baseline: `bf4e3be4f2072d34b5c0d62f76ba6405e692a352:PLAN_VALIDATION_IOS_GEOMETRY.md`.
-- **G16** `PLAN_VALIDATION_IOS_MEDIA.md`: `framework-media::MediaTime` and `ios-media::IosMediaTime` CoreMedia `CMTime` ABI layout/link/import and CI gates; linked artifacts not executed. Baseline: `bf4e3be4f2072d34b5c0d62f76ba6405e692a352:PLAN_VALIDATION_IOS_MEDIA.md`.
+For every new or modified capability:
 
-Keep running the existing focused scripts and relevant CI as currently configured. Any behavioral/runtime/parity coverage remains in this active cross-cutting validation plan and `PLAN_REUSE_VALIDATION.md` rather than reopened as a duplicate G14/G15/G16 implementation task.
+1. Inspect exact API semantics and original negative assertions; map the changed files and reverse dependencies. Add declarative checks to the installed validator only if its schema accurately expresses every required assertion. Use a focused Python 3 adapter for specialized file/fixture checks and genuine native test binaries/compiler oracles for ABI details.
+2. Preserve Cargo format, locked compilation, strict Clippy, rustdoc, target-specific device and simulator checks, feature isolation, framework and native symbol import/export scans, linker deployment floors, API availability, weak linking, docs and zero-shipping-Swift policies as applicable. Exact compiler-derived calling conventions and object ownership are not substitutable with string searches.
+3. Gate the C ABI through independent C11 and C++17 consumers, stable headers/symbols/versioning, callback/error conventions, pointer/ownership semantics and no unwind through FFI. Validate async request/completion/cancellation as separate states, not generic success/failure.
+4. Keep portable `no_std` checks and minimal linkable binaries, dependency feature-tree audits, and size/performance evidence for proposed replacements. Do not claim a performance improvement without comparable measured baseline.
+5. Track static compile/link/import evidence separately from simulator execution, device execution, signing/entitlement conditions, permission prompts, background behavior, assistive interaction and other hardware-dependent behavior. Missing SDK, target or hardware is `SKIPPED`/blocked with explicit reason, never `PASS`.
+6. For migrations, capture the baseline legacy test inventory, add positive and deliberately failing fixtures for each negative rule, prove equivalence of actual commands and expected outcomes on supported hosts, and only then retire duplicated wrappers. Command snapshots are useful evidence, not sufficient alone.
+7. For new source paths, configure `--changed EXPLICIT_BASE` path rules and reverse dependency edges so shared ABI/helper changes select all impacted consumers. Include tracked/untracked/deleted-file cases in deterministic tests; fall back to a safe superset for unknown impacts.
 
-## Closed bounded validation workstreams (G8, G11, G60)
+## Known open evidence and limits
 
-These are completed *static-gate implementation* objectives, not completed capability/runtime validation. Exact original contracts, commands, evidence and limits remain at immutable Git snapshot `b823e06ad27f5243ca8dbef1984b1f64b688e17c:PLAN_VALIDATION_IOS_ACCESSIBILITY.md`, `b823e06ad27f5243ca8dbef1984b1f64b688e17c:PLAN_VALIDATION_IOS_BROWSER.md`, and `b823e06ad27f5243ca8dbef1984b1f64b688e17c:PLAN_VALIDATION_IOS_CRYPTO.md`. Preserve current CI and documentation and retain their active runtime/parity obligations under R2 and the respective capability owners.
+- Prior Apple static proofs used Xcode 26.6 and iOS SDK 26.5; planned Xcode 27.x qualification remains open until explicitly established. On-host compilation does not establish Apple runtime/device behavior.
+- `xtask parity` was previously unavailable without an Apple reference-vs-Rust candidate suite; do not claim Apple parity. Likewise, assembly/codegen audit is not a substitute for workload benchmarks.
+- The historical Ubuntu non-Apple `objc2` Clippy failure and macOS iOS Files import-order audit failure require explicit triage; do not silently disable gates or claim whole-CI success.
+- Completion evidence for prior bounded gate groups (including consolidated G8, G11, G14–G16 and G60) remains historical. Their unresolved downstream runtime evidence stays assigned to the owning capability/validation workstream; a closed compiler-gate workstream does not close an entire capability.
 
-- **G8 — accessibility**: G1/B8 and integrated lockfile; macOS `ios-accessibility` locked `cargo check` and strict all-target `cargo clippy -- -D warnings` on both `aarch64-apple-ios` and `aarch64-apple-ios-sim`, with both targets and SDKs installed. Exact commands and compile/lint-only evidence are in `docs/VALIDATION.md`; YAML parse, docs-check and diff-check passed locally. No passing CI run; no tests, live VoiceOver, focus, announcement, UX, signing, or device runtime proof. Xcode 26.6/SDK 26.5 is not Xcode 27.x qualification. Do not change backend, portable contract, workspace, lockfile, capability matrix or runtime behavior.
-- **G11 — browser**: G1/B11 and integrated lockfile; same macOS locked device/simulator `cargo check` and strict all-target Clippy for `ios-browser`. `docs/VALIDATION.md` and `docs/ios/browser.md` retain commands/limitations; YAML, docs-check and diff-check passed locally. No tests, browser launch, live HTTPS URL-handler call, networking or runtime proof; no Swift source. Preserve portable URI contract, backend, lockfile, matrix and CI.
-- **G60 — CommonCrypto**: G1/D60/B66; macOS locked checks and strict all-target Clippy on both targets for `ios-crypto`, plus `sh platform/ios/ios-crypto/check-link-imports.sh`; retain format, rustdoc, docs-index, zero-Swift-source and diff gates. The Release probe links only `libSystem.B.dylib` with `_CC_SHA256`; link minima device iOS 10.0 and simulator 14.0, distinct from SDK API availability iOS 2.0. Rust 1.94.1, Xcode 26.6/SDK 26.5 static gates passed locally; probes built/inspected, **not executed**. No digest test, parity, security review, certification, performance, physical-device evidence, passing CI workflow or Xcode 27 qualification.
+## Ownership, commands and handoff
 
-For G8/G11, keep the four exact locked package/target commands in `docs/VALIDATION.md`. For G60, retain exact import and min-OS assertions in its checked-in shell script. G8 and G11's originally specified root CI/docs write scope is now closed, not a new authorization to alter production code. Future runtime tests, CI execution, SDK qualification and capability semantics remain open independently.
+The **capability owner** owns its package-local tests, fixtures, declarative spec entries and API-specific Python adapters; the **G/integration owner** owns CI coverage and cross-workstream validation consistency. The shared Rust engine is separately maintained; ordinary API Codex never edits/retrieves its source. If documented CLI behavior is defective, sanitize reproducible evidence in `BUG_REPORT_<NAME>.md` and stop affected work.
+
+Minimum orientation from the repo root after installing tools:
+
+```sh
+ios-rust-validate --workspace-root "$PWD" --spec "$PWD/tools/validation/specs/validation-v1.json" --list
+ios-rust-validate --workspace-root "$PWD" --spec "$PWD/tools/validation/specs/validation-v1.json" --explain ios-activitykit-status
+cargo +1.94.1 xtask docs-check
+cargo +1.94.1 xtask zero-swift-source
+```
+
+Run `--capability ID` only if registered; run appropriate existing `platform/ios/**/check.sh` and legacy ABI gates otherwise. Report command/executor environment, exact results, skipped gates, target/deployment floors, tool versions, negative-test evidence, commit SHA, and remaining physical-device obligations. Review final diff for gate removal, accidental source import, missing reverse-dependency selection and false completion claims.
+
+## Completed-tooling migration boundary
+
+The validator executable is already implemented and pinned. R1/R2 implementation plans were removed in `f3b14892a560da05a086caf9e6d30a0c9beda25e`. Do not reopen them to register new API coverage. Before retiring an existing focused check, document its full positive/negative gate inventory and demonstrate supported-host parity using the actual installed version; otherwise retain the focused check alongside any new declaration. Tooling bugs belong to a separate maintenance session via the documented `BUG_REPORT_*.md` workflow.

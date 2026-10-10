@@ -1,85 +1,63 @@
-# PLAN.md — V1 execution reset: reusable machinery and active-only plans
+# PLAN.md — Active framework implementation handoff
 
 ## Authority and baseline
 
-Repository: `Biddlebaddleboo/jcdigitalsolutions-ios-rust-framework`; branch: `main`; inspected commit `ac944e80f195c810d145d51064bb1f9c3c875b49`. Reverify remote main before implementation. This is the authoritative active handoff. Existing `AGENTS.md` invariants remain in force: Rust-native fast path, zero shipping Swift sources, public Apple APIs only, static backend selection, replaceable dependencies, no required runtime registry or custom renderer, C ABI for foreign callers, optional Python, and performance evidence before replacement. Planned Xcode 27.x qualification is not established by Xcode 26.6 / SDK 26.5 static proofs.
+Repository: `Biddlebaddleboo/jcdigitalsolutions-ios-rust-framework`; branch: `main`. Planning audit baseline: `f3b14892a560da05a086caf9e6d30a0c9beda25e`. **Before execution, verify the current remote `main` SHA and reconcile any relevant changes.** This file supersedes the former infrastructure-only stop instruction; it does not authorize indiscriminate implementation of every historical `PLAN_*.md` file.
 
-## Objective
+## Objective and current state
 
-Reduce context usage and duplicated implementation/tooling without weakening modularity, feature coverage, safety or validation. Compact active planning instructions now, retire only verified completed legacy plans, introduce reusable build and validation infrastructure, then consolidate compiler-proven interop patterns. Do not implement application behavior while performing planning cleanup.
+Resume bounded work on genuinely unfinished framework capabilities, backends, bindings and cross-cutting requirements with R1 shared native build and R2 shared validation already implemented. R3 verified interop work is distinct: reconcile any truly unfinished R3 requirements against current source before authorizing changes. The completed reusable build and validation engines run as pinned, PATH-installed `ios-rust-build` and `ios-rust-validate` binaries. Their engine source was removed from ordinary `main` at `8b68d2909de9b5e926130265ba241c80ab653e99`; the immutable historical source and release provenance remain available for separately authorized maintenance. The operational contract is `docs/SHARED_TOOLING.md`; `AGENTS.md` remains authoritative for architectural, safety and agent behavior rules.
 
-## Verified repository facts
+Historical capability coverage is **partial, not complete** merely because a crate or scalar getter exists. `docs/capabilities/capability-status.json` defines canonical capability identities and support states. Compiler, link, simulator-runtime and physical-device proofs remain distinct. Prior Xcode 26.6 / iOS SDK 26.5 findings do not satisfy an Xcode 27.x qualification requirement. Main CI failures previously seen on non-Apple `objc2` Clippy and the iOS Files import-order audit must be triaged, not hidden or misrepresented as passing.
 
-- Capability manifest: `docs/capabilities/capability-status.json`; the guide reports 98 partially supported B rows of 114, with 16 X. No whole capability is therefore proved complete.
-- `interop/swift-abi-core/src/lib.rs` exposes feature-gated `SwiftRetained` from `retained.rs` under `#![no_std]`. Compiler proofs cover ownership, scalar Swift calls, String, Optional, and async lowering. A documented general Swift async task-entry/resume contract is still unavailable; do not claim a production async adapter.
-- `platform/ios/ios-activitykit-status/build.rs`, `ios-alarmkit-status/build.rs`, `ios-photogrammetry-status/build.rs` repeat Clang/SDK/archive/link plumbing but vary in targets, deployment floors and frameworks.
-- Many `platform/ios/*/check.sh` repeat Cargo/CI commands and also contain important unique negative assertions. `tools/xtask/src/main.rs` already offers audits, inventory, docs, zero-Swift, and archive commands; parity presently reports unavailable.
-- `platform/ios/ios-files/src/lib.rs::IosFiles` implements scoped POSIX/native sandbox operations with distinct semantic constraints.
-- The inspected repository contains 397 `PLAN*.md` files, including a very large accessibility history. File presence or a partial capability row cannot prove a plan's acceptance criteria completed.
+## Active work selection and limits
 
-## Active plans and sequencing
+1. Inspect the canonical capability status/owner, the relevant family plan, then the named workstream plan and exact files/symbols. Do not scan the entire planning corpus or treat every existing plan as pending work.
+2. Classify the selected requirement against current implementation, tests and historical recorded decision: `complete`, `partial`, `blocked`, `superseded`, `not_started`, or `research_closed`. A prior `no-go` is a constraint, not an invitation to invent an implementation.
+3. Implement only user-authorized remaining work. Do not select arbitrary new backlog items after finishing an assignment. Deferred work is preserved, not canceled.
+4. Existing P/R/A/B/C/D/F/G identifiers and all capability IDs are permanent; never renumber, recycle or use retired gaps. For future workstreams allocate the next unused greater ID in its original series after consulting history.
+5. Plans specifying a past source baseline must be reconciled to latest `main` before writing. Outdated commands do not override working architecture.
 
-0. **P0 immediate planning editing** — [PLAN_REUSE_COMPACTION.md](PLAN_REUSE_COMPACTION.md). Keep an active-only index; evidence-classify legacy plans before deleting them. This stage precedes code work and is not delegated to a coding executor. Historical plans are not routine executor reading material.
-1. **R1 shared native build support** — [PLAN_REUSE_BUILD.md](PLAN_REUSE_BUILD.md). Factor build machinery, never guessed ABI signatures.
-2. **R2 shared validation** — [PLAN_REUSE_VALIDATION.md](PLAN_REUSE_VALIDATION.md). Factor standard checks while retaining feature-specific public-API, import, symbol, availability, and ownership guards.
-3. **R3 reusable verified interop primitives** — [PLAN_REUSE_INTEROP.md](PLAN_REUSE_INTEROP.md). Only after R1 interface and R2 evidence gates are settled.
-4. **Finalize and stop** — After validating R1–R3, finish R1/R2 binary-tool stabilization and source isolation per PLAN_TOOLING_FINALIZATION.md; then stop without beginning unfinished API/capability work. All deferred contractual functionality remains preserved for a separate user-authorized execution.
+## Implementation ownership and dependencies
 
-## Current execution boundary — infrastructure only
-
-**This execution is limited to R1, R2 and R3 shared infrastructure.** P0 reconciliation is allowed only where required for their safe integration; no general backlog cleanup or new capability implementation is authorized. The previously identified D/B/F/G/API work remains deferred, not cancelled.
-
-- Codex **may spawn bounded, independently implementable infrastructure sub-workstreams** under R1/R2/R3, with existing ownership, dependency ordering, isolated worktrees where parallel-safe, explicit interface contracts and integration testing. Do not invent or renumber workstream IDs just for delegation.
-- Codex **must not spawn API, capability, application-feature or backend-expansion workstreams**, nor use infrastructure migration as a reason to complete unrelated APIs. Existing pilot code may be adapted only as necessary for infrastructure refactoring, compiler/link correctness or regression validation, preserving its public contract and observable behavior. R3 is restricted to reusing verified existing interop primitives; compiler-only proofs do not authorize production Swift async, StoreKit, Translation or App Intents APIs.
-- Complete R1/R2/R3, then the explicitly authorized final R1/R2 stabilization; validate and commit the combined infrastructure handoff without temporary plans. **Then STOP.** Do not select another backlog item, create follow-up implementation workstreams or resume API development without a new explicit user request.
-- If a required infrastructure task is blocked, record its blocker and remaining owner rather than expanding scope into API work. Maintain all outstanding capability contracts for a later separately authorized cycle.
-
-## Final R1/R2 stabilization: PATH tools and source isolation
-
-This user-approved final infrastructure phase extends **existing R1 and R2**, not API work or a new numbered workstream. Implement [PLAN_TOOLING_FINALIZATION.md](PLAN_TOOLING_FINALIZATION.md) after reconciling latest main. Aim for near-zero routine Codex reading/modification of shared engine source: build and validation engines are installed, pinned, verified **host executables on PATH**; the regular framework checkout retains declarative configuration, optional Python validation adapters, small necessary Cargo bridges, and usage docs.
-
-- **R1:** Cargo may retain a **minimal Rust `build.rs` per pilot crate**. Cargo cannot use Python as its direct build-script language. The bridge invokes the installed build executable using argv rather than a shell, checks version/status and forwards vetted Cargo link/rebuild directives. It contains **no SDK discovery, C compilation/archive implementation or other shared engine internals**. Direct PATH invocation is supported as well. Do not require a Python runtime for normal builds.
-- **R2:** CI and validation scripts invoke the installed validation executable directly. Preserve non-validation `xtask` commands, full existing pilot assertions and their negative checks. Expose versioned declarative specs and optional separately executed Python 3 test adapters using a documented, bounded JSON protocol. Python adapter absence must never silently pass a required check.
-- **Isolation:** Retire the **shared engine implementations and their private test code** from the ordinary tracked checkout only after verified release artifacts, checksum/provenance, reproducible install, supported host coverage, smoke tests and real Cargo/CI parity. Preserve tool source at an immutable Git revision or in a maintenance-only repository. Do **not** delete `interop/swift-abi-core`, public headers, capability source/tests or unrelated `xtask` functionality.
-- **Escalation:** An API-development Codex session that is blocked by a suspected tooling defect writes and commits sanitized `BUG_REPORT_<DESCRIPTIVE_NAME>.md`, without recovering or patching the shared engine. A separate user-authorized tooling-maintenance session, coordinated with the assistant, owns the fix/release. The final editorial revision of `docs/` and `AGENTS.md` remains the assistant's responsibility afterward, **not** a delegated Codex workstream.
-- **Stop:** Integrate, independently verify, commit final tooling changes and STOP. Do not spawn or execute API, capability, application-feature or backend-expansion workstreams.
-
-## Workstream identity and consolidation contract
-
-- **Existing IDs are permanent.** Keep all assigned P/R/A/B/C/D/F/G workstream IDs, filenames and interplan dependency references stable. Never renumber, recycle a retired ID, or create a replacement series (including W00–W03). The canonical capability IDs in `docs/capabilities/capability-status.json` are independently immutable.
-- **New workstreams continue the appropriate existing series**, using an ID greater than every previously issued ID in that series, including retired and Git-only historical plans. Check the completion ledger and Git history before allocating. A gap does not imply an available ID.
-- **Consolidation is transparent to execution.** A consolidated plan is an ordinary authoritative contract for the workstreams it owns. Keep each workstream's original ID and all necessary interfaces, invariants, write ownership, prerequisites, failure cases, non-goals, tests, evidence limits and unresolved work. Do not assign new IDs solely because text moved into another plan.
-- **Separate execution and audit views.** Executors read this plan, their assigned active plan and relevant source/doc entrypoints; they do not need to distinguish a legacy plan from a consolidated one. Preserve immutable original-plan refs, status classifications and relocation mappings in the completion ledger / durable audit documentation, not as routine extra reading. Use historical details when resolving a disputed or missing contract.
-- Retiring a plan file is not retiring its still-open obligations. Preserve each such obligation under an explicitly named existing workstream owner and validate identifiers and links before committing planning-only changes.
-
-## Legacy scope migration and completion rules
-
-Existing foundation, capabilities, native iOS, Swift ABI, bindings, replacements and validation plans are historical input to classification, not default reading. Consolidate by independently executable ownership and exact symbols, not by individual scalar property. Keep `docs/capabilities/capability-status.json` as canonical capability coverage. For every old plan assign exactly one evidence-backed status: `complete`, `partial`, `blocked`, `superseded`, `not_started`, or `research_closed`. Capture original criteria, code/tests/verification evidence, unresolved acceptance criteria and new owner. Unknown status defaults to partial, not complete. An implemented status getter does not complete a full framework capability. Never run `rm PLAN_*.md` indiscriminately.
-
-Residual ownership: Swift runtime compiler proofs and genuinely open async/App Intents interfaces -> R3 and narrow follow-up; build scripts -> R1; validation/CI -> R2; filesystem -> `IosFiles` owner; accessibility -> `ios-accessibility` owner; C/Python bindings -> bindings owner; performance replacements -> evidence-backed replacement owner; other native capabilities -> manifest-assigned owner. Retire a file only once all remaining obligations are transferred, implemented or explicitly blocked and all links are updated.
-
-## Shared interfaces, ownership and parallel safety
-
-| Path / symbol family | Single writer | Consumers |
+| Contract family | Authoritative entrypoint | Primary change owner |
 |---|---|---|
-| Proposed `tools/native-build-support/**`, pilot `build.rs` migrations | R1 | R3, capability crates |
-| `tools/xtask/**`, proposed validation harness, CI | R2 | R1, R3 |
-| `interop/swift-abi-core/**`, `interop/swift-abi-generated/**` | R3 | capability crates |
-| `PLAN*.md`, proposed completion ledger / planning index, `AGENTS.md` amendment proposal | P0 planning editor | all |
-| Capability-status manifest | serialized capability integration owner | all read-only |
-| `platform/ios/ios-files/**` | existing filesystem owner | others read-only |
+| Portable semantics, `no_std`, error and lifecycle contracts | `PLAN_FOUNDATION.md`, `crates/framework-*/` | A / portable owners |
+| Capability coverage, Apple platform feasibility and no-go decisions | `PLAN_CAPABILITIES.md`, canonical capability manifest, targeted `PLAN_CAPABILITIES_*.md` | D and associated backend owners |
+| Native iOS implementations, app lifecycle, ObjC/Swift boundaries | `PLAN_IOS_NATIVE.md`, targeted `PLAN_IOS_*.md`, `platform/ios/*` | B |
+| C ABI, C++ conveniences and optional Python bindings | `PLAN_BINDINGS.md`, targeted `PLAN_BINDINGS_*.md`, `bindings/*` | F |
+| Runtime/compile/link/test requirements and evidence classifications | `PLAN_VALIDATION.md`, targeted `PLAN_VALIDATION_*.md`, `docs/SHARED_TOOLING.md` | G and each capability owner for local specs |
+| Verified reusable Swift ABI primitives | `PLAN_REUSE_INTEROP.md`, `interop/swift-abi-*` | R3, only for verified remaining contract gaps |
+| Performance replacements | `PLAN_REPLACEMENTS.md`, evidence-backed targeted plan | replacement owner |
+| Engine bugs or unsupported tooling protocols | `BUG_REPORT_*.md`, separately authorized maintenance work | distinct tooling-maintenance Codex session, **not** API executor |
 
-Do not add mandatory runtime dependencies, dynamic registries, a centralized mega-crate, or an arbitrary Swift ABI invoker. Preserve static dispatch, feature isolation, deployment floors, public ABI surface and no_std constraints.
+Minimize overlapping writes. If shared interfaces or files are required, assign one owner; other workstreams consume them. Explicitly order dependencies and integrate sequentially across such hotspots. Parallelize only independent work in isolated worktrees.
 
-R1 and R2 may work concurrently only in isolated worktrees; integrate R1 then R2. Start R3 after shared interface review. Each executor reports changed paths, commit SHA, tests, skipped checks, differences, remaining risks and open assumptions. Resolve contradictions centrally. Recheck main before work, rerun relevant host/iOS cross-target, Clippy, docs, link/import, zero-Swift, feature-isolation and example validations. No missing SDK or device test may be labelled passed.
+## Shared tooling contract for every assigned workstream
 
-## Final diff checklist
+- Install verified, pinned host executables using `tools/install-tools.sh --prefix <PREFIX>`, place `<PREFIX>/bin` on `PATH`, verify both tools' version/protocol, and consult `docs/SHARED_TOOLING.md` for exact commands/schema.
+- Cargo native C archive construction is performed by `ios-rust-build` via the package's minimal Rust `build.rs`; the ordinary executor may edit the capability-specific `build-spec.json` and its small bridge only when the capability actually needs native archive support. Do not recreate SDK discovery, Clang/ar loops, or the shared engine.
+- Validation defaults to **declared checks** in `tools/validation/specs/validation-v1.json`, where applicable. The installed validator currently has only four configured production pilots (HomeKit identify, ActivityKit status, AlarmKit status, Photogrammetry status); **do not assume a new capability is registered or that all legacy checks are migrated**. Add a fully specified new capability declaration when supported, rather than rewriting the Rust engine.
+- For unusual API-specific assertions use an optional, bounded Python 3 adapter through the versioned stdin/stdout JSON protocol. Retain necessary native fixtures and true compiler/link checks for ABI layout, ownership, Swift calling convention, weak symbols and availability. A required missing/failed/invalid adapter is never a pass.
+- Retain applicable legacy package-local `check.sh`, compiler-oracle tests, import audits and CI gates until the new configuration demonstrably enforces equivalent or stronger behavior. Conversion of a check is a migration requiring negative-case parity, not just a path replacement.
+- Distinguish `PASS`, `FAIL`, `SKIPPED(reason)` and `ERROR-BLOCKED`; no absent SDK/device or skipped gate may be claimed passed. Tooling does not substitute real permission, entitlement, interaction or device tests.
+- Ordinary executors must not fetch, read or modify historical shared-engine source. For an apparent engine defect: check the documented CLI/schema and prerequisites, reproduce minimally, sanitize evidence, commit `BUG_REPORT_<DESCRIPTIVE_NAME>.md`, stop the affected work, and hand it to a separate maintenance session. Do not weaken gates or build an ad-hoc replacement validator.
 
-- No production behavior change from build/test refactoring; preserve Apple API and OS version guards.
-- No unsupported Swift async promise, private symbol, guessed ABI signature, duplicated shared helper or mandatory capability linkage.
-- Every retired plan has acceptance-criteria and validation evidence; every residual requirement has an explicit active owner; docs/CI links stay valid.
-- Review resulting file and linked-binary diffs; preserve smaller active Codex context.
+## Workstream handoff requirements
 
-## Execution handoff
+Each assigned plan must name: exact starting files and symbols; verified current implementation; objective and remaining acceptance criteria; owned write surface and read-only dependencies; explicit non-goals; invariants around errors, ownership, async completion, cancellation, idempotency, security and persistence **where relevant**; host/Apple version limits; declarative validation entries and any custom adapters; real device/simulator evidence requirements; deterministic regression tests; exact commands; and an auditable final diff checklist. Preserve historical evidence/decisions as linked read-only references instead of flooding the routine executor context.
 
-Verify latest main, read this plan and assigned R1/R2/R3 infrastructure workstream only, implement within named ownership, integrate dependencies in order, report tests/SHA, independently validate the final diff, delete temporary PLAN*.md, and commit implementation without them. Stop after this handoff; do not initiate capability/API work. All changes to the planning set require approval before GitHub writes; `AGENTS.md` is outside a plan-only commit.
+Before integration: verify current `main`, use isolated worktrees for parallel-safe tasks, require each executor to report changed paths, SHA, tests, skips, deviations and open assumptions, then integrate in dependency order. Re-run affected validation and independent ABI/consumer checks. Resolve plan contradictions centrally. Audit the final diff against the entire assigned contract. Remove temporary planning handoff files after implementation when that is the established workflow; do not delete durable history without evidence-backed retirement. **Do not initiate additional API work beyond specifically authorized workstreams.**
+
+## Final review checklist
+
+- Preserved Rust-native fast path, public Apple APIs, static backend choice, optional C/Python bindings, platform invariants, zero shipping Swift source and documented escape hatches.
+- No inferred full-capability support from partial getter checks; no unsupported Swift async or private symbols.
+- No lost negative assertion, deployment floor, framework import, ownership/cancellation guarantee, feature isolation or runtime evidence gate.
+- No shared-engine source, dependency or bespoke replacement accidentally imported into normal checkout.
+- Every unfinished workstream has a stable owner and accurate dependency; historical no-go/closed evidence remains recoverable.
+- Every test command and evidence statement reflects actual current tooling and installed host requirements.
+
+## Retired infrastructure plans (historical only)
+
+`PLAN_REUSE_BUILD.md`, `PLAN_REUSE_VALIDATION.md`, and `PLAN_TOOLING_FINALIZATION.md` were deleted from current `main` in `f3b14892a560da05a086caf9e6d30a0c9beda25e` because their shared tooling implementation is finished. Do not recreate these plans or assign R1/R2 implementation work. Their former Git history is archival. Any unrelated API-specific validation registration is a capability/validation integration task, not an engine rewrite.
