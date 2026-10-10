@@ -5,6 +5,14 @@ root=$(CDPATH= cd -- "$(dirname -- "$0")/../.." && pwd)
 cd "$root"
 mkdir -p target
 
+sysroot=$(rustc --print sysroot)
+host=$(rustc -vV | sed -n 's/^host: //p')
+llvm_nm="$sysroot/lib/rustlib/$host/bin/llvm-nm"
+if [ ! -x "$llvm_nm" ]; then
+    echo "Rust LLVM symbol tool is required for this audit: $llvm_nm" >&2
+    exit 1
+fi
+
 python3 -m json.tool bindings/c/abi-manifest.json > /dev/null
 sh -n bindings/c/check-ios-proximity-reader.sh
 cargo fmt --package framework-c-api -- --check
@@ -95,12 +103,12 @@ clang -std=c11 -Wall -Wextra -Werror -pedantic -I bindings/c/include \
 clang++ -std=c++17 -Wall -Wextra -Werror -pedantic -I bindings/c/include \
     target/framework-c-ios-proximity-reader-cpp.cpp "$host_archive" \
     -o target/framework-c-ios-proximity-reader-cpp-host
-nm -g "$host_archive" 2>/dev/null \
+"$llvm_nm" -g "$host_archive" 2>/dev/null \
     | rg -o '_framework_ios_proximity_reader_[A-Za-z0-9_]+' | sed 's/^_//' | sort -u \
     > target/framework-c-ios-proximity-reader-host-symbols.txt
 diff -u target/framework-c-ios-proximity-reader-expected-symbols.txt \
     target/framework-c-ios-proximity-reader-host-symbols.txt
-nm -u "$host_archive" 2>/dev/null \
+"$llvm_nm" -u "$host_archive" 2>/dev/null \
     > target/framework-c-ios-proximity-reader-host-undefined.txt
 if rg -q 'PaymentCardReader|ProximityReader|swift_|libobjc|objc_msgSend|OBJC_CLASS|UIKit' \
     target/framework-c-ios-proximity-reader-host-undefined.txt; then
@@ -174,7 +182,7 @@ for target in aarch64-apple-ios aarch64-apple-ios-sim; do
         printf '%s %s ProximityReader imports and iOS 15.4 minimum verified; probe not executed\n' \
             "$target" "$language"
     done
-    nm -g "$archive" 2>/dev/null \
+    "$llvm_nm" -g "$archive" 2>/dev/null \
         | rg -o '_framework_ios_proximity_reader_[A-Za-z0-9_]+' | sed 's/^_//' | sort -u \
         > "target/framework-c-ios-proximity-reader-$target-archive-symbols.txt"
     diff -u target/framework-c-ios-proximity-reader-expected-symbols.txt \
