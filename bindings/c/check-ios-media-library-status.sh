@@ -4,6 +4,13 @@ set -eu
 root=$(CDPATH= cd -- "$(dirname -- "$0")/../.." && pwd)
 cd "$root"
 mkdir -p target
+sysroot=$(rustc --print sysroot)
+host=$(rustc -vV | sed -n 's/^host: //p')
+llvm_nm="$sysroot/lib/rustlib/$host/bin/llvm-nm"
+if [ ! -x "$llvm_nm" ]; then
+    echo "Rust LLVM symbol tool is required for this audit: $llvm_nm" >&2
+    exit 1
+fi
 
 python3 -m json.tool bindings/c/abi-manifest.json > /dev/null
 sh -n bindings/c/check-ios-media-library-status.sh
@@ -117,12 +124,12 @@ clang -std=c11 -Wall -Wextra -Werror -pedantic -I bindings/c/include -I target \
 clang++ -nostdinc++ -std=c++17 -Wall -Wextra -Werror -pedantic -I bindings/c/include -I target \
     target/framework-c-media-library-status-cpp.cpp "$host_archive" \
     -o target/framework-c-media-library-status-cpp-host
-nm -g "$host_archive" 2>/dev/null \
+"$llvm_nm" -g "$host_archive" 2>/dev/null \
     | rg -o '_framework_ios_media_library_[A-Za-z0-9_]+' | sed 's/^_//' | sort -u \
     > target/framework-c-media-library-status-host-symbols.txt
 diff -u target/framework-c-media-library-status-expected-symbols.txt \
     target/framework-c-media-library-status-host-symbols.txt
-nm -u "$host_archive" 2>/dev/null > target/framework-c-media-library-status-host-undefined.txt
+"$llvm_nm" -u "$host_archive" 2>/dev/null > target/framework-c-media-library-status-host-undefined.txt
 if rg -qi 'MPMediaLibrary|objc_msgSend|OBJC_CLASS|MediaPlayer' \
     target/framework-c-media-library-status-host-undefined.txt; then
     echo "MediaPlayer or Objective-C import leaked into the host archive" >&2
@@ -195,10 +202,10 @@ for target in aarch64-apple-ios aarch64-apple-ios-sim; do
     archive="target/$target/release/libframework_c_api.a"
     symbols="target/framework-c-media-library-status-$target-archive-symbols.txt"
     imports="target/framework-c-media-library-status-$target-archive-imports.txt"
-    nm -g "$archive" 2>/dev/null | rg -o '_framework_ios_media_library_[A-Za-z0-9_]+' \
+    "$llvm_nm" -g "$archive" 2>/dev/null | rg -o '_framework_ios_media_library_[A-Za-z0-9_]+' \
         | sed 's/^_//' | sort -u > "$symbols"
     diff -u target/framework-c-media-library-status-expected-symbols.txt "$symbols"
-    nm -u "$archive" 2>/dev/null > "$imports"
+    "$llvm_nm" -u "$archive" 2>/dev/null > "$imports"
     rg -q '_objc_msgSend' "$imports"
     if rg -qi 'UIKit|Security|Network|StoreKit|Swift|Python|AppKit|WebKit|UserNotifications' \
         "$imports"; then
