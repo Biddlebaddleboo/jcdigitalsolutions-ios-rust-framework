@@ -8,6 +8,16 @@ The Core Location API floor remains iOS 9.0, but this Rust arm64 device target r
 
 The location follow-up aligns the C header and guide with the Rust pointer preconditions and adds static checks for the ABI-manifest pointer contract. Root reran `sh bindings/c/check-ios-location.sh` after these assertions on 2026-10-09; it passed the static contract checks and host/device/Simulator build, Clippy, C11/C++17 link, import, export, and deployment gates. Probe binaries were inspected, not executed; no tests or consumers ran. The gate emitted a rustc warning that `IPHONEOS_DEPLOYMENT_TARGET` was 9.0 while rustc supports a minimum of 10.0; final device probe minos is 10.0 and Simulator minos is 14.0
 
+Xcode 27 run `38053268604` on head `504ee445c084850eea8bd899dafea442cf9b9ad9`, job
+`114216534381`, failed Location C ABI step 247 after the device C11 fixture passed with minos
+10.0. The following C++17 fixture included libc++ `<cstddef>`, which entered Xcode 27's SDK
+`cstddef`/`__config` headers; `availability.h:204` warned `The selected platform is no longer
+supported by libc++`, promoted to an error by `-Werror`. The fixture now includes C-compatible
+`<stddef.h>`, and only the device/Simulator C++17 compile commands use `-nostdinc++`; host C++ and
+all C11 compiles remain unchanged. C++17, ABI/import/symbol, CoreLocation, and device 10.0 / Simulator
+14.0 deployment assertions remain intact. Xcode 27 requalification is pending; probes are compile/link
+only, not executed, and no tests or runtime behavior are claimed
+
 ## Goal
 
 Expose the existing B5 one-shot location backend through an opt-in capability-owned C API. Keep explicit permission request, authorization query, current-location request, readiness, poll, cancellation, drop, and thread semantics truthful. Do not add a universal operation registry or executor
