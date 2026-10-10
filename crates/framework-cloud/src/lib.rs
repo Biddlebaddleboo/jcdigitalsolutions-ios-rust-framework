@@ -8,9 +8,10 @@ use framework_core::{Availability, Error};
 
 /// One synchronous observation of whether an iCloud Drive Documents identity token exists.
 ///
-/// This value records only token presence. It does not expose, retain, compare, or identify the
-/// opaque native token. `TokenAbsent` does not distinguish why Foundation returned `nil`, and
-/// `TokenPresent` does not prove container access, synchronization, or CloudKit account status.
+/// This value records only token presence. The API does not return, retain, compare, serialize,
+/// stringify, format, or log the opaque native token. `TokenAbsent` does not distinguish why
+/// Foundation returned `nil`, and `TokenPresent` does not prove container access, synchronization,
+/// or CloudKit account status.
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
 #[non_exhaustive]
 pub enum UbiquityIdentitySnapshot {
@@ -40,8 +41,9 @@ impl UbiquityIdentitySnapshot {
 ///
 /// A call performs a fresh, non-prompting observation and returns only the token-presence value.
 /// The result may become stale immediately after the call; this trait does not observe identity
-/// changes or provide continuity, container access, synchronization, or CloudKit status.
-pub trait UbiquityIdentityBackend {
+/// changes or provide continuity, container access, synchronization, or CloudKit status. Use a
+/// concrete backend type; this contract does not support trait-object dispatch.
+pub trait UbiquityIdentityBackend: Sized {
     /// Reads a presence-only snapshot without returning or retaining the native token.
     fn snapshot(&self) -> UbiquityIdentitySnapshot;
 }
@@ -157,16 +159,30 @@ mod tests {
         }
     }
 
+    fn snapshot<B: UbiquityIdentityBackend>(backend: &B) -> UbiquityIdentitySnapshot {
+        backend.snapshot()
+    }
+
     #[test]
-    fn snapshot_exposes_only_token_presence() {
-        assert!(UbiquityIdentitySnapshot::from_token_presence(true).token_present());
-        assert!(!UbiquityIdentitySnapshot::from_token_presence(false).token_present());
+    fn nullable_observation_maps_only_to_presence() {
         assert_eq!(
-            FakeBackend(true).snapshot(),
+            UbiquityIdentitySnapshot::from_token_presence(true),
             UbiquityIdentitySnapshot::TokenPresent
         );
         assert_eq!(
-            FakeBackend(false).snapshot(),
+            UbiquityIdentitySnapshot::from_token_presence(false),
+            UbiquityIdentitySnapshot::TokenAbsent
+        );
+    }
+
+    #[test]
+    fn static_fake_backend_reports_only_presence() {
+        assert_eq!(
+            snapshot(&FakeBackend(true)),
+            UbiquityIdentitySnapshot::TokenPresent
+        );
+        assert_eq!(
+            snapshot(&FakeBackend(false)),
             UbiquityIdentitySnapshot::TokenAbsent
         );
     }

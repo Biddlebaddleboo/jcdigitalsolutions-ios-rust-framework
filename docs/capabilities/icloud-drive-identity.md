@@ -5,9 +5,10 @@ backend contract for one narrow Foundation observation: whether
 `FileManager.ubiquityIdentityToken` was non-`nil` during one call. The result is only
 `UbiquityIdentitySnapshot::TokenPresent` or `UbiquityIdentitySnapshot::TokenAbsent`.
 
-The opaque native token never crosses the backend boundary. The contract has no token equality,
-account name, account identifier, persistence, logging, formatting, notification observer, or
-CloudKit operation. Each call is a fresh snapshot and may become stale immediately after return.
+The opaque native token never crosses the backend boundary. This API does not return, retain,
+compare, serialize, stringify, format, or log the token. It has no account name, account identifier,
+persistence, notification observer, or CloudKit operation. Each call is a fresh snapshot and may
+become stale immediately after return.
 
 ## Meaning and limits
 

@@ -38,3 +38,25 @@ plans, shared documentation indexes, CI, `tools/xtask`, CloudKit work, or other 
 - Inspect the public API for Apple types, `std`, allocator, native-token escape, and unrelated
   dependencies.
 - Report changed files and limits. Do not edit or claim an aggregate capability-matrix update.
+
+## Completion status
+
+Implemented the D30 presence slice in `crates/framework-cloud` and
+`docs/capabilities/icloud-drive-identity.md`. `UbiquityIdentityBackend: Sized` enforces a
+synchronous concrete backend call path; deterministic tests cover both nullable-observation
+outcomes and a generic fake backend. The separate CloudKit account-status API and its existing
+`framework-core` dependency remain unchanged.
+
+Rust 1.94.1 evidence:
+
+- `cargo +1.94.1 test -p framework-cloud` — passed, 2 tests.
+- `cargo +1.94.1 check -p framework-cloud --no-default-features` — passed.
+- `cargo +1.94.1 fmt --all -- --check` — passed.
+- `git diff --check` — passed.
+- API audit confirmed the D30 value uses only `bool`/enum state, with no Apple type, `std`,
+  allocator, native-token return or storage path, or added dependency.
+
+`Cargo.lock` already records the package in the integration baseline and remained unchanged. These
+checks cover the portable contract only; they do not prove iOS runtime, iCloud service, signing,
+container access, synchronization, or CloudKit account behavior. A snapshot may become stale
+immediately and does not observe identity changes.
