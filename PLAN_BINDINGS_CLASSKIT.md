@@ -84,6 +84,17 @@ archive has no ClassKit or Objective-C imports. Probe consumers were linked and 
 executed. No tests, live `NSUserActivity`, Schoolwork flow, or ClassKit assignment-data access were
 run or claimed.
 
+Xcode 27 run `38051886481` on head `59555590b4fec231ea2f3686faff43df9e7220fb`, job
+`114212506187`, passed the MapKit C ABI step 245 and failed ClassKit step 246. The ClassKit device
+C11 fixture compiled and linked at minos 11.3; the following C++17 fixture compile entered the
+Xcode 27 SDK libc++ `stddef.h` shim and failed at `availability.h:204` with
+`The selected platform is no longer supported by libc++`, promoted to an error by `-Werror`. The
+device/Simulator C++ fixture compiles now use `-nostdinc++` because they consume only C ABI
+declarations. The C11 compile remains unchanged; the gate retains C++17, the `libc++.1.dylib`
+import assertion, ClassKit/Foundation and Objective-C imports, symbol/selector checks, device
+11.3 and Simulator 14.0 minos, and the iOS 11.3 API/runtime floor. Xcode 27 ClassKit
+requalification is pending; no consumer execution or runtime behavior is claimed.
+
 ## Root integration steps
 
 After the root lock refresh, add `sh bindings/c/check-ios-classkit-deep-link.sh` beside the other C
