@@ -16,6 +16,10 @@ CARGO_PATH = PACKAGE_ROOT + "/Cargo.toml"
 CHECK_PATH = PACKAGE_ROOT + "/check.sh"
 LINK_CHECK_PATH = PACKAGE_ROOT + "/check-link-imports.sh"
 LINK_PROBE_PATH = PACKAGE_ROOT + "/examples/link_probe.rs"
+EXPECTED_TARGETS = {
+ ("aarch64-apple-ios", "iphoneos"): "10.0",
+ ("aarch64-apple-ios-sim", "iphonesimulator"): "14.0",
+}
 DOC_PATH = "docs/ios/app-lifecycle.md"
 MANIFEST_PATH = "docs/capabilities/capability-status.json"
 SPEC_PATH = "tools/validation/specs/validation-v1.json"
@@ -146,13 +150,9 @@ def check_profile_targets(spec_text):
  pilot = next((item for item in spec.get("pilots", []) if item.get("id") == "ios-app-lifecycle"), None)
  if pilot is None or pilot.get("package") != "ios-app-lifecycle":
   return False
- expected = {
-  ("aarch64-apple-ios", "iphoneos"): "10.0",
-  ("aarch64-apple-ios-sim", "iphonesimulator"): "14.0",
- }
  for key in ("targets", "abi_targets"):
   targets = pilot.get(key, [])
-  for (triple, sdk), minimum in expected.items():
+  for (triple, sdk), minimum in EXPECTED_TARGETS.items():
    matches = [target for target in targets if target.get("triple") == triple and target.get("sdk") == sdk]
    if len(matches) != 1 or matches[0].get("minimum_os") != minimum:
     return False
@@ -160,6 +160,22 @@ def check_profile_targets(spec_text):
   return False
  if LINK_CHECK_PATH not in pilot.get("shell_scripts", []) or LINK_CHECK_PATH not in pilot.get("scoped_files", []):
   return False
+ return True
+
+
+def check_profile_floor_regressions(spec_text):
+ if not check_profile_targets(spec_text):
+  return False
+ for key in ("targets", "abi_targets"):
+  for triple, sdk in EXPECTED_TARGETS:
+   mutated = json.loads(spec_text)
+   pilot = next(item for item in mutated["pilots"] if item.get("id") == "ios-app-lifecycle")
+   matches = [target for target in pilot[key] if target.get("triple") == triple and target.get("sdk") == sdk]
+   if len(matches) != 1:
+    return False
+   matches[0]["minimum_os"] = "0.0"
+   if check_profile_targets(json.dumps(mutated)):
+    return False
  return True
 
 
@@ -188,6 +204,8 @@ def check_contract(root, sources):
   failures.append("package check does not compile both iOS device and Simulator targets")
  if not check_profile_targets(sources[SPEC_PATH]):
   failures.append("registered iOS lifecycle link checks must use 10.0 device and 14.0 Simulator deployment floors")
+ elif not check_profile_floor_regressions(sources[SPEC_PATH]):
+  failures.append("registered iOS lifecycle profile must reject each changed device/Simulator floor")
  if not all(fragment in link_probe for fragment in (
   "MainThread::current()",
   "IosApplicationLifecycle::new(main_thread)",
