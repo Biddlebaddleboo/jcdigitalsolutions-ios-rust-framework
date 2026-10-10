@@ -332,6 +332,9 @@ jobs:
       - name: Clippy iOS Core NFC Simulator target
         if: runner.os == 'macOS'
         run: cargo clippy --locked -p ios-nfc --all-targets --target aarch64-apple-ios-sim -- -D warnings
+      - name: Audit iOS Core NFC Release link/imports
+        if: runner.os == 'macOS'
+        run: sh platform/ios/ios-nfc/check-link-imports.sh
       - name: Check camera and microphone authorization package gates
         if: runner.os == 'macOS'
         run: sh platform/ios/ios-media-authorization/check.sh
