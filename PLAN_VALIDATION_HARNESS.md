@@ -61,6 +61,24 @@ Both tools packages must be local Cargo members matched by the existing `tools/*
 - `cargo xtask parity` exits with `xtask: parity is unavailable until a real Apple reference adapter and Rust candidate suite exist`; this is the expected no-suite gate, not parity evidence
 - No real Apple reference adapter or Rust candidate suite exists, no framework workload exists, and no parity or performance result exists. `cargo xtask parity` remains unavailable; representative-device Release measurements and optimized-code inspection remain open
 
+## 2026-10-10 hosted CI evidence
+
+GitHub Actions run [38075483431](https://github.com/Biddlebaddleboo/jcdigitalsolutions-ios-rust-framework/actions/runs/38075483431) passed at source SHA `85db105389c1d0b212bc385d9b4b6a1f6e049c0b`; `Rust checks (ubuntu-24.04)`, `Rust checks (macos-15)`, and `Rust checks (xcode-27)` all concluded successfully. The G3 source paths (`tools/parity-harness/**`, `tools/bench-harness/**`, `tools/xtask/**`, `.github/workflows/ci.yml`, `docs/PERFORMANCE.md`, and this plan) have no path changes from that source SHA through checkpoint `d717f8ae4324bf2abc782816c7fb2e10dfa92105`; `docs/VALIDATION.md` was also unchanged through that checkpoint. Its later edits only record G19/G20–G29 evidence and do not alter G3 gates, so the hosted results apply to the current G3 implementation.
+
+On both macOS jobs, the following named steps passed:
+
+- `Format`: `cargo fmt --all -- --check`
+- `Clippy all features on Apple host`: `cargo clippy --locked --workspace --all-targets --all-features -- -D warnings`
+- `Unit tests`: `cargo test --locked --workspace`; G3 package fixtures passed: 5 `bench_harness`, 7 `parity_harness`, and 7 `xtask` tests (19 total)
+- `Rust documentation`: `cargo doc --locked --workspace --no-deps`
+- `Portable no_std checks`: `cargo xtask no-std-check` (portable crates only; compile checks, not link proof)
+- `Dependency inventory`: `cargo xtask dependency-audit` (inventory only; no dependency-growth budget or transitive-`std` proof)
+- `ABI source inventory`: `cargo xtask abi-audit --output target/xtask/abi-audit.json` (source inventory only; not linked-ABI proof)
+- `Documentation and zero-Swift-source checks`: `cargo xtask docs-check`; the zero-Swift-source check and shared documentation index check both passed
+- `C API header, layout, symbol, and consumer check`: `sh bindings/c/check.sh`; the script reported framework ABI 1.3
+
+These gates qualify the harnesses, workspace, source inventories, documentation, and C check only. The harness tests use fake adapters; no real Apple reference adapter, registered candidate suite, or framework workload exists. The run did not produce a parity result or performance measurement; `cargo xtask parity` remains unavailable as expected. Representative-device Release measurements and optimized-code inspection remain open.
+
 ## Handoff
 
 Report harness APIs, fixture schema, emitted benchmark fields, CI commands, actual suites registered, exact parity/benchmark evidence, and unsupported host/device checks. Clearly state when only harness unit fixtures ran.
