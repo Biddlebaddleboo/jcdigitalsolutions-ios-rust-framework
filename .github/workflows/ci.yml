@@ -30,6 +30,9 @@ jobs:
           "$RUNNER_TEMP/ios-rust-tools/bin/ios-rust-validate" --version --format json
       - name: Install Rust components
         run: rustup component add rustfmt clippy --toolchain 1.94.1
+      - name: Install Rust LLVM tools for Apple archive symbol audits
+        if: runner.os == 'macOS'
+        run: rustup component add llvm-tools --toolchain 1.94.1
       - name: Install Apple device, simulator, and host targets
         if: runner.os == 'macOS'
         run: rustup target add aarch64-apple-ios aarch64-apple-ios-sim x86_64-apple-darwin --toolchain 1.94.1

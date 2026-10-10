@@ -6,6 +6,13 @@ cd "$root"
 
 probe_dir=$(mktemp -d "${TMPDIR:-/tmp}/ios-image-io-import-probe.XXXXXX")
 trap 'rm -rf "$probe_dir"' EXIT HUP INT TERM
+sysroot=$(rustc --print sysroot)
+host=$(rustc -vV | sed -n 's/^host: //p')
+llvm_nm="$sysroot/lib/rustlib/$host/bin/llvm-nm"
+if [ ! -x "$llvm_nm" ]; then
+    echo "Rust LLVM symbol tool is required for this audit: $llvm_nm" >&2
+    exit 1
+fi
 mkdir -p "$probe_dir/src"
 cat > "$probe_dir/Cargo.toml" <<EOF
 [package]
@@ -40,7 +47,7 @@ for target in aarch64-apple-ios aarch64-apple-ios-sim; do
     cargo build --release --manifest-path "$probe_dir/Cargo.toml" --target "$target"
     archive="$probe_dir/target/$target/release/libios_image_io_import_probe.a"
     imports="$probe_dir/imports-$target.txt"
-    nm -u "$archive" > "$imports"
+    "$llvm_nm" -u "$archive" > "$imports"
 
     for symbol in \
         CGImageSourceCreateWithData \
