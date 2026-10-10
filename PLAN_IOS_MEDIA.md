@@ -11,7 +11,7 @@ Map D17's finite rational media time to the native CoreMedia `CMTime` struct by 
 ## Dependencies
 
 - D17 `framework-media::MediaTime`
-- exact `objc2-core-media` 0.3.2 pin with only the `CMTime` feature; its public `CMTime` fields and `CMTimeFlags::Valid` define the native value layout
+- `core-media-time` is enabled by default to preserve the `IosMediaTime` API; it opts into the exact `objc2-core-media` 0.3.2 pin with only the `CMTime` feature, whose public `CMTime` fields and `CMTimeFlags::Valid` define the native value layout
 - Xcode 26.6 / iOS SDK 26.5 CoreMedia header declares `CMTime` and `CMTimeMake` at iOS 4.0; the `CMTimeMake` wrapper imports a strong Swift CoreMedia runtime dylib at the iOS 12.0 deployment floor
 
 ## Write scope
@@ -60,4 +60,4 @@ On Rust/Cargo 1.94.1 / Xcode 26.6 build 17F113 / iOS SDK 26.5, these checks pass
 - `sh platform/ios/ios-media/check-link-imports.sh`
 - `git diff --check`
 
-The refreshed device and Simulator link probes import only `libSystem.B.dylib`; `CoreMedia` is stripped because the literal path imports no CoreMedia function. `nm -u` has no `_CMTimeMake` or Swift runtime symbol. The strong `@rpath/libswiftCoreMedia.dylib` dependency from the prior Xcode 27 probe is absent. `vtool` reports device minos 12.0 and Simulator minos 14.0 on SDK 26.5. C11 header layout asserts and Rust const layout asserts pass on both targets. Neither probe runs. Xcode 26.6 is below the Xcode 27.x CI baseline. No app runtime, media parity, or performance evidence
+The default-enabled `core-media-time` feature preserves `IosMediaTime`; its refreshed device and Simulator link probes import only `libSystem.B.dylib`; `CoreMedia` is stripped because the literal path imports no CoreMedia function. `nm -u` has no `_CMTimeMake` or Swift runtime symbol. The strong `@rpath/libswiftCoreMedia.dylib` dependency from the prior Xcode 27 probe is absent. `vtool` reports device minos 12.0 and Simulator minos 14.0 on SDK 26.5. C11 header layout asserts and Rust const layout asserts pass on both targets. Neither probe runs. Xcode 26.6 is below the Xcode 27.x CI baseline. No app runtime, media parity, or performance evidence

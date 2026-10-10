@@ -1,6 +1,6 @@
 # iOS CoreMedia Value Bridge
 
-`ios-media::IosMediaTime` maps `framework_media::MediaTime` to a CoreMedia `CMTime` value
+`ios-media::IosMediaTime` maps `framework_media::MediaTime` to a CoreMedia `CMTime` value through the default-enabled `core-media-time` feature
 
 ```rust
 use framework_media::MediaTime;

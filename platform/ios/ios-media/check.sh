@@ -21,6 +21,10 @@ if printf '%s\n' "$default_features" | grep -q 'objc2-video-toolbox'; then
     echo "VideoToolbox capability leaked into the default ios-media feature graph" >&2
     exit 1
 fi
+if ! printf '%s\n' "$default_features" | grep -q 'objc2-core-media feature "CMTime"'; then
+    echo "default ios-media features must preserve the CoreMedia time API" >&2
+    exit 1
+fi
 features=$(cargo tree --locked -p ios-media --target aarch64-apple-ios --features videotoolbox -e features)
 if printf '%s\n' "$features" | grep -E 'objc2-video-toolbox feature "(default|VTCompressionSession|VTVideoEncoderList)"'; then
     echo "out-of-scope VideoToolbox encode/list or default features are enabled" >&2

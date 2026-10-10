@@ -1,10 +1,10 @@
 #![deny(missing_docs)]
 #![doc = "iOS adapters for CoreMedia time, bounded AVAudioSession status, and VideoToolbox hardware-decode support."]
 
-#[cfg(target_os = "ios")]
+#[cfg(all(target_os = "ios", feature = "core-media-time"))]
 mod platform;
 
-#[cfg(target_os = "ios")]
+#[cfg(all(target_os = "ios", feature = "core-media-time"))]
 pub use platform::IosMediaTime;
 
 #[cfg(target_os = "ios")]
