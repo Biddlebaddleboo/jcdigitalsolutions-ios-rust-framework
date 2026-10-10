@@ -4,6 +4,13 @@ set -eu
 root=$(CDPATH= cd -- "$(dirname -- "$0")/../.." && pwd)
 cd "$root"
 mkdir -p target
+sysroot=$(rustc --print sysroot)
+host=$(rustc -vV | sed -n 's/^host: //p')
+llvm_nm="$sysroot/lib/rustlib/$host/bin/llvm-nm"
+if [ ! -x "$llvm_nm" ]; then
+    echo "Rust LLVM symbol tool is required for this audit: $llvm_nm" >&2
+    exit 1
+fi
 
 cargo tree -p framework-c-api --no-default-features > target/framework-c-secure-storage-default-tree.txt
 if rg -q 'framework-secure-storage|ios-secure-storage' target/framework-c-secure-storage-default-tree.txt; then
@@ -20,7 +27,7 @@ clang -std=c11 -Wall -Wextra -Werror -pedantic -I bindings/c/include -c bindings
 clang++ -std=c++17 -Wall -Wextra -Werror -pedantic -I bindings/c/include -c bindings/c/tests/secure_storage_header_cpp.cpp -o target/framework-c-secure-storage-header-cpp.o
 
 archive=target/release/libframework_c_api.a
-nm -gU "$archive" 2>/dev/null | awk '$NF ~ /^_framework_[A-Za-z0-9_]+$/ { name=$NF; sub(/^_/, "", name); print name }' | sort -u > target/framework-c-secure-storage-symbols.txt
+"$llvm_nm" -gU "$archive" 2>/dev/null | awk '$NF ~ /^_framework_[A-Za-z0-9_]+$/ { name=$NF; sub(/^_/, "", name); print name }' | sort -u > target/framework-c-secure-storage-symbols.txt
 jq -r '.c_symbols[], .optional_capabilities.ios_secure_storage.symbols[]' bindings/c/abi-manifest.json | sort -u > target/framework-c-secure-storage-expected-symbols.txt
 jq -e '
     .optional_capabilities.ios_secure_storage as $cap |
@@ -65,7 +72,7 @@ for target in aarch64-apple-ios aarch64-apple-ios-sim; do
     cargo clippy -p framework-c-api --all-targets --features secure-storage --target "$target" -- -D warnings
     cargo build --release -p framework-c-api --features secure-storage --target "$target"
     target_archive="target/$target/release/libframework_c_api.a"
-    nm -u "$target_archive" > "target/framework-c-secure-storage-imports-$target.txt"
+    "$llvm_nm" -u "$target_archive" > "target/framework-c-secure-storage-imports-$target.txt"
     rg -q 'SecItem(Add|CopyMatching|Update|Delete)|kSecAttrAccessible|kSecClassGenericPassword' "target/framework-c-secure-storage-imports-$target.txt"
     rg -q 'CFDictionaryCreate|CFDataCreate|kCFTypeDictionary' "target/framework-c-secure-storage-imports-$target.txt"
     if rg -qi 'swift|objc_msgSend|objc_retain|objc_release|objc_autorelease' "target/framework-c-secure-storage-imports-$target.txt"; then
