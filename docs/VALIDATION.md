@@ -233,6 +233,8 @@ report iOS 10.0 device and iOS 14.0 Simulator link floors. The iOS SDK declares 
 4.0. Probes were not executed; no numerical result, parity, live-device behavior, or performance is
 claimed. See the [focused G59 plan](../PLAN_VALIDATION_IOS_ACCELERATE.md).
 
+Hosted run [38075483431](https://github.com/Biddlebaddleboo/jcdigitalsolutions-ios-rust-framework/actions/runs/38075483431) passed the named G55–G59 gates on Xcode 27.0 / iOS SDK 27.0; macOS 15 counterparts also passed, while Ubuntu skipped Apple-only checks. The G55–G57 package scripts include their scoped diff checks. The hosted log has no `git diff --check` gate for G58–G59, which remains an explicit evidence gap in those focused plans. All probes were linked/inspected only; no runtime behavior is claimed.
+
 G60 `ios-crypto` locked device/Simulator checks, strict Clippy, and
 `platform/ios/ios-crypto/check-link-imports.sh` passed in the integrated checkout. Release probes
 import only `libSystem.B.dylib`, retain `_CC_SHA256`, and report iOS 10.0 device and iOS 14.0
@@ -317,6 +319,8 @@ the current registry on 2026-10-09. The last successful `no-std-link-probe` repo
 crates. D67, D69, D71, D74, D75, and D78 are feasibility-only audits for FamilyControls, Foundation
 Models, DeviceActivity, AdAttributionKit/AdServices, Thread, and DockKit; rows 074, 067, 075, 089,
 045, and 097 remain `X`. F11's `sh bindings/c/check-ios-spritekit.sh` passed after the offline Cargo lock refresh; it verified the opaque-handle C ABI, locked host/device/Simulator checks and strict Clippy, C11/C++17 link shape, exact imports, and deployment metadata. C/C++ consumer and target probe binaries were not executed; no SpriteKit scene or rendering behavior was exercised.
+
+Hosted run `38075483431` passed the Xcode 27 ModelIO extension-status package gate (G61/D61/B67), MPS preferred-device package and link/import gates (G62/D62/B68), and SpriteKit node-position package and link/import gates (G64/D64/B70). The Xcode 27 toolchain was 27.0 build `27A266a` with iPhoneOS and Simulator SDK 27.0; macOS 15 counterparts passed and Ubuntu skipped Apple-only gates. The probes were not executed; no extension, GPU, scene, or runtime result is claimed. See the focused G61, G62, and G64 plans.
 
 At the F14 checkpoint, the canonical matrix was 80/113 `B` partial and
 33 `X` (9 generic missing-facade/backend gaps, 24 specific scope/toolchain gaps). The portable
