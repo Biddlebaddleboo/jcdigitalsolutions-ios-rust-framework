@@ -24,3 +24,11 @@ The `objc2-natural-language` 0.3.2 binding exposes the class factory and asset p
 - Build but do not execute device and simulator link probes; inspect the exact NaturalLanguage/Foundation import allowlist, Objective-C symbols, and absence of Swift runtime symbols
 - Do not add or run tests, execute probes, request assets, load a model, accept text, or compute vectors
 - These gates prove source and link shape only. They do not prove asset state on hardware, model-load success, vector output, or language coverage beyond the built-in English constant
+
+## D54 completion evidence — 2026-10-10
+
+- The existing product implementation already met the D54 and associated B59 boundary; no product source change was needed
+- `sh platform/ios/ios-natural-language-status/scripts/check.sh` passed with pinned `ios-rust-build` and `ios-rust-validate` 0.1.0, source SHA `2289e6a73257b696f6ae5ecd61ee20fd16ab8b37`
+- The gate passed formatting, host/device/simulator Cargo checks, strict all-target Clippy, rustdoc, device/simulator release probe builds and import/symbol/string audits against the Foundation, NaturalLanguage, libSystem, and libobjc allowlist, zero-Swift-source, documentation-index, and diff checks
+- No tests were added or run; link probes were built and inspected but not executed. No assets were requested, no model was loaded, and no text or vectors were processed
+- Evidence confirms the declared source and link shape only. It does not prove live asset availability, model-load success, vector output, or behavior on hardware
