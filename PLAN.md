@@ -24,10 +24,14 @@ public `CMTime` fields directly with `CMTimeFlags::Valid` and epoch zero, avoidi
 its strong Swift runtime dependency while preserving the iOS 12.0 device floor. Strict local
 device/Simulator link-import and layout checks pass on Xcode 26.6 / SDK 26.5; this is not Xcode 27
 qualification or runtime proof. Run [38035161806](https://github.com/Biddlebaddleboo/jcdigitalsolutions-ios-rust-framework/actions/runs/38035161806)
-uses pre-fix `a66b4ca`: Ubuntu passes, Xcode 27 fails at the old media import gate, and macOS
-package gates remain in progress. Post-fix run
+uses pre-fix `a66b4ca`: Ubuntu passed; Xcode 27 failed at the old media import gate; macOS passed
+all four HomeKit checks after the prefetch fix, then failed the Foundation Models Swift oracle
+because Xcode 16.4 lacks that module. The existing Foundation Models gate now runs only on
+`xcode-27`, not removed. Post-fix run
 [38035445897](https://github.com/Biddlebaddleboo/jcdigitalsolutions-ios-rust-framework/actions/runs/38035445897)
-is queued at `31df44f`; Xcode 27 qualification remains pending.
+passed Ubuntu and the Xcode 27 media import/layout gate, and remains in progress through the other
+qualification checks. The macOS 15 Foundation Models result in that run still uses the old
+workflow condition. Xcode 27 qualification remains pending.
 The `macos-15` leg of run 38033435519 reached `ios-rust-validate --all` and failed the
 Photogrammetry Swift ABI oracle and AlarmKit link-import scan: default Xcode 16.4 / iOS SDK 18.5
 lacks the expected Photogrammetry ABI lowering and iOS 26 AlarmKit framework. CI now runs the

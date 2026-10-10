@@ -433,7 +433,7 @@ jobs:
         if: runner.os == 'macOS'
         run: sh platform/ios/ios-homekit-setup-result-count/check.sh
       - name: Check Foundation Models default-model status
-        if: runner.os == 'macOS'
+        if: matrix.os == 'xcode-27'
         run: sh platform/ios/ios-foundation-models-status/check.sh
       - name: Check AdAttributionKit app-impression status
         if: runner.os == 'macOS'
