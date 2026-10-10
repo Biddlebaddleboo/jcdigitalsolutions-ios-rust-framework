@@ -1,0 +1,19 @@
+format | cargo +1.94.1 fmt --all -- --check
+compile | cargo +1.94.1 check --locked -p ios-photogrammetry-status
+clippy | cargo +1.94.1 clippy --locked --lib -p ios-photogrammetry-status -- -D warnings
+rustdoc | cargo +1.94.1 doc --locked --no-deps -p ios-photogrammetry-status
+device-compile | cargo +1.94.1 check --locked -p ios-photogrammetry-status --target aarch64-apple-ios
+device-clippy | cargo +1.94.1 clippy --locked --lib -p ios-photogrammetry-status --target aarch64-apple-ios -- -D warnings
+device-rustdoc | cargo +1.94.1 doc --locked --no-deps -p ios-photogrammetry-status --target aarch64-apple-ios
+simulator-compile | cargo +1.94.1 check --locked -p ios-photogrammetry-status --target aarch64-apple-ios-sim
+simulator-clippy | cargo +1.94.1 clippy --locked --lib -p ios-photogrammetry-status --target aarch64-apple-ios-sim -- -D warnings
+simulator-compile | cargo +1.94.1 check --locked -p ios-photogrammetry-status --target x86_64-apple-ios
+simulator-clippy | cargo +1.94.1 clippy --locked --lib -p ios-photogrammetry-status --target x86_64-apple-ios -- -D warnings
+shell | sh -n platform/ios/ios-photogrammetry-status/check.sh
+shell | sh -n platform/ios/ios-photogrammetry-status/check-swiftcall.sh
+shell | sh -n platform/ios/ios-photogrammetry-status/check-link-imports.sh
+abi-oracle | sh platform/ios/ios-photogrammetry-status/check-swiftcall.sh
+link-import-scan | sh platform/ios/ios-photogrammetry-status/check-link-imports.sh
+documentation | cargo +1.94.1 xtask docs-check
+policy | cargo +1.94.1 xtask zero-swift-source
+policy | git diff --check -- interop/swift-abi-core/include/swift_abi_runtime.h platform/ios/ios-photogrammetry-status/Cargo.toml platform/ios/ios-photogrammetry-status/check.sh platform/ios/ios-photogrammetry-status/check-swiftcall.sh platform/ios/ios-photogrammetry-status/check-link-imports.sh platform/ios/ios-photogrammetry-status/src/lib.rs platform/ios/ios-photogrammetry-status/native/photogrammetry_status.c platform/ios/ios-photogrammetry-status/build.rs platform/ios/ios-photogrammetry-status/examples/photogrammetry_status_link_probe.rs PLAN_CAPABILITIES_REALITYKIT.md docs/ios/photogrammetry-status.md

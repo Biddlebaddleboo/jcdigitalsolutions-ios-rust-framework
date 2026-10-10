@@ -11,5 +11,9 @@ description = "Host-supplied HomeKit accessory identify-support snapshot for iOS
 objc2 = { workspace = true, features = ["std"] }
 objc2-home-kit = { version = "=0.3.2", default-features = false, features = ["HMAccessory"] }
 
+[[example]]
+name = "homekit_identify_link_probe"
+path = "examples/homekit_identify_link_probe.rs"
+
 [lints]
 workspace = true

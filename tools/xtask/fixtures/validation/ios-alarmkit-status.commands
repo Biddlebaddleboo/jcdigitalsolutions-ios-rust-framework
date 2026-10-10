@@ -1,0 +1,15 @@
+format | cargo +1.94.1 fmt --manifest-path platform/ios/ios-alarmkit-status/Cargo.toml -- --check
+compile | cargo +1.94.1 check --locked --offline -p ios-alarmkit-status
+clippy | cargo +1.94.1 clippy --locked --offline --lib -p ios-alarmkit-status -- -D warnings
+rustdoc | cargo +1.94.1 doc --locked --offline --no-deps -p ios-alarmkit-status
+device-compile | cargo +1.94.1 check --locked --offline -p ios-alarmkit-status --target aarch64-apple-ios
+device-clippy | cargo +1.94.1 clippy --locked --offline --lib -p ios-alarmkit-status --target aarch64-apple-ios -- -D warnings
+device-rustdoc | cargo +1.94.1 doc --locked --offline --no-deps -p ios-alarmkit-status --target aarch64-apple-ios
+simulator-compile | cargo +1.94.1 check --locked --offline -p ios-alarmkit-status --target aarch64-apple-ios-sim
+simulator-clippy | cargo +1.94.1 clippy --locked --offline --lib -p ios-alarmkit-status --target aarch64-apple-ios-sim -- -D warnings
+shell | sh -n platform/ios/ios-alarmkit-status/check.sh
+shell | sh -n platform/ios/ios-alarmkit-status/check-link-imports.sh
+link-import-scan | sh platform/ios/ios-alarmkit-status/check-link-imports.sh
+documentation | cargo +1.94.1 xtask docs-check
+policy | cargo +1.94.1 xtask zero-swift-source
+policy | git diff --check -- interop/swift-abi-core/include/swift_abi_runtime.h PLAN_CAPABILITIES_ALARMKIT.md PLAN_SWIFT_ABI.md docs/ios/alarmkit-status.md .github/workflows/ci.yml platform/ios/ios-alarmkit-status/Cargo.toml platform/ios/ios-alarmkit-status/build.rs platform/ios/ios-alarmkit-status/check.sh platform/ios/ios-alarmkit-status/check-link-imports.sh platform/ios/ios-alarmkit-status/native/alarmkit_status.c platform/ios/ios-alarmkit-status/src/lib.rs platform/ios/ios-alarmkit-status/examples/alarmkit_status_link_probe.rs

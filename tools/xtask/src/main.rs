@@ -2,6 +2,7 @@ mod audits;
 mod codegen;
 mod no_std_link;
 mod sdk_inventory;
+mod validation;
 
 use std::env;
 use std::fs;
@@ -85,6 +86,7 @@ fn run() -> Result<(), String> {
         "abi-audit" => audits::abi_audit(&args),
         "codegen-audit" => codegen::run(&args),
         "linkage-audit" => audits::linkage_audit(&args),
+        "validate" => validation::run(&args),
         "zero-swift-source" => zero_swift_source(),
         "docs-check" => docs_check(),
         "ios-build" => ios_build(&args),
@@ -112,6 +114,7 @@ Commands:\n\
   abi-audit [--output PATH]                Inventory current C ABI source declarations\n\
   codegen-audit [--output PATH]             Inspect optimized OperationId LLVM IR for host and installed iOS targets\n\
   linkage-audit --binary PATH              Inspect a Mach-O binary with otool\n\
+  validate (--list | --explain ID | --capability ID | --changed BASE | --all) [--format human|json]  Run pilot validation\n\
   zero-swift-source                       Reject .swift files in the checkout except .git and target\n\
   docs-check                              Check shared docs index and zero-Swift-source policy\n\
   archive-smoke                            Build and inspect an unsigned Xcode archive\n\
@@ -674,6 +677,7 @@ mod tests {
             "dependency-audit",
             "abi-audit",
             "linkage-audit",
+            "validate (--list | --explain ID | --capability ID | --changed BASE | --all)",
             "zero-swift-source",
             "docs-check",
             "archive-smoke",

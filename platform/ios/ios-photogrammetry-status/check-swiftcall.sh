@@ -33,6 +33,7 @@ for target in device simulator; do
         -module-name PhotogrammetrySupportOracle -parse-as-library -emit-ir \
         -o "$oracle_dir/oracle-$target.ll" "$oracle_dir/Oracle.swift"
     xcrun --sdk "$sdk" clang -target "$clang_target" -isysroot "$sdk_path" \
+        -I "$repo_root/interop/swift-abi-core/include" \
         -std=c11 -S -emit-llvm "$package_dir/native/photogrammetry_status.c" \
         -o "$oracle_dir/thunk-$target.ll"
 

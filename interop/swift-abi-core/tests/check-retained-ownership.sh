@@ -97,6 +97,8 @@ fn deinit_count() -> i32 {
 
 #[cfg(feature = "apple-runtime")]
 fn main() {
+    assert!(unsafe { SwiftRetained::<SwiftObject>::from_owned_ptr(core::ptr::null_mut()) }.is_none());
+    assert!(unsafe { SwiftRetained::<SwiftObject>::retain_borrowed(core::ptr::null_mut()) }.is_none());
     for expected in 1..=64 {
         let raw = unsafe { swift_ownership_create() }.cast::<SwiftObject>();
         assert_eq!(deinit_count(), expected - 1);

@@ -4,6 +4,7 @@ const CONFIG: IosNativeBuildConfig = IosNativeBuildConfig {
     capability: "AlarmKit",
     library: "alarmkit_status",
     sources: &["native/alarmkit_status.c"],
+    headers: &["../../../interop/swift-abi-core/include/swift_abi_runtime.h"],
     frameworks: &["AlarmKit"],
     minimum_os: DeploymentTarget {
         major: 26,

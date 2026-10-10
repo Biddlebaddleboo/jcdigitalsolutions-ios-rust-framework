@@ -1,16 +1,6 @@
 #include <stdbool.h>
-#include <stddef.h>
 #include <stdint.h>
-
-struct SwiftMetadataResponse {
-    const void *metadata;
-    uintptr_t state;
-};
-
-_Static_assert(sizeof(void *) == 8, "ActivityKit swiftcall thunk needs 64-bit Apple targets");
-_Static_assert(sizeof(uintptr_t) == 8, "Swift metadata response state must be 64 bits");
-_Static_assert(offsetof(struct SwiftMetadataResponse, state) == 8, "Swift metadata response offset changed");
-_Static_assert(sizeof(struct SwiftMetadataResponse) == 16, "Swift metadata response size changed");
+#include "swift_abi_runtime.h"
 
 extern struct SwiftMetadataResponse activity_authorization_info_metadata(uint64_t request)
     __asm__("_$s11ActivityKit0A17AuthorizationInfoCMa")

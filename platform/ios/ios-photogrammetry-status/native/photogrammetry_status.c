@@ -1,43 +1,7 @@
 #include <stdbool.h>
-#include <stddef.h>
 #include <stdint.h>
 #include <stdlib.h>
-
-struct SwiftMetadataResponse {
-    void *metadata;
-    uintptr_t state;
-};
-
-typedef void (*SwiftDestroyWitness)(void *, const void *);
-
-struct SwiftValueWitnessTable {
-    const void *initialize_buffer_with_copy_of_buffer;
-    SwiftDestroyWitness destroy;
-    const void *initialize_with_copy;
-    const void *assign_with_copy;
-    const void *initialize_with_take;
-    const void *assign_with_take;
-    const void *get_enum_tag_single_payload;
-    const void *store_enum_tag_single_payload;
-    uintptr_t size;
-    uintptr_t stride;
-    uint32_t flags;
-    uint32_t extra_inhabitant_count;
-    const void *get_enum_tag;
-    const void *destructive_project_enum_data;
-    const void *destructive_inject_enum_tag;
-};
-
-#define SWIFT_VALUE_WITNESS_ALIGNMENT_MASK UINT32_C(0x000000ff)
-
-_Static_assert(sizeof(void *) == 8, "RealityFoundation swiftcall thunk needs 64-bit Apple targets");
-_Static_assert(sizeof(uintptr_t) == 8, "Swift metadata response state must be 64 bits");
-_Static_assert(offsetof(struct SwiftMetadataResponse, state) == 8, "Swift metadata response offset changed");
-_Static_assert(sizeof(struct SwiftMetadataResponse) == 16, "Swift metadata response size changed");
-_Static_assert(offsetof(struct SwiftValueWitnessTable, destroy) == 8, "Swift destroy witness offset changed");
-_Static_assert(offsetof(struct SwiftValueWitnessTable, size) == 64, "Swift value size offset changed");
-_Static_assert(offsetof(struct SwiftValueWitnessTable, flags) == 80, "Swift value flags offset changed");
-_Static_assert(sizeof(int64_t) == sizeof(intptr_t), "Swift Int snapshot needs 64-bit Apple targets");
+#include "swift_abi_runtime.h"
 
 extern struct SwiftMetadataResponse photogrammetry_session_metadata(uint64_t request)
     __asm__("_$s17RealityFoundation21PhotogrammetrySessionCMa")
@@ -99,17 +63,13 @@ uint8_t framework_photogrammetry_session_limits(
         return 3;
     }
 
-    uintptr_t alignment =
-        (uintptr_t)(witnesses->flags & SWIFT_VALUE_WITNESS_ALIGNMENT_MASK) + 1;
-    if (alignment == 0 || (alignment & (alignment - 1)) != 0) {
+    uintptr_t alignment = 0;
+    if (!swift_abi_value_storage_alignment(witnesses, &alignment)) {
         return 3;
-    }
-    if (alignment < sizeof(void *)) {
-        alignment = sizeof(void *);
     }
 
     void *limits = NULL;
-    if (posix_memalign(&limits, alignment, witnesses->size) != 0) {
+    if (!swift_abi_allocate_value_storage(&limits, alignment, witnesses->size)) {
         return 4;
     }
 
@@ -118,8 +78,7 @@ uint8_t framework_photogrammetry_session_limits(
         photogrammetry_limits_maximum_input_image_dimension(limits);
     const int64_t maximum_number_of_input_images =
         photogrammetry_limits_maximum_number_of_input_images(limits);
-    witnesses->destroy(limits, limits_response.metadata);
-    free(limits);
+    swift_abi_destroy_and_free_value(witnesses, limits, limits_response.metadata);
 
     *maximum_input_image_dimension_out = maximum_input_image_dimension;
     *maximum_number_of_input_images_out = maximum_number_of_input_images;

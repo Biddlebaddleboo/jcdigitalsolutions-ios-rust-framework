@@ -34,6 +34,7 @@ for target in device simulator; do
     xcrun --sdk "$sdk" swiftc -parse-as-library -module-name ActivityKitStatusOracle \
         -target "$swift_target" -sdk "$sdk_path" -emit-ir -o "$swift_ir" "$scratch/Oracle.swift"
     xcrun --sdk "$sdk" clang -target "$clang_target" -isysroot "$sdk_path" \
+        -I "$repo_root/interop/swift-abi-core/include" \
         -std=c11 -Wall -Wextra -Werror -S -emit-llvm -o "$clang_ir" "$bridge"
 
     grep -Fq "call swiftcc %swift.metadata_response @\"$metadata_symbol\"(i64 0)" "$swift_ir"

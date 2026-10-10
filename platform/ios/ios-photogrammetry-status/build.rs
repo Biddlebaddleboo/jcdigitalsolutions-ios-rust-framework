@@ -4,6 +4,7 @@ const CONFIG: IosNativeBuildConfig = IosNativeBuildConfig {
     capability: "photogrammetry",
     library: "photogrammetry_status",
     sources: &["native/photogrammetry_status.c"],
+    headers: &["../../../interop/swift-abi-core/include/swift_abi_runtime.h"],
     frameworks: &["RealityFoundation"],
     minimum_os: DeploymentTarget {
         major: 17,

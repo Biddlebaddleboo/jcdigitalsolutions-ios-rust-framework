@@ -59,6 +59,7 @@ Every Swift-ABI integration must record:
 
 ## Compiler evidence
 
+- [Shared ABI reuse inventory](swift-abi/REUSE_INVENTORY.md)
 - [Toolchain and SDK inventory](swift-abi/TOOLCHAIN_MANIFEST.md)
 - [Swift ABI ownership and Translation lowering record](swift-abi/SYNCHRONOUS_BOUNDARY.md)
 - [Synchronous scalar thunk feasibility proof](swift-abi/SYNCHRONOUS_THUNK_FEASIBILITY.md)

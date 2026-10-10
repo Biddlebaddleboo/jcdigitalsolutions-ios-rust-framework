@@ -110,6 +110,8 @@ pub struct IosNativeBuildConfig {
     pub library: &'static str,
     /// Manifest-relative C source files, with unique file stems.
     pub sources: &'static [&'static str],
+    /// Manifest-relative C headers used by the sources and tracked by Cargo.
+    pub headers: &'static [&'static str],
     /// Public Apple frameworks linked by this capability crate.
     pub frameworks: &'static [&'static str],
     /// Deployment floor used in each Clang target triple.
@@ -131,6 +133,7 @@ struct BuildEnvironment {
     target_os: Option<String>,
     target: Option<String>,
     out_dir: Option<PathBuf>,
+    manifest_dir: Option<PathBuf>,
 }
 
 impl BuildEnvironment {
@@ -139,6 +142,7 @@ impl BuildEnvironment {
             target_os: std::env::var("CARGO_CFG_TARGET_OS").ok(),
             target: std::env::var("TARGET").ok(),
             out_dir: std::env::var_os("OUT_DIR").map(PathBuf::from),
+            manifest_dir: std::env::var_os("CARGO_MANIFEST_DIR").map(PathBuf::from),
         }
     }
 }
@@ -242,6 +246,19 @@ fn build_with(
         writeln!(cargo_output, "cargo:rerun-if-changed={source}")
             .map_err(|error| BuildError(format!("failed to write Cargo build output: {error}")))?;
     }
+    for header in config.headers {
+        let manifest_dir = environment.manifest_dir.as_deref().ok_or_else(|| {
+            BuildError(
+                "Cargo must set CARGO_MANIFEST_DIR when native headers are configured".to_owned(),
+            )
+        })?;
+        writeln!(
+            cargo_output,
+            "cargo:rerun-if-changed={}",
+            manifest_dir.join(header).display()
+        )
+        .map_err(|error| BuildError(format!("failed to write Cargo build output: {error}")))?;
+    }
     for name in RERUN_ENV {
         writeln!(cargo_output, "cargo:rerun-if-env-changed={name}")
             .map_err(|error| BuildError(format!("failed to write Cargo build output: {error}")))?;
@@ -301,6 +318,7 @@ fn build_with(
         .ok_or_else(|| BuildError("Cargo must set OUT_DIR".to_owned()))?;
     let archive = out_dir.join(format!("lib{}.a", config.library));
     let clang_target = target.clang_target(config.minimum_os);
+    let include_dirs = native_include_dirs(config, environment)?;
 
     let mut objects = Vec::with_capacity(config.sources.len());
     for source in config.sources {
@@ -324,6 +342,10 @@ fn build_with(
             "-isysroot".into(),
             sdk_path.into(),
         ];
+        for include_dir in &include_dirs {
+            clang_args.push("-I".into());
+            clang_args.push(include_dir.as_os_str().to_owned());
+        }
         clang_args.extend(config.compiler_options.iter().map(OsString::from));
         clang_args.push("-c".into());
         clang_args.push((*source).into());
@@ -371,6 +393,31 @@ fn build_with(
             .map_err(|error| BuildError(format!("failed to write Cargo build output: {error}")))?;
     }
     Ok(())
+}
+
+fn native_include_dirs(
+    config: &IosNativeBuildConfig,
+    environment: &BuildEnvironment,
+) -> Result<Vec<PathBuf>, BuildError> {
+    if config.headers.is_empty() {
+        return Ok(Vec::new());
+    }
+    let manifest_dir = environment.manifest_dir.as_deref().ok_or_else(|| {
+        BuildError(
+            "Cargo must set CARGO_MANIFEST_DIR when native headers are configured".to_owned(),
+        )
+    })?;
+    let mut directories = Vec::new();
+    for header in config.headers {
+        let parent = Path::new(header).parent().ok_or_else(|| {
+            BuildError(format!("native header has no parent directory: {header}"))
+        })?;
+        let directory = manifest_dir.join(parent);
+        if !directories.contains(&directory) {
+            directories.push(directory);
+        }
+    }
+    Ok(directories)
 }
 
 fn run_command(
@@ -438,6 +485,28 @@ fn validate_config(config: &IosNativeBuildConfig) -> Result<(), BuildError> {
             return Err(BuildError(format!(
                 "native sources have duplicate file stems: {source}"
             )));
+        }
+    }
+    let mut header_paths = HashSet::new();
+    for header in config.headers {
+        let path = Path::new(header);
+        if header.is_empty()
+            || path.is_absolute()
+            || path
+                .components()
+                .any(|component| matches!(component, Component::RootDir | Component::Prefix(_)))
+            || header.contains('\n')
+            || header.contains('\r')
+        {
+            return Err(BuildError(format!("invalid native header path: {header}")));
+        }
+        if path.extension() != Some(OsStr::new("h")) || path.file_stem().is_none() {
+            return Err(BuildError(format!(
+                "native header must be a .h file: {header}"
+            )));
+        }
+        if !header_paths.insert(*header) {
+            return Err(BuildError(format!("duplicate native header: {header}")));
         }
     }
     if config.frameworks.is_empty() {
@@ -541,6 +610,7 @@ mod tests {
         capability: "ActivityKit",
         library: "activitykit_status",
         sources: &["native/activitykit_status.c"],
+        headers: &["../../../interop/swift-abi-core/include/swift_abi_runtime.h"],
         frameworks: &["ActivityKit"],
         minimum_os: DeploymentTarget {
             major: 16,
@@ -557,6 +627,7 @@ mod tests {
         capability: "AlarmKit",
         library: "alarmkit_status",
         sources: &["native/alarmkit_status.c"],
+        headers: &["../../../interop/swift-abi-core/include/swift_abi_runtime.h"],
         frameworks: &["AlarmKit"],
         minimum_os: DeploymentTarget {
             major: 26,
@@ -573,6 +644,7 @@ mod tests {
         capability: "photogrammetry",
         library: "photogrammetry_status",
         sources: &["native/photogrammetry_status.c"],
+        headers: &["../../../interop/swift-abi-core/include/swift_abi_runtime.h"],
         frameworks: &["RealityFoundation"],
         minimum_os: DeploymentTarget {
             major: 17,
@@ -651,6 +723,7 @@ mod tests {
             target_os: Some("ios".to_owned()),
             target: Some(target.to_owned()),
             out_dir: Some(PathBuf::from(out_dir)),
+            manifest_dir: Some(PathBuf::from("/repo/platform/ios/ios-activitykit-status")),
         }
     }
 
@@ -763,6 +836,7 @@ mod tests {
             output,
             concat!(
                 "cargo:rerun-if-changed=native/activitykit_status.c\n",
+                "cargo:rerun-if-changed=/repo/platform/ios/ios-activitykit-status/../../../interop/swift-abi-core/include/swift_abi_runtime.h\n",
                 "cargo:rerun-if-env-changed=SDKROOT\n",
                 "cargo:rerun-if-env-changed=DEVELOPER_DIR\n",
                 "cargo:rustc-link-search=native=/tmp/build/out\n",
@@ -770,6 +844,19 @@ mod tests {
                 "cargo:rustc-link-lib=framework=ActivityKit\n",
             )
         );
+    }
+
+    #[test]
+    fn missing_manifest_dir_rejects_configured_headers_before_running_tools() {
+        let mut env = environment("aarch64-apple-ios", "/tmp/build/out");
+        env.manifest_dir = None;
+        let mut runner = FakeRunner::default();
+        let mut output = Vec::new();
+        let error = build_with(&ACTIVITYKIT, &env, &mut runner, &mut output)
+            .unwrap_err()
+            .to_string();
+        assert!(error.contains("CARGO_MANIFEST_DIR"));
+        assert!(runner.commands.is_empty());
     }
 
     #[test]
@@ -782,13 +869,14 @@ mod tests {
                 target_os: Some("macos".to_owned()),
                 target: None,
                 out_dir: None,
+                manifest_dir: Some(PathBuf::from("/repo/platform/ios/ios-activitykit-status")),
             },
             &mut runner,
             &mut output,
         )
         .expect("non-iOS build scripts are no-ops");
         assert!(runner.commands.is_empty());
-        assert_eq!(String::from_utf8(output).unwrap().lines().count(), 3);
+        assert_eq!(String::from_utf8(output).unwrap().lines().count(), 4);
     }
 
     #[test]
@@ -866,6 +954,18 @@ mod tests {
                 .to_string()
                 .contains("invalid framework name")
         );
+
+        let invalid_header = IosNativeBuildConfig {
+            headers: &["native/not-a-header.txt"],
+            ..ACTIVITYKIT
+        };
+        let (result, _) = run_fake(&invalid_header, "aarch64-apple-ios", &mut runner);
+        assert!(
+            result
+                .unwrap_err()
+                .to_string()
+                .contains("native header must be a .h file")
+        );
     }
 
     #[test]
@@ -880,14 +980,21 @@ mod tests {
             command_result(true, b"", b""),
         ]);
         let mut cargo_output = Vec::new();
-        let environment = environment("aarch64-apple-ios", "/tmp/build directory/out files");
+        let mut environment = environment("aarch64-apple-ios", "/tmp/build directory/out files");
+        environment.manifest_dir = Some(PathBuf::from(
+            "/repo directory/platform/ios/ios-activitykit-status",
+        ));
         build_with(&config, &environment, &mut runner, &mut cargo_output)
             .expect("spaces in filesystem paths must not split command arguments");
         let clang_args = args(&runner.commands[1]);
         assert_eq!(clang_args[6], "/Xcode SDKs/iPhoneOS.sdk");
-        assert_eq!(clang_args[12], "native files/activitykit status.c");
         assert_eq!(
-            clang_args[14],
+            clang_args[8],
+            "/repo directory/platform/ios/ios-activitykit-status/../../../interop/swift-abi-core/include"
+        );
+        assert_eq!(clang_args[14], "native files/activitykit status.c");
+        assert_eq!(
+            clang_args[16],
             "/tmp/build directory/out files/activitykit status.o"
         );
         assert_eq!(

@@ -4,6 +4,7 @@ const CONFIG: IosNativeBuildConfig = IosNativeBuildConfig {
     capability: "ActivityKit",
     library: "activitykit_status",
     sources: &["native/activitykit_status.c"],
+    headers: &["../../../interop/swift-abi-core/include/swift_abi_runtime.h"],
     frameworks: &["ActivityKit"],
     minimum_os: DeploymentTarget {
         major: 16,
