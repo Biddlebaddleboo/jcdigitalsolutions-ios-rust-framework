@@ -33,3 +33,17 @@ bridge null-checked the symbol before call. Device probe minos was 10.0; Simulat
 14.0. Release probes were built and inspected, not executed. The weak fallback has no runtime
 evidence below the iOS 15.0 API/symbol floor. This toolchain is below the planned Xcode 27.x
 baseline. No tests or live payment query were run.
+
+## Hosted Xcode 27 static-gate evidence (2026-10-10)
+
+Run: [GitHub Actions run 38075483431](https://github.com/Biddlebaddleboo/jcdigitalsolutions-ios-rust-framework/actions/runs/38075483431); Xcode 27 lane; source SHA `85db105389c1d0b212bc385d9b4b6a1f6e049c0b`
+
+Toolchain: Xcode 27.0 build 27A266a; iPhoneOS and iPhoneSimulator SDK 27.0; Rust 1.94.1
+
+Pass step: `Check StoreKit 2 purchase-ability status`; command `sh platform/ios/ios-storekit2-status/check.sh`
+
+Coverage: source guard; host, device, and Simulator check/strict Clippy/rustdoc; Swift/Clang ABI oracle; device/Simulator link/import assertion; formatter; docs-index; zero-Swift-source; diff check
+
+Gate paths: `platform/ios/ios-storekit2-status/`, workspace manifest/lockfile, and `xtask/`; no diff from run SHA to `origin/main` `7bd07d8`. Workflow delta adds only Core NFC link/import audit; G57 step definition unchanged
+
+Limit: probe build and static link audit only; no live payment state, purchase behavior, or runtime fallback below the iOS 15.0 symbol/API floor

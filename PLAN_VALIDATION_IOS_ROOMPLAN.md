@@ -26,4 +26,18 @@ Passed in both the isolated worktree and integrated checkout on Rust 1.94.1, Xco
 `swift_context`/`swiftself` getter argument on
 device and arm64 Simulator. Both Release probes import only RoomPlan.framework and
 `libSystem.B.dylib`, declare `minos 16.0`, and import the expected public symbols. Neither probe was
-executed. The repository's Xcode 27.x baseline remains for CI to verify.
+executed. Xcode 27 static gate: see note below; no live device query or scan result
+
+## Hosted Xcode 27 static-gate evidence (2026-10-10)
+
+Run: [GitHub Actions run 38075483431](https://github.com/Biddlebaddleboo/jcdigitalsolutions-ios-rust-framework/actions/runs/38075483431); Xcode 27 lane; source SHA `85db105389c1d0b212bc385d9b4b6a1f6e049c0b`
+
+Toolchain: Xcode 27.0 build 27A266a; iPhoneOS and iPhoneSimulator SDK 27.0; Rust 1.94.1
+
+Pass step: `Check RoomPlan device-support status`; command `sh platform/ios/ios-roomplan/check.sh`
+
+Coverage: portable, host, device, and Simulator check/strict Clippy/rustdoc; both compiler-oracle checks; both Release link/import checks; formatter; `git diff --check`
+
+Gate paths: `crates/framework-roomplan/`, `platform/ios/ios-roomplan/`, workspace manifest/lockfile, and `xtask/`; no diff from run SHA to `origin/main` `7bd07d8`. Workflow delta adds only Core NFC link/import audit; G55 step definition unchanged
+
+Limit: static support-query, ABI-oracle, and link/import proof only; no probe run; no live device query, permission flow, sensor access, or scan result
