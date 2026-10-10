@@ -6,8 +6,9 @@
 /// A snapshot of one documented Nearby Interaction device capability.
 ///
 /// This value records only whether the selected backend reports support for precise distance
-/// measurement. It does not report permission, peer compatibility, session readiness, or whether
-/// a Nearby Interaction operation will succeed.
+/// measurement. It does not report permission, peer compatibility, session-configuration validity,
+/// session readiness, ranging accuracy, background-operation support, or whether a Nearby
+/// Interaction operation will succeed.
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
 pub struct NearbyInteractionCapabilitySnapshot {
     supports_precise_distance_measurement: bool,
@@ -29,9 +30,10 @@ impl NearbyInteractionCapabilitySnapshot {
 
 /// A statically selected backend for a non-prompting Nearby Interaction capability snapshot.
 ///
-/// The backend reports only the precise-distance capability. It must not create or run a session,
-/// request permission, exchange discovery tokens, or start ranging as part of this query.
-pub trait NearbyInteractionCapabilityBackend {
+/// The backend reports only the precise-distance capability. This synchronous query must not
+/// create or run a session, request permission, exchange discovery tokens, discover peers, or start
+/// ranging.
+pub trait NearbyInteractionCapabilityBackend: Sized {
     /// Reads the precise-distance capability at call time.
     fn snapshot(&self) -> NearbyInteractionCapabilitySnapshot;
 }
