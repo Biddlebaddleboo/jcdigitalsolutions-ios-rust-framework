@@ -84,6 +84,8 @@ B47 full audio (`sh platform/ios/ios-media/check-audio-playback.sh`), B50 packag
 (`sh platform/ios/ios-media/check.sh`), and F25 C link/import
 (`sh bindings/c/check-ios-videotoolbox-link.sh`); detailed results and limits are in [PLAN_IOS_OTHER_AUDIO.md](PLAN_IOS_OTHER_AUDIO.md), [PLAN_VALIDATION_IOS_OTHER_AUDIO.md](PLAN_VALIDATION_IOS_OTHER_AUDIO.md), [PLAN_IOS_VIDEOTOOLBOX.md](PLAN_IOS_VIDEOTOOLBOX.md), and [PLAN_BINDINGS_F25.md](PLAN_BINDINGS_F25.md). These local passes do not establish runtime behavior; no tests, probe execution, live codec query, or device behavior is claimed.
 
+Mainline rerun [38047131769](https://github.com/Biddlebaddleboo/jcdigitalsolutions-ios-rust-framework/actions/runs/38047131769) at `a2c8dba55875aa4f7d85abe254f9c90e850cd8e4` is still in progress. Ubuntu 24.04 has concluded successfully; its Linux host-feature Clippy step 231 passed. macOS 15 and Xcode 27 remain in progress, with no failed step reported at this checkpoint. On both Apple hosts, Preferences device and Simulator checks and Clippy passed at steps 15–18, and the media-import/CMTime-layout gate passed at step 55. Commit `a2c8dba` changes Preferences archive symbol/import inspection to Rust's version-matched `llvm-nm`, while retaining Apple `nm` for final Mach-O probes and preserving assertions. The optional Preferences C ABI compile/link check at step 241 is still pending on both Apple hosts. The run therefore does not establish full Xcode 27 qualification yet. These CI results are compile, Clippy, link, import, and layout evidence only; no app runtime behavior or physical-device execution is claimed.
+
 ## API resume checkpoint and deterministic continuation
 
 ### Last verified API checkpoint
