@@ -101,7 +101,7 @@ fi
 printf '#include <framework_ios_videotoolbox.h>\n' | \
     clang -std=c11 -Wall -Wextra -Werror -pedantic \
         -I bindings/c/include -x c -fsyntax-only -
-printf '#include <framework_ios_videotoolbox.h>\n' | \
+printf '#include <stddef.h>\n#include <framework_ios_videotoolbox.h>\n' | \
     clang++ -std=c++17 -Wall -Wextra -Werror -pedantic \
         -I bindings/c/include -x c++ -fsyntax-only -
 

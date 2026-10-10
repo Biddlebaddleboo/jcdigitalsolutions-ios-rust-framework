@@ -110,6 +110,7 @@ int main(void) {
 FIXTURE_C
 
 cat > target/framework-c-ios-speech-status-cpp.cpp <<'FIXTURE_CPP'
+#include <stddef.h>
 #include <framework_ios_speech_status.h>
 static_assert(sizeof(FrameworkIosSpeechAuthorizationStatus) == sizeof(int64_t), "raw status width");
 static_assert(FRAMEWORK_IOS_SPEECH_AUTHORIZATION_STATUS_NOT_DETERMINED == 0, "not determined code");
