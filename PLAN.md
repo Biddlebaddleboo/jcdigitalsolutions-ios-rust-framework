@@ -35,7 +35,9 @@ Historical capability coverage is **partial, not complete** merely because a cra
 
 ### Current resume state
 
-`Resume audit required`: the final pre-tooling API commit is known, but **no exact next unfinished B/D/F/G ID has been verified from the current source**. The first executor action is the bounded reconciliation above; naming an arbitrary workstream now would be a fabricated checkpoint.
+Last integrated bounded API workstream: D55 at `5800f8a` (StoreKit 1 payment-ability status; evidence only, no product code change). D54 is integrated at `1ac40c6`; its existing `ios_natural_language_status::english_contextual_embedding_assets()` met the D54/B59 scope, and only dated plan evidence was added. The D54 and D55 package gates did not execute probes or tests and do not prove live assets, model/vector behavior, or payment behavior.
+
+Resume reconciliation after D55: `origin/main` was fetched at `4d9777782f49db6541553b1ddb74fecc1b178785`; it remains an ancestor of local `main`. Integrated code workstreams: F34 at `e1e9f89` adds C++17 `OwnedBuffer::from_transfer`; A at `0a5f40a` adds `framework_owned_buffer_copy` and bumps the C ABI minor to 1.2; B435 at `56ec81b` adds `WidgetCenter.invalidateConfigurationRecommendations()` for iOS 16+. The ABI package check and WidgetKit package gate passed after integration; F34's C++17 syntax, format, and diff checks passed in its isolated worktree. No tests or runtime API calls ran. Apple documents B435's method as inactive on iOS, so success reports only that the native call returned. B436 was blocked and recorded at `a68777c`: the available C++ `String` construction path truncates embedded NUL, the exact-byte route requires shipping Swift source, and the Foundation alternative relies on an excluded underscored symbol. Active isolated implementation workstreams: F35 for an owned optional C error-detail object and F36 for an optional Python-owned-bytes binding. Recheck remote `main` before each integration; keep runtime behavior and device evidence distinct from compiler/link results.
 
 
 ## Active work selection and limits
