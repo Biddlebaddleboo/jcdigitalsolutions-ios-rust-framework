@@ -109,6 +109,9 @@ state is no longer live. A shared callback factory also lets the host test prove
 the iOS target build verifies production wiring to `ios_runtime::ffi::catch_unwind`. Initial seeded
 state is explicitly checked to leave the event queue empty.
 
+The required adapter mutates each device and Simulator minimum in both `targets` and `abi_targets`
+and requires the registered-floor check to reject all four negative cases.
+
 ## Acceptance commands
 
 The package `check.sh` runs the host tests, device and Simulator checks, strict Clippy, rustdoc,
