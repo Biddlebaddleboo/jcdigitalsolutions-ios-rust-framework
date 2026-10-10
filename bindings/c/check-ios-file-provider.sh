@@ -127,7 +127,7 @@ int main(void) {
 }
 FIXTURE_C
 cat > target/framework-c-ios-file-provider-cpp.cpp <<'FIXTURE_CPP'
-#include <cstddef>
+#include <stddef.h>
 #include <framework_ios_file_provider.h>
 #include "framework-c-ios-file-provider-manifest-asserts.h"
 static_assert(sizeof(FrameworkIosFileProviderReady) == sizeof(void *), "callback width");
@@ -182,10 +182,20 @@ for target in aarch64-apple-ios aarch64-apple-ios-sim; do
             cpp) compiler=clang++; source=target/framework-c-ios-file-provider-cpp.cpp; standard=c++17 ;;
         esac
         binary="target/framework-c-ios-file-provider-$language-$target"
-        xcrun --sdk "$sdk" "$compiler" -target "$clang_target" -std="$standard" \
-            -Wall -Wextra -Werror -pedantic -I bindings/c/include -I target \
-            "$source" "$archive" -framework FileProvider -framework Foundation -lobjc \
-            -o "$binary"
+        case "$language" in
+            c)
+                xcrun --sdk "$sdk" "$compiler" -target "$clang_target" \
+                    -std="$standard" -Wall -Wextra -Werror -pedantic \
+                    -I bindings/c/include -I target "$source" "$archive" \
+                    -framework FileProvider -framework Foundation -lobjc -o "$binary"
+                ;;
+            cpp)
+                xcrun --sdk "$sdk" "$compiler" -target "$clang_target" -nostdinc++ \
+                    -std="$standard" -Wall -Wextra -Werror -pedantic \
+                    -I bindings/c/include -I target "$source" "$archive" \
+                    -framework FileProvider -framework Foundation -lobjc -o "$binary"
+                ;;
+        esac
         libraries="target/framework-c-ios-file-provider-$language-$target-libraries.txt"
         otool -L "$binary" \
             | awk 'NR > 1 { path = $1; sub(/^.*\//, "", path); print path }' \
