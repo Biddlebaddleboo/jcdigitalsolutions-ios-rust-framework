@@ -97,6 +97,18 @@ Simulator consumers report `minos 14.0`; these validation floors do not change t
 of iOS 4.0. Consumers were linked and inspected, not run. No tests or MapKit service behavior were
 run or claimed.
 
+Xcode 27 run `38049963372` on head `af6607bd7195ccd8b5a707f02c8dd2c6bbc1feba` passed the
+preferences C ABI step 241, MediaPlayer step 242, SpriteKit step 243, and CallKit step 244, then
+failed MapKit C ABI step 245 in Xcode-27 job `114206929758`. The device C11 probe compiled and
+linked with minos 12.0; the following C++17 compile of `framework-c-ios-maps-cpp.cpp` entered the
+Xcode 27 SDK libc++ `stddef.h` shim and promoted `availability.h:204` warning `The selected
+platform is no longer supported by libc++` to an error under `-Werror`. Since the fixtures use only
+C ABI declarations, `check-ios-maps.sh` now passes `-nostdinc++` to its C++ host/device/Simulator
+compile commands while retaining C++17, the `libc++.1.dylib` runtime import assertion, all MapKit
+framework/symbol/API checks, device 12.0 and Simulator 14.0 minos checks, and the iOS 4.0 API-floor
+record. Xcode 27 MapKit requalification is pending; no consumer or probe execution/runtime behavior
+is claimed
+
 ## Root integration steps
 
 After the root lock refresh, add `sh bindings/c/check-ios-maps.sh` beside the other C ABI gates in

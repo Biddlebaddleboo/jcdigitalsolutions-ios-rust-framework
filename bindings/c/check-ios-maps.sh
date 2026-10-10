@@ -102,7 +102,8 @@ FIXTURE_CPP
 host_archive=target/release/libframework_c_api.a
 clang -std=c11 -Wall -Wextra -Werror -pedantic -I bindings/c/include \
     target/framework-c-ios-maps-c.c "$host_archive" -o target/framework-c-ios-maps-c-host
-clang++ -std=c++17 -Wall -Wextra -Werror -pedantic -I bindings/c/include \
+# These fixtures use only C ABI declarations; avoid libc++ headers at the iOS 12 compile floor.
+clang++ -nostdinc++ -std=c++17 -Wall -Wextra -Werror -pedantic -I bindings/c/include \
     target/framework-c-ios-maps-cpp.cpp "$host_archive" -o target/framework-c-ios-maps-cpp-host
 nm -g "$host_archive" 2>/dev/null \
     | rg -o '_framework_ios_maps_[A-Za-z0-9_]+' | sed 's/^_//' | sort -u \
@@ -135,9 +136,18 @@ for target in aarch64-apple-ios aarch64-apple-ios-sim; do
             cpp) compiler=clang++; source=target/framework-c-ios-maps-cpp.cpp; standard=c++17 ;;
         esac
         binary="target/framework-c-ios-maps-$language-$target"
-        xcrun --sdk "$sdk" "$compiler" -target "$clang_target" -std="$standard" \
-            -Wall -Wextra -Werror -pedantic -I bindings/c/include \
-            "$source" "$archive" -framework MapKit -o "$binary"
+        case "$language" in
+            c)
+                xcrun --sdk "$sdk" "$compiler" -target "$clang_target" -std="$standard" \
+                    -Wall -Wextra -Werror -pedantic -I bindings/c/include \
+                    "$source" "$archive" -framework MapKit -o "$binary"
+                ;;
+            cpp)
+                xcrun --sdk "$sdk" "$compiler" -target "$clang_target" -nostdinc++ \
+                    -std="$standard" -Wall -Wextra -Werror -pedantic -I bindings/c/include \
+                    "$source" "$archive" -framework MapKit -o "$binary"
+                ;;
+        esac
         libraries="target/framework-c-ios-maps-$language-$target-libraries.txt"
         otool -L "$binary" \
             | awk 'NR > 1 { path = $1; sub(/^.*\//, "", path); print path }' \
