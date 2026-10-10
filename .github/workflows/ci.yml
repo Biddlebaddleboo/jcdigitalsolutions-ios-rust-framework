@@ -23,9 +23,9 @@ jobs:
           "$RUNNER_TEMP/ios-rust-tools/bin/ios-rust-validate" --version --format json
       - name: Install Rust components
         run: rustup component add rustfmt clippy --toolchain 1.94.1
-      - name: Install iOS device and simulator targets
+      - name: Install Apple device, simulator, and host targets
         if: runner.os == 'macOS'
-        run: rustup target add aarch64-apple-ios aarch64-apple-ios-sim --toolchain 1.94.1
+        run: rustup target add aarch64-apple-ios aarch64-apple-ios-sim x86_64-apple-darwin --toolchain 1.94.1
       - name: Check iOS files device target
         if: runner.os == 'macOS'
         run: cargo check --locked -p ios-files --target aarch64-apple-ios
