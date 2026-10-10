@@ -15,7 +15,7 @@ int main(void) {
     const uint64_t version = framework_abi_version();
     const uint32_t major = (uint32_t)(version >> 32);
     const uint32_t minor = (uint32_t)version;
-    if (major != 1 || minor != 2) {
+    if (major != 1 || minor != 3) {
         fprintf(stderr, "unsupported framework ABI: %" PRIu32 ".%" PRIu32 "\n", major, minor);
         return 1;
     }
@@ -49,6 +49,34 @@ int main(void) {
     }
     framework_owned_buffer_destroy(&copied);
     framework_owned_buffer_destroy(NULL);
+    static const uint8_t diagnostic_bytes[] = "native diagnostic";
+    const FrameworkStr diagnostic = {diagnostic_bytes, sizeof(diagnostic_bytes) - 1};
+    FrameworkErrorDetailHandle detail = NULL;
+    const FrameworkStatus create_status = framework_error_detail_create(
+        FRAMEWORK_STATUS_PLATFORM_ERROR, diagnostic, &detail);
+    if (create_status != FRAMEWORK_STATUS_OK || detail == NULL) {
+        fprintf(stderr, "error-detail creation failed with status %" PRIu32 "\n", create_status);
+        return 5;
+    }
+    FrameworkStatus detail_status = FRAMEWORK_STATUS_OK;
+    FrameworkStr detail_message = {NULL, 0};
+    const FrameworkStatus view_status = framework_error_detail_view(
+        detail, &detail_status, &detail_message);
+    if (view_status != FRAMEWORK_STATUS_OK || detail_status != FRAMEWORK_STATUS_PLATFORM_ERROR ||
+        detail_message.length != sizeof(diagnostic_bytes) - 1 || detail_message.data == NULL) {
+        framework_error_detail_destroy(detail);
+        fprintf(stderr, "error-detail view returned unexpected values\n");
+        return 6;
+    }
+    for (uint64_t index = 0; index < detail_message.length; ++index) {
+        if (detail_message.data[index] != diagnostic_bytes[index]) {
+            framework_error_detail_destroy(detail);
+            fprintf(stderr, "error-detail view returned unexpected text\n");
+            return 7;
+        }
+    }
+    framework_error_detail_destroy(detail);
+    framework_error_detail_destroy(NULL);
     printf("framework ABI %" PRIu32 ".%" PRIu32 "\n", major, minor);
     return 0;
 }

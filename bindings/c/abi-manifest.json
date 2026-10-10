@@ -2,7 +2,7 @@
   "schema_version": 1,
   "abi_version": {
     "major": 1,
-    "minor": 2,
+    "minor": 3,
     "encoding": "uint64_t: major in bits 63..32, minor in bits 31..0"
   },
   "status_codes": {
@@ -79,7 +79,10 @@
     "framework_abi_version",
     "framework_options_v1_validate",
     "framework_owned_buffer_copy",
-    "framework_owned_buffer_destroy"
+    "framework_owned_buffer_destroy",
+    "framework_error_detail_create",
+    "framework_error_detail_view",
+    "framework_error_detail_destroy"
   ],
   "owned_buffer_copy": {
     "symbol": "framework_owned_buffer_copy",
@@ -94,6 +97,30 @@
       "success": "FRAMEWORK_STATUS_OK with copied bytes and one framework-owned allocation"
     },
     "ownership": "Caller owns the original descriptor on success and must destroy it exactly once with framework_owned_buffer_destroy; never copy or mutate it"
+  },
+  "error_detail": {
+    "symbol_create": "framework_error_detail_create",
+    "symbol_view": "framework_error_detail_view",
+    "symbol_destroy": "framework_error_detail_destroy",
+    "handle_representation": "opaque FrameworkErrorDetail pointer; size and alignment follow the C target pointer ABI",
+    "status_mapping": {
+      "null_output": "FRAMEWORK_STATUS_INVALID_ARGUMENT without a write",
+      "null_message_with_nonzero_length": "FRAMEWORK_STATUS_INVALID_ARGUMENT with a null output handle",
+      "unrepresentable_or_over_isize_message_length": "FRAMEWORK_STATUS_INVALID_ARGUMENT with a null output handle",
+      "invalid_utf8": "FRAMEWORK_STATUS_INVALID_ARGUMENT with a null output handle",
+      "reservation_or_object_allocation_failure": "FRAMEWORK_STATUS_RESOURCE_EXHAUSTED with a null output handle",
+      "zero_length_message": "Valid without a message-buffer allocation; the detail object allocation can still return RESOURCE_EXHAUSTED",
+      "unknown_stored_status_code": "Preserved exactly as supplied; this is data, not the call result",
+      "null_view_output": "FRAMEWORK_STATUS_INVALID_ARGUMENT without writes",
+      "null_detail_view": "FRAMEWORK_STATUS_INVALID_ARGUMENT after initializing both non-null output values",
+      "invalid_internal_payload": "FRAMEWORK_STATUS_INTERNAL_ERROR after initializing both outputs; unreachable for an unmodified live object",
+      "null_destroy": "No-op"
+    },
+    "input_contract": "Copies FrameworkStr UTF-8 bytes exactly and synchronously; embedded NUL is allowed and no terminator is added; null message data is allowed only for zero length; nonempty bytes must be readable and valid UTF-8; no input pointer is retained",
+    "output_contract": "Required writable, aligned, empty-of-live-object FrameworkErrorDetailHandle pointer disjoint from message bytes; initialized to null before input validation and left null on failure",
+    "view_contract": "Returns the view-call result separately from out_status; writes the stored fixed-width FrameworkStatus code exactly and a borrowed FrameworkStr that remains valid only until destruction; caller synchronizes destruction against every view",
+    "ownership": "Direct owned opaque pointer, not an integer identifier or registry key; destroy the original handle once with framework_error_detail_destroy; null destroy is a no-op",
+    "panic_boundary": "The implementation uses fallible Vec reservation and direct fallible allocation and has no panic path for valid pointer preconditions; no panic may unwind across C, and unexpected panic aborts at the extern C boundary"
   },
   "optional_capabilities": {
     "ios_secure_storage": {
@@ -1923,7 +1950,12 @@
       "rule": "destroy the original unchanged framework-created descriptor once; NULL is a no-op; copied or modified descriptors are invalid"
     },
     "FrameworkOperationHandle": "opaque fixed-width value; zero means absent",
-    "FrameworkErrorHandle": "opaque fixed-width value; zero means no detail"
+    "FrameworkErrorHandle": "opaque fixed-width value; zero means no detail; retained unchanged and not used to encode FrameworkErrorDetailHandle",
+    "FrameworkErrorDetailHandle": {
+      "creator": "framework_error_detail_create",
+      "destroyer": "framework_error_detail_destroy",
+      "rule": "direct opaque pointer returned through an output pointer; do not copy or modify it; destroy exactly once; borrowed message views expire at destruction"
+    }
   },
   "options_v1": {
     "minimum_struct_size": 16,
@@ -1941,5 +1973,5 @@
     "future_sized_struct_check": "Accept struct_size >= 16 only when abi_version is 1; ignore all flags and trailing bytes. The function reads only the V1 prefix and retains no pointer. Other APIs accepting versioned records must define and check their own supported prefix before field reads."
   },
   "panic_boundary": "No panic may unwind across C ABI. F1 arithmetic, validation, and buffer-copy exports do not panic on valid pointer preconditions; the buffer copier uses fallible allocation and reports exhaustion. The inherited destructor has no recoverable panic path and invalid descriptors violate its FFI preconditions. Optional ios_secure_storage, notification_responses, ios_transfer, ios_clipboard, ios_share, ios_preferences, ios_media_library_status, ios_spritekit, ios_call_observer, ios_maps, ios_classkit_deep_link, ios_location, ios_file_provider, ios_vision, ios_proximity_reader, ios_crypto, ios_modelio_status, ios_sign_in_with_apple_status, ios_accelerate, ios_key_support, ios_mps_status, ios_videotoolbox, ios_camera_device_status, ios_core_ml_status, ios_speech_status, ios_natural_language_status, ios_extension_support, ios_roomplan_status, ios_storekit2_status, and ios_game_status exports catch Rust panics and return FRAMEWORK_STATUS_PANIC where they have a status return.",
-  "static_library_runtime": "framework-abi/std is enabled in this opt-in static library to provide the allocator and panic runtime needed by framework_owned_buffer_copy and owned C buffers, transfer snapshots, clipboard buffers, preferences handles and values, share requests, notification-response values, SpriteKit node handles, location-operation futures and readiness signals, File Provider query futures and callback gates, extension metadata results, RoomPlan status calls, StoreKit 2 status calls, Game Center local-player objects within a synchronous read, and panic containment; framework-abi remains no_std by default for Rust consumers."
+  "static_library_runtime": "framework-abi/std is enabled in this opt-in static library to provide the allocator and panic runtime needed by framework_owned_buffer_copy, directly owned error-detail objects, and other owned C buffers, transfer snapshots, clipboard buffers, preferences handles and values, share requests, notification-response values, SpriteKit node handles, location-operation futures and readiness signals, File Provider query futures and callback gates, extension metadata results, RoomPlan status calls, StoreKit 2 status calls, Game Center local-player objects within a synchronous read, and panic containment; framework-abi remains no_std by default for Rust consumers."
 }

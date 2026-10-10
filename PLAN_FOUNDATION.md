@@ -14,9 +14,11 @@ All five foundation crates have `#![no_std]` roots; no third-party crate appears
 - `framework-alloc`, `framework-async`, `framework-abi`, and `framework-platform` each depend only on `framework-core`
 - `framework-alloc` exposes reusable `GenerationalSlab` and `BitSet` values, but no production crate uses them and no benchmark proves a runtime need
 - `framework-abi` exposes `framework_owned_buffer_copy`, which copies a `FrameworkSlice` into a framework-owned buffer with fixed-width length checks, fallible allocation, empty-on-failure output, and explicit destruction through `framework_owned_buffer_destroy`
-- `FrameworkErrorHandle` is only a scalar value; this foundation has no function or type to create, store, or free error detail
+- `FrameworkErrorHandle` remains a fixed-width scalar; the opt-in C ABI separately creates directly owned error-detail objects through `FrameworkErrorDetailHandle`
 
 Host result: Rust `1.94.1` no-default checks for these five crates passed again on 2026-10-09 as part of the 47-crate `cargo xtask no-std-check` run. Tests, strict Clippy, rustdoc, and codegen status passed on 2026-10-08. On 2026-10-10, the owned-buffer factory passed no-default Cargo checks for `framework-abi` and `framework-c-api`, the optimized C static-library build and archive symbol inspection, formatting, manifest parsing, C example syntax, and static diff checks; no tests or runtime checks were run. No host check proves device or simulator linkage, runtime behavior, 32-bit target execution, or a production need for `framework-alloc`
+
+F35 error-detail evidence on 2026-10-10: `framework-abi --no-default-features` and `framework-c-api` checks passed; the release C archive built and its exported symbol set matched the ABI manifest; Rust formatting, manifest inspection, C11/C++17 header syntax, and the C example syntax passed. No tests, linked example, or runtime checks were run; no device/simulator or 32-bit proof is claimed.
 
 ## Implementation scope
 
@@ -255,7 +257,7 @@ The codegen report is structural IR evidence for `OperationId` only; it makes no
 - [docs/core/C_ABI.md](docs/core/C_ABI.md) records C layouts, pointer-width-dependent fields, owned-buffer rules, status values, callback lifetime, options headers, and panic limits
 - `framework-alloc` remains optional reusable infrastructure without a production caller or benchmark evidence; a production caller or benchmark must justify any required runtime use
 - `framework_owned_buffer_copy` now creates a C-owned descriptor from caller-provided bytes; no tests were added or run for this change
-- `FrameworkErrorHandle` has no detail object owner or destructor until a later API defines both
+- `FrameworkErrorDetailHandle` is a direct opaque pointer with explicit create/view/destroy semantics; it does not encode pointers into the existing `FrameworkErrorHandle(u64)`
 - Other workstreams must keep fixed-width semantic IDs, zero sentinels, `CompactHandle` field order, generation wrap from `u32::MAX` to `1`, the single cancellation/completion winner, operation-state lifetime through backend callback teardown, and one destroy call on the original owned-buffer descriptor
 - The host test and codegen gates do not prove iOS device or simulator linking, platform runtime behavior, or 32-bit target execution
 

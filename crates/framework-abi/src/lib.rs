@@ -1,14 +1,16 @@
 #![no_std]
 #![deny(missing_docs)]
 #![deny(unsafe_op_in_unsafe_fn)]
-#![doc = "Fixed-width C ABI values, pointer-length views, and explicit owned-buffer destruction."]
+#![doc = "Fixed-width C ABI values, pointer-length views, and explicit owned-buffer/error-detail lifecycles."]
 
 extern crate alloc;
 
 #[cfg(feature = "std")]
 extern crate std;
 
+use alloc::alloc::{alloc, dealloc};
 use alloc::vec::Vec;
+use core::alloc::Layout;
 use core::ffi::c_void;
 use core::mem::size_of;
 use core::ptr;
@@ -17,7 +19,7 @@ use framework_core::{Error, ErrorKind, OperationId};
 /// The current major ABI version.
 pub const ABI_VERSION_MAJOR: u32 = 1;
 /// The current minor ABI version.
-pub const ABI_VERSION_MINOR: u32 = 2;
+pub const ABI_VERSION_MINOR: u32 = 3;
 
 /// A fixed-width status value for C callers.
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
@@ -358,6 +360,165 @@ impl Drop for FrameworkOwnedBuffer {
 pub unsafe extern "C" fn framework_owned_buffer_destroy(buffer: *mut FrameworkOwnedBuffer) {
     if let Some(buffer) = unsafe { buffer.as_mut() } {
         buffer.release();
+    }
+}
+
+/// A directly owned opaque error-detail object for C callers.
+///
+/// Its representation is private. Create it with [`framework_error_detail_create`] and release
+/// it exactly once with [`framework_error_detail_destroy`].
+pub struct FrameworkErrorDetail {
+    status: FrameworkStatus,
+    message: FrameworkOwnedBuffer,
+}
+
+/// A direct pointer to one owned [`FrameworkErrorDetail`]; null means no detail.
+pub type FrameworkErrorDetailHandle = *mut FrameworkErrorDetail;
+
+/// Creates an owned error-detail object by copying a status code and UTF-8 message.
+///
+/// The framework status code is preserved exactly; this function does not remap it. The UTF-8
+/// bytes are copied exactly, including embedded NUL bytes, and need no terminator. A zero-length
+/// message is valid and requires no message allocation. Reservation or object allocation failure returns
+/// [`FrameworkStatus::RESOURCE_EXHAUSTED`].
+/// The returned status reports creation outcome; the stored code is read through the view API.
+///
+/// # Safety
+/// `out_detail` must be non-null, properly aligned, writable for one handle, and contain no live
+/// detail object on entry. It must be disjoint from the message bytes. It is set to null before
+/// input validation and remains null on failure. For a nonzero message length, `message.data()`
+/// must be non-null, readable for the full length, and valid UTF-8 for this call. A null message
+/// pointer is allowed only for zero length. Neither pointer is retained. Lengths that cannot fit a
+/// Rust slice or exceed `isize::MAX` are invalid. Invalid pointer preconditions are caller errors
+/// and cannot be detected by this function.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn framework_error_detail_create(
+    status: FrameworkStatus,
+    message: FrameworkStr,
+    out_detail: *mut FrameworkErrorDetailHandle,
+) -> FrameworkStatus {
+    if out_detail.is_null() {
+        return FrameworkStatus::INVALID_ARGUMENT;
+    }
+
+    // SAFETY: the caller guarantees writable, aligned output storage with no live detail object.
+    unsafe { out_detail.write(ptr::null_mut()) };
+
+    let Ok(length) = usize::try_from(message.length()) else {
+        return FrameworkStatus::INVALID_ARGUMENT;
+    };
+    if length > isize::MAX as usize {
+        return FrameworkStatus::INVALID_ARGUMENT;
+    }
+    let bytes = if length == 0 {
+        &[]
+    } else {
+        if message.data().is_null() {
+            return FrameworkStatus::INVALID_ARGUMENT;
+        }
+        // SAFETY: the caller guarantees a readable span of the declared length.
+        unsafe { core::slice::from_raw_parts(message.data(), length) }
+    };
+    let Ok(text) = core::str::from_utf8(bytes) else {
+        return FrameworkStatus::INVALID_ARGUMENT;
+    };
+
+    let mut copied_message = Vec::new();
+    if copied_message.try_reserve_exact(text.len()).is_err() {
+        return FrameworkStatus::RESOURCE_EXHAUSTED;
+    }
+    copied_message.extend_from_slice(text.as_bytes());
+    let Ok(message) = FrameworkOwnedBuffer::try_from_vec(copied_message) else {
+        return FrameworkStatus::RESOURCE_EXHAUSTED;
+    };
+    let detail = FrameworkErrorDetail { status, message };
+
+    let layout = Layout::new::<FrameworkErrorDetail>();
+    // SAFETY: the layout is valid and non-zero for this concrete object type.
+    let allocation = unsafe { alloc(layout) }.cast::<FrameworkErrorDetail>();
+    if allocation.is_null() {
+        drop(detail);
+        return FrameworkStatus::RESOURCE_EXHAUSTED;
+    }
+    // SAFETY: allocation is non-null, aligned for FrameworkErrorDetail, and large enough.
+    unsafe { allocation.write(detail) };
+    // SAFETY: the caller guarantees writable, aligned output storage for one handle.
+    unsafe { out_detail.write(allocation) };
+    FrameworkStatus::OK
+}
+
+/// Returns view-call status and writes the stored code plus a borrowed UTF-8 message view.
+///
+/// The message view remains valid only while the detail object is alive and must not be used
+/// after destruction. Multiple simultaneous views are read-only; the caller must synchronize
+/// destruction against every view and must prevent mutation through foreign aliases.
+///
+/// # Safety
+/// `detail` must be null or an aligned, live, unchanged object created by
+/// [`framework_error_detail_create`]. Both outputs must be non-null, properly aligned, writable,
+/// and disjoint from each other and from the object/message storage. When both outputs are
+/// non-null, they are reset to `FRAMEWORK_STATUS_OK` and an empty/null string before validating
+/// `detail`; if either is null, the function returns [`FrameworkStatus::INVALID_ARGUMENT`] without
+/// writing either output. A non-null detail pointer must remain alive and unchanged for the full
+/// call.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn framework_error_detail_view(
+    detail: *const FrameworkErrorDetail,
+    out_status: *mut FrameworkStatus,
+    out_message: *mut FrameworkStr,
+) -> FrameworkStatus {
+    if out_status.is_null() || out_message.is_null() {
+        return FrameworkStatus::INVALID_ARGUMENT;
+    }
+
+    // SAFETY: the caller guarantees both output pointers are writable, aligned, and disjoint.
+    unsafe {
+        out_status.write(FrameworkStatus::OK);
+        out_message.write(FrameworkStr {
+            data: ptr::null(),
+            length: 0,
+        });
+    }
+
+    // SAFETY: a non-null pointer must be a live framework-created detail object.
+    let Some(detail) = (unsafe { detail.as_ref() }) else {
+        return FrameworkStatus::INVALID_ARGUMENT;
+    };
+    let Some(bytes) = detail.message.as_bytes() else {
+        return FrameworkStatus::INTERNAL_ERROR;
+    };
+    let Ok(message) = core::str::from_utf8(bytes) else {
+        return FrameworkStatus::INTERNAL_ERROR;
+    };
+    let Some(message) = FrameworkStr::from_utf8(message) else {
+        return FrameworkStatus::INTERNAL_ERROR;
+    };
+
+    // SAFETY: the caller guarantees writable output storage; the returned view borrows detail.
+    unsafe {
+        out_status.write(detail.status);
+        out_message.write(message);
+    }
+    FrameworkStatus::OK
+}
+
+/// Destroys an owned error-detail object; null is a no-op.
+///
+/// # Safety
+/// A non-null handle must be the original, live pointer returned by
+/// [`framework_error_detail_create`]. Destroy it exactly once. Do not copy or modify the handle,
+/// and do not use any message view obtained before destruction.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn framework_error_detail_destroy(detail: FrameworkErrorDetailHandle) {
+    if detail.is_null() {
+        return;
+    }
+
+    let layout = Layout::new::<FrameworkErrorDetail>();
+    // SAFETY: the caller guarantees a unique live framework allocation from create.
+    unsafe {
+        ptr::drop_in_place(detail);
+        dealloc(detail.cast::<u8>(), layout);
     }
 }
 
