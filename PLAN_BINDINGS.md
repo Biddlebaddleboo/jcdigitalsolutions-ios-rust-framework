@@ -7,7 +7,8 @@ Primary source `bindings/c/**` (exports, ABI manifest, public headers, check scr
 Rust apps call Rust directly; C/C++/Python are opt-in outer bindings over the same core. Stable C ABI exposes only fixed-width scalars, versioned records where supported, explicit lengths, opaque handles, explicit statuses/ownership and callbacks. Never expose Rust layouts, Objective-C/Swift wrappers or Future directly. No panic unwinds across C. No implicit allocation/foreign runtime dependency in Rust-only builds. Compile/link/feature flags isolate Apple-specific bindings.
 
 ## Remaining implementation scope
-- Audit F23–F33 and earlier unclosed F plans individually; don't infer integrated status from isolated worktrees or test scripts.
+- Audit F24–F33 and earlier unclosed F plans individually; don't infer integrated status from isolated worktrees or test scripts.
+- F23 (`PLAN_BINDINGS_F23.md`) is integrated behind the opt-in `ios-key-support` feature: its ABI manifest, Cargo.lock, macOS CI gates, guide, and documentation links are present. The static and device/Simulator link-import gates pass; linked probes were not executed, and no tests or live query ran.
 - Preserve async operation ownership: exactly-once completion when promised, correct callback/context lifecycle, no callback after destroy unless explicitly contracted; distinguish cancel/detach vs completion. Specific F5 transfer/F7 share semantics remain capability-owned; never substitute a generic process-wide operation registry.
 - Finish optional C++ and Python layers only as explicitly scoped, preserving native ownership and failure/cancellation semantics; Python interpreter costs are opt-in and must not bleed into core.
 - F34 (`PLAN_BINDINGS_F34.md`) adds and documents an explicit transfer-aware `OwnedBuffer::from_transfer` factory; acceptance is a C++17 syntax-only consumer compile for both transferred and absent results, with no tests or runtime claim.

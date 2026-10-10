@@ -6,7 +6,13 @@ Expose one opt-in C query over D63/B69. It reports only the iOS Security suitabi
 
 ## Status
 
-F23-owned source, public header, static check, device/Simulator link-import gate, guide, and this plan are ready for root wiring. Rust formatting, shell syntax, C11/C++17 header syntax-only checks, Rust/header symbol parity, scalar output memory/lifetime/concurrent-access precondition checks, and F23 whitespace checks pass. Cargo feature isolation, compile/Clippy, native link/import, and deployment checks remain pending root feature/dependency wiring and Cargo.lock refresh. The link-import gate is authored but was not executed. No tests, linked consumers, or probes ran
+F23-owned source, public header, static gate, device/Simulator link-import gate, guide, and root wiring are present on the `bf544b2` baseline. Root wiring includes the target-iOS optional dependencies and feature edge, cfg-gated module and re-export, ABI manifest entry, Cargo.lock edges, macOS CI gates, and guide links
+
+`sh bindings/c/check-ios-key-support.sh` passed: shell syntax, Rust formatting, source/header symbol parity, whitespace, and standalone C11/C++17 header syntax
+
+`sh bindings/c/check-ios-key-support-link.sh` passed: manifest semantics, feature isolation, host/device/Simulator checks, strict Clippy, Release archives, C11/C++17 probe links, exact imports/exports, and deployment minima of iOS 10.0 for device and 14.0 for Simulator
+
+The C11/C++17 probe binaries were linked but not executed. No tests or live Security query ran. This proves static contract, build, and link/import evidence only; it is not runtime or physical-device evidence
 
 ## Backend and API bounds
 
@@ -35,8 +41,8 @@ Root owns `bindings/c/Cargo.toml`, `bindings/c/src/lib.rs`, `bindings/c/abi-mani
 
 `sh bindings/c/check-ios-key-support.sh` checks shell syntax for both F23 gates, Rust formatting, source/header symbol parity, trailing whitespace, and standalone C11/C++17 header syntax. It performs no Cargo command, native link, test, consumer execution, or probe
 
-`sh bindings/c/check-ios-key-support-link.sh` is authored but pending root wiring and execution. It checks manifest semantics and feature isolation; runs host/device/Simulator checks and strict Clippy; builds Release archives; links C11/C++17 consumers without running them; checks exact CoreFoundation/Security/libSystem imports (+ libc++ for C++), `_SecKeyCreateWithData`, `_SecKeyIsAlgorithmSupported`, forbidden-symbol absence, export parity, and minos 10.0/device and 14.0/Simulator
+`sh bindings/c/check-ios-key-support-link.sh` passed. It checks manifest semantics and feature isolation; runs host/device/Simulator checks and strict Clippy; builds Release archives; links C11/C++17 consumers without running them; checks exact CoreFoundation/Security/libSystem imports (+ libc++ for C++), `_SecKeyCreateWithData`, `_SecKeyIsAlgorithmSupported`, forbidden-symbol absence, export parity, and minos 10.0/device and 14.0/Simulator
 
-After root wiring, add target-iOS optional dependencies on `framework-key-support` and `ios-key-support`, plus `ios-key-support = ["dep:framework-key-support", "dep:ios-key-support"]`. Gate the source module and public function re-export with that feature. Add `.optional_capabilities.ios_key_support` to the ABI manifest with only the sole export, borrowed input and one-byte output contract, status map, iOS API floor 10.0, direct imports CoreFoundation/Security/`libSystem.B.dylib`, and link-probe minima 10.0/device and 14.0/Simulator. Refresh Cargo.lock, run both F23 gates, add both to macOS CI, then record F23 in the aggregate binding plan and link the guide from the binding documentation index
+Root integration is complete on the `bf544b2` baseline: the C API has target-iOS optional dependencies on `framework-key-support` and `ios-key-support`, the feature edge `ios-key-support = ["dep:framework-key-support", "dep:ios-key-support"]`, cfg-gated module and re-export, and the `.optional_capabilities.ios_key_support` manifest entry. Cargo.lock is current, both F23 gates are in macOS CI, and the aggregate binding plan and documentation index link this API
 
-The root-owned full target gate should mirror G63's host/device/Simulator feature isolation, strict Clippy, Release archive and C11/C++17 links. Inspect only CoreFoundation, Security, `libSystem.B.dylib` (+ `libc++.1.dylib` for C++), `_SecKeyCreateWithData`, `_SecKeyIsAlgorithmSupported`, absence of Keychain/key-generation/signature-operation imports, export parity, and target minima 10.0/device and 14.0/Simulator. Link probes are build-and-inspect only, never execute. This plan records no linked ABI or live query evidence
+The link gate checks host/device/Simulator feature isolation and strict Clippy, builds Release archives, links C11/C++17 probes without executing them, and inspects CoreFoundation, Security, `libSystem.B.dylib` (+ `libc++.1.dylib` for C++), `_SecKeyCreateWithData`, `_SecKeyIsAlgorithmSupported`, forbidden Keychain/key-generation/signature-operation imports, export parity, and target minima 10.0/device and 14.0/Simulator

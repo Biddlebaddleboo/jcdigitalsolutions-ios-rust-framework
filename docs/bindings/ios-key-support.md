@@ -12,8 +12,10 @@ A valid non-iOS call returns `UNSUPPORTED` and leaves output zero. A caught pani
 
 The API is available from iOS 10.0 and needs no permission, usage-description key, or entitlement. It does not create or use private key material, persist a key, access Keychain or Secure Enclave, or verify data. `true` means only that Security reports the imported key suitable for the selected operation and algorithm
 
-## Integration boundary
+## Integration and evidence
 
-The header is opt-in. Root integration must add the target-iOS optional `framework-key-support` and `ios-key-support` dependencies plus the `ios-key-support` feature edge; gate the source module; add the export and ABI manifest entry; refresh Cargo.lock; run and add both F23 gates to macOS CI; update the aggregate binding plan and docs index. The link gate builds and inspects probes but does not execute them
+The header is opt-in through `framework-c-api`'s `ios-key-support` feature. Root wiring includes target-iOS optional dependencies on `framework-key-support` and `ios-key-support`, a cfg-gated source module and re-export, the ABI manifest entry, Cargo.lock edges, and both F23 gates in macOS CI. The guide is linked from [the documentation index](../DOCUMENTATION.md) and the [C++ binding guide](cpp.md)
+
+Both F23 gates passed on the `bf544b2` baseline. The link gate built and inspected C11/C++17 probes for iOS 10.0 device and iOS 14.0 Simulator minima; it did not execute them. No tests or live Security query ran, so no runtime or physical-device behavior is claimed
 
 See [B69's package plan](../../PLAN_IOS_KEY_SUPPORT.md), [D63's contract](../../PLAN_CAPABILITIES_KEY_SUPPORT.md), and [G63's validation evidence](../../PLAN_VALIDATION_IOS_KEY_SUPPORT.md)
