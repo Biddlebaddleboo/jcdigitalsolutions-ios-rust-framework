@@ -1,5 +1,9 @@
 # PLAN_CAPABILITIES_ACTIVITYKIT.md — D98: Row 112 Feasibility Gate
 
+## Installed tooling scope for future work
+
+R1/R2 shared tooling is completed. Read `docs/SHARED_TOOLING.md` rather than implementing or inspecting shared tooling source. The configured `ios-activitykit-status` pilot is available through `ios-rust-validate --workspace-root "$PWD" --spec "$PWD/tools/validation/specs/validation-v1.json" --capability ios-activitykit-status`; inspect `--explain ios-activitykit-status` for exactly what it covers. The registered validator checks the scoped status pilot only; it does not prove Live Activity lifecycle, general Swift async or device-runtime behavior. Retain every historic D/B/F acceptance limit and compiler-oracle requirement; for new coverage add declarative schema-v1 gates and optional bounded adapters without weakening negative tests or treating unexecuted runtime checks as passed.
+
 ## Disposition
 
 Row `112-compiler-build-host-capabilities-activitykit-support-if-layer-2-abi-work-is-proven` has one bounded partial candidate that does not require Layer-2 `ActivityAttributes` conformance or generic `Activity<Attributes>` support: `ActivityAuthorizationInfo().areActivitiesEnabled`, available from iOS 16.1. Apple defines the result as whether the current app can start a Live Activity; a person can disable Live Activities for an app in Settings.

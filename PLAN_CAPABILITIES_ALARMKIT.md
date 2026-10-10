@@ -1,5 +1,9 @@
 # PLAN_CAPABILITIES_ALARMKIT.md — B280 authorization state
 
+## Installed tooling scope for future work
+
+R1/R2 shared tooling is completed. Read `docs/SHARED_TOOLING.md` rather than implementing or inspecting shared tooling source. The configured `ios-alarmkit-status` pilot is available through `ios-rust-validate --workspace-root "$PWD" --spec "$PWD/tools/validation/specs/validation-v1.json" --capability ios-alarmkit-status`; inspect `--explain ios-alarmkit-status` for exactly what it covers. The registered validator checks the scoped status pilot only; it does not prove alarm scheduling or delivery on a real device. Retain every historic D/B/F acceptance limit and compiler-oracle requirement; for new coverage add declarative schema-v1 gates and optional bounded adapters without weakening negative tests or treating unexecuted runtime checks as passed.
+
 ## Scope
 
 B280 implements one read-only AlarmKit operation: the current app's `AlarmManager.authorizationState` snapshot on iOS 26.0+. It does not implement alarm configuration, scheduling, listing, cancellation, pause/resume/stop, authorization requests, or update streams

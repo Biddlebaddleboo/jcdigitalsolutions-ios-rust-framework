@@ -1,5 +1,9 @@
 # PLAN_BINDINGS_CORE.md — Workstream F1: Core C ABI
 
+## Installed tooling scope for future work
+
+R1/R2 shared tooling is completed. Read `docs/SHARED_TOOLING.md` rather than implementing or inspecting shared tooling source. C ABI consumer gates are not currently registered as a standalone validator pilot; preserve their direct script/linked-consumer execution. Retain independent C11/C++17 consumer compile/link, symbol/header/layout, ownership and unwind checks. The validator's package gates never replace a linked foreign-language ABI consumer. Retain every historic D/B/F acceptance limit and compiler-oracle requirement; for new coverage add declarative schema-v1 gates and optional bounded adapters without weakening negative tests or treating unexecuted runtime checks as passed.
+
 ## Status
 
 F1's core C ABI, hand-maintained header, ABI manifest, and minimal consumer are integrated. A
