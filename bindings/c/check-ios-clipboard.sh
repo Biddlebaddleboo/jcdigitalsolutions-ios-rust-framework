@@ -4,6 +4,13 @@ set -eu
 root=$(CDPATH= cd -- "$(dirname -- "$0")/../.." && pwd)
 cd "$root"
 mkdir -p target
+sysroot=$(rustc --print sysroot)
+host=$(rustc -vV | sed -n 's/^host: //p')
+llvm_nm="$sysroot/lib/rustlib/$host/bin/llvm-nm"
+if [ ! -x "$llvm_nm" ]; then
+    echo "Rust LLVM symbol tool is required for this audit: $llvm_nm" >&2
+    exit 1
+fi
 
 jq -e '
     .optional_capabilities.ios_clipboard.availability_tags as $tags
@@ -126,7 +133,7 @@ clang -std=c11 -Wall -Wextra -Werror -pedantic -I bindings/c/include \
 clang++ -std=c++17 -Wall -Wextra -Werror -pedantic -I bindings/c/include \
     -I target \
     target/framework-c-clipboard-cpp.cpp "$host_archive" -o target/framework-c-clipboard-cpp-host
-nm -gU "$host_archive" 2>/dev/null | awk '$NF ~ /^_framework_[A-Za-z0-9_]+$/ { name=$NF; sub(/^_/, "", name); print name }' | sort -u \
+"$llvm_nm" -gU "$host_archive" 2>/dev/null | awk '$NF ~ /^_framework_[A-Za-z0-9_]+$/ { name=$NF; sub(/^_/, "", name); print name }' | sort -u \
     > target/framework-c-clipboard-symbols.txt
 jq -r '.c_symbols[], .optional_capabilities.ios_clipboard.symbols[]' \
     bindings/c/abi-manifest.json | sort -u > target/framework-c-clipboard-expected-symbols.txt
@@ -203,7 +210,7 @@ check_probe_imports target/framework-c-clipboard-cpp-simulator \
 
 for archive in "$device_archive" "$simulator_archive"; do
     imports=target/framework-c-clipboard-imports.txt
-    nm -u "$archive" 2>/dev/null > "$imports"
+    "$llvm_nm" -u "$archive" 2>/dev/null > "$imports"
     if rg -qi 'UIActivityViewController|block2|swift|python|AppKit|WebKit|UserNotifications|CoreLocation|CoreMotion|StoreKit' "$imports"; then
         echo "unexpected share, runtime, or unrelated framework import in $archive" >&2
         exit 1
