@@ -22,9 +22,9 @@ fn register_and_submit(backend: &impl AppRefreshBackend) -> framework_core::Resu
 
 The host app picks the task ID and adds the exact string to native app metadata. Register each ID once per app process before launch ends. The backend holds the launch closure while the ID remains registered; no unregister call exists
 
-The closure is synchronous work, not a `Future`; no async work is awaited. The backend calls the native finish method once after the closure returns. A normal return maps to its `AppRefreshOutcome`, unless expiry wins the atomic race against the finish claim. A Rust panic maps to failure and one finish call
+The closure is synchronous work, not a `Future`; no async work is awaited. It runs on a backend-owned thread or queue, with no callback order or main-thread promise. The backend calls the native finish method once after the closure returns. A normal return maps to its `AppRefreshOutcome`, unless expiry wins the atomic race against the finish claim. A Rust panic maps to failure and one finish call
 
-Expiry is a cooperative atomic signal, not forced cancel. Check it during long work, stop promptly, and return `Failed`. The expiry block does not stop app code or finish the native task. If the closure does not return after expiry, the OS may end the app before a finish call
+Expiry is a cooperative atomic signal, not forced cancel. Check it during long work, stop promptly, and return `Failed`. The expiry block does not stop app code or finish the native task. If the closure does not return after expiry, the OS may end the app before a finish call. No finish call is assured after process kill or abort
 
 For each accepted request, the OS may launch zero or one run. The OS picks if and when a run can start. A second pending request with the same ID replaces the first; submit a new request to ask for another run. Cancel affects a pending request only
 

@@ -2,7 +2,20 @@
 
 ## Status
 
-D20 scope: portable app-refresh values, one-shot requests, synchronous work closures, and a static backend
+D20 contract and D20-owned docs are complete. On 2026-10-09, Rust 1.94.1 with Xcode 26.6 (build 17F113) and iOS/iOS Simulator SDK 26.5 passed the following static gates:
+
+- `cargo +1.94.1 check --locked -p framework-background --no-default-features`
+- `cargo +1.94.1 clippy --locked -p framework-background --no-default-features --all-targets -- -D warnings`
+- `cargo +1.94.1 check --locked -p ios-background-tasks --target aarch64-apple-ios`
+- `cargo +1.94.1 clippy --locked -p ios-background-tasks --all-targets --target aarch64-apple-ios -- -D warnings`
+- `cargo +1.94.1 check --locked -p ios-background-tasks --target aarch64-apple-ios-sim`
+- `cargo +1.94.1 clippy --locked -p ios-background-tasks --all-targets --target aarch64-apple-ios-sim -- -D warnings`
+- `cargo +1.94.1 fmt --manifest-path crates/framework-background/Cargo.toml -- --check` and `cargo +1.94.1 fmt --manifest-path platform/ios/ios-background-tasks/Cargo.toml -- --check`
+- `RUSTDOCFLAGS="-D warnings" cargo +1.94.1 doc --locked -p framework-background --no-default-features --no-deps`
+- `RUSTDOCFLAGS="-D warnings" cargo +1.94.1 doc --locked -p ios-background-tasks --target aarch64-apple-ios --no-deps`
+- `cargo +1.94.1 xtask docs-check`, `cargo +1.94.1 xtask zero-swift-source`, `sh platform/ios/ios-background-tasks/check-link-imports.sh`, and `git diff --check`
+
+The link/import script passed both device and Simulator probe builds and its import, selected-symbol, exclusion, and deployment-floor assertions. No tests were added or run. Xcode 27.x qualification remains open. These static checks do not establish host launch setup, scheduler acceptance, run timing, callback delivery, expiry behavior, or runtime/device behavior
 
 ## Objective
 

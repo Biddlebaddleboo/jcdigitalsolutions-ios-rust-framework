@@ -94,7 +94,7 @@ impl<'a> AppRefreshContext<'a> {
 /// The scheduler controls the run time and may launch one accepted request zero or one time
 /// Submit a new request for another run
 /// The callback is a synchronous work closure, not a `Future`; no async work is awaited
-/// The callback runs on a backend-owned thread or queue and must return promptly after expiry
+/// The callback runs on a backend-owned thread or queue, with no order or main-thread promise, and must return promptly after expiry
 /// The backend retains the closure while the ID remains registered; no unregister call exists
 pub trait AppRefreshBackend {
     /// Registers one synchronous work closure for `task_id`
@@ -106,6 +106,7 @@ pub trait AppRefreshBackend {
     /// The backend must catch a Rust panic at the native boundary and finish with failure
     /// Expiry is a cooperative atomic signal only; it does not stop Rust work or finish the native task
     /// If the closure ignores expiry and does not return, the OS may end the app and no finish call is assured
+    /// No finish call is assured after process kill or abort
     /// No executor, global Rust registry, or future wait is part of this contract
     fn register_app_refresh<F>(&self, task_id: &AppRefreshTaskId, handler: F) -> Result<()>
     where
