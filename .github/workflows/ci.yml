@@ -52,6 +52,16 @@ jobs:
       - name: Install Apple device, simulator, and host targets
         if: runner.os == 'macOS'
         run: rustup target add aarch64-apple-ios aarch64-apple-ios-sim x86_64-apple-darwin --toolchain 1.94.1
+      - name: Fingerprint Xcode 27 runner and iOS SDKs
+        if: matrix.os == 'xcode-27'
+        run: |
+          printf 'Runner image: %s %s (%s/%s)\n' "${ImageOS:-unknown}" "${ImageVersion:-unknown}" "$RUNNER_OS" "$RUNNER_ARCH"
+          sw_vers
+          xcodebuild -version
+          printf 'Selected developer directory: %s\n' "$(xcode-select -p)"
+          printf 'Selected iPhoneOS SDK: %s\n' "$(xcrun --sdk iphoneos --show-sdk-version)"
+          printf 'Selected iPhoneSimulator SDK: %s\n' "$(xcrun --sdk iphonesimulator --show-sdk-version)"
+          xcodebuild -showsdks
       - name: Check iOS files device target
         if: runner.os == 'macOS'
         run: cargo check --locked -p ios-files --target aarch64-apple-ios
