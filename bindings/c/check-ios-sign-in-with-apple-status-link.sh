@@ -35,6 +35,7 @@ int main(void) {
 FIXTURE_C
 
 cat > "$cpp_source" <<'FIXTURE_CPP'
+#include <stddef.h>
 #include <framework_ios_sign_in_with_apple_status.h>
 
 static void complete(
@@ -110,7 +111,7 @@ for target in aarch64-apple-ios aarch64-apple-ios-sim; do
                 ;;
             cpp)
                 xcrun --sdk "$sdk" "$compiler" -target "$clang_target" \
-                    -std="$standard" -Wall -Wextra -Werror -pedantic \
+                    -std="$standard" -nostdinc++ -Wall -Wextra -Werror -pedantic \
                     -I bindings/c/include "$source" "$archive" \
                     -framework AuthenticationServices -framework Foundation \
                     -lSystem -lobjc -lc++ -o "$binary"
