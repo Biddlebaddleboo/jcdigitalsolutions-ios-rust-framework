@@ -18,6 +18,17 @@ all C11 compiles remain unchanged. C++17, ABI/import/symbol, CoreLocation, and d
 14.0 deployment assertions remain intact. Xcode 27 requalification is pending; probes are compile/link
 only, not executed, and no tests or runtime behavior are claimed
 
+Main run `38054423923` on head `2c4944b74cb37f1d9f647286b440e6146eaacdd2`, macOS job
+`114219853855`, passed MapKit step 245 and ClassKit step 246, then failed Location step 247. The
+host Release archive build completed before `check-ios-location.sh` exited with code 1 and no
+diagnostic. The script still used Apple `nm` for Rust archive scans and suppressed its stderr, so the
+exact failing command is not confirmed. Given prior Xcode 16.4 failures on Rust LLVM 21 archives,
+Apple `nm` incompatibility is the inferred cause. The gate now uses Rust's sysroot-matched `llvm-nm`
+for host, device, and Simulator Rust archive inspections; Apple `nm` remains on final Mach-O probes.
+All symbol/import/deployment assertions and the Xcode 27 C++17 header/flag fix remain intact. macOS
+requalification is pending; checks are compile/link and metadata only, with no tests, consumer
+execution, or runtime behavior claimed
+
 ## Goal
 
 Expose the existing B5 one-shot location backend through an opt-in capability-owned C API. Keep explicit permission request, authorization query, current-location request, readiness, poll, cancellation, drop, and thread semantics truthful. Do not add a universal operation registry or executor
