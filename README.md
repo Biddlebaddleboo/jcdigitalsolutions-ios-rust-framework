@@ -96,4 +96,5 @@ The Cargo workspace and portable foundation crates are in place. Read `AGENTS.md
 - `docs/TESTING_AND_PARITY.md` — differential Apple parity, ABI, linkage, no_std, and performance validation policy.
 - `docs/DOCUMENTATION.md` — continuous developer/maintainer documentation requirements.
 - `docs/core/FOUNDATION.md` — shared crate graph, semantic type layout facts, dependency policy, and validation commands.
+- `bindings/python/README.md` — optional Python owned-byte binding and isolated build instructions.
 - `docs/research/` — Apple API and Swift ABI research corpus.

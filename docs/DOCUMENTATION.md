@@ -12,7 +12,8 @@ iOS share C ABI, iOS preferences C ABI, iOS MediaPlayer status C ABI, and C++17 
 [iOS transfer guide](bindings/ios-transfer.md), [iOS clipboard guide](bindings/ios-clipboard.md),
 [iOS share guide](bindings/ios-share.md), [iOS preferences guide](bindings/ios-preferences.md),
 [iOS MediaPlayer status ABI guide](bindings/ios-media-library-status.md),
-[iOS motion guide](ios/motion.md), and [C++ layer guide](bindings/cpp.md)
+[iOS motion guide](ios/motion.md), [C++ layer guide](bindings/cpp.md), and the
+[optional Python owned-bytes guide](../bindings/python/README.md)
 
 The iOS LocalAuthentication backend has a separate [iOS authentication guide](ios/authentication.md).
 
