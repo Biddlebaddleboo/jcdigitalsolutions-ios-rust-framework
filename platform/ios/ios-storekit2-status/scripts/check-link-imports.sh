@@ -26,7 +26,7 @@ for target in aarch64-apple-ios aarch64-apple-ios-sim; do
     symbols="target/ios-storekit2-status-symbols-$target.txt"
 
     otool -L "$binary" > "$imports"
-    awk 'NR > 1 { path = $1; sub(/^.*\//, "", path); print path }' "$imports" | sort > "$libraries"
+    awk 'NR > 1 { path = $1; sub(/^.*\//, "", path); print path }' "$imports" | LC_ALL=C sort > "$libraries"
     diff -u target/ios-storekit2-status-imports-expected.txt "$libraries"
     grep -Eq 'StoreKit\.framework/StoreKit.*weak' "$imports"
 

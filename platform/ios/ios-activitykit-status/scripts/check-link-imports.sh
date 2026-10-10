@@ -28,7 +28,7 @@ for target in aarch64-apple-ios aarch64-apple-ios-sim; do
     symbol_details="target/ios-activitykit-status-link-symbol-details-$target.txt"
 
     otool -L "$binary" > "$imports"
-    awk 'NR > 1 { path = $1; sub(/^.*\//, "", path); print path }' "$imports" | sort > "$libraries"
+    awk 'NR > 1 { path = $1; sub(/^.*\//, "", path); print path }' "$imports" | LC_ALL=C sort > "$libraries"
     diff -u target/ios-activitykit-status-link-imports-expected.txt "$libraries"
     if ! grep -Fq '/System/Library/Frameworks/ActivityKit.framework/ActivityKit' "$imports" || ! grep -Fq ', weak)' "$imports"; then
         echo "ActivityKit is not a weak framework import in $binary" >&2

@@ -29,7 +29,7 @@ for target in aarch64-apple-ios aarch64-apple-ios-sim; do
     load_commands="target/ios-family-controls-status-link-load-commands-$target.txt"
 
     otool -L "$binary" > "$imports"
-    awk 'NR > 1 { path = $1; sub(/^.*\//, "", path); print path }' "$imports" | sort > "$libraries"
+    awk 'NR > 1 { path = $1; sub(/^.*\//, "", path); print path }' "$imports" | LC_ALL=C sort > "$libraries"
     diff -u target/ios-family-controls-status-link-imports-expected.txt "$libraries"
 
     otool -l "$binary" > "$load_commands"

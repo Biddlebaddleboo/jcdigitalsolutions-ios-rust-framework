@@ -28,7 +28,7 @@ for target in aarch64-apple-ios aarch64-apple-ios-sim; do
     strings_file="target/ios-shared-with-you-support-link-strings-$target.txt"
 
     otool -L "$binary" > "$imports"
-    awk 'NR > 1 { path = $1; sub(/^.*\//, "", path); print path }' "$imports" | sort > "$libraries"
+    awk 'NR > 1 { path = $1; sub(/^.*\//, "", path); print path }' "$imports" | LC_ALL=C sort > "$libraries"
     diff -u target/ios-shared-with-you-support-link-imports-expected.txt "$libraries"
 
     nm -u "$binary" > "$symbols"

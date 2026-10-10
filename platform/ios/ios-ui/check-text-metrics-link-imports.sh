@@ -49,7 +49,7 @@ for target in aarch64-apple-ios aarch64-apple-ios-sim; do
     build_info="$target_dir/build-info.txt"
 
     otool -L "$binary" > "$imports"
-    awk 'NR > 1 { path = $1; sub(/^.*\//, "", path); print path }' "$imports" | sort -u > "$libraries"
+    awk 'NR > 1 { path = $1; sub(/^.*\//, "", path); print path }' "$imports" | LC_ALL=C sort -u > "$libraries"
     diff -u target/ios-ui-text-metrics-imports-expected.txt "$libraries"
 
     nm -u "$binary" > "$symbols"
