@@ -213,9 +213,10 @@ mod tests {
         );
         assert_eq!(requests.get(), 0);
 
-        let future = contacts.request_authorization();
-        assert_eq!(requests.get(), 0);
-        drop(future);
+        {
+            let _future = contacts.request_authorization();
+            assert_eq!(requests.get(), 0);
+        }
         assert_eq!(requests.get(), 0);
 
         assert_eq!(requests.get(), 0);

@@ -7,7 +7,7 @@ license = "MIT OR Apache-2.0"
 repository = "https://github.com/Biddlebaddleboo/jcdigitalsolutions-ios-rust-framework"
 description = "Query one prior Sign in with Apple credential state on iOS"
 
-[dependencies]
+[target.'cfg(target_os = "ios")'.dependencies]
 block2 = { version = "=0.6.2", default-features = false, features = ["alloc"] }
 objc2 = { version = "=0.6.5", default-features = false, features = ["std"] }
 objc2-authentication-services = { version = "=0.3.2", default-features = false, features = ["ASAuthorizationAppleIDProvider", "block2"] }

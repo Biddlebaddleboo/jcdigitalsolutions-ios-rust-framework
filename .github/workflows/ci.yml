@@ -659,7 +659,11 @@ jobs:
         run: sh interop/swift-abi-core/tests/check-retained-ownership.sh
       - name: Format
         run: cargo fmt --all -- --check
-      - name: Clippy
+      - name: Clippy Linux host features
+        if: runner.os == 'Linux'
+        run: cargo clippy --locked --workspace --all-targets -- -D warnings
+      - name: Clippy all features on Apple host
+        if: runner.os == 'macOS'
         run: cargo clippy --locked --workspace --all-targets --all-features -- -D warnings
       - name: Unit tests
         run: cargo test --locked --workspace
