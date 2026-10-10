@@ -6,9 +6,9 @@ Audit whether row `111-compiler-build-host-capabilities-widgetkit-support-manage
 
 ## Status and recommendation
 
-B254 makes row 111 partial (`B`) for `WidgetCenter.shared.reloadAllTimelines()` only. This synchronous request operates on configured widgets belonging to the containing app. It does not guarantee provider success, rendering, or timing. The API is Swift-only; B254 uses a compiler-derived weak `swiftcall` bridge rather than a C/Objective-C declaration
+B254 and B435 make row 111 partial (`B`) for two synchronous `WidgetCenter` management operations only: `reloadAllTimelines()` and `invalidateConfigurationRecommendations()`. The reload request applies to configured widgets belonging to the containing app and does not guarantee provider success, rendering, or timing. Apple's documentation says recommendation invalidation is inactive on iOS. Both APIs are Swift-only and use compiler-derived weak `swiftcall` bridges rather than C/Objective-C declarations
 
-B254 implements the request-only timeline reload. Reading user-configured widget descriptors remains a separate candidate requiring Swift class/closure/Result/WidgetInfo ownership support. It would not implement a widget provider, render content, prove that a widget exists in an extension, or guarantee when WidgetKit refreshes its view
+B254 implements the request-only timeline reload and B435 implements the recommendation-invalidation method call. Reading user-configured widget descriptors remains a separate candidate requiring Swift class/closure/Result/WidgetInfo ownership support. These operations do not implement a widget provider, render content, prove that a widget exists in an extension, or guarantee when WidgetKit refreshes its view
 
 Full widget support remains outside a small Rust facade. `TimelineProvider` has a Swift associated `Entry` type and Swift protocol requirements that return or callback with `Timeline<Entry>`; `Timeline` is generic over a `TimelineEntry`. A WidgetKit extension also defines a SwiftUI `Widget` whose body returns `WidgetConfiguration`; its configuration initializers take `@ViewBuilder` closures with `Content: View`. These APIs need Swift protocol conformance, associated-type metadata, callback/async interop, and SwiftUI view construction. This report does not propose a SwiftUI clone
 
@@ -61,11 +61,12 @@ The manifest leaves `minimum_ios_version`, `required_frameworks`, `required_perm
 
 ## Acceptance boundary
 
-This audit establishes only:
+This audit, together with the B254 and B435 implementation records below, establishes only:
 
-- A possible future Swift ABI slice for `WidgetCenter` management and configured-widget descriptors, subject to a supported Rust call path
+- Two synchronous Swift-ABI `WidgetCenter` management calls: all-configured-widget timeline reload and configuration-recommendation invalidation
+- Configured-widget descriptors remain a possible future Swift ABI slice, subject to a supported Rust call path
 - The iOS 14.0 floor for the base management/configuration/provider APIs; iOS 16.0 for `invalidateConfigurationRecommendations`; iOS 17.0 for `AppIntentTimelineProvider`; and iOS 18.0 for `currentConfigurations()` and the newer async provider requirements
-- The current reason row 111 remains unsupported: no Rust-callable WidgetKit adapter is present, and the provider/render path needs Swift protocol and SwiftUI types
+- The provider/render path still needs Swift protocol and SwiftUI types; the two management calls do not implement it
 
 It does not establish a package, binding feature, entitlement, usage-description key, successful API call, configured widget, extension lifecycle, timeline execution, update schedule, or rendered output
 
@@ -75,6 +76,7 @@ It does not establish a package, binding feature, entitlement, usage-description
 - [WidgetCenter](https://developer.apple.com/documentation/widgetkit/widgetcenter)
 - [WidgetCenter.reloadTimelines(ofKind:)](https://developer.apple.com/documentation/widgetkit/widgetcenter/reloadtimelines%28ofkind%3A%29)
 - [WidgetCenter.reloadAllTimelines()](https://developer.apple.com/documentation/widgetkit/widgetcenter/reloadalltimelines%28%29)
+- [WidgetCenter.invalidateConfigurationRecommendations()](https://developer.apple.com/documentation/widgetkit/widgetcenter/invalidateconfigurationrecommendations%28%29)
 - [WidgetCenter.getCurrentConfigurations(_:)](https://developer.apple.com/documentation/widgetkit/widgetcenter/getcurrentconfigurations%28_%3A%29)
 - [WidgetCenter.currentConfigurations()](https://developer.apple.com/documentation/widgetkit/widgetcenter/currentconfigurations%28%29)
 - [TimelineProvider](https://developer.apple.com/documentation/widgetkit/timelineprovider)
@@ -85,7 +87,7 @@ It does not establish a package, binding feature, entitlement, usage-description
 
 ## Root integration need
 
-No Cargo, lock, CI, source, matrix, aggregate-plan, or docs-index change is needed for this feasibility report. If root accepts the recommendation, it may revise only row 111's status reason to distinguish Swift-only `WidgetCenter` management from the absent provider/render path; keep the row `X` until a supported Rust call adapter exists
+B254 and B435 add the focused package, CI check, and API documentation described below. This workstream does not edit root `PLAN.md`, aggregate plans, or the capability matrix. Root owns any matrix change to row 111; the implemented scope is limited to the two management calls and does not imply provider, extension, configuration-inventory, or rendering support
 
 ## B254 implementation — all-configured-widget timeline reload request
 
@@ -112,9 +114,10 @@ timeline, data-sharing contract, SwiftUI view, Live Activity, or Control
 
 Capability-row impact: row
 `111-compiler-build-host-capabilities-widgetkit-support-management-data-logic-available-through-proven-interfaces-do-not-implement-a-swiftui-clone-merely-to-claim-full-rendering-support`
-can move from `X` to partial (`B`) for this all-configured-widget reload request only. Provider
-execution, configured-widget inventory, data logic, configuration, rendering, and refresh timing
-remain outside the implemented contract. Root owns any aggregate matrix edit
+can move from `X` to partial (`B`) for this all-configured-widget reload request and the B435
+management call only. Provider execution, configured-widget inventory, data logic, configuration,
+rendering, and refresh timing remain outside the implemented contract. Root owns any aggregate
+matrix edit
 
 The focused B254 gate runs package-only format, host/device/Simulator `cargo check`, strict Clippy,
 rustdoc, `docs-check`, compiler-oracle checks for device and Simulator, and static WidgetKit
@@ -124,3 +127,32 @@ repository's Xcode 27.x baseline
 
 Changed paths: `platform/ios/ios-widgetkit-reload/`, `docs/ios/widgetkit-reload.md`, and this
 focused plan only. Root aggregate plans and capability matrix remain unchanged
+
+## B435 implementation — configuration recommendation invalidation call
+
+B435 extends `ios-widgetkit-reload` with
+`invalidate_configuration_recommendations() -> Result<(), WidgetKitError>`, invoking exactly
+`WidgetCenter.shared.invalidateConfigurationRecommendations()` through a compiler-derived
+zero-argument, `Void`-returning Swift-call thunk. The SDK declares the method at iOS 16.0. The thunk
+weakly imports the method symbol and returns `NativeApiUnavailable` when it is absent, preserving
+the existing iOS 14.0 `WidgetCenter.shared` and `reloadAllTimelines()` path on older systems. The
+owned `WidgetCenter` value continues to be held by `SwiftRetained` through the synchronous call and
+released afterward
+
+Apple describes the operation as invalidating and refreshing preconfigured intent configurations,
+but explicitly says it is inactive on platforms with a dedicated widget-configuration UI, including
+iOS. Accordingly, `Ok(())` reports only that the native method returned; it does not claim that
+recommendations change, appear, or get consumed. The wrapper makes no main-thread or queue claim and
+adds no callback, async behavior, provider, extension, timeline, configuration UI, or rendering
+
+The focused B435 gate extends `check-swiftcall.sh` to compare the device and Simulator compiler
+oracle against symbol
+`_$s9WidgetKit0A6CenterC38invalidateConfigurationRecommendationsyyFTj`; it verifies weak imports in
+the object and framework-linked artifacts. It retains the package's format, host/device/Simulator
+check, strict Clippy, rustdoc, and docs checks. No tests, app, Simulator/device runtime, WidgetKit
+call, or recommendation refresh were run. The local compiler is Xcode 26.6 / iOS SDK 26.5, below
+the repository's Xcode 27.x baseline
+
+Changed paths: `platform/ios/ios-widgetkit-reload/`, `docs/ios/widgetkit-reload.md`,
+`.github/workflows/ci.yml`, and this focused plan only. Root aggregate plans and capability matrix
+remain unchanged

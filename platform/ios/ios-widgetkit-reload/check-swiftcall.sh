@@ -9,9 +9,11 @@ trap 'rm -rf "$oracle_dir"' EXIT HUP INT TERM
 metadata_symbol='$s9WidgetKit0A6CenterCMa'
 shared_symbol='$s9WidgetKit0A6CenterC6sharedACvgZ'
 reload_symbol='$s9WidgetKit0A6CenterC18reloadAllTimelinesyyFTj'
+invalidate_symbol='$s9WidgetKit0A6CenterC38invalidateConfigurationRecommendationsyyFTj'
 cat > "$oracle_dir/Oracle.swift" <<'SWIFT'
 import WidgetKit
 public func reloadAllTimelinesOracle() { WidgetCenter.shared.reloadAllTimelines() }
+@available(iOS 16.0, *) public func invalidateConfigurationRecommendationsOracle() { WidgetCenter.shared.invalidateConfigurationRecommendations() }
 SWIFT
 
 for sdk in iphoneos iphonesimulator; do
@@ -51,6 +53,16 @@ for sdk in iphoneos iphonesimulator; do
         echo "$suffix Swift oracle lacks the expected all-timeline method lowering" >&2
         exit 1
     }
+    grep -F "call swiftcc void @\"$invalidate_symbol\"(ptr swiftself" \
+        "$oracle_ir" >/dev/null || {
+        echo "$suffix Swift oracle lacks the expected recommendation invalidation method lowering" >&2
+        exit 1
+    }
+    grep -F "declare extern_weak swiftcc void @\"$invalidate_symbol\"(ptr swiftself" \
+        "$oracle_ir" >/dev/null || {
+        echo "$suffix Swift oracle lacks the weak iOS 16.0 recommendation method declaration" >&2
+        exit 1
+    }
     grep -F "call void @swift_release(ptr " "$oracle_ir" >/dev/null || {
         echo "$suffix Swift oracle lacks the expected WidgetCenter release" >&2
         exit 1
@@ -70,11 +82,16 @@ for sdk in iphoneos iphonesimulator; do
         echo "$suffix C thunk does not match the all-timeline method lowering" >&2
         exit 1
     }
+    grep -F 'call swiftcc void' "$thunk_ir" \
+        | grep -F "$invalidate_symbol" | grep -F 'swiftself' >/dev/null || {
+        echo "$suffix C thunk does not match the recommendation invalidation method lowering" >&2
+        exit 1
+    }
 
     xcrun --sdk "$sdk" clang -target "$clang_target" -isysroot "$sdk_path" \
         -std=c11 -Wall -Wextra -Werror -c "$package_dir/native/widgetkit_reload.c" \
         -o "$object"
-    for symbol in "$metadata_symbol" "$shared_symbol" "$reload_symbol"; do
+    for symbol in "$metadata_symbol" "$shared_symbol" "$reload_symbol" "$invalidate_symbol"; do
         xcrun --sdk "$sdk" nm -m "$object" \
             | grep -F "(undefined) weak external _$symbol" >/dev/null || {
             echo "$suffix object lacks weak import $symbol" >&2

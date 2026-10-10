@@ -20,6 +20,10 @@ extern void *widget_center_shared(void *metadata __attribute__((swift_context)))
 extern void widget_center_reload_all_timelines(void *center __attribute__((swift_context)))
     __asm__("_$s9WidgetKit0A6CenterC18reloadAllTimelinesyyFTj")
     __attribute__((swiftcall, weak_import));
+extern void widget_center_invalidate_configuration_recommendations(
+    void *center __attribute__((swift_context)))
+    __asm__("_$s9WidgetKit0A6CenterC38invalidateConfigurationRecommendationsyyFTj")
+    __attribute__((swiftcall, weak_import));
 
 uint8_t framework_widgetkit_center_create(void **center_out) {
     if (center_out == NULL) {
@@ -55,5 +59,17 @@ uint8_t framework_widgetkit_reload_all_timelines(void *center) {
     }
 
     widget_center_reload_all_timelines(center);
+    return 0;
+}
+
+uint8_t framework_widgetkit_invalidate_configuration_recommendations(void *center) {
+    if (center == NULL) {
+        return 3;
+    }
+    if (widget_center_invalidate_configuration_recommendations == NULL) {
+        return 1;
+    }
+
+    widget_center_invalidate_configuration_recommendations(center);
     return 0;
 }

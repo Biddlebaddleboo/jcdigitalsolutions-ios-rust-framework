@@ -405,7 +405,7 @@ jobs:
       - name: Check DockKit system-tracking status
         if: runner.os == 'macOS'
         run: sh platform/ios/ios-dockkit-status/check.sh
-      - name: Check WidgetKit timeline reload request
+      - name: Check WidgetKit management requests
         if: runner.os == 'macOS'
         run: sh platform/ios/ios-widgetkit-reload/check.sh
       - name: Check RoomPlan device-support status

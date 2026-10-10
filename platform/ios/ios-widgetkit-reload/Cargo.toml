@@ -5,7 +5,7 @@ edition.workspace = true
 rust-version.workspace = true
 license.workspace = true
 repository.workspace = true
-description = "WidgetKit all-timeline reload request for iOS"
+description = "WidgetKit management requests for iOS"
 build = "build.rs"
 
 [target.'cfg(target_os = "ios")'.dependencies]

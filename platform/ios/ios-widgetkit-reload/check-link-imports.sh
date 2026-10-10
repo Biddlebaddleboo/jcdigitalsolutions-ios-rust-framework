@@ -33,7 +33,8 @@ for sdk in iphoneos iphonesimulator; do
     for symbol in \
         '_$s9WidgetKit0A6CenterCMa' \
         '_$s9WidgetKit0A6CenterC6sharedACvgZ' \
-        '_$s9WidgetKit0A6CenterC18reloadAllTimelinesyyFTj'; do
+        '_$s9WidgetKit0A6CenterC18reloadAllTimelinesyyFTj' \
+        '_$s9WidgetKit0A6CenterC38invalidateConfigurationRecommendationsyyFTj'; do
         printf '%s\n' "$symbols" \
             | grep -F "(undefined) weak external $symbol (from WidgetKit)" >/dev/null || {
             echo "$suffix linked library lacks weak import $symbol" >&2
