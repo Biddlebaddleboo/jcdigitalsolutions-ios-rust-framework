@@ -22,7 +22,7 @@ GitHub Actions run [38075483431](https://github.com/Biddlebaddleboo/jcdigitalsol
 - `Clippy iOS network simulator target` — `cargo clippy --locked -p ios-network --all-targets --target aarch64-apple-ios-sim -- -D warnings`
 - `Link and audit iOS network imports` — `sh platform/ios/ios-network/check-link-imports.sh`
 
-The link/import gate built Release probes for device and Simulator and passed without executing either probe. The run source SHA is an ancestor of current `origin/main` `141e1e443515c42f14f0ca973070f58d2841c5d1`; no path changes occurred between them in `crates/framework-network/**`, `platform/ios/ios-network/**` (including the link/import script), `.github/workflows/ci.yml`, `Cargo.toml`, `Cargo.lock`, `PLAN_IOS_NETWORK.md`, or `docs/ios/network.md`. These hosted results therefore apply to the current static-gate inputs.
+The link/import gate built Release probes for device and Simulator and passed without executing either probe. The run source SHA is an ancestor of current `main` `e9847a46fab7bd66954659e81625b6c6f4e4ac4e`; no path changes occurred between them in `crates/framework-network/**`, `platform/ios/ios-network/**` (including the link/import script), `.github/workflows/ci.yml`, `Cargo.toml`, `Cargo.lock`, `PLAN_IOS_NETWORK.md`, or `docs/ios/network.md`. These hosted results therefore apply to the current static-gate inputs.
 
 This is compile, strict-Clippy, and static link/import evidence only. It does not establish URLSession runtime behavior, deterministic local-server differential, runtime parity, or performance. The existing reference/candidate and representative physical-device Release measurement requirements remain open.
 

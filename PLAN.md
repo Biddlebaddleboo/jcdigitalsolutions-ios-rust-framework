@@ -162,7 +162,8 @@ The current source-validation baseline is `d717f8ae4324bf2abc782816c7fb2e10dfa92
 - B/D: B436 remains blocked; D70 is retired in `PLAN_CAPABILITIES_CLOSED_FEASIBILITY.md` with B212/B285 no-implementation findings; D97 has no WidgetKit successor. No ready B/D item remains. Do not invent an ID or product scope.
 - Replacement review: `PLAN_REPLACEMENTS.md` defers unselected Apple-operation candidates; `PLAN_REPLACEMENTS_HTTP.md` has no credible replacement candidate; parity work lacks reference/candidate workloads. No replacement item is ready.
 - G3: hosted run `38075483431` passed the current harness/workspace gates, including 5 bench, 7 parity, and 7 xtask tests. Fake-adapter tests are not real parity; no Apple reference adapter, candidate suite, workload, or performance result exists. See `PLAN_VALIDATION_HARNESS.md`.
-- Next queue item: G4 hosted static-gate evidence; URLSession runtime parity/performance remain blocked on a named candidate, deterministic local fixture, and representative-device evidence. G6–G20 and G21–G29 are complete or rechecked as recorded. No implementation-ready B/D, F, or replacement successor is recorded. Do not invent a workstream ID or capability scope.
+- G4: hosted run `38075483431` passed both Xcode 27 device/Simulator checks, both strict Clippy gates, and the network link/import gate. Probes were linked, not executed. URLSession runtime parity/performance remain blocked on a named candidate, deterministic local fixture, and representative-device evidence; see `PLAN_VALIDATION_IOS_NETWORK.md`.
+- Next validation evidence queue: hosted Xcode 27 requalification for existing G30–G40 static gates is in progress across independent subagent workstreams. These gates do not establish runtime behavior. No implementation-ready B/D, F, or replacement successor is recorded. Do not invent a workstream ID or capability scope.
 
 ## Active work selection and limits
 
