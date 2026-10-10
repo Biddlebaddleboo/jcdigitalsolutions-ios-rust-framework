@@ -14,6 +14,8 @@ MAPPING_PATH = PACKAGE_ROOT + "/src/mapping.rs"
 OBSERVERS_PATH = PACKAGE_ROOT + "/src/observers.rs"
 CARGO_PATH = PACKAGE_ROOT + "/Cargo.toml"
 CHECK_PATH = PACKAGE_ROOT + "/check.sh"
+LINK_CHECK_PATH = PACKAGE_ROOT + "/check-link-imports.sh"
+LINK_PROBE_PATH = PACKAGE_ROOT + "/examples/link_probe.rs"
 DOC_PATH = "docs/ios/app-lifecycle.md"
 MANIFEST_PATH = "docs/capabilities/capability-status.json"
 SPEC_PATH = "tools/validation/specs/validation-v1.json"
@@ -25,6 +27,8 @@ REQUIRED_INPUTS = {
  OBSERVERS_PATH,
  CARGO_PATH,
  CHECK_PATH,
+ LINK_CHECK_PATH,
+ LINK_PROBE_PATH,
  DOC_PATH,
  MANIFEST_PATH,
  SPEC_PATH,
@@ -137,18 +141,25 @@ def check_unknown_state_error(mapping):
  return fallback is not None
 
 
-def check_profile_floor(spec_text):
+def check_profile_targets(spec_text):
  spec = json.loads(spec_text)
  pilot = next((item for item in spec.get("pilots", []) if item.get("id") == "ios-app-lifecycle"), None)
  if pilot is None or pilot.get("package") != "ios-app-lifecycle":
   return False
+ expected = {
+  ("aarch64-apple-ios", "iphoneos"): "10.0",
+  ("aarch64-apple-ios-sim", "iphonesimulator"): "14.0",
+ }
  for key in ("targets", "abi_targets"):
-  device = [
-   target for target in pilot.get(key, [])
-   if target.get("triple") == "aarch64-apple-ios" and target.get("sdk") == "iphoneos"
-  ]
-  if len(device) != 1 or device[0].get("minimum_os") != "4.0":
-   return False
+  targets = pilot.get(key, [])
+  for (triple, sdk), minimum in expected.items():
+   matches = [target for target in targets if target.get("triple") == triple and target.get("sdk") == sdk]
+   if len(matches) != 1 or matches[0].get("minimum_os") != minimum:
+    return False
+ if LINK_CHECK_PATH not in pilot.get("abi_scripts", []):
+  return False
+ if LINK_CHECK_PATH not in pilot.get("shell_scripts", []) or LINK_CHECK_PATH not in pilot.get("scoped_files", []):
+  return False
  return True
 
 
@@ -158,6 +169,7 @@ def check_contract(root, sources):
  queue = sources[QUEUE_PATH]
  mapping = sources[MAPPING_PATH]
  observers = sources[OBSERVERS_PATH]
+ link_probe = rust_without_comments(sources[LINK_PROBE_PATH])
  package = sources[CARGO_PATH]
  check_script = sources[CHECK_PATH]
  docs = " ".join(sources[DOC_PATH].split())
@@ -174,8 +186,15 @@ def check_contract(root, sources):
   failures.append("iOS lifecycle Cargo package name is missing")
  if not all(target in check_script for target in ("aarch64-apple-ios", "aarch64-apple-ios-sim")):
   failures.append("package check does not compile both iOS device and Simulator targets")
- if not check_profile_floor(sources[SPEC_PATH]):
-  failures.append("registered iOS lifecycle package floor must be iOS 4.0")
+ if not check_profile_targets(sources[SPEC_PATH]):
+  failures.append("registered iOS lifecycle link checks must use 10.0 device and 14.0 Simulator deployment floors")
+ if not all(fragment in link_probe for fragment in (
+  "MainThread::current()",
+  "IosApplicationLifecycle::new(main_thread)",
+  "lifecycle.state()",
+  "lifecycle.poll_event()",
+ )):
+  failures.append("link probe must construct and call the lifecycle backend")
  if not re.search(r"\bpub\s+struct\s+IosApplicationLifecycle\b", code):
   failures.append("public IosApplicationLifecycle type is missing")
  if not re.search(r"\bpub\s+fn\s+new\s*\([^)]*\bMainThread\b", code, re.S):
@@ -241,7 +260,9 @@ def check_contract(root, sources):
   "do not launch an app",
   "or prove termination behavior",
   "oldest queued event is dropped",
-  "api floor is ios 4.0",
+  "api-availability floor of ios 4.0",
+  "effective device deployment minimum is ios 10.0",
+  "registered simulator deployment minimum is ios 14.0",
   "raw signed native state value",
  )):
   failures.append("documentation must state aggregate/no-scene/runtime limits and the iOS 4.0 raw-state contract")
@@ -274,7 +295,7 @@ def main():
   if failures:
    emit("FAIL", "; ".join(failures[:6]))
    return
-  emit("PASS", "iOS lifecycle source contract, iOS 4.0 floor, and partial capability status are present; runtime behavior is not proven")
+  emit("PASS", "iOS lifecycle source contract, API availability and deployment floors, registered link probe, and partial capability status are present; runtime behavior is not proven")
  except Exception as error:
   emit("ERROR-BLOCKED", str(error)[:256])
 

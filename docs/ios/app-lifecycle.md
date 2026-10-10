@@ -52,9 +52,10 @@ run on the main queue, and panics are contained before a callback returns throug
 
 The backend is available in an iOS application after construction. It needs no user permission,
 entitlement, or usage-description key. It is not app-extension-safe because
-`UIApplication.sharedApplication` is unavailable to extensions. The API floor is iOS 4.0, the
-availability of `UIApplication.applicationState` and the iOS foreground/background notification
-declarations in the installed iPhoneOS SDK.
+`UIApplication.sharedApplication` is unavailable to extensions. The selected UIKit declarations
+have an API-availability floor of iOS 4.0. The effective device deployment minimum is iOS 10.0
+with the pinned Rust 1.94.1 `aarch64-apple-ios` target; its linker warns and clamps lower deployment
+settings to 10.0. The registered Simulator deployment minimum is iOS 14.0.
 
 ## Aggregate app lifecycle, not per-scene lifecycle
 
@@ -73,15 +74,20 @@ not promise cleanup time. The backend emits neither `LifecycleEvent::Terminated`
 ## Validation and evidence limits
 
 Run `sh platform/ios/ios-app-lifecycle/check.sh`, then the registered
-`ios-app-lifecycle` profile. Host regression tests use synthetic native state and notification
-values. Device and Simulator target checks establish compilation only; link/import checks establish
-linkage only. These checks do not launch an app, deliver a UIKit notification, exercise scene
-transitions, show runtime availability, or prove termination behavior.
+`ios-app-lifecycle` profile. The profile's link/import fixture links a small Rust consumer for
+device and Simulator, checks public framework and Objective-C imports, rejects Swift runtime
+imports, and verifies deployment metadata. Host regression tests use synthetic native state and
+notification values. Device and Simulator target checks establish compilation; link/import checks
+establish linkage only. These checks do not launch an app, deliver a UIKit notification, exercise
+scene transitions, show runtime availability, or prove termination behavior.
 
-The iOS 4.0 floor is supported by the installed Xcode 26.6 build 17F113 / iPhoneOS SDK 26.5
+The iOS 4.0 API-availability floor is supported by the installed Xcode 26.6 build 17F113 /
+iPhoneOS SDK 26.5
 `UIKit.framework/Headers/UIApplication.h`: `UIApplicationState` at lines 62–66,
 `applicationState` at line 137, and the two iOS 4.0 foreground/background declarations at lines
-551–552. Apple's public references: [`UIApplication.applicationState`](https://developer.apple.com/documentation/uikit/uiapplication/applicationstate),
+551–552. Separately, `check-link-imports.sh` verifies the effective iOS 10.0 device minimum emitted
+by Rust 1.94.1 and the iOS 14.0 Simulator minimum. Apple's public references:
+[`UIApplication.applicationState`](https://developer.apple.com/documentation/uikit/uiapplication/applicationstate),
 [`UIApplicationState`](https://developer.apple.com/documentation/uikit/uiapplication/state),
 [`UIApplicationDidBecomeActiveNotification`](https://developer.apple.com/documentation/uikit/uiapplication/didbecomeactivenotification),
 [`UIApplicationWillEnterForegroundNotification`](https://developer.apple.com/documentation/uikit/uiapplication/willenterforegroundnotification),
