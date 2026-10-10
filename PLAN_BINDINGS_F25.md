@@ -19,7 +19,8 @@ decoder resource
 
 ## Exact C contract
 
-- Optional Cargo feature: `ios-videotoolbox`
+- Optional Cargo feature: `ios-videotoolbox`; it enables `ios-media` with default features disabled
+  and the package's opt-in `videotoolbox` feature
 - Header: `framework_ios_videotoolbox.h`
 - Export: `FrameworkStatus framework_ios_videotoolbox_hardware_decode_supported(uint32_t codec_fourcc, uint8_t *out_supported)`
 - `codec_fourcc` is the four display-order bytes in a big-endian `uint32_t`; e.g. `avc1` is `0x61766331`. Every 32-bit value is passed through

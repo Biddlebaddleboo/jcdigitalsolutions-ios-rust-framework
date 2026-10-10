@@ -7,6 +7,10 @@ license.workspace = true
 repository.workspace = true
 description = "Bounded iOS media-time, audio-status, and VideoToolbox capability adapters"
 
+[features]
+default = []
+videotoolbox = ["dep:objc2-video-toolbox"]
+
 [dependencies]
 framework-media = { path = "../../../crates/framework-media", version = "0.1.0" }
 
@@ -14,7 +18,7 @@ framework-media = { path = "../../../crates/framework-media", version = "0.1.0" 
 objc2 = { workspace = true, features = ["std"] }
 objc2-core-media = { workspace = true, features = ["CMTime"] }
 objc2-avf-audio = { workspace = true, features = ["AVAudioSession"] }
-objc2-video-toolbox = { workspace = true, features = ["VTDecompressionSession", "objc2-core-media"] }
+objc2-video-toolbox = { workspace = true, features = ["VTDecompressionSession", "objc2-core-media"], optional = true }
 
 [lints]
 workspace = true

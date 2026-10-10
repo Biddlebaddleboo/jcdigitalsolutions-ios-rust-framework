@@ -13,14 +13,14 @@ mod audio_playback;
 #[cfg(target_os = "ios")]
 pub use audio_playback::other_audio_playback_snapshot;
 
-#[cfg(target_os = "ios")]
+#[cfg(all(target_os = "ios", feature = "videotoolbox"))]
 mod video_toolbox;
 
-#[cfg(target_os = "ios")]
+#[cfg(all(target_os = "ios", feature = "videotoolbox"))]
 pub use video_toolbox::hardware_decode_support;
 
 /// Reports that VideoToolbox hardware-decode status is unavailable on non-iOS targets.
-#[cfg(not(target_os = "ios"))]
+#[cfg(all(not(target_os = "ios"), feature = "videotoolbox"))]
 pub fn hardware_decode_support(
     _codec: framework_media::VideoCodecType,
 ) -> Option<framework_media::HardwareDecodeSupport> {

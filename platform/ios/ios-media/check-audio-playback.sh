@@ -17,6 +17,10 @@ done
 
 cargo doc --locked --no-deps -p ios-media
 features=$(cargo tree --locked -p ios-media --target aarch64-apple-ios -e features)
+if printf '%s\n' "$features" | grep -q 'objc2-video-toolbox'; then
+    printf '%s\n' 'VideoToolbox capability leaked into the default audio feature graph' >&2
+    exit 1
+fi
 if printf '%s\n' "$features" | grep -E 'feature "(AVAudioEngine|AVAudioPlayer|AVAudioRecorder|AVCaptureDevice|AVAudioUnit|AVAudioSourceNode|AVAudioSinkNode|block2)"'; then
     printf '%s\n' 'out-of-scope AVFAudio or audio-input features are enabled' >&2
     exit 1

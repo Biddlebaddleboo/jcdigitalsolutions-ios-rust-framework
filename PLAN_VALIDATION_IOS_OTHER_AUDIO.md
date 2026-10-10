@@ -12,10 +12,11 @@ Gate D42/B47's portable scalar contract and iOS `AVAudioSession.isOtherAudioPlay
 
 `sh platform/ios/ios-media/check-audio-playback.sh` runs format, portable no-default check and
 strict Clippy, device/Simulator check and strict Clippy, rustdoc, dependency-feature audit, a Release
-link/import probe, docs-index check, zero-Swift-source check, and `git diff --check`. The probe
-requires AVFAudio, Foundation, libobjc, and libSystem imports; checks for the singleton/getter
-selectors; rejects audio-operation, capture, permission, and Swift-runtime symbols; and audits
-deployment metadata. It links but does not run
+link/import probe, docs-index check, zero-Swift-source check, and `git diff --check`. Its default
+feature graph excludes the opt-in VideoToolbox adapter. The probe requires exactly AVFoundation,
+CoreFoundation, CoreMedia, Foundation, libobjc, and libSystem imports; checks for the
+singleton/getter selectors; rejects VideoToolbox, audio-operation, capture, permission, and
+Swift-runtime symbols; and audits deployment metadata. It links but does not run
 
 ## Evidence limits
 

@@ -10,6 +10,8 @@ Implement one synchronous, non-mutating iOS query for whether any other app is p
   typed `objc2-avf-audio` 0.3.2 binding with only its `AVAudioSession` feature
 - Return `framework_media::OtherAudioPlaybackSnapshot`; report iOS 6.0 as the API floor
 - Keep generated Objective-C calls inside `ios-media`; expose no Objective-C object
+- Keep the separate VideoToolbox adapter behind `ios-media`'s opt-in `videotoolbox` feature so the
+  default audio path does not link VideoToolbox
 - Make no main-thread, permission, entitlement, or microphone-usage-string claim
 - Document the broad snapshot semantics, ambient-audio behavior, and Apple recommendation to use
   `secondaryAudioShouldBeSilencedHint` for most mixing decisions

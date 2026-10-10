@@ -22,6 +22,8 @@ does not request permission or expose a native handle.
   binding: `objc2-video-toolbox` 0.3.2, defaults disabled, with `VTDecompressionSession` and
   `objc2-core-media` features. No Swift ABI, privacy permission, Info.plist key, or entitlement is
   required for this scalar query.
+- Keep the `ios-media` Cargo feature `videotoolbox` opt-in and disabled by default so CoreMedia and
+  AVAudioSession-only consumers do not link VideoToolbox.
 - The status is capability metadata only. Apple states that `true` does not guarantee future
   hardware decoder resources.
 

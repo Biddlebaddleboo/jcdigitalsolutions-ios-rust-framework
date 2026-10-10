@@ -46,7 +46,7 @@ ios-sign-in-with-apple-status = { path = "../../platform/ios/ios-sign-in-with-ap
 ios-accelerate = { path = "../../platform/ios/ios-accelerate", version = "0.1.0", optional = true }
 ios-key-support = { path = "../../platform/ios/ios-key-support", version = "0.1.0", optional = true }
 ios-mps-status = { path = "../../platform/ios/ios-mps-status", version = "0.1.0", optional = true }
-ios-media = { path = "../../platform/ios/ios-media", version = "0.1.0", optional = true }
+ios-media = { path = "../../platform/ios/ios-media", version = "0.1.0", optional = true, default-features = false, features = ["videotoolbox"] }
 ios-camera-device-status = { path = "../../platform/ios/ios-camera-device-status", version = "0.1.0", optional = true }
 ios-core-ml-status = { path = "../../platform/ios/ios-core-ml-status", version = "0.1.0", optional = true, default-features = false }
 ios-speech-status = { path = "../../platform/ios/ios-speech-status", version = "0.1.0", optional = true }

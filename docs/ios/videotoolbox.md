@@ -4,6 +4,9 @@
 result. `ios-media` implements `hardware_decode_support(codec)` with Apple's
 `VTIsHardwareDecodeSupported` predicate.
 
+Enable the `ios-media` Cargo feature `videotoolbox` to use this adapter. It is disabled by default,
+so callers using only CoreMedia time or audio-session status do not link VideoToolbox.
+
 ```rust
 use framework_media::VideoCodecType;
 
