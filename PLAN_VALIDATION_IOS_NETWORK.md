@@ -12,6 +12,20 @@ G4's macOS static `ios-network` gates and documentation were integrated. This pl
 - CI YAML parsing, `cargo xtask docs-check`, and `git diff --check` previously passed. This is historical evidence only; subsequent changes require revalidation.
 - No Apple runtime reference implementation/result, deterministic local-server differential, real URLSession execution, or measured HTTP replacement parity exists. Xcode 26.6/SDK 26.5 is not Xcode 27.x qualification.
 
+## 2026-10-10 hosted Xcode 27 static-gate evidence
+
+GitHub Actions run [38075483431](https://github.com/Biddlebaddleboo/jcdigitalsolutions-ios-rust-framework/actions/runs/38075483431) passed at source SHA `85db105389c1d0b212bc385d9b4b6a1f6e049c0b`. Its `Rust checks (xcode-27)` job used Xcode 27.0 build `27A266a`, iPhoneOS SDK 27.0, and iPhoneSimulator SDK 27.0. These exact G4 steps passed:
+
+- `Check iOS network device target` — `cargo check --locked -p ios-network --target aarch64-apple-ios`
+- `Check iOS network simulator target` — `cargo check --locked -p ios-network --target aarch64-apple-ios-sim`
+- `Clippy iOS network device target` — `cargo clippy --locked -p ios-network --all-targets --target aarch64-apple-ios -- -D warnings`
+- `Clippy iOS network simulator target` — `cargo clippy --locked -p ios-network --all-targets --target aarch64-apple-ios-sim -- -D warnings`
+- `Link and audit iOS network imports` — `sh platform/ios/ios-network/check-link-imports.sh`
+
+The link/import gate built Release probes for device and Simulator and passed without executing either probe. The run source SHA is an ancestor of current `origin/main` `141e1e443515c42f14f0ca973070f58d2841c5d1`; no path changes occurred between them in `crates/framework-network/**`, `platform/ios/ios-network/**` (including the link/import script), `.github/workflows/ci.yml`, `Cargo.toml`, `Cargo.lock`, `PLAN_IOS_NETWORK.md`, or `docs/ios/network.md`. These hosted results therefore apply to the current static-gate inputs.
+
+This is compile, strict-Clippy, and static link/import evidence only. It does not establish URLSession runtime behavior, deterministic local-server differential, runtime parity, or performance. The existing reference/candidate and representative physical-device Release measurement requirements remain open.
+
 ## Installed tooling usage and requirements
 
 `ios-rust-build` and `ios-rust-validate` are installed, source-isolated tools (`docs/SHARED_TOOLING.md`). `ios-network` is **not** a registered four-pilot validator capability in the inspected `tools/validation/specs/validation-v1.json`; do not invent a passing `--capability ios-network` invocation. Keep the following gates in CI/local execution unless a schema-v1 profile is added and exact positive/negative parity established:
