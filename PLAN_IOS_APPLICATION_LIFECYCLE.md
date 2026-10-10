@@ -86,10 +86,13 @@ an app without delivering it. `Terminating` is only a state update paired with
 Use only public UIKit/Foundation APIs. The installed Xcode 26.6 build 17F113, iPhoneOS SDK 26.5
 headers mark `UIApplicationState`, `UIApplication.applicationState`,
 `UIApplicationDidEnterBackgroundNotification`, and
-`UIApplicationWillEnterForegroundNotification` available from iOS 4.0. Set the package/API floor
-to iOS 4.0. This package targets iOS applications only; it is not app-extension-safe because
-`UIApplication.sharedApplication` is unavailable to extensions. No claim is made for macOS,
-Mac Catalyst, tvOS, watchOS, Simulator runtime behavior, or physical-device notification behavior.
+`UIApplicationWillEnterForegroundNotification` available from iOS 4.0. This is the API-availability
+floor. The effective device deployment minimum is iOS 10.0 with pinned Rust 1.94.1; the compiler
+warns and clamps lower deployment settings to that minimum. The registered Simulator minimum is
+iOS 14.0. The link/import fixture checks both Mach-O deployment values. This package targets iOS
+applications only; it is not app-extension-safe because `UIApplication.sharedApplication` is
+unavailable to extensions. No claim is made for macOS, Mac Catalyst, tvOS, watchOS, Simulator
+runtime behavior, or physical-device notification behavior.
 
 ## Deterministic tests
 
@@ -109,11 +112,13 @@ state is explicitly checked to leave the event queue empty.
 ## Acceptance commands
 
 The package `check.sh` runs the host tests, device and Simulator checks, strict Clippy, rustdoc,
-formatting, and source-surface guards. Root then runs the registered `ios-app-lifecycle` profile and
-reports its structured checks without claiming runtime proof.
+formatting, and source-surface guards. Root then runs the registered `ios-app-lifecycle` profile,
+including its device/Simulator link/import fixture, and reports its structured checks without
+claiming runtime proof.
 
 ```sh
 sh platform/ios/ios-app-lifecycle/check.sh
+sh platform/ios/ios-app-lifecycle/check-link-imports.sh
 cargo +1.94.1 test --locked -p ios-app-lifecycle
 cargo +1.94.1 check --locked -p ios-app-lifecycle --target aarch64-apple-ios
 cargo +1.94.1 check --locked -p ios-app-lifecycle --target aarch64-apple-ios-sim

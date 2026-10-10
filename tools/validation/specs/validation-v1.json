@@ -43,10 +43,12 @@
   ],
   "pilots": [
     {
-      "abi_scripts": [],
+      "abi_scripts": [
+        "platform/ios/ios-app-lifecycle/check-link-imports.sh"
+      ],
       "abi_targets": [
         {
-          "minimum_os": "4.0",
+          "minimum_os": "10.0",
           "sdk": "iphoneos",
           "triple": "aarch64-apple-ios"
         },
@@ -69,6 +71,8 @@
             "platform/ios/ios-app-lifecycle/src/observers.rs",
             "platform/ios/ios-app-lifecycle/Cargo.toml",
             "platform/ios/ios-app-lifecycle/check.sh",
+            "platform/ios/ios-app-lifecycle/check-link-imports.sh",
+            "platform/ios/ios-app-lifecycle/examples/link_probe.rs",
             "docs/ios/app-lifecycle.md",
             "docs/capabilities/capability-status.json",
             "tools/validation/specs/validation-v1.json"
@@ -106,7 +110,9 @@
         "Cargo.lock",
         "platform/ios/ios-app-lifecycle/Cargo.toml",
         "platform/ios/ios-app-lifecycle/check.sh",
+        "platform/ios/ios-app-lifecycle/check-link-imports.sh",
         "platform/ios/ios-app-lifecycle/check-surface.sh",
+        "platform/ios/ios-app-lifecycle/examples/link_probe.rs",
         "platform/ios/ios-app-lifecycle/src/lib.rs",
         "platform/ios/ios-app-lifecycle/src/platform.rs",
         "platform/ios/ios-app-lifecycle/src/queue.rs",
@@ -119,14 +125,15 @@
       ],
       "shell_scripts": [
         "platform/ios/ios-app-lifecycle/check.sh",
-        "platform/ios/ios-app-lifecycle/check-surface.sh"
+        "platform/ios/ios-app-lifecycle/check-surface.sh",
+        "platform/ios/ios-app-lifecycle/check-link-imports.sh"
       ],
       "source_dirs": [
         "platform/ios/ios-app-lifecycle"
       ],
       "targets": [
         {
-          "minimum_os": "4.0",
+          "minimum_os": "10.0",
           "sdk": "iphoneos",
           "triple": "aarch64-apple-ios"
         },
