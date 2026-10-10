@@ -18,8 +18,8 @@ if printf '%s\n' "$host_features" | grep -F 'objc2-media-player'; then
 fi
 
 features=$(cargo tree --locked -p ios-media-library-status --target aarch64-apple-ios -e features)
-printf '%s\n' "$features" | grep -F 'objc2-media-player feature \"MPMediaLibrary\"' >/dev/null
-if printf '%s\n' "$features" | grep -E 'objc2-media-player feature \"(default|block2|MPMediaItem|MPMediaQuery|MPMusicPlayerController)\"'; then
+printf '%s\n' "$features" | grep -F 'objc2-media-player feature "MPMediaLibrary"' >/dev/null
+if printf '%s\n' "$features" | grep -E 'objc2-media-player feature "(default|block2|MPMediaItem|MPMediaQuery|MPMusicPlayerController)"'; then
     echo "MediaPlayer authorization query must not enable default, callback, item, query, or player APIs" >&2
     exit 1
 fi
