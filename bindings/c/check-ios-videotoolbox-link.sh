@@ -12,6 +12,14 @@ for tool in awk cargo clang clang++ diff jq nm otool rg sed sort vtool xcrun; do
     fi
 done
 
+sysroot=$(rustc --print sysroot)
+host=$(rustc -vV | sed -n 's/^host: //p')
+llvm_nm="$sysroot/lib/rustlib/$host/bin/llvm-nm"
+if [ ! -x "$llvm_nm" ]; then
+    echo "Rust LLVM symbol tool is required for this audit: $llvm_nm" >&2
+    exit 1
+fi
+
 sh bindings/c/check-ios-videotoolbox.sh
 
 cargo tree --locked -e features -p framework-c-api --target aarch64-apple-ios \
@@ -76,12 +84,12 @@ clang -std=c11 -Wall -Wextra -Werror -pedantic -I bindings/c/include \
 clang++ -std=c++17 -Wall -Wextra -Werror -pedantic -I bindings/c/include \
     target/framework-c-ios-videotoolbox-cpp.cpp "$host_archive" \
     -o target/framework-c-ios-videotoolbox-cpp-host
-nm -g "$host_archive" 2>/dev/null \
+"$llvm_nm" -g "$host_archive" 2>/dev/null \
     | rg -o '_framework_ios_videotoolbox_[A-Za-z0-9_]+' \
     | sed 's/^_//' | LC_ALL=C sort -u \
     > target/framework-c-ios-videotoolbox-host-symbols.txt
 diff -u "$expected_symbols" target/framework-c-ios-videotoolbox-host-symbols.txt
-nm -u "$host_archive" 2>/dev/null \
+"$llvm_nm" -u "$host_archive" 2>/dev/null \
     > target/framework-c-ios-videotoolbox-host-undefined.txt
 if rg -q 'VTIsHardwareDecodeSupported|VideoToolbox|CoreMedia|AVAudioSession|AVFAudio|objc_msgSend|OBJC_CLASS|swift_' \
     target/framework-c-ios-videotoolbox-host-undefined.txt; then
@@ -173,7 +181,7 @@ for target in aarch64-apple-ios aarch64-apple-ios-sim; do
         printf '%s %s VideoToolbox imports and iOS %s minimum verified; probe not executed\n' \
             "$target" "$language" "$deployment_target"
     done
-    nm -g "$archive" 2>/dev/null \
+    "$llvm_nm" -g "$archive" 2>/dev/null \
         | rg -o '_framework_ios_videotoolbox_[A-Za-z0-9_]+' \
         | sed 's/^_//' | LC_ALL=C sort -u \
         > "target/framework-c-ios-videotoolbox-$target-archive-symbols.txt"

@@ -12,6 +12,14 @@ for tool in awk cargo clang clang++ diff jq nm otool rg sed sort strings vtool x
     fi
 done
 
+sysroot=$(rustc --print sysroot)
+host=$(rustc -vV | sed -n 's/^host: //p')
+llvm_nm="$sysroot/lib/rustlib/$host/bin/llvm-nm"
+if [ ! -x "$llvm_nm" ]; then
+    echo "Rust LLVM symbol tool is required for this audit: $llvm_nm" >&2
+    exit 1
+fi
+
 sh bindings/c/check-ios-camera-device-status.sh
 
 cargo tree --locked -e features -p framework-c-api --target aarch64-apple-ios \
@@ -78,12 +86,12 @@ clang -std=c11 -Wall -Wextra -Werror -pedantic -I bindings/c/include \
 clang++ -std=c++17 -Wall -Wextra -Werror -pedantic -I bindings/c/include \
     target/framework-c-ios-camera-device-status-cpp.cpp "$host_archive" \
     -o target/framework-c-ios-camera-device-status-cpp-host
-nm -g "$host_archive" 2>/dev/null \
+"$llvm_nm" -g "$host_archive" 2>/dev/null \
     | rg -o '_framework_ios_camera_device_status_[A-Za-z0-9_]+' \
     | sed 's/^_//' | LC_ALL=C sort -u \
     > target/framework-c-ios-camera-device-status-host-symbols.txt
 diff -u "$expected_symbols" target/framework-c-ios-camera-device-status-host-symbols.txt
-nm -u "$host_archive" 2>/dev/null \
+"$llvm_nm" -u "$host_archive" 2>/dev/null \
     > target/framework-c-ios-camera-device-status-host-undefined.txt
 if rg -q 'AVCaptureDevice|AVMediaTypeVideo|AVFoundation|objc_|OBJC_CLASS|swift_' \
     target/framework-c-ios-camera-device-status-host-undefined.txt; then
@@ -181,7 +189,7 @@ for target in aarch64-apple-ios aarch64-apple-ios-sim; do
         printf '%s %s AVFoundation imports and iOS %s minimum verified; probe not executed\n' \
             "$target" "$language" "$deployment_target"
     done
-    nm -g "$archive" 2>/dev/null \
+    "$llvm_nm" -g "$archive" 2>/dev/null \
         | rg -o '_framework_ios_camera_device_status_[A-Za-z0-9_]+' \
         | sed 's/^_//' | LC_ALL=C sort -u \
         > "target/framework-c-ios-camera-device-status-$target-archive-symbols.txt"
