@@ -196,8 +196,15 @@ def check_contract(root, sources):
   or not near(platform_code, "addObserverForName", "Some(operation_queue)", 400)
  ):
   failures.append("notification callbacks are not bound to NSOperationQueue.mainQueue")
- if not near(platform_code, "RcBlock::new", "ios_runtime::ffi::catch_unwind", 700) or not near(platform_code, "ios_runtime::ffi::catch_unwind", "events.apply", 300):
+ if (
+  not near(platform_code, "RcBlock::new", "callback()", 350)
+  or not near(platform_code, "make_observer_callback", "Arc::downgrade", 300)
+  or not near(platform_code, "make_observer_callback", "contain_unwind", 300)
+  or not near(platform_code, "fn contain_unwind", "ios_runtime::ffi::catch_unwind", 200)
+ ):
   failures.append("native notification callback panic containment is missing")
+ if not near(observers_code, "Weak<Mutex<EventQueue>>", "events.upgrade", 400):
+  failures.append("observer callback must weakly access live event state")
  if not drop_removes_observer(observers_code) or "removeObserver" not in platform_code:
   failures.append("observer removal from a Drop implementation is missing")
  if not re.search(r"\b[A-Za-z_]\w*observers?\s*:", platform_code, re.I):

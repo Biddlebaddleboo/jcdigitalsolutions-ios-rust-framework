@@ -100,6 +100,12 @@ coalescing; initial-state-without-event behavior; termination state/event limits
 registration seam; and panic containment. Do not use sleeps, app launch, lifecycle UI actions, or a
 live Notification Center as a required unit-test oracle.
 
+The host fixture registers a callback with a fake Notification Center, removes its token through
+`ObserverOwner` during backend teardown, then invokes the retained callback and verifies weak event
+state is no longer live. A shared callback factory also lets the host test prove panic containment;
+the iOS target build verifies production wiring to `ios_runtime::ffi::catch_unwind`. Initial seeded
+state is explicitly checked to leave the event queue empty.
+
 ## Acceptance commands
 
 The package `check.sh` runs the host tests, device and Simulator checks, strict Clippy, rustdoc,

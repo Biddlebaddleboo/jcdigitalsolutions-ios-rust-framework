@@ -1,5 +1,5 @@
 use crate::mapping::application_state;
-use crate::observers::{ObserverOwner, ObserverRemover};
+use crate::observers::{ObserverOwner, ObserverRemover, make_observer_callback};
 use crate::queue::{EventQueue, LifecycleNotification};
 use block2::RcBlock;
 use framework_app::{ApplicationBackend, ApplicationState, LifecycleEvent};
@@ -141,17 +141,17 @@ fn add_observer(
     notification: LifecycleNotification,
     events: &Arc<Mutex<EventQueue>>,
 ) -> ObserverToken {
-    let events = Arc::clone(events);
-    let block: RcBlock<ObserverBlock> = RcBlock::new(move |_notification| {
-        let _ = ios_runtime::ffi::catch_unwind(|| {
-            let mut events = events.lock().unwrap_or_else(PoisonError::into_inner);
-            events.apply(notification);
-        });
-    });
+    let callback = make_observer_callback(
+        Arc::downgrade(events),
+        move |events| events.apply(notification),
+        contain_unwind,
+    );
+    let block: RcBlock<ObserverBlock> = RcBlock::new(move |_notification| callback());
     // SAFETY: UIKit lifecycle notifications use these static Foundation names and no object
     // filter. The main operation queue confines execution to UIKit's main thread. Captured
-    // callback state is `Arc<Mutex<_>>`, so the escaping block satisfies the API's sendability
-    // requirement. The center retains the copied block until its observer token is removed.
+    // callback state uses `Weak<Mutex<_>>`, so the escaping block cannot keep detached event
+    // state alive; its captures satisfy the API's sendability requirement. The center retains
+    // the copied block until its observer token is removed.
     unsafe {
         center.addObserverForName_object_queue_usingBlock(
             Some(name),
@@ -160,4 +160,8 @@ fn add_observer(
             &block,
         )
     }
+}
+
+fn contain_unwind(callback: &mut (dyn FnMut() + '_)) {
+    let _ = ios_runtime::ffi::catch_unwind(callback);
 }
