@@ -5,20 +5,20 @@ repo_root="$(git -C "$(dirname "$0")" rev-parse --show-toplevel)"
 cd "$repo_root"
 
 source_file=platform/ios/ios-message-ui-support/src/lib.rs
-if ! rg -q 'unsafe \{ MFMailComposeViewController::canSendMail\(mtm\) \}' "$source_file"; then
+if ! grep -Fq 'unsafe { MFMailComposeViewController::canSendMail(mtm) }' "$source_file"; then
     printf '%s\n' 'missing the canSendMail status query' >&2
     exit 1
 fi
-if ! rg -q 'unsafe \{ MFMessageComposeViewController::canSendText\(mtm\) \}' "$source_file"; then
+if ! grep -Fq 'unsafe { MFMessageComposeViewController::canSendText(mtm) }' "$source_file"; then
     printf '%s\n' 'missing the canSendText status query' >&2
     exit 1
 fi
-unsafe_calls=$(rg -c 'unsafe \{' "$source_file")
+unsafe_calls=$(grep -Fc 'unsafe {' "$source_file")
 if [ "$unsafe_calls" -ne 2 ]; then
     printf '%s\n' 'out-of-scope MessageUI call found' >&2
     exit 1
 fi
-if rg -n 'present|delegate|setToRecipients|setCcRecipients|setBccRecipients|setSubject|setMessageBody|addAttachment|TextMessageAvailability|MFMailComposeResult|MessageComposeResult' "$source_file"; then
+if grep -nE 'present|delegate|setToRecipients|setCcRecipients|setBccRecipients|setSubject|setMessageBody|addAttachment|TextMessageAvailability|MFMailComposeResult|MessageComposeResult' "$source_file"; then
     printf '%s\n' 'compose UI, callback, content, or result API found' >&2
     exit 1
 fi
