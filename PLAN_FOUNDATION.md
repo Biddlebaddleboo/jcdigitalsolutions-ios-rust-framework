@@ -268,7 +268,7 @@ Foundation requalification on Rust `1.94.1`:
 - `rustfmt +1.94.1 --check crates/framework-core/src/lib.rs crates/framework-async/src/lib.rs crates/framework-alloc/src/lib.rs crates/framework-abi/src/lib.rs` — PASS
 - `git diff --check` — PASS
 
-The formatter also expanded two pre-existing one-line handle constructors in `framework-abi`; no behavior changed. This is host test and structural IR evidence only; no device/Simulator runtime, 32-bit execution, or performance claim is made.
+This is host test and structural IR evidence only; no device/Simulator runtime, 32-bit execution, or performance claim is made.
 
 ### Owned-buffer copy acceptance requalification (2026-10-10)
 

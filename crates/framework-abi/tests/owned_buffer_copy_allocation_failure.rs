@@ -2,7 +2,7 @@ use core::alloc::{GlobalAlloc, Layout};
 use core::ptr;
 use core::sync::atomic::{AtomicUsize, Ordering};
 use framework_abi::{
-    framework_owned_buffer_copy, FrameworkOwnedBuffer, FrameworkSlice, FrameworkStatus,
+    FrameworkOwnedBuffer, FrameworkSlice, FrameworkStatus, framework_owned_buffer_copy,
 };
 use std::alloc::System;
 

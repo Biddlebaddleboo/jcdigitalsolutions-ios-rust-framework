@@ -532,11 +532,7 @@ pub struct FrameworkOperationHandle(u64);
 impl FrameworkOperationHandle {
     /// Creates a nonzero handle from its C representation.
     pub const fn new(raw: u64) -> Option<Self> {
-        if raw == 0 {
-            None
-        } else {
-            Some(Self(raw))
-        }
+        if raw == 0 { None } else { Some(Self(raw)) }
     }
 
     /// Creates a C handle from a portable operation ID.
@@ -566,11 +562,7 @@ pub struct FrameworkErrorHandle(u64);
 impl FrameworkErrorHandle {
     /// Creates a handle from its C representation; zero is reserved.
     pub const fn new(raw: u64) -> Option<Self> {
-        if raw == 0 {
-            None
-        } else {
-            Some(Self(raw))
-        }
+        if raw == 0 { None } else { Some(Self(raw)) }
     }
 
     /// Returns the fixed-width C representation.
