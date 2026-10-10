@@ -44,8 +44,24 @@ for target in aarch64-apple-ios aarch64-apple-ios-sim; do
     grep -Fq 'UIApplication' "$binary_strings"
     grep -Fq 'connectedScenes' "$binary_strings"
     grep -Fq 'activationState' "$binary_strings"
+    for notification in \
+        UISceneWillConnectNotification \
+        UISceneDidDisconnectNotification \
+        UISceneDidActivateNotification \
+        UISceneWillDeactivateNotification \
+        UISceneWillEnterForegroundNotification \
+        UISceneDidEnterBackgroundNotification; do
+        grep -Fq "_$notification" "$symbols"
+    done
+    for selector in \
+        addObserverForName:object:queue:usingBlock: \
+        getCharacters:range: \
+        persistentIdentifier \
+        removeObserver:; do
+        grep -Fq "$selector" "$binary_strings"
+    done
     if grep -Eiq 'swift|SceneDelegate|setDelegate:|requestSceneSession|openSessions' "$symbols" "$binary_strings"; then
-        echo "unexpected Swift runtime or scene-lifecycle/configuration API in $symbols or $binary_strings" >&2
+        echo "unexpected Swift runtime, delegate replacement, or scene creation/configuration API in $symbols or $binary_strings" >&2
         exit 1
     fi
 

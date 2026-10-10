@@ -1,17 +1,7 @@
-# B81 iOS app scene snapshot
+# iOS app scene activity and lifecycle
 
-`ios-app-scenes` reads scene activation-state counts from the caller app's `UIApplication.connectedScenes` in one synchronous main-thread pass. It makes no atomic cross-scene or after-return guarantee
+`ios-app-scenes` provides the B81 point-in-time scene activity snapshot and the B454 per-scene lifecycle event source. The snapshot's count-only semantics are unchanged. See [the API guide](../../../docs/ios/app-scenes.md) for examples, identity/overflow behavior, SDK evidence, and limits.
 
-- The API needs a caller-owned `ios_runtime::main_thread::MainThread` proof
-- The public API floor is iOS 13.0 from both scene symbols in the iOS 26.5 SDK headers
-- The result owns only integer counts and exposes no scene object, identifier, name, or callback
-- A connected scene can be foreground or background and on or offscreen, so this API makes no visibility claim
-- Zero scene values is a valid snapshot and does not mean that the app process is absent or terminated
-- No permission, entitlement, usage string, scene manifest, or scene delegate is needed for this query
-- An app that needs scene lifecycle callbacks must configure a `UISceneDelegate` through its app host; this crate does not register a delegate or receive events
-- `UIApplication.sharedApplication` is unavailable to app extensions, so this package is for app targets only
-- No scene control, window creation, presentation, process lifecycle, background-work, or runtime guarantee is part of this API
+The lifecycle source observes UIKit's six public `UIScene` notifications on the main operation queue, owns/removes its tokens, identifies each event with a Rust-owned copy of the session's UTF-16 persistent identifier, and uses a bounded 32-event drop-oldest queue with a cumulative dropped-event count. It does not replace the host scene delegate or perform UI operations. The package adds no Swift source.
 
-The narrow generated binding set is `objc2-ui-kit 0.3.2` with `std`, `UIApplication`, `UIScene`, `UISceneDefinitions`, and `UIResponder`, plus `objc2-foundation 0.3.2` with `NSArray` and `NSEnumerator` for safe set-to-array iteration
-
-Run `sh platform/ios/ios-app-scenes/check.sh` after the root lock includes this workspace package
+Run `sh platform/ios/ios-app-scenes/check.sh` for iOS device/Simulator compilation, strict Clippy, rustdoc, and actual link/import inspection. Run `cargo +1.94.1 test --locked -p ios-app-scenes` for host mapping, queue, identity, weak-state teardown, and panic-containment regressions. None of these checks delivers a UIKit notification or proves Simulator/device runtime behavior.
