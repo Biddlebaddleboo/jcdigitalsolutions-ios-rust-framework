@@ -89,6 +89,8 @@ symbols/selectors, device 12.0 and Simulator 14.0 minos checks, and D76's iOS 10
 Xcode 27 CallKit requalification is pending; no consumer or probe execution/runtime behavior is
 claimed
 
+Main CI run `38049963372` on head `af6607bd7195ccd8b5a707f02c8dd2c6bbc1feba` passed macOS steps 241–243 (preferences, MediaPlayer, SpriteKit) and then failed CallKit step 244 in macOS job `114206929893`. The hosted log shows `check-ios-call-observer.sh` reached the host Release archive build and exited 1 before fixture success output; no failing command/error was printed. The script still used Xcode 16.4 Apple `nm` on Rust host/device/Simulator archives with stderr suppressed, while the linked Mach-O checks use separate `nm` invocations. The archive reader incompatibility with Rust LLVM 21 is strongly suspected from this location and repeated adjacent-gate failures, but is not confirmed by a direct error. In the same run, Xcode 27 job `114206929758` passed CallKit step 244. The script now uses rustc-sysroot/host `llvm-nm` for Rust archives only, retaining Apple `nm` for final Mach-O probes, the `-nostdinc++` correction, and all symbol/import, framework, and deployment-floor assertions. Static shell syntax and diff checks only; the check script was not rerun. The failure and source change provide no consumer-execution or runtime proof.
+
 ## Root integration steps
 
 After F12 adds its optional path dependency, refresh the root lock with:

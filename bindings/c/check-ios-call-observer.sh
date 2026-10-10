@@ -4,6 +4,13 @@ set -eu
 root=$(CDPATH= cd -- "$(dirname -- "$0")/../.." && pwd)
 cd "$root"
 mkdir -p target
+sysroot=$(rustc --print sysroot)
+host=$(rustc -vV | sed -n 's/^host: //p')
+llvm_nm="$sysroot/lib/rustlib/$host/bin/llvm-nm"
+if [ ! -x "$llvm_nm" ]; then
+    echo "Rust LLVM symbol tool is required for this audit: $llvm_nm" >&2
+    exit 1
+fi
 
 python3 -m json.tool bindings/c/abi-manifest.json > /dev/null
 sh -n bindings/c/check-ios-call-observer.sh
@@ -117,12 +124,12 @@ clang -std=c11 -Wall -Wextra -Werror -pedantic -I bindings/c/include -I target \
 clang++ -nostdinc++ -std=c++17 -Wall -Wextra -Werror -pedantic -I bindings/c/include -I target \
     target/framework-c-call-observer-cpp.cpp "$host_archive" \
     -o target/framework-c-call-observer-cpp-host
-nm -g "$host_archive" 2>/dev/null \
+"$llvm_nm" -g "$host_archive" 2>/dev/null \
     | rg -o '_framework_ios_call_observer_[A-Za-z0-9_]+' | sed 's/^_//' | sort -u \
     > target/framework-c-call-observer-host-symbols.txt
 diff -u target/framework-c-call-observer-expected-symbols.txt \
     target/framework-c-call-observer-host-symbols.txt
-nm -u "$host_archive" 2>/dev/null > target/framework-c-call-observer-host-undefined.txt
+"$llvm_nm" -u "$host_archive" 2>/dev/null > target/framework-c-call-observer-host-undefined.txt
 if rg -qi 'CallKit|CXCall|objc_msgSend|OBJC_CLASS|objc2' \
     target/framework-c-call-observer-host-undefined.txt; then
     echo "CallKit or Objective-C import leaked into the host archive" >&2
@@ -194,7 +201,7 @@ for target in aarch64-apple-ios aarch64-apple-ios-sim; do
         printf '%s %s imports and iOS %s minimum verified; probe not executed\n' \
             "$target" "$language" "$deployment_target"
     done
-    nm -g "$archive" 2>/dev/null \
+    "$llvm_nm" -g "$archive" 2>/dev/null \
         | rg -o '_framework_ios_call_observer_[A-Za-z0-9_]+' \
         | sed 's/^_//' | sort -u > "target/framework-c-call-observer-$target-archive-symbols.txt"
     diff -u target/framework-c-call-observer-expected-symbols.txt \
