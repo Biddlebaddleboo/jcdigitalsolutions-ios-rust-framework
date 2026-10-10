@@ -185,3 +185,7 @@ Prerequisite to resume B436: a supported compiler/runtime or generated C++ API m
 UTF-8 pointer-and-length construction of Swift `String` without shipping Swift source, relying on
 an underscored runtime symbol, or manually constructing Swift String storage. Alternatively, the
 public API contract must be explicitly narrowed to an input form whose conversion is lossless.
+
+## Post-B436 queue note
+
+After B436, D97 lists no next viable B/D task or ID. B436 needs a safe, lossless UTF-8 pointer-and-length path to Swift `String`; its cause and prerequisite stay above. Do not add an ID or widen scope. Root must pick a next B/D task or meet the B436 prerequisite first
