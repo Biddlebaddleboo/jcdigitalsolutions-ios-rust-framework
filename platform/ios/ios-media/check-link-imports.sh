@@ -44,7 +44,26 @@ for target in aarch64-apple-ios aarch64-apple-ios-sim; do
 
     otool -L "$binary" > "$imports"
     awk 'NR > 1 { path = $1; sub(/^.*\//, "", path); print path }' "$imports" | LC_ALL=C sort > "$libraries"
-    diff -u target/ios-media-link-imports-expected.txt "$libraries"
+    if ! diff -u target/ios-media-link-imports-expected.txt "$libraries"; then
+        echo "iOS media import mismatch diagnostics for $target (expected device/Simulator minos $deployment_target)" >&2
+        echo "--- otool -L $binary" >&2
+        otool -L "$binary" >&2 || true
+        echo "--- otool -l CoreMedia/libswiftCoreMedia load commands" >&2
+        otool -l "$binary" 2>&1 | awk '
+            $1 == "cmd" && ($2 == "LC_LOAD_DYLIB" || $2 == "LC_LOAD_WEAK_DYLIB") {
+                kind = $2
+                if (getline <= 0 || getline <= 0) next
+                if ($1 == "name" && $0 ~ /(CoreMedia|libswiftCoreMedia)/) {
+                    print "  " kind " " $0
+                }
+            }
+        ' >&2
+        echo "--- nm -u $binary" >&2
+        nm -u "$binary" >&2 || true
+        echo "--- vtool -show-build $binary" >&2
+        vtool -show-build "$binary" >&2 || true
+        exit 1
+    fi
 
     nm -u "$binary" > "$symbols"
     if ! grep -q 'CMTimeMake' "$symbols"; then
