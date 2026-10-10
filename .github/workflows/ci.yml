@@ -15,6 +15,13 @@ jobs:
         os: [macos-15, ubuntu-24.04]
     steps:
       - uses: actions/checkout@v4
+      - name: Install ripgrep for package guards
+        if: runner.os == 'macOS'
+        run: |
+          if ! command -v rg >/dev/null 2>&1; then
+            brew install ripgrep
+          fi
+          rg --version
       - name: Install pinned PATH tools
         run: |
           tools/install-tools.sh --prefix "$RUNNER_TEMP/ios-rust-tools"
