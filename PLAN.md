@@ -23,7 +23,7 @@ Reduce context usage and duplicated implementation/tooling without weakening mod
 1. **R1 shared native build support** — [PLAN_REUSE_BUILD.md](PLAN_REUSE_BUILD.md). Factor build machinery, never guessed ABI signatures.
 2. **R2 shared validation** — [PLAN_REUSE_VALIDATION.md](PLAN_REUSE_VALIDATION.md). Factor standard checks while retaining feature-specific public-API, import, symbol, availability, and ownership guards.
 3. **R3 reusable verified interop primitives** — [PLAN_REUSE_INTEROP.md](PLAN_REUSE_INTEROP.md). Only after R1 interface and R2 evidence gates are settled.
-4. **Stop after infrastructure integration** — Validate and hand off R1–R3; do not begin unfinished API/capability work. All deferred contractual functionality remains preserved for a separate user-authorized execution.
+4. **Finalize and stop** — After validating R1–R3, finish R1/R2 binary-tool stabilization and source isolation per PLAN_TOOLING_FINALIZATION.md; then stop without beginning unfinished API/capability work. All deferred contractual functionality remains preserved for a separate user-authorized execution.
 
 ## Current execution boundary — infrastructure only
 
@@ -31,8 +31,18 @@ Reduce context usage and duplicated implementation/tooling without weakening mod
 
 - Codex **may spawn bounded, independently implementable infrastructure sub-workstreams** under R1/R2/R3, with existing ownership, dependency ordering, isolated worktrees where parallel-safe, explicit interface contracts and integration testing. Do not invent or renumber workstream IDs just for delegation.
 - Codex **must not spawn API, capability, application-feature or backend-expansion workstreams**, nor use infrastructure migration as a reason to complete unrelated APIs. Existing pilot code may be adapted only as necessary for infrastructure refactoring, compiler/link correctness or regression validation, preserving its public contract and observable behavior. R3 is restricted to reusing verified existing interop primitives; compiler-only proofs do not authorize production Swift async, StoreKit, Translation or App Intents APIs.
-- Complete the R1/R2/R3 scope and tests, integrate in the prescribed order, review the final diff, report exact validation, skips and blockers, perform the ordinary implementation handoff and commit without temporary planning files. **Then STOP.** Do not select another backlog item, create follow-up implementation workstreams or resume API development without a new explicit user request.
+- Complete R1/R2/R3, then the explicitly authorized final R1/R2 stabilization; validate and commit the combined infrastructure handoff without temporary plans. **Then STOP.** Do not select another backlog item, create follow-up implementation workstreams or resume API development without a new explicit user request.
 - If a required infrastructure task is blocked, record its blocker and remaining owner rather than expanding scope into API work. Maintain all outstanding capability contracts for a later separately authorized cycle.
+
+## Final R1/R2 stabilization: PATH tools and source isolation
+
+This user-approved final infrastructure phase extends **existing R1 and R2**, not API work or a new numbered workstream. Implement [PLAN_TOOLING_FINALIZATION.md](PLAN_TOOLING_FINALIZATION.md) after reconciling latest main. Aim for near-zero routine Codex reading/modification of shared engine source: build and validation engines are installed, pinned, verified **host executables on PATH**; the regular framework checkout retains declarative configuration, optional Python validation adapters, small necessary Cargo bridges, and usage docs.
+
+- **R1:** Cargo may retain a **minimal Rust `build.rs` per pilot crate**. Cargo cannot use Python as its direct build-script language. The bridge invokes the installed build executable using argv rather than a shell, checks version/status and forwards vetted Cargo link/rebuild directives. It contains **no SDK discovery, C compilation/archive implementation or other shared engine internals**. Direct PATH invocation is supported as well. Do not require a Python runtime for normal builds.
+- **R2:** CI and validation scripts invoke the installed validation executable directly. Preserve non-validation `xtask` commands, full existing pilot assertions and their negative checks. Expose versioned declarative specs and optional separately executed Python 3 test adapters using a documented, bounded JSON protocol. Python adapter absence must never silently pass a required check.
+- **Isolation:** Retire the **shared engine implementations and their private test code** from the ordinary tracked checkout only after verified release artifacts, checksum/provenance, reproducible install, supported host coverage, smoke tests and real Cargo/CI parity. Preserve tool source at an immutable Git revision or in a maintenance-only repository. Do **not** delete `interop/swift-abi-core`, public headers, capability source/tests or unrelated `xtask` functionality.
+- **Escalation:** An API-development Codex session that is blocked by a suspected tooling defect writes and commits sanitized `BUG_REPORT_<DESCRIPTIVE_NAME>.md`, without recovering or patching the shared engine. A separate user-authorized tooling-maintenance session, coordinated with the assistant, owns the fix/release. The final editorial revision of `docs/` and `AGENTS.md` remains the assistant's responsibility afterward, **not** a delegated Codex workstream.
+- **Stop:** Integrate, independently verify, commit final tooling changes and STOP. Do not spawn or execute API, capability, application-feature or backend-expansion workstreams.
 
 ## Workstream identity and consolidation contract
 
