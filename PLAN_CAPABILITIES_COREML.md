@@ -24,3 +24,12 @@ The wrapper reads only `NSArray::count` and drops the retained array. It does no
 - Build but do not execute the device and simulator link probes; verify the exact CoreML import allowlist, Objective-C symbols, and absence of Swift runtime symbols
 - Do not add or run tests, execute probes, load a model, or run inference
 - These checks show compile and link shape only; they do not prove hardware availability, model compatibility, prediction success, or runtime performance
+
+## D51 audit — 2026-10-10
+
+- Base: `c14817086faaeae93767b797f600bc4f8fa09213`
+- The existing `ios_core_ml_status::has_available_compute_device()` meets the public boundary; no product-source change was needed. It returns `false` below iOS 17.0, calls only `MLModel::availableComputeDevices`, and returns whether its array count is nonzero
+- The pinned `ios-rust-build` and `ios-rust-validate` tools installed as version `0.1.0` for `x86_64-apple-darwin`, source SHA `2289e6a73257b696f6ae5ecd61ee20fd16ab8b37`
+- `ios-rust-validate --explain ios-core-ml-status` returned `unknown capability`; this capability has no registered validator pilot
+- `sh platform/ios/ios-core-ml-status/scripts/check.sh` passed with exit code 0. It covered host formatting, check, strict Clippy and rustdoc; iOS device and simulator checks/Clippy; iOS rustdoc; release device and simulator probe builds with import/symbol/string inspection; the zero-Swift-source check; and `git diff --check`
+- No tests were run and neither probe binary was executed. The gate does not establish a live device list, model compatibility, prediction success, or performance
