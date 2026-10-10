@@ -114,13 +114,19 @@ macOS CI is configured to run `cargo xtask no-std-link-probe` after `no-std-chec
 
 G41 D42/B47 `ios-media` other-audio package gate is also wired in macOS CI. It compiles and lints
 device and Simulator targets and audits the bounded AVAudioSession imports/selectors; probes are
-not executed, and no live audio state is claimed
+not executed, and no live audio state is claimed. Hosted run `38075483431` passed the Xcode 27
+`Check other-audio status contract and iOS backend` gate; see [the focused G41 plan](../PLAN_VALIDATION_IOS_OTHER_AUDIO.md).
 
-G42 `ios-playback/check.sh` and G43 `ios-message-ui-support/scripts/check.sh` plus
-`ios-shared-with-you-support/scripts/check.sh` are wired in macOS CI and passed locally on Xcode 26.6 /
-SDK 26.5. They compile and lint the bounded packages and link Release probes with exact framework
-imports and deployment floors. Probes are not executed; no live HDR, mail/text status, account,
-highlight, or collaboration behavior is claimed, and no CI workflow run is recorded.
+G42 `ios-playback/check.sh` passed locally on Xcode 26.6 / SDK 26.5 and in hosted run `38075483431`
+on Xcode 27. It compiles and lints the bounded package and links Release probes with exact framework
+imports and deployment floors. Probes are not executed; no live HDR behavior is claimed. See [the
+focused G42 plan](../PLAN_VALIDATION_IOS_PLAYBACK.md).
+
+G43 `ios-message-ui-support/scripts/check.sh` and `ios-shared-with-you-support/scripts/check.sh`
+passed locally on Xcode 26.6 / SDK 26.5. They compile and lint the bounded packages and link Release
+probes with exact framework imports and deployment floors. Probes are not executed; no live mail/text
+status, account, highlight, or collaboration behavior is claimed. Hosted G43 evidence was not
+reconciled in this pass.
 
 G44 `crates/framework-payments/scripts/check.sh` is wired in macOS CI and passed locally on Rust
 1.94.1 / Xcode 26.6 / SDK 26.5. It compiles and lints host, device, and Simulator targets, checks
@@ -134,14 +140,15 @@ enabled. No tests, link probes, live codec query, or device behavior were run.
 
 G46 `platform/ios/ios-cloud/check-cloudkit.sh` is wired in macOS CI and passed locally on Rust
 1.94.1 / Xcode 26.6 / SDK 26.5. It checks the portable no-default contract, device/Simulator
-compilation, strict Clippy, and CloudKit/Foundation/libSystem/libobjc imports. Both link probes were
-built but not executed; no live account query, entitlement validation, data access, or CI workflow
-run is claimed. See [the focused G46 plan](../PLAN_VALIDATION_IOS_CLOUDKIT_ACCOUNT_STATUS.md).
+compilation, strict Clippy, and CloudKit/Foundation/libSystem/libobjc imports. Hosted run `38075483431`
+passed the Xcode 27 package gate. Both link probes were built but not executed; no live account query,
+entitlement validation, or data access is claimed. See [the focused G46 plan](../PLAN_VALIDATION_IOS_CLOUDKIT_ACCOUNT_STATUS.md).
 
 G47 `platform/ios/ios-safety/scripts/check.sh` passed in its isolated worktree on Rust 1.94.1,
 Xcode 26.6, and iPhoneOS SDK 26.5. Host/device/Simulator checks, strict Clippy, rustdoc, and
 SafetyKit/Foundation/libSystem/libobjc import audits passed; probes were built, not executed. The
-getter-specific entitlement requirement and live device result remain unverified. See the
+getter-specific entitlement requirement and live device result remain unverified. Hosted run
+`38075483431` passed the Xcode 27 package gate. See the
 [focused G47 plan](../PLAN_VALIDATION_IOS_SAFETYKIT.md).
 
 G48 `platform/ios/ios-maps/check.sh` passed in the integrated checkout after its allowlist was
@@ -149,12 +156,15 @@ updated for the observed Foundation import. Portable no-default check/Clippy/doc
 Simulator check/Clippy, feature review, exact ARKit/Foundation/libSystem/libobjc imports, selector/
 symbol/string filters, and device/Simulator minos 12.0/14.0 passed. Probes were not executed; no
 runtime support query, camera access, or tracking result is claimed. See the
-[focused G48 plan](../PLAN_VALIDATION_IOS_ARKIT.md); the same package gate now also validates the D77 MapKit geometry slice, whose details are in [G68](../PLAN_VALIDATION_IOS_MAPKIT.md).
+[focused G48 plan](../PLAN_VALIDATION_IOS_ARKIT.md); hosted run `38075483431` passed the Xcode 27
+package gate. The same package gate now also validates the D77 MapKit geometry slice, whose details
+are in [G68](../PLAN_VALIDATION_IOS_MAPKIT.md).
 
 G49 `platform/ios/ios-game/check.sh` passed portable no-default check/strict Clippy/docs, iOS
 device/Simulator check/strict Clippy, and GameKit/Foundation import gates in its isolated worktree.
 Link probes were built, not executed; no signed entitlement, live player state, or authentication UI
-behavior is claimed. See the [focused G49 plan](../PLAN_VALIDATION_IOS_GAMEKIT.md).
+behavior is claimed. Hosted run `38075483431` passed the Xcode 27 package gate. See the
+[focused G49 plan](../PLAN_VALIDATION_IOS_GAMEKIT.md).
 
 G50 `platform/ios/ios-core-ml-status/scripts/check.sh` passed in the integrated checkout on Rust
 1.94.1 / Xcode 26.6 / iPhoneOS SDK 26.5. Host/device/Simulator checks, strict Clippy, rustdoc, and

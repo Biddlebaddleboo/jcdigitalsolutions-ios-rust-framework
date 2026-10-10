@@ -164,7 +164,8 @@ The current source-validation baseline is `d717f8ae4324bf2abc782816c7fb2e10dfa92
 - G3: hosted run `38075483431` passed the current harness/workspace gates, including 5 bench, 7 parity, and 7 xtask tests. Fake-adapter tests are not real parity; no Apple reference adapter, candidate suite, workload, or performance result exists. See `PLAN_VALIDATION_HARNESS.md`.
 - G4: hosted run `38075483431` passed both Xcode 27 device/Simulator checks, both strict Clippy gates, and the network link/import gate. Probes were linked, not executed. URLSession runtime parity/performance remain blocked on a named candidate, deterministic local fixture, and representative-device evidence; see `PLAN_VALIDATION_IOS_NETWORK.md`.
 - G35–G40: run `38075483431` passed the six hosted Apple package-gate steps on macOS 15 and Xcode 27; Ubuntu correctly skipped those macOS-only steps. The evidence is compile/lint/link only, not runtime or hardware proof. See the six targeted G35–G40 validation plans.
-- Next validation evidence queue: hosted Xcode 27 requalification for existing G30–G34 and G41–G49 static gates is in progress across independent subagent workstreams. These gates do not establish runtime behavior. No implementation-ready B/D, F, or replacement successor is recorded. Do not invent a workstream ID or capability scope.
+- G41, G42, and G46–G49: hosted run `38075483431` passed the named Xcode 27 package gates; evidence and limits are in their targeted plans. No runtime or hardware behavior is established. No G43–G45 targeted validation plan exists.
+- Next validation evidence queue: hosted Xcode 27 requalification for existing G30–G34 and G50–G54 targeted plans is in progress across independent subagent workstreams. These gates do not establish runtime behavior. No implementation-ready B/D, F, or replacement successor is recorded. Do not invent a workstream ID or capability scope.
 
 ## Active work selection and limits
 
