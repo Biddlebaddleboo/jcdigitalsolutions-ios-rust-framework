@@ -156,3 +156,32 @@ the repository's Xcode 27.x baseline
 Changed paths: `platform/ios/ios-widgetkit-reload/`, `docs/ios/widgetkit-reload.md`,
 `.github/workflows/ci.yml`, and this focused plan only. Root aggregate plans and capability matrix
 remain unchanged
+
+## B436 — blocked: per-kind reload needs length-aware Swift String construction
+
+B436 does not add production code. `WidgetCenter.reloadTimelines(ofKind:)` is a synchronous
+iOS 14.0 Swift API that requires a Swift `String`. A bounded compiler experiment on Xcode 26.6 /
+Swift 6.3.3 and the iOS 26.5 SDK compiled a temporary `acceptsString(_:)` oracle for
+`arm64-apple-ios14.0` and inspected its compiler-generated C++ header. The generated `swift::String`
+wrapper exposes compiler-backed value ownership but has no UTF-8 pointer-and-length constructor.
+
+The active public `_SwiftStdlibCxxOverlay.h` supplies `swift::String(const std::string&)`, but its
+implementation calls `String(cString: str.c_str())` through
+`_$sSS7cStringSSSPys4Int8VG_tcfC`. That conversion truncates at an embedded NUL, which Rust `&str`
+may contain. The existing C2 proof in `docs/swift-abi/STRING_CXX_PROOF.md` preserves embedded NUL
+only by constructing `swift::Array<uint8_t>` and calling a compiler-generated `makeString([UInt8])`
+Swift helper. That helper has no WidgetKit declaration and cannot be shipped under the repository's
+zero-Swift-source rule.
+
+The compiler-generated Objective-C++ Foundation bridge offers an `NSString` initializer, but its
+generated body calls the underscored Swift overlay symbol
+`_$sSS10FoundationE36_unconditionallyBridgeFromObjectiveCySSSo8NSStringCSgFZ`. B436 explicitly
+excludes undocumented/private runtime symbols, and the repository has no existing production
+Foundation-to-`swift::String` adapter to reuse. This workstream therefore does not guess String
+storage, silently truncate input, add a Swift helper, or use that underscored bridge. No WidgetKit
+API or behavior was changed.
+
+Prerequisite to resume B436: a supported compiler/runtime or generated C++ API must provide exact
+UTF-8 pointer-and-length construction of Swift `String` without shipping Swift source, relying on
+an underscored runtime symbol, or manually constructing Swift String storage. Alternatively, the
+public API contract must be explicitly narrowed to an input form whose conversion is lossless.
