@@ -4,6 +4,36 @@
 
 > **Scope and evidence:** This handbook describes the interfaces verified in repository `Biddlebaddleboo/jcdigitalsolutions-ios-rust-framework` at commit `8b68d2909de9b5e926130265ba241c80ab653e99`. It is a usage guide, not a certification that all CI checks pass. At the inspected commit, shared-tool artifact CI passed while ordinary macOS and Ubuntu CI each retained a separately observed failure. Verify the current `main` SHA and current binary `--help`/`--version` before acting on a later revision.
 
+## Tooling ownership and version boundary (October 2026)
+
+The maintained implementation of `ios-rust-build` and `ios-rust-validate` now lives in the private `Biddlebaddleboo/jcdigitalsolutions-rust-tooling` repository. Normal framework sessions consume **version-pinned, checksummed binaries** and must not clone, inspect, or modify engine source. API-specific checks, specs, fixtures and adapters remain framework-owned.
+
+**Installed release is not the same as current tooling source.** At this documentation update, `tools/releases/manifest-v1.tsv` still pins version 0.1.0 from historical framework source `2289e6a73257b696f6ae5ecd61ee20fd16ab8b37`. The private tooling source has advanced to `a85a820bfc9e46c3a8a94917a450c98c7a1efbfb`. This does not prove that new binaries have been released, qualified or promoted here. Verify `command -v`, `--version --format json`, `--help` and the manifest before relying on an option.
+
+The private implementation adds resource-aware DAG parallelism, source snapshots including relevant uncommitted edits, incremental/watch validation, compilation caching, streaming diagnostics, owned-storage cleanup and cancellation recovery. Treat these as **features of the new source implementation, not of the older installed pin**, until the binaries are verified and promoted in a separately authorized release change. The newer design requires no Git commit or hosted runner for local snapshot validation. Hosted CI remains independent proof for a committed revision.
+
+### Validator-first Codex acceptance
+
+For every new or materially expanded capability, inspect the existing profile with `--list` and `--explain ID`. Create or extend the genuine Rust tests, native `check.sh` fixtures, C/C++ ABI checks, Swift compiler oracles and link/import checks required for its contract. Where schema v1 permits, **register required checks and exact inputs/dependencies** in `tools/validation/specs/validation-v1.json` and execute them using `--capability ID`. Use `--changed EXPLICIT_BASE` or broader coverage when shared inputs change.
+
+Running `cargo check`, Clippy, Swift, Clang or shell scripts directly may help debug an issue, but is **not a substitute for registered validation**. A new capability with no matching registered profile must not be reported as fully validated; where the current schema cannot express a necessary check, retain that independent CI/native check, record the coverage gap and escalate a focused tooling-maintenance request.
+
+Python 3 adapters are optional and should be used **only for distinct deterministic assertions not faithfully expressible with the existing schema or native checks**. Never generate an adapter simply to wrap Cargo or a shell script, or turn textual inspection into a false ABI/runtime PASS. Register adapter inputs, requiredness, deadlines and precise evidence. Follow `AGENTS.md` for required negative regression coverage and truthful PASS/FAIL/SKIPPED/ERROR-BLOCKED reporting.
+
+Avoid repetitive documentation-only audit cycles when the implementation and validation evidence have not changed. Focus on usable capability increments and real regressions.
+
+### Continuous local validation after binary promotion
+
+Only when the installed, checksummed binary's own `--help` advertises `--watch`, a foreground Codex session may use:
+
+```sh
+ios-rust-validate --workspace-root "$PWD" \
+  --spec "$PWD/tools/validation/specs/validation-v1.json" \
+  --all --watch
+```
+
+Codex may keep editing while a prior immutable snapshot is checked. Always associate failures and results with their attempt/snapshot identity; stale passes cannot certify new edits. Do not force `--watch` into the old pin or assume a release upgrade is authorized. A tooling release must be separately built, checked, atomically installed and verified with rollback; never overwrite a running validator in place.
+
 ## 1. Quick start (read this first)
 
 From the repository root on a supported build host:
