@@ -13,7 +13,6 @@ for tool in awk cargo clang diff grep nm otool sort vtool xcrun; do
 done
 
 cat > target/ios-media-link-imports-expected.txt <<'IMPORTS'
-CoreMedia
 libSystem.B.dylib
 IMPORTS
 
@@ -44,6 +43,11 @@ for target in aarch64-apple-ios aarch64-apple-ios-sim; do
 
     otool -L "$binary" > "$imports"
     awk 'NR > 1 { path = $1; sub(/^.*\//, "", path); print path }' "$imports" | LC_ALL=C sort > "$libraries"
+    if grep -Eqi '^libswift[^/[:space:]]*\.dylib$' "$libraries"; then
+        echo "$target probe imports a Swift runtime dylib" >&2
+        cat "$libraries" >&2
+        exit 1
+    fi
     if ! diff -u target/ios-media-link-imports-expected.txt "$libraries"; then
         echo "iOS media import mismatch diagnostics for $target (expected device/Simulator minos $deployment_target)" >&2
         echo "--- otool -L $binary" >&2
@@ -85,11 +89,11 @@ for target in aarch64-apple-ios aarch64-apple-ios-sim; do
     fi
 
     nm -u "$binary" > "$symbols"
-    if ! grep -q 'CMTimeMake' "$symbols"; then
-        echo "$target probe does not import CMTimeMake" >&2
+    if grep -q 'CMTimeMake' "$symbols"; then
+        echo "$target probe unexpectedly imports CMTimeMake" >&2
         exit 1
     fi
-    if grep -Eqi 'swift_|Py[A-Z_]|_OBJC_(CLASS|METACLASS)_\$_|AVFoundation|AVCapture|CMSampleBuffer|CMBlockBuffer|CMTimeMakeWithSeconds|CMTimeGetSeconds|CMTimeCompare' "$symbols"; then
+    if grep -Eqi 'swift|\$s|Py[A-Z_]|_OBJC_(CLASS|METACLASS)_\$_|AVFoundation|AVCapture|CMSampleBuffer|CMBlockBuffer|CMTimeMakeWithSeconds|CMTimeGetSeconds|CMTimeCompare' "$symbols"; then
         echo "unexpected runtime or out-of-scope media symbol import in $symbols" >&2
         exit 1
     fi

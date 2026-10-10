@@ -1,5 +1,5 @@
 use framework_media::MediaTime;
-use objc2_core_media::CMTime;
+use objc2_core_media::{CMTime, CMTimeFlags};
 
 const _: () = {
     assert!(core::mem::size_of::<CMTime>() == 24);
@@ -19,8 +19,13 @@ pub struct IosMediaTime {
 impl IosMediaTime {
     /// Creates a CoreMedia time with epoch zero and a positive timescale.
     pub fn from_portable(time: MediaTime) -> Self {
-        // SAFETY: `MediaTime` can only hold a strictly positive timescale, as required by `CMTime::new`
-        let value = unsafe { CMTime::new(time.value(), time.timescale()) };
+        // The finite rational maps to an exact numeric value without calling CMTimeMake.
+        let value = CMTime {
+            value: time.value(),
+            timescale: time.timescale(),
+            flags: CMTimeFlags::Valid,
+            epoch: 0,
+        };
         Self { value }
     }
 
