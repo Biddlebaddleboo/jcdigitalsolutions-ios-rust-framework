@@ -109,6 +109,17 @@ framework/symbol/API checks, device 12.0 and Simulator 14.0 minos checks, and th
 record. Xcode 27 MapKit requalification is pending; no consumer or probe execution/runtime behavior
 is claimed
 
+macOS 15 run `38051886481` on head `59555590b4fec231ea2f3686faff43df9e7220fb`, job
+`114212506152`, passed C ABI steps 241–244 and failed MapKit step 245. The hosted log shows the
+host Release archive build completing before `check-ios-maps.sh` exits with code 1 and no diagnostic;
+the script suppresses stderr for its Rust-archive symbol inspections, so the exact failing command
+is not confirmed by the log. This failure is consistent with the recurring Xcode 16.4 Apple `nm`
+incompatibility on Rust LLVM 21 archives, but that attribution remains inferred. The gate now uses
+Rust's sysroot-matched `llvm-nm` for host, device, and Simulator Rust archive inspections, while
+retaining Apple `nm` for linked Mach-O probes and preserving all export/import, framework, and
+deployment assertions. macOS 15 requalification is pending. These are compile/link and metadata
+checks only; no tests, consumer execution, or runtime behavior are claimed
+
 ## Root integration steps
 
 After the root lock refresh, add `sh bindings/c/check-ios-maps.sh` beside the other C ABI gates in
