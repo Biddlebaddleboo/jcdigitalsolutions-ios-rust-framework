@@ -22,6 +22,9 @@ For ordinary API/capability development, treat `ios-rust-build` and `ios-rust-va
 
 The above is a **workflow isolation policy**, not a security boundary. Engine source remains recoverable from immutable Git history for a deliberately separate maintenance session. Preserve all existing architecture, public Apple API, ABI, privacy, feature-isolation, zero-shipping-Swift and testing invariants in this file.
 
+
+**Hosted CI policy:** Framework `.github/workflows/ci.yml` and `.github/workflows/shared-tools.yml` are manual `workflow_dispatch` only. Ordinary API edits, pushes, and pull requests must not initiate hosted qualification; rely on the installed local validator for available gates, and request a manual clean-host run only for independent release/SDK proof or unsupported local requirements. Never treat an unrun hosted gate as passed.
+
 ## Required validation registration for API work
 
 Every new or materially expanded API capability must have **registered, executable validation coverage**, not merely a list of manually executed commands. Before declaring a capability complete:
