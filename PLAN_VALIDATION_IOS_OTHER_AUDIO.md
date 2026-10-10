@@ -36,6 +36,13 @@ VideoToolbox, and all Swift runtime dylibs, and the device and Simulator Release
 AVFoundation, Foundation, libobjc, and libSystem at minos 12.0 and 14.0. The separate B22
 `sh platform/ios/ios-media/check-link-imports.sh` gate also passed on this host with the default-enabled
 `core-media-time` feature; it retains its exact `libSystem.B.dylib` import assertion, rejects
-`CMTimeMake` and Swift runtime dependencies, and preserves those deployment floors. Xcode 27 CI
-requalification of both gates remains pending. Both sets of probes link but do not run; this is not
+`CMTimeMake` and Swift runtime dependencies, and preserves those deployment floors. The hosted Xcode
+27 run below requalifies the audio-only B47 gate and the separate default-feature B22 link/import gate.
+Both sets of probes link but do not run; this is not
 live audio/runtime evidence
+
+## Hosted Xcode 27 static-gate evidence (2026-10-10)
+
+The Xcode 27 lane in [GitHub Actions run 38075483431](https://github.com/Biddlebaddleboo/jcdigitalsolutions-ios-rust-framework/actions/runs/38075483431) passed step `Check other-audio status contract and iOS backend`, which ran `sh platform/ios/ios-media/check-audio-playback.sh` at source SHA `85db105389c1d0b212bc385d9b4b6a1f6e049c0b`. The runner recorded Xcode 27.0 build 27A266a, iPhoneOS and iPhoneSimulator SDK 27.0, and Rust 1.94.1. The script's format, no-default-feature check and strict Clippy, rustdoc, dependency-feature audit, Release link/import probes, docs-index, zero-Swift-source, and diff checks passed. The same run passed step `Link and audit iOS media imports and CMTime layout`, which ran `sh platform/ios/ios-media/check-link-imports.sh` for the default-enabled `core-media-time` profile. That script's exact `libSystem.B.dylib` import, no-`CMTimeMake`, no-Swift-runtime, and deployment-minimum assertions passed for device and Simulator; the probes were not executed. The `crates/framework-media/`, `platform/ios/ios-media/`, workspace manifest/lockfile, `xtask/`, and `.github/workflows/ci.yml` gate inputs are unchanged from the run SHA through current `origin/main` `5b59d9d`.
+
+This is static compile, lint, documentation, and link/import evidence only. The probes were linked and inspected, not executed; live audio state, source identity, mixing policy, and session-change behavior remain unverified.
