@@ -5,6 +5,14 @@ root=$(CDPATH= cd -- "$(dirname -- "$0")/../.." && pwd)
 cd "$root"
 mkdir -p target
 
+sysroot=$(rustc --print sysroot)
+host=$(rustc -vV | sed -n 's/^host: //p')
+llvm_nm="$sysroot/lib/rustlib/$host/bin/llvm-nm"
+if [ ! -x "$llvm_nm" ]; then
+    echo "Rust LLVM symbol tool is required for this audit: $llvm_nm" >&2
+    exit 1
+fi
+
 python3 -m json.tool bindings/c/abi-manifest.json > /dev/null
 sh -n bindings/c/check-ios-crypto.sh
 cargo fmt --package framework-c-api -- --check
@@ -131,12 +139,12 @@ clang -std=c11 -Wall -Wextra -Werror -pedantic -I bindings/c/include \
 clang++ -std=c++17 -Wall -Wextra -Werror -pedantic -I bindings/c/include \
     target/framework-c-ios-crypto-cpp.cpp "$host_archive" \
     -o target/framework-c-ios-crypto-cpp-host
-nm -g "$host_archive" 2>/dev/null \
+"$llvm_nm" -g "$host_archive" 2>/dev/null \
     | rg -o '_framework_ios_crypto_[A-Za-z0-9_]+' | sed 's/^_//' | sort -u \
     > target/framework-c-ios-crypto-host-symbols.txt
 diff -u target/framework-c-ios-crypto-expected-symbols.txt \
     target/framework-c-ios-crypto-host-symbols.txt
-nm -u "$host_archive" 2>/dev/null > target/framework-c-ios-crypto-host-undefined.txt
+"$llvm_nm" -u "$host_archive" 2>/dev/null > target/framework-c-ios-crypto-host-undefined.txt
 if rg -q 'CC_SHA256|CommonCrypto|Security|CryptoKit|objc|swift_' \
     target/framework-c-ios-crypto-host-undefined.txt; then
     echo "Apple crypto, Objective-C, or Swift import leaked into the host archive" >&2
@@ -204,7 +212,7 @@ for target in aarch64-apple-ios aarch64-apple-ios-sim; do
         printf '%s %s libSystem/_CC_SHA256 imports and iOS %s minimum verified; probe not executed\n' \
             "$target" "$language" "$deployment_target"
     done
-    nm -g "$archive" 2>/dev/null \
+    "$llvm_nm" -g "$archive" 2>/dev/null \
         | rg -o '_framework_ios_crypto_[A-Za-z0-9_]+' | sed 's/^_//' | sort -u \
         > "target/framework-c-ios-crypto-$target-archive-symbols.txt"
     diff -u target/framework-c-ios-crypto-expected-symbols.txt \
