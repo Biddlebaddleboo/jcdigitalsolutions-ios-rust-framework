@@ -8,17 +8,21 @@ cargo fmt --check -p framework-media -p ios-media
 cargo check --locked --no-default-features -p framework-media
 cargo clippy --locked --all-targets --no-default-features -p framework-media -- -D warnings
 cargo doc --locked --no-deps -p framework-media
-cargo check --locked -p ios-media
+cargo check --locked --no-default-features -p ios-media
 
 for target in aarch64-apple-ios aarch64-apple-ios-sim; do
-    cargo check --locked -p ios-media --target "$target"
-    cargo clippy --locked -p ios-media --all-targets --target "$target" -- -D warnings
+    cargo check --locked --no-default-features -p ios-media --target "$target"
+    cargo clippy --locked --no-default-features -p ios-media --all-targets --target "$target" -- -D warnings
 done
 
-cargo doc --locked --no-deps -p ios-media
-features=$(cargo tree --locked -p ios-media --target aarch64-apple-ios -e features)
+cargo doc --locked --no-default-features --no-deps -p ios-media
+features=$(cargo tree --locked -p ios-media --no-default-features --target aarch64-apple-ios -e features)
 if printf '%s\n' "$features" | grep -q 'objc2-video-toolbox'; then
-    printf '%s\n' 'VideoToolbox capability leaked into the default audio feature graph' >&2
+    printf '%s\n' 'VideoToolbox capability leaked into the audio-only feature graph' >&2
+    exit 1
+fi
+if printf '%s\n' "$features" | grep -q 'objc2-core-media'; then
+    printf '%s\n' 'CoreMedia time capability leaked into the audio-only feature graph' >&2
     exit 1
 fi
 if printf '%s\n' "$features" | grep -E 'feature "(AVAudioEngine|AVAudioPlayer|AVAudioRecorder|AVCaptureDevice|AVAudioUnit|AVAudioSourceNode|AVAudioSinkNode|block2)"'; then

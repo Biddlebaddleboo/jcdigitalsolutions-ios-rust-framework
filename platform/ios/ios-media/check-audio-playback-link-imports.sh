@@ -14,8 +14,6 @@ done
 
 cat > target/ios-media-audio-link-imports-expected.txt <<'IMPORTS'
 AVFoundation
-CoreFoundation
-CoreMedia
 Foundation
 libSystem.B.dylib
 libobjc.A.dylib
@@ -31,7 +29,7 @@ for target in aarch64-apple-ios aarch64-apple-ios-sim; do
             ;;
     esac
 
-    IPHONEOS_DEPLOYMENT_TARGET="$deployment_target" CARGO_TARGET_DIR="target/ios-media-audio-link-$target" cargo build --locked --release -p ios-media --example ios_audio_playback_link_probe --target "$target"
+    IPHONEOS_DEPLOYMENT_TARGET="$deployment_target" CARGO_TARGET_DIR="target/ios-media-audio-link-$target" cargo build --locked --release -p ios-media --no-default-features --example ios_audio_playback_link_probe --target "$target"
     binary="target/ios-media-audio-link-$target/$target/release/examples/ios_audio_playback_link_probe"
     imports="target/ios-media-audio-link-imports-$target.txt"
     libraries="target/ios-media-audio-link-libraries-$target.txt"
@@ -41,6 +39,11 @@ for target in aarch64-apple-ios aarch64-apple-ios-sim; do
 
     otool -L "$binary" > "$imports"
     awk 'NR > 1 { path = $1; sub(/^.*\//, "", path); print path }' "$imports" | LC_ALL=C sort > "$libraries"
+    if grep -Eqi '^libswift[^/[:space:]]*\.dylib$' "$libraries"; then
+        echo "$target audio probe imports a Swift runtime dylib" >&2
+        cat "$libraries" >&2
+        exit 1
+    fi
     diff -u target/ios-media-audio-link-imports-expected.txt "$libraries"
 
     nm -u "$binary" > "$symbols"

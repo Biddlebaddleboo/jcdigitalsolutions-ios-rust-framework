@@ -34,7 +34,7 @@ for target in aarch64-apple-ios aarch64-apple-ios-sim; do
     xcrun --sdk "$sdk_name" clang -target "$clang_target" -isysroot "$sdk" -std=c11 -fsyntax-only platform/ios/ios-media/examples/cm_time_layout.c
 
     target_dir="target/ios-media-link-$target"
-    IPHONEOS_DEPLOYMENT_TARGET="$deployment_target" RUSTFLAGS="${RUSTFLAGS:-} -C link-arg=-Wl,-dead_strip_dylibs" CARGO_TARGET_DIR="$target_dir" cargo build --locked --release -p ios-media --example ios_media_link_import_probe --target "$target"
+    IPHONEOS_DEPLOYMENT_TARGET="$deployment_target" RUSTFLAGS="${RUSTFLAGS:-} -C link-arg=-Wl,-dead_strip_dylibs" CARGO_TARGET_DIR="$target_dir" cargo build --locked --release -p ios-media --features core-media-time --example ios_media_link_import_probe --target "$target"
     binary="$target_dir/$target/release/examples/ios_media_link_import_probe"
     imports="target/ios-media-link-imports-$target.txt"
     libraries="target/ios-media-link-libraries-$target.txt"

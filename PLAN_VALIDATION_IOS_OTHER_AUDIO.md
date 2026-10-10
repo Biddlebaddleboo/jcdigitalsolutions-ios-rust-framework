@@ -12,9 +12,9 @@ Gate D42/B47's portable scalar contract and iOS `AVAudioSession.isOtherAudioPlay
 
 `sh platform/ios/ios-media/check-audio-playback.sh` runs format, portable no-default check and
 strict Clippy, device/Simulator check and strict Clippy, rustdoc, dependency-feature audit, a Release
-link/import probe, docs-index check, zero-Swift-source check, and `git diff --check`. Its default
-feature graph excludes the opt-in VideoToolbox adapter. The probe requires exactly AVFoundation,
-CoreFoundation, CoreMedia, Foundation, libobjc, and libSystem imports; checks for the
+link/import probe, docs-index check, zero-Swift-source check, and `git diff --check`. The audio-only
+checks use `--no-default-features` to exclude the default-enabled CoreMedia time adapter and the opt-in
+VideoToolbox adapter. The probe requires exactly AVFoundation, Foundation, libobjc, and libSystem imports; checks for the
 singleton/getter selectors; rejects VideoToolbox, audio-operation, capture, permission, and
 Swift-runtime symbols; and audits deployment metadata. It links but does not run
 
@@ -26,11 +26,16 @@ behavior under audio-session changes, or provide Apple parity/performance eviden
 
 ## Status
 
-The package gate and exact Release import allowlist are wired in CI. The full
+The package gate and exact Release import allowlist are wired in CI. The earlier full
 `sh platform/ios/ios-media/check-audio-playback.sh` gate passed locally at source-equivalent commit
 `1c8553f` (same source as `2a38984` except for the CI workflow), using Xcode 26.6 build 17F113, iOS
-SDK 26.5, Rust/Cargo 1.94.1, and pinned tooling 0.1.0. No checks were skipped. Both linked probes
-import exactly AVFoundation, CoreFoundation, CoreMedia, Foundation, libobjc, and libSystem; verified
-deployment floors are iOS 12.0 for device and iOS 14.0 for Simulator. The default feature graph
-excludes VideoToolbox. The probes linked but were not executed; this is not live audio/runtime
-evidence
+SDK 26.5, Rust/Cargo 1.94.1, and pinned tooling 0.1.0; that historical run predates CoreMedia time
+feature isolation and imported CoreMedia in the audio-only probe. After isolation, the full B47 gate
+passed locally on the same toolchain. Its `--no-default-features` profile rejects `objc2-core-media`,
+VideoToolbox, and all Swift runtime dylibs, and the device and Simulator Release probes import exactly
+AVFoundation, Foundation, libobjc, and libSystem at minos 12.0 and 14.0. The separate B22
+`sh platform/ios/ios-media/check-link-imports.sh` gate also passed on this host with the default-enabled
+`core-media-time` feature; it retains its exact `libSystem.B.dylib` import assertion, rejects
+`CMTimeMake` and Swift runtime dependencies, and preserves those deployment floors. Xcode 27 CI
+requalification of both gates remains pending. Both sets of probes link but do not run; this is not
+live audio/runtime evidence
