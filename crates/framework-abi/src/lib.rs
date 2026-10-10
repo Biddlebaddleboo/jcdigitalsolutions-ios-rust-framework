@@ -530,7 +530,11 @@ pub struct FrameworkOperationHandle(u64);
 impl FrameworkOperationHandle {
     /// Creates a nonzero handle from its C representation.
     pub const fn new(raw: u64) -> Option<Self> {
-        if raw == 0 { None } else { Some(Self(raw)) }
+        if raw == 0 {
+            None
+        } else {
+            Some(Self(raw))
+        }
     }
 
     /// Creates a C handle from a portable operation ID.
@@ -560,7 +564,11 @@ pub struct FrameworkErrorHandle(u64);
 impl FrameworkErrorHandle {
     /// Creates a handle from its C representation; zero is reserved.
     pub const fn new(raw: u64) -> Option<Self> {
-        if raw == 0 { None } else { Some(Self(raw)) }
+        if raw == 0 {
+            None
+        } else {
+            Some(Self(raw))
+        }
     }
 
     /// Returns the fixed-width C representation.
@@ -758,7 +766,14 @@ mod tests {
         let bytes = buffer.into_vec();
         assert_eq!(bytes, vec![4, 5, 6]);
 
-        let mut buffer = FrameworkOwnedBuffer::try_from_vec(vec![7, 8]).unwrap();
+        let bytes = vec![7, 8];
+        let original_data = bytes.as_ptr();
+        let original_capacity = bytes.capacity();
+        let mut buffer = FrameworkOwnedBuffer::try_from_vec(bytes).unwrap();
+        assert_eq!(buffer.data(), original_data.cast_mut());
+        assert_eq!(buffer.length(), 2);
+        assert_eq!(buffer.capacity(), u64::try_from(original_capacity).unwrap());
+        assert_eq!(buffer.as_bytes(), Some(&[7, 8][..]));
         // SAFETY: this descriptor is live, framework-created, and has not been copied or mutated.
         unsafe {
             framework_owned_buffer_destroy(&mut buffer);
