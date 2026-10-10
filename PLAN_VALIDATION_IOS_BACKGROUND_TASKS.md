@@ -27,3 +27,33 @@ No app launch, Info.plist scheduling configuration, real schedule request, deliv
 ## Validation and handoff
 
 Run the existing checks above until parity-tested registration exists; inspect `ios-rust-validate --list`/`--explain ID` before using any new profile. Report exact commands and target, Rust/Xcode/SDK versions, direct imports/minimum OS, skipped gates, original regression protection, changed paths and commit SHA. Keep unexecuted device/OS qualification explicitly open.
+
+## 2026-10-10 current-host recheck
+
+At source tree `d717f8ae4324bf2abc782816c7fb2e10dfa92105`, Rust 1.94.1, Xcode 26.6 build
+17F113, and iOS device/Simulator SDK 26.5, the following gates passed:
+
+- `cargo +1.94.1 check --locked -p framework-background --no-default-features`
+- `cargo +1.94.1 clippy --locked -p framework-background --no-default-features --all-targets -- -D warnings`
+- `cargo +1.94.1 check --locked -p ios-background-tasks --target aarch64-apple-ios` and the
+  matching `aarch64-apple-ios-sim` check
+- `cargo +1.94.1 clippy --locked -p ios-background-tasks --all-targets --target aarch64-apple-ios -- -D warnings`
+  and the matching `aarch64-apple-ios-sim` Clippy check
+- `sh platform/ios/ios-background-tasks/check-link-imports.sh`
+- `cargo +1.94.1 fmt --manifest-path crates/framework-background/Cargo.toml -- --check`,
+  `cargo +1.94.1 fmt --manifest-path platform/ios/ios-background-tasks/Cargo.toml -- --check`,
+  and `cargo +1.94.1 fmt --manifest-path tools/xtask/Cargo.toml -- --check`
+- `cargo +1.94.1 doc --locked -p framework-background -p ios-background-tasks --no-deps`
+- `cargo +1.94.1 --locked xtask docs-check` and
+  `cargo +1.94.1 --locked xtask zero-swift-source`
+
+The device and Simulator Release probes import exactly BackgroundTasks, Foundation,
+`libSystem.B.dylib`, and `libobjc.A.dylib`. Both retain `_BGTaskSchedulerErrorDomain`; the
+selected BackgroundTasks symbol/selector scan and forbidden Swift/Python/runtime and unrelated
+framework scan pass. Device minimum OS is 13.0; Simulator minimum OS is 14.0; both use SDK 26.5.
+`git diff --check` passes for this evidence update.
+
+This is Xcode 26.6 static compile, Clippy, documentation, and link/import evidence only. Xcode 27.x
+qualification remains open; no CI workflow run was part of this recheck. No scheduled/live task,
+callback, expiration, completion, app launch, Simulator behavior, or physical-device behavior is
+established.
