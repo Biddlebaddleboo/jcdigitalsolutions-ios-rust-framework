@@ -17,7 +17,7 @@ fn inspect_support<B: NfcReaderAvailabilityBackend>(reader: &NfcReader<B>) {
 
 `NfcReaderAvailability` is a copied one-byte semantic value. `NfcReader<B>` owns the explicitly supplied static backend; the crate has no platform lookup, global registry, allocation, executor, dynamic dispatch, prompt, or hidden initialization. The query is synchronous and each call is a fresh backend snapshot, not a subscription or cached session state.
 
-`Supported` means only that the backend reports device support for NFC tag reading. It does not mean an app has `NFCReaderUsageDescription`, an NFC reader-session entitlement, permission, a currently usable radio, a started session, a present tag, successful tag discovery, or background reading. `Unknown` allows a backend with no reliable support query to avoid reporting a false negative or positive.
+`Supported` means only that the backend reports device support for NFC tag reading. It does not establish app permission, `NFCReaderUsageDescription`, an NFC reader-session entitlement, a usable or started session, scan success, tag presence, readable tag data, or background NFC support. `Unknown` allows a backend with no reliable support query to avoid reporting a false negative or positive.
 
 This slice does not implement sessions, NDEF, tag discovery, tag protocols, tag reads/writes, card emulation, prompting, or background tag reading. Thus it is only a partial facet of the broader NFC session/tag-operations capability.
 

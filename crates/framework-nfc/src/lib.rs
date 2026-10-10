@@ -6,10 +6,10 @@
 /// One point-in-time report of whether the selected backend knows that NFC tag reading is
 /// supported by the device.
 ///
-/// `Supported` describes reader support only. It does not establish that an app has the required
-/// usage description or entitlement, that a reader session can start, that NFC is currently
-/// usable, or that a tag can be discovered. This crate exposes no session, prompt, polling, or tag
-/// operation.
+/// `Supported` describes device reader support only. It does not establish app permission, the
+/// required usage description or entitlement, a usable or started session, scan success, tag
+/// presence, tag reads, or background NFC support. This crate exposes no session, prompt, scan,
+/// polling, tag, or background operation.
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
 #[non_exhaustive]
 #[repr(u8)]
@@ -27,7 +27,9 @@ pub trait NfcReaderAvailabilityBackend {
     /// Returns the backend's current point-in-time reader-support report.
     ///
     /// This synchronous query must not create or start a reader session, prompt the user, scan for
-    /// tags, or read a tag. A backend that cannot classify support returns `Unknown`.
+    /// tags, read a tag, or perform background NFC work. Its result is not a promise of permission,
+    /// session availability, scan success, tag presence, or readable tag data. A backend that
+    /// cannot classify support returns `Unknown`.
     fn snapshot(&self) -> NfcReaderAvailability;
 }
 
@@ -71,7 +73,7 @@ mod tests {
     }
 
     #[test]
-    fn facade_preserves_snapshot_without_platform_or_global_state() {
+    fn facade_forwards_all_statuses_and_returns_owned_backend() {
         assert_eq!(core::mem::size_of::<NfcReaderAvailability>(), 1);
         for expected in [
             NfcReaderAvailability::Unknown,

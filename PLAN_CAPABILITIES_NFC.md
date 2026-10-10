@@ -32,3 +32,13 @@ Do not edit the root workspace manifest, canonical capability status manifest, a
 - Run `cargo fmt --all -- --check`, `cargo test -p framework-nfc`, `cargo check -p framework-nfc --no-default-features`, and `git diff --check`
 - Inspect the public API for `std`, platform types, allocation, dynamic dispatch, hidden initialization, and broader NFC claims
 - Report changed files, exact checks, limitations, and whether the broader row 040 remains unsupported
+
+## D32 reconciliation — 2026-10-09
+
+- The portable snapshot contract is complete for this slice. `framework-nfc` remains `#![no_std]`, forbids unsafe code, and depends only on `framework-core`; its public contract is the one-byte `#[repr(u8)]` `NfcReaderAvailability`, `NfcReaderAvailabilityBackend`, and generic `NfcReader<B>` facade.
+- `NfcReader<B>` owns the explicitly supplied backend and uses static generic dispatch. `snapshot` is synchronous and point-in-time; construction and query do not initialize a global service, prompt, start a session, scan, read a tag, or require an executor. No Apple type is in the portable crate.
+- The enum distinguishes `Unknown = 0`, `Supported = 1`, and `Unsupported = 2`. Rustdoc and the capability guide state that the snapshot does not establish permission, usage-description or entitlement configuration, session readiness, scan success, tag presence or reads, or background NFC support.
+- The existing deterministic fake-backend test covers all three statuses, facade forwarding, borrowed backend access, and returned backend ownership. Its name now describes those assertions. No new test behavior was needed.
+- Rust 1.94.1 checks passed: `cargo +1.94.1 fmt --all -- --check`; `cargo +1.94.1 test --locked --offline -p framework-nfc` (1 passed); `cargo +1.94.1 check --locked --offline -p framework-nfc --no-default-features`; `cargo +1.94.1 tree --locked --offline -p framework-nfc` (only `framework-core`); and `git diff --check`.
+- The pinned `ios-rust-build` and `ios-rust-validate` binaries reported version 0.1.0 and source SHA `2289e6a73257b696f6ae5ecd61ee20fd16ab8b37`. `ios-rust-validate --list` has no D32 profile; it lists only the four current iOS pilot profiles. The source/API audit found no `std`, `alloc`, dynamic dispatch, global state, Apple types, or NFC session/tag API in `framework-nfc`.
+- No native NFC query, hardware behavior, session, scan, or tag operation was run. Canonical capability row 040 remains `partial`; this slice does not claim full NFC session/tag support.
