@@ -44,16 +44,22 @@ lockfile and canonical capability-matrix integration. Do not add Swift source or
 
 ## Status
 
-Implemented in isolated worktree `/Users/john/Projects/.worktrees/jcdig-webkit-d28` on
-`workstream/capabilities-webkit-d28`, based on `main` HEAD `7b5513fa2a4864d21a594cbf1fbd43951427155d`.
-The public surface is `HttpsUrl`, `HttpsUrlError`, `WebViewError`, `NavigationState`, and `WebView`.
+Reconciled and rechecked in isolated worktree `/private/tmp/jc-d28-web` on
+`workstream/d28-web-contract`, based on current root `main` HEAD
+`3c92157aeae479ccc482cfb3d889df7271d15cfe`. Current root `Cargo.lock` resolves the package and its
+dependency tree without edits. The public surface is `HttpsUrl`, `HttpsUrlError`, `WebViewError`,
+`NavigationState`, and `WebView`. The crate borrows exact URI text; the focused tests now assert
+pointer/length identity and preservation of backend error category plus optional native code.
 
-Passed: `cargo check --locked --no-default-features -p framework-web`; `cargo test --locked -p
-framework-web` (3 passed); `cargo clippy --locked --all-targets -p framework-web -- -D warnings`;
-`cargo doc --locked --no-deps -p framework-web`; `cargo fmt --all -- --check`; `cargo xtask
-docs-check`; `cargo xtask zero-swift-source`; and `git diff --check`.
+Passed on Rust/Cargo `1.94.1`: `cargo +1.94.1 check --locked --offline --no-default-features -p
+framework-web`; `cargo +1.94.1 test --locked --offline -p framework-web` (4 passed);
+`cargo +1.94.1 clippy --locked --offline --all-targets -p framework-web -- -D warnings`;
+`cargo +1.94.1 fmt --all -- --check`; `cargo +1.94.1 --locked --offline xtask docs-check`;
+`cargo +1.94.1 --locked --offline xtask zero-swift-source`; `git diff --check`; and
+`RUSTUP_TOOLCHAIN=1.94.1 crates/framework-web/check.sh`. `cargo +1.94.1 tree --locked --offline
+-p framework-web` showed only `framework-core`, `framework-format`, and `iri-string` below the
+package.
 
-The crate and docs are complete for the bounded contract. Root lockfile and canonical capability
-matrix integration remain orchestrator-owned. The worktree lock was temporarily resolved for the
-package gates and will be restored before handoff; locked gates need root lock reconciliation to
-run on the integrated tree.
+No iOS backend, workspace, lockfile, capability-manifest, CI, C binding, or aggregate-plan edits;
+no Swift source. This validates only the portable contract and its crate gates. It makes no claim
+about native view creation, app/page behavior, network access, or platform runtime behavior.

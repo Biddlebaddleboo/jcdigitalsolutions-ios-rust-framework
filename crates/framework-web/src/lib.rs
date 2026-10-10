@@ -149,7 +149,10 @@ mod tests {
     #[test]
     fn https_url_preserves_exact_text_and_accepts_ipv6_authority() {
         let original = "HTTPS://user:pass@[2001:db8::1]:443/path?q=1#part";
-        assert_eq!(HttpsUrl::new(original).unwrap().as_str(), original);
+        let url = HttpsUrl::new(original).unwrap();
+        assert_eq!(url.as_str(), original);
+        assert_eq!(url.as_str().as_ptr(), original.as_ptr());
+        assert_eq!(url.as_str().len(), original.len());
     }
 
     #[test]
@@ -183,5 +186,18 @@ mod tests {
         assert!(!state.can_go_forward());
         let copied_state = state;
         assert_eq!(state, copied_state);
+    }
+
+    #[test]
+    fn web_view_error_preserves_backend_category_and_native_code() {
+        let code = PlatformErrorCode::new(-7).unwrap();
+        let error =
+            WebViewError::Backend(Error::new(ErrorKind::PermissionDenied).with_platform_code(code));
+        assert_eq!(error.kind(), ErrorKind::PermissionDenied);
+        assert_eq!(error.platform_code(), Some(code));
+
+        let invalid_url = WebViewError::InvalidUrl;
+        assert_eq!(invalid_url.kind(), ErrorKind::InvalidInput);
+        assert_eq!(invalid_url.platform_code(), None);
     }
 }
