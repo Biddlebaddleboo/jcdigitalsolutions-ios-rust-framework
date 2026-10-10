@@ -17,7 +17,7 @@ This inventory covers `swift-abi-core`, `swift-abi-generated`, and the ActivityK
 
 ## Extraction boundary
 
-The shared C header contains ABI layout declarations, static layout assertions, aligned storage helpers, and destroy/free. `tools/native-build-support` records the header as a Cargo input and adds its include directory to the target Clang command. The host fixture in `interop/swift-abi-core/tests/check-runtime-layout.sh` checks alignment, allocation rejection, and one destroy call. It adds no runtime dependency.
+The shared C header contains ABI layout declarations, static layout assertions, aligned storage helpers, and destroy/free. At immutable maintenance revision `2289e6a73257b696f6ae5ecd61ee20fd16ab8b37`, `tools/native-build-support` records the header as a Cargo input and adds its include directory to the target Clang command. The ordinary checkout retains each small Cargo bridge and declarative build spec; `tools/releases/manifest-v1.tsv` pins the builder source revision. The host fixture in `interop/swift-abi-core/tests/check-runtime-layout.sh` checks alignment, allocation rejection, and one destroy call. It adds no runtime dependency.
 
 No generic `swiftcall` invoker, Swift type registry, Swift value copier, closure bridge, task entry, executor, or async adapter was added. No Apple API signature, deployment floor, framework link, Rust result, or C ABI changed. The opaque value init and destroy calls remain beside the capability-specific oracle that proves them.
 

@@ -6,10 +6,9 @@ on:
     paths:
       - Cargo.lock
       - Cargo.toml
-      - tools/native-build-support/**
-      - tools/ios-rust-validate/**
-      - tools/xtask/src/validation.rs
-      - tools/validation/**
+      - tools/releases/manifest-v1.tsv
+      - tools/releases/README.md
+      - tools/install-tools.sh
       - .github/workflows/shared-tools.yml
   workflow_dispatch:
 
@@ -32,14 +31,32 @@ jobs:
             host_os: macos
     steps:
       - uses: actions/checkout@v4
+      - name: Resolve immutable tool source
+        id: pin
+        shell: bash
+        run: |
+          source_sha="$(awk -F '\t' 'NR > 1 { print $3 }' tools/releases/manifest-v1.tsv | sort -u)"
+          source_count="$(printf '%s\n' "$source_sha" | wc -l | tr -d ' ')"
+          if [ "$source_count" -ne 1 ] || ! [[ "$source_sha" =~ ^([0-9a-f]{40}|[0-9a-f]{64})$ ]]; then
+            printf 'release manifest must pin one full immutable source SHA\n' >&2
+            exit 1
+          fi
+          printf 'source_sha=%s\n' "$source_sha" >> "$GITHUB_OUTPUT"
+      - uses: actions/checkout@v4
+        with:
+          repository: ${{ github.repository }}
+          ref: ${{ steps.pin.outputs.source_sha }}
+          path: maintenance-source
+          persist-credentials: false
       - name: Install pinned Rust toolchain
         run: rustup toolchain install 1.94.1 --profile minimal
       - name: Install format and lint components
         run: rustup component add rustfmt clippy --toolchain 1.94.1
       - name: Build and verify PATH tools
+        working-directory: maintenance-source
         env:
           EXPECTED_HOST: ${{ matrix.host }}
-          TOOL_SOURCE_SHA: ${{ github.sha }}
+          TOOL_SOURCE_SHA: ${{ steps.pin.outputs.source_sha }}
           TOOL_HOST_OS: ${{ matrix.host_os }}
         run: |
           host="$(rustc +1.94.1 -vV | sed -n 's/^host: //p')"
@@ -57,22 +74,31 @@ jobs:
           grep -F "\"host\":\"$host\"" "$RUNNER_TEMP/ios-rust-build-version.json"
           grep -F "\"source_sha\":\"$TOOL_SOURCE_SHA\"" "$RUNNER_TEMP/ios-rust-validate-version.json"
           grep -F "\"host\":\"$host\"" "$RUNNER_TEMP/ios-rust-validate-version.json"
-          target/release/ios-rust-validate --workspace-root "$GITHUB_WORKSPACE" --spec "$GITHUB_WORKSPACE/tools/validation/specs/validation-v1.json" --list --format json
-          target/release/ios-rust-build build --workspace-root "$GITHUB_WORKSPACE" --spec "$GITHUB_WORKSPACE/platform/ios/ios-activitykit-status/build-spec.json" --target "$host" --target-os "$TOOL_HOST_OS" --out-dir "$RUNNER_TEMP/ios-rust-build-out" --manifest-dir "$GITHUB_WORKSPACE/platform/ios/ios-activitykit-status" --format json
-          mkdir -p "$RUNNER_TEMP/ios-rust-tools/bin"
-          cp target/release/ios-rust-build "$RUNNER_TEMP/ios-rust-tools/bin/ios-rust-build"
-          cp target/release/ios-rust-validate "$RUNNER_TEMP/ios-rust-tools/bin/ios-rust-validate"
-          printf '{"schema_version":1,"release_id":"ios-rust-tools-0.1.0+%s","source_sha":"%s","origin":"https://github.com/Biddlebaddleboo/jcdigitalsolutions-ios-rust-framework/tree/%s","host_triple":"%s","rustc_version":"%s"}\n' "$TOOL_SOURCE_SHA" "$TOOL_SOURCE_SHA" "$TOOL_SOURCE_SHA" "$host" "$rustc_version" > "$RUNNER_TEMP/ios-rust-tools/tool-metadata.json"
-          if command -v shasum >/dev/null 2>&1; then (cd "$RUNNER_TEMP/ios-rust-tools/bin" && shasum -a 256 ios-rust-build ios-rust-validate > "$RUNNER_TEMP/ios-rust-tools/SHA256SUMS"); else (cd "$RUNNER_TEMP/ios-rust-tools/bin" && sha256sum ios-rust-build ios-rust-validate > "$RUNNER_TEMP/ios-rust-tools/SHA256SUMS"); fi
-          tar -C "$RUNNER_TEMP/ios-rust-tools" -czf "$RUNNER_TEMP/ios-rust-tools-${host}.tar.gz" bin tool-metadata.json SHA256SUMS
-          if command -v shasum >/dev/null 2>&1; then shasum -a 256 "$RUNNER_TEMP/ios-rust-tools-${host}.tar.gz" > "$RUNNER_TEMP/ios-rust-tools-${host}.tar.gz.sha256"; else sha256sum "$RUNNER_TEMP/ios-rust-tools-${host}.tar.gz" > "$RUNNER_TEMP/ios-rust-tools-${host}.tar.gz.sha256"; fi
-          tools/install-tools.sh --prefix "$RUNNER_TEMP/verified-ios-rust-tools"
+          target/release/ios-rust-validate --workspace-root "$GITHUB_WORKSPACE/maintenance-source" --spec "$GITHUB_WORKSPACE/maintenance-source/tools/validation/specs/validation-v1.json" --list --format json
+          target/release/ios-rust-build build --workspace-root "$GITHUB_WORKSPACE/maintenance-source" --spec "$GITHUB_WORKSPACE/maintenance-source/platform/ios/ios-activitykit-status/build-spec.json" --target "$host" --target-os "$TOOL_HOST_OS" --out-dir "$RUNNER_TEMP/ios-rust-build-out" --manifest-dir "$GITHUB_WORKSPACE/maintenance-source/platform/ios/ios-activitykit-status" --format json
+          package="$RUNNER_TEMP/ios-rust-tools"
+          mkdir -p "$package/bin"
+          cp target/release/ios-rust-build "$package/bin/ios-rust-build"
+          cp target/release/ios-rust-validate "$package/bin/ios-rust-validate"
+          printf '{"schema_version":1,"release_id":"ios-rust-tools-0.1.0+%s","source_sha":"%s","origin":"https://github.com/Biddlebaddleboo/jcdigitalsolutions-ios-rust-framework/tree/%s","host_triple":"%s","rustc_version":"%s"}\n' "$TOOL_SOURCE_SHA" "$TOOL_SOURCE_SHA" "$TOOL_SOURCE_SHA" "$host" "$rustc_version" > "$package/tool-metadata.json"
+          if command -v shasum >/dev/null 2>&1; then (cd "$package/bin" && shasum -a 256 ios-rust-build ios-rust-validate > "$package/SHA256SUMS"); else (cd "$package/bin" && sha256sum ios-rust-build ios-rust-validate > "$package/SHA256SUMS"); fi
+          archive="$RUNNER_TEMP/ios-rust-tools-$host.tar.gz"
+          tar -C "$package" -czf "$archive" bin tool-metadata.json SHA256SUMS
+          if command -v shasum >/dev/null 2>&1; then (cd "$RUNNER_TEMP" && shasum -a 256 "ios-rust-tools-$host.tar.gz" > "ios-rust-tools-$host.tar.gz.sha256"); else (cd "$RUNNER_TEMP" && sha256sum "ios-rust-tools-$host.tar.gz" > "ios-rust-tools-$host.tar.gz.sha256"); fi
+          install_root="$RUNNER_TEMP/ios-rust-install-fixture"
+          mkdir -p "$install_root/tools/releases"
+          cp "$GITHUB_WORKSPACE/maintenance-source/tools/install-tools.sh" "$install_root/tools/install-tools.sh"
+          chmod 755 "$install_root/tools/install-tools.sh"
+          cp "$archive" "$install_root/tools/releases/ios-rust-tools-$host.tar.gz"
+          archive_sha="$(awk '{ print $1 }' "$archive.sha256")"
+          printf 'host_triple\trelease_id\tsource_sha\trustc_version\ttool_version\tarchive_path\tarchive_sha256\n%s\tios-rust-tools-0.1.0+%s\t%s\t%s\t0.1.0\ttools/releases/ios-rust-tools-%s.tar.gz\t%s\n' "$host" "$TOOL_SOURCE_SHA" "$TOOL_SOURCE_SHA" "$rustc_version" "$host" "$archive_sha" > "$install_root/tools/releases/manifest-v1.tsv"
+          "$install_root/tools/install-tools.sh" --prefix "$RUNNER_TEMP/verified-ios-rust-tools"
           "$RUNNER_TEMP/verified-ios-rust-tools/bin/ios-rust-build" --version --format json
           "$RUNNER_TEMP/verified-ios-rust-tools/bin/ios-rust-validate" --version --format json
       - name: Upload immutable-source build artifact
         uses: actions/upload-artifact@v4
         with:
-          name: ios-rust-tools-${{ matrix.host }}-${{ github.sha }}
+          name: ios-rust-tools-${{ matrix.host }}-${{ steps.pin.outputs.source_sha }}
           path: |
             ${{ runner.temp }}/ios-rust-tools-${{ matrix.host }}.tar.gz
             ${{ runner.temp }}/ios-rust-tools-${{ matrix.host }}.tar.gz.sha256
