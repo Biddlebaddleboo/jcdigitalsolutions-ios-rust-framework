@@ -46,3 +46,9 @@ defaults, encoder, or encoder-list features. `cargo xtask docs-check` passed, an
 summary counts match all 113 rows (36 implemented portable contracts, 22 partial portable contracts,
 85 partial implementations, 85 `B`, 28 `X`). `git diff --check` passed. No tests, link probes,
 probe execution, live codec query, or device behavior validation is included.
+
+Gate recheck (2026-10-10): `sh platform/ios/ios-media/check.sh` PASS at source-equivalent
+commit `3900cd1`; later commits through `2a38984` are docs/CI-only for these paths. Env: Xcode 26.6
+(build 17F113), SDK 26.5, Rust/Cargo 1.94.1, tools 0.1.0. Opt-in feature-isolation check: PASS;
+iOS API/device floor 11.0, Simulator build floor 14.0. No tests, link probes, runtime codec query,
+or device behavior check ran

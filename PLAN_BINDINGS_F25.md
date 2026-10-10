@@ -83,6 +83,12 @@ the Apple bindings; the default iOS graph excludes both F25 backend dependencies
 C++ probes imported only VideoToolbox and libSystem on device/Simulator; host C imported only
 libSystem and host C++ also imported libc++
 
+Gate recheck (2026-10-10): `sh bindings/c/check-ios-videotoolbox-link.sh` PASS at
+source-equivalent commit `3900cd1`; later commits through `2a38984` are docs/CI-only for these paths. Env:
+Xcode 26.6 (build 17F113), SDK 26.5, Rust/Cargo 1.94.1, tools 0.1.0. Feature isolation + exact
+linked-import audit: PASS; device minos 11.0, Simulator minos 14.0. Scope: C11/C++17 link/import
+compile only. No tests, consumers, probe binaries, or runtime codec query ran
+
 ## Acceptance and limits
 
 - Static gate checks source/header symbol agreement, manifest contract when root wiring exists,
