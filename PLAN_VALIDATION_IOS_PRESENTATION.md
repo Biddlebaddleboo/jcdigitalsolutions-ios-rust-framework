@@ -1,5 +1,9 @@
 # PLAN_VALIDATION_IOS_PRESENTATION.md — Workstream G9: iOS Presentation CI Gates
 
+## Completed shared tooling and future validation profiles
+
+R1/R2 PATH executables are complete. Follow `docs/SHARED_TOOLING.md`; this capability is **not registered** in the current four-pilot `tools/validation/specs/validation-v1.json`. Continue the existing focused checks specified below, including UIKit iOS device/simulator check and lint, CI YAML validity and live-alert limitations. Future coverage should be defined using schema-v1 JSON and an optional bounded Python adapter only if needed; do not remove the current script or its unique negative assertions before verified positive/negative and unavailable-tool failure parity. Static compile or link results do not imply device-runtime behavior. Do not retrieve or patch shared engine source during API work; file `BUG_REPORT_*.md` on suspected engine defects.
+
 ## Objective
 
 Add persistent iOS device and simulator compile/lint gates for the integrated partial `ios-presentation` acknowledgement-alert crate.

@@ -1,5 +1,9 @@
 # PLAN_VALIDATION_IOS_OTHER_AUDIO.md — Workstream G41: Other-Audio Snapshot Gate
 
+## Completed shared tooling and future validation profiles
+
+R1/R2 PATH executables are complete. Follow `docs/SHARED_TOOLING.md`; this capability is **not registered** in the current four-pilot `tools/validation/specs/validation-v1.json`. Continue the existing focused checks specified below, including AVFAudio singleton/getter selectors, exact imports, no-capture/no-Swift guards and deployment metadata. Future coverage should be defined using schema-v1 JSON and an optional bounded Python adapter only if needed; do not remove the current script or its unique negative assertions before verified positive/negative and unavailable-tool failure parity. Static compile or link results do not imply device-runtime behavior. Do not retrieve or patch shared engine source during API work; file `BUG_REPORT_*.md` on suspected engine defects.
+
 ## Objective
 
 Gate D42/B47's portable scalar contract and iOS `AVAudioSession.isOtherAudioPlaying` adapter
