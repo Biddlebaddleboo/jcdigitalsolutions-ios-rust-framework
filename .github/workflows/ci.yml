@@ -1,8 +1,8 @@
 name: CI
 
+# Local ios-rust-validate is the normal development gate.
+# Hosted qualification runs only when explicitly dispatched.
 on:
-  push:
-  pull_request:
   workflow_dispatch:
 
 jobs:
