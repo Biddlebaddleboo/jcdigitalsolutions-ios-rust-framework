@@ -1,33 +1,26 @@
-# PLAN_VALIDATION_IOS_METAL.md — Workstream G35: Metal Presence Query Gates
+# PLAN_VALIDATION_IOS_METAL.md — G35: Metal presence-query gates
 
-## Objective
+## Scope
+Gate the narrow D36/B41 default Metal device-presence query provided by `framework-metal` and `ios-metal`. Start with `PLAN_CAPABILITIES_METAL.md`, `PLAN_IOS_METAL.md`, package manifests, and focused native link/import checks. Do not broaden the work to GPU command queues or rendering.
 
-Define focused compile, lint, format, and documentation gates for the narrow B41 Metal default-device presence query. These gates do not prove GPU execution or performance.
+## Ownership and installed tools
+G35 owns this plan and package-local source/guides only when implementing D36/B41. CI, `docs/VALIDATION.md`, root configuration, global capability manifest and indexes remain with the orchestrator/integration owner. Lockfile edits must be limited to required scoped dependencies.
 
-## Dependencies
+The external R1/R2 tooling is finished. See `docs/SHARED_TOOLING.md`; G35 is **not registered** in `tools/validation/specs/validation-v1.json`. Use existing checks as the source of required coverage; add a declarative profile only if it preserves those checks and their negative cases. Do not implement or inspect the shared engine.
 
-- `PLAN_CAPABILITIES_METAL.md`, `PLAN_IOS_METAL.md`, `framework-metal`, and `ios-metal` are integrated
-- iOS device and simulator Rust targets and Xcode SDKs are installed
-- Shared CI integration remains orchestrator-owned
+## Required checks
+```sh
+cargo fmt --all -- --check
+cargo test -p framework-metal
+cargo check -p framework-metal --no-default-features
+cargo check --locked -p ios-metal --target aarch64-apple-ios
+cargo check --locked -p ios-metal --target aarch64-apple-ios-sim
+cargo clippy --locked -p ios-metal --all-targets --target aarch64-apple-ios -- -D warnings
+cargo clippy --locked -p ios-metal --all-targets --target aarch64-apple-ios-sim -- -D warnings
+cargo xtask docs-check
+git diff --check
+```
+Build the relevant iOS Release-linked library/probe and inspect its dependency and framework imports. Assert zero shipping `.swift` source, no Swift-runtime symbol, expected public Metal dependencies and no unrelated framework linkage. Link/import inspection is a separate acceptance gate; `cargo check` does not satisfy it. Preserve platform availability and `no_std` constraints.
 
-## Write scope
-
-- `PLAN_VALIDATION_IOS_METAL.md`
-- package-local source and guides only when completing D36/B41 work
-
-Do not edit `.github/workflows/ci.yml`, `docs/VALIDATION.md`, root workspace files, capability matrix, aggregate plans, documentation indexes, or unrelated source. The lockfile may contain only package/dependency entries required by D36/B41.
-
-## Required gates
-
-- `cargo fmt --all -- --check`
-- `cargo test -p framework-metal`
-- `cargo check -p framework-metal --no-default-features`
-- `cargo check -p ios-metal --target aarch64-apple-ios --locked`
-- `cargo check -p ios-metal --target aarch64-apple-ios-sim --locked`
-- `cargo clippy -p ios-metal --all-targets --target aarch64-apple-ios -- -D warnings`
-- `cargo clippy -p ios-metal --all-targets --target aarch64-apple-ios-sim -- -D warnings`
-- `cargo xtask docs-check`
-- Build the iOS release library and inspect dependency/framework imports; verify no `.swift` source and no Swift runtime symbol
-- `git diff --check`
-
-These gates provide source/target compilation, lint, and documentation evidence only. They do not measure device presence on physical hardware, initialize a rendering or compute pipeline, submit GPU work, validate Metal features, or establish throughput, power use, latency, or Simulator/device parity.
+## Limits and handoff
+These are source, compile, lint, documentation and link gates only. They do not measure actual device presence, construct a pipeline, submit GPU work, verify Metal feature sets, prove hardware power/latency/throughput, or establish simulator/device parity. Report checks, host/SDK/target, artifact imports, skips and SHA. A future validator profile must demonstrate equivalent positive and negative results before legacy script removal. Report engine defects in `BUG_REPORT_*.md`.
