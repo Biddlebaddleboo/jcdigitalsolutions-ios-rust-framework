@@ -44,8 +44,13 @@ pass `Validate shared native pilot capabilities` (`ios-rust-validate --all`) on 
 Apple-lane package checks: the Xcode 27 Sign in with Apple check lacks offline-cached
 `objc2-app-kit v0.3.2`, and macOS 15's older workflow condition tries to import the unavailable
 Foundation Models module. The Sign in with Apple check now performs a locked online iOS-target
-prefetch before its existing offline gates; its CI recheck and the new macOS 15 skip evidence are
-pending. Local Xcode 26.6 (build 17F113), SDK 26.5 gates pass for
+prefetch before its existing offline gates. Run
+[38035718695](https://github.com/Biddlebaddleboo/jcdigitalsolutions-ios-rust-framework/actions/runs/38035718695)
+confirms the macOS 15 Foundation Models step is skipped; run
+[38036063176](https://github.com/Biddlebaddleboo/jcdigitalsolutions-ios-rust-framework/actions/runs/38036063176)
+passes both `ios-rust-validate --all` and the Foundation Models gate on Xcode 27. The post-prefetch
+Sign in with Apple check is still pending in runs 38036184360 and 38036234051; these are step-level
+results, not full qualification-lane passes. Local Xcode 26.6 (build 17F113), SDK 26.5 gates pass for
 B47 full audio (`sh platform/ios/ios-media/check-audio-playback.sh`), B50 package
 (`sh platform/ios/ios-media/check.sh`), and F25 C link/import
 (`sh bindings/c/check-ios-videotoolbox-link.sh`); detailed results and limits are in [PLAN_IOS_OTHER_AUDIO.md](PLAN_IOS_OTHER_AUDIO.md), [PLAN_VALIDATION_IOS_OTHER_AUDIO.md](PLAN_VALIDATION_IOS_OTHER_AUDIO.md), [PLAN_IOS_VIDEOTOOLBOX.md](PLAN_IOS_VIDEOTOOLBOX.md), and [PLAN_BINDINGS_F25.md](PLAN_BINDINGS_F25.md). These local passes do not establish runtime behavior; no tests, probe execution, live codec query, or device behavior is claimed.
