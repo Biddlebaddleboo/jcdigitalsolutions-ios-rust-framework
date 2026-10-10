@@ -55,12 +55,14 @@ the iOS crate.
 
 ## Aggregate lifecycle and limits
 
-This backend reports `UIApplication` aggregate state and notification events. On scene-based apps,
-Apple defines `UIApplication.applicationState` from the most active scene; these notifications do
-not identify a scene or deliver one event per scene. B81's `ios-app-scenes` snapshot remains
-unchanged and is still the separate per-scene point-in-time query. Do not add a `UISceneDelegate`,
-scene identifiers, windows, UI operations, app-delegate replacement, method swizzling, or a claim
-that these notifications observe every scene transition.
+This B453 backend reports `UIApplication` aggregate state and notification events. On scene-based
+apps, Apple defines `UIApplication.applicationState` from the most active scene; these notifications
+do not identify a scene or deliver one event per scene. B81's `ios-app-scenes` snapshot remains
+unchanged as the separate per-scene point-in-time query. B454 adds a distinct
+`ios_app_scenes::IosSceneLifecycleEvents` source for per-scene notifications and session identity;
+it does not alter this B453 backend. Do not add a `UISceneDelegate`, per-scene identifiers,
+windows, UI operations, app-delegate replacement, or method swizzling to B453, or claim that its
+notifications observe every scene transition.
 
 The backend observes only after construction and makes no retroactive event claim. `Launching` is
 not emitted. iOS may suspend or terminate a process without a delivered

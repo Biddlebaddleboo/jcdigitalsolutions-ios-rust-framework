@@ -5,6 +5,10 @@
       "framework-app"
     ],
     [
+      "ios-app-scenes",
+      "ios-runtime"
+    ],
+    [
       "ios-app-lifecycle",
       "ios-runtime"
     ],
@@ -134,6 +138,88 @@
       "targets": [
         {
           "minimum_os": "10.0",
+          "sdk": "iphoneos",
+          "triple": "aarch64-apple-ios"
+        },
+        {
+          "minimum_os": "14.0",
+          "sdk": "iphonesimulator",
+          "triple": "aarch64-apple-ios-sim"
+        }
+      ]
+    },
+    {
+      "abi_scripts": [
+        "platform/ios/ios-app-scenes/check-link-imports.sh"
+      ],
+      "abi_targets": [
+        {
+          "minimum_os": "13.0",
+          "sdk": "iphoneos",
+          "triple": "aarch64-apple-ios"
+        },
+        {
+          "minimum_os": "14.0",
+          "sdk": "iphonesimulator",
+          "triple": "aarch64-apple-ios-sim"
+        }
+      ],
+      "adapters": [],
+      "cargo_tree": false,
+      "check_script": "platform/ios/ios-app-scenes/check.sh",
+      "clippy_all_targets": true,
+      "clippy_lib": false,
+      "docs": [
+        "docs/ios/app-scenes.md",
+        "docs/ios/app-lifecycle.md",
+        "docs/capabilities/capability-status.json",
+        "docs/capabilities/README.md",
+        "PLAN.md",
+        "PLAN_CAPABILITIES_APPLICATION_LIFECYCLE.md",
+        "PLAN_IOS_SCENE_SNAPSHOT.md",
+        "PLAN_VALIDATION_IOS_SCENE_SNAPSHOT.md"
+      ],
+      "expected_imports": [
+        "Foundation.framework",
+        "UIKit.framework",
+        "objc_msgSend"
+      ],
+      "fmt_all": false,
+      "guards": [],
+      "id": "ios-app-scenes",
+      "manifest": "platform/ios/ios-app-scenes/Cargo.toml",
+      "offline": false,
+      "package": "ios-app-scenes",
+      "rustdoc_warnings": false,
+      "scoped_files": [
+        "Cargo.lock",
+        "platform/ios/ios-app-scenes/Cargo.toml",
+        "platform/ios/ios-app-scenes/README.md",
+        "platform/ios/ios-app-scenes/check.sh",
+        "platform/ios/ios-app-scenes/check-link-imports.sh",
+        "platform/ios/ios-app-scenes/examples/link_check.rs",
+        "platform/ios/ios-app-scenes/src/backend.rs",
+        "platform/ios/ios-app-scenes/src/lib.rs",
+        "docs/ios/app-scenes.md",
+        "docs/ios/app-lifecycle.md",
+        "docs/capabilities/capability-status.json",
+        "docs/capabilities/README.md",
+        "PLAN.md",
+        "PLAN_CAPABILITIES_APPLICATION_LIFECYCLE.md",
+        "PLAN_IOS_SCENE_SNAPSHOT.md",
+        "PLAN_VALIDATION_IOS_SCENE_SNAPSHOT.md",
+        "tools/validation/specs/validation-v1.json"
+      ],
+      "shell_scripts": [
+        "platform/ios/ios-app-scenes/check.sh",
+        "platform/ios/ios-app-scenes/check-link-imports.sh"
+      ],
+      "source_dirs": [
+        "platform/ios/ios-app-scenes"
+      ],
+      "targets": [
+        {
+          "minimum_os": "13.0",
           "sdk": "iphoneos",
           "triple": "aarch64-apple-ios"
         },
@@ -869,6 +955,11 @@
     {
       "path": "platform/ios/ios-app-lifecycle/",
       "node": "ios-app-lifecycle",
+      "global": false
+    },
+    {
+      "path": "platform/ios/ios-app-scenes/",
+      "node": "ios-app-scenes",
       "global": false
     },
     {

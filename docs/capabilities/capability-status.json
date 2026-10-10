@@ -32,10 +32,10 @@
       "crate_module_status": "portable_contract_and_ios_backend_partial",
       "portability_class": "portable_with_platform_extensions",
       "portable_contract_status": "implemented",
-      "portable_contract_note": "framework-app defines portable values and a generic backend contract; ios-app-lifecycle implements aggregate UIApplication state and lifecycle notifications for iOS.",
+      "portable_contract_note": "framework-app defines portable values and a generic backend contract; ios-app-lifecycle implements aggregate UIApplication state and lifecycle notifications, while ios-app-scenes provides per-scene UIScene events and activation snapshots for iOS.",
       "ios_implementation_class": "B",
       "implementation_status": "partial",
-      "status_reason": "B453 adds a main-thread UIKit backend for aggregate UIApplication state and lifecycle notifications. It does not provide per-scene events; B81 remains a point-in-time UIScene.activationState count. No live UIKit notification or runtime behavior is claimed.",
+      "status_reason": "B453 adds a main-thread UIKit backend for aggregate UIApplication state and lifecycle notifications. B454 adds six per-scene UIScene lifecycle notifications with exact UTF-16 session identifiers and a bounded event queue. B81 remains a point-in-time activation-state snapshot. Static checks do not prove live notification delivery or runtime behavior.",
       "minimum_ios_version": "4.0",
       "required_frameworks": [
         "UIKit",

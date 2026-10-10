@@ -64,7 +64,8 @@ These are `UIApplication` aggregate state and notification values. In a scene-ba
 defines `UIApplication.applicationState` from the most active scene. This backend does not identify
 which scene changed and does not promise one event per scene. For a point-in-time count of
 `UIScene.activationState`, use the separate [iOS scene snapshot](app-scenes.md); B81 remains
-unchanged and does not subscribe to scene delegate events.
+unchanged. B454's `ios-app-scenes::IosSceneLifecycleEvents` separately receives per-scene UIKit
+notifications without replacing the app's scene delegate.
 
 The backend observes only after construction, so it does not replay earlier launch or lifecycle
 events and does not emit `ApplicationState::Launching`. iOS may suspend or terminate an app without
