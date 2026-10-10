@@ -10,6 +10,18 @@ The framework is intentionally not a Flutter/React-Native-style runtime, not a v
 
 These rules are architectural invariants. Do not weaken them for convenience.
 
+## Installed shared tooling — mandatory agent workflow
+
+For ordinary API/capability development, treat `ios-rust-build` and `ios-rust-validate` as **external, stable developer tools** like Cargo and Clippy, not source modules to study or rewrite. Install the repository-pinned binaries once using `tools/install-tools.sh --prefix "$PWD/target/ios-rust-tools"` and place its `bin` directory on `PATH`. Read **[docs/SHARED_TOOLING.md](docs/SHARED_TOOLING.md)** for commands, configuration recipes, supported checks, errors and escalation. For a focused API task, read only the relevant sections and the capability's own spec/tests, not the full documentation index.
+
+- Implement API behavior in its owned product files. Extend validation through `tools/validation/specs/validation-v1.json`, declared source guards, existing `check.sh`/compiler-oracle fixtures, and **only when needed** small API-specific Python 3 adapters. For native C bridge additions, use a per-capability `build-spec.json` and the smallest necessary Cargo `build.rs` bridge. Do not add an engine-level check for ordinary API work.
+- Use `ios-rust-validate --workspace-root "$PWD" --spec "$PWD/tools/validation/specs/validation-v1.json" --explain CAPABILITY_ID` to understand a check; use `--capability`, `--changed EXPLICIT_BASE` or `--all` as appropriate. Inspect structured diagnostics and the docs before assuming an engine defect. A pass in compilation or link inspection is **not** simulator/device runtime proof; do not relabel skipped checks as passing.
+- **Do not restore, fetch, inspect, modify or regenerate shared engine source from Git history** in an ordinary API session. Its immutable maintenance source SHA is recorded in `tools/releases/manifest-v1.tsv`. Do not modify pinned archives, the installer, engine release manifest, or `.github/workflows/shared-tools.yml` during ordinary API work. Such changes belong to the separately authorized tooling-maintenance workflow.
+- If a documented operation remains blocked by a **suspected tooling defect** after checking configuration, installed version, environment and a minimal reproduction, create and **commit** a sanitized `BUG_REPORT_<DESCRIPTIVE_NAME>.md` at the repository root using the template in `docs/SHARED_TOOLING.md`. Mark suspected versus confirmed; include expected/actual behavior, minimal commands, target, pinned tool version/checksum, safe logs and blocked scope. Do **not** patch, bypass or weaken required checks. Continue only genuinely independent work; otherwise stop and hand the report to the user for a separate tooling-maintenance Codex session coordinated with the assistant. Commit the bug report as its own scoped change.
+- Missing required tools, version/schema mismatch, failed gates, adapter errors, or required-check SKIPPED results are **not validation success**. Diagnose per the guide; never replace unavailable evidence with a claim of success.
+
+The above is a **workflow isolation policy**, not a security boundary. Engine source remains recoverable from immutable Git history for a deliberately separate maintenance session. Preserve all existing architecture, public Apple API, ABI, privacy, feature-isolation, zero-shipping-Swift and testing invariants in this file.
+
 ## Hard rules
 
 ### Rust-native fast path
