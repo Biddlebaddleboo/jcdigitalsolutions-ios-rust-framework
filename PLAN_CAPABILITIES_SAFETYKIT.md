@@ -26,6 +26,14 @@ The method reads one Boolean from SafetyKit. It does not prompt for permission o
 - The direct import gate expects `SafetyKit`, `Foundation`, `libSystem.B.dylib`, and `libobjc.A.dylib`; reject all other imports and Swift runtime symbols
 - Device and simulator compile, strict Clippy, rustdoc, and link/import checks prove source and link shape only; no test or probe execution, entitlement, authorization, prompt, event, or hardware result claim
 
+## D48 closeout — 2026-10-10
+
+The `ios-safety::is_crash_detection_available() -> bool` API meets this slice: it checks the iOS 16.0 availability floor and makes one `SACrashDetectionManager::isAvailable` call. No source edit was needed. `.github/workflows/ci.yml` runs `sh platform/ios/ios-safety/scripts/check.sh` on macOS
+
+`sh platform/ios/ios-safety/scripts/check.sh` passed on Rust 1.94.1, Xcode 26.6 (build 17F113), and iPhoneOS SDK 26.5. Gates: source guards, fmt, host/device/Simulator checks, strict Clippy, rustdoc, release probe artifact build plus import/symbol/string audit, docs-check, zero-Swift, and diff checks. The link audit found the expected `SafetyKit`, `Foundation`, `libSystem.B.dylib`, and `libobjc.A.dylib` imports and no Swift runtime symbols. Probe artifacts were built and inspected, not run
+
+This evidence shows source, compile, and link shape only. The getter-specific entitlement prerequisite remains unknown. No claim is made about app authorization, entitlement access, emergency readiness, event delivery, or a live hardware result; no authorization, prompt, event, or emergency-response path is present
+
 ## Files
 
 - `platform/ios/ios-safety/**`
