@@ -123,6 +123,7 @@ int main(void) {
 }
 FIXTURE_C
 cat > target/framework-c-ios-crypto-cpp.cpp <<'FIXTURE_CPP'
+#include <stddef.h>
 #include <framework_ios_crypto.h>
 static_assert(FRAMEWORK_IOS_CRYPTO_SHA256_DIGEST_SIZE == 32u, "digest size");
 int main() {
@@ -178,12 +179,12 @@ for target in aarch64-apple-ios aarch64-apple-ios-sim; do
     archive="target/$target/release/libframework_c_api.a"
     for language in c cpp; do
         case "$language" in
-            c) compiler=clang; source=target/framework-c-ios-crypto-c.c; standard=c11 ;;
-            cpp) compiler=clang++; source=target/framework-c-ios-crypto-cpp.cpp; standard=c++17 ;;
+            c) compiler=clang; source=target/framework-c-ios-crypto-c.c; standard=c11; cpp_only_flags= ;;
+            cpp) compiler=clang++; source=target/framework-c-ios-crypto-cpp.cpp; standard=c++17; cpp_only_flags=-nostdinc++ ;;
         esac
         binary="target/framework-c-ios-crypto-$language-$target"
         xcrun --sdk "$sdk" "$compiler" -target "$clang_target" -std="$standard" \
-            -Wall -Wextra -Werror -pedantic -I bindings/c/include "$source" "$archive" \
+            $cpp_only_flags -Wall -Wextra -Werror -pedantic -I bindings/c/include "$source" "$archive" \
             -lSystem -o "$binary"
         libraries="target/framework-c-ios-crypto-$language-$target-libraries.txt"
         otool -L "$binary" \

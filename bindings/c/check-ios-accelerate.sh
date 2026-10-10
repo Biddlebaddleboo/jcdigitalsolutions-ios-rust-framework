@@ -138,6 +138,7 @@ int main(void) {
 }
 FIXTURE_C
 cat > target/framework-c-ios-accelerate-cpp.cpp <<'FIXTURE_CPP'
+#include <stddef.h>
 #include <framework_ios_accelerate.h>
 static_assert(sizeof(float) == sizeof(uint32_t), "f32 C ABI");
 int main() {
@@ -196,12 +197,12 @@ for target in aarch64-apple-ios aarch64-apple-ios-sim; do
     archive="target/$target/release/libframework_c_api.a"
     for language in c cpp; do
         case "$language" in
-            c) compiler=clang; source=target/framework-c-ios-accelerate-c.c; standard=c11 ;;
-            cpp) compiler=clang++; source=target/framework-c-ios-accelerate-cpp.cpp; standard=c++17 ;;
+            c) compiler=clang; source=target/framework-c-ios-accelerate-c.c; standard=c11; cpp_only_flags= ;;
+            cpp) compiler=clang++; source=target/framework-c-ios-accelerate-cpp.cpp; standard=c++17; cpp_only_flags=-nostdinc++ ;;
         esac
         binary="target/framework-c-ios-accelerate-$language-$target"
         xcrun --sdk "$sdk" "$compiler" -target "$clang_target" -std="$standard" \
-            -Wall -Wextra -Werror -pedantic -I bindings/c/include "$source" "$archive" \
+            $cpp_only_flags -Wall -Wextra -Werror -pedantic -I bindings/c/include "$source" "$archive" \
             -framework Accelerate -o "$binary"
         libraries="target/framework-c-ios-accelerate-$language-$target-libraries.txt"
         otool -L "$binary" \

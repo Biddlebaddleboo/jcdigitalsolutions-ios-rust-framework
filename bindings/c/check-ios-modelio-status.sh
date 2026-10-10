@@ -128,6 +128,7 @@ int main(void) {
 }
 FIXTURE_C
 cat > target/framework-c-ios-modelio-status-cpp.cpp <<'FIXTURE_CPP'
+#include <stddef.h>
 #include <framework_ios_modelio_status.h>
 int main() {
     static const uint8_t extension_bytes[] = {'u', 's', 'd', 'z'};
@@ -186,12 +187,12 @@ for target in aarch64-apple-ios aarch64-apple-ios-sim; do
     archive="target/$target/release/libframework_c_api.a"
     for language in c cpp; do
         case "$language" in
-            c) compiler=clang; source=target/framework-c-ios-modelio-status-c.c; standard=c11 ;;
-            cpp) compiler=clang++; source=target/framework-c-ios-modelio-status-cpp.cpp; standard=c++17 ;;
+            c) compiler=clang; source=target/framework-c-ios-modelio-status-c.c; standard=c11; cpp_only_flags= ;;
+            cpp) compiler=clang++; source=target/framework-c-ios-modelio-status-cpp.cpp; standard=c++17; cpp_only_flags=-nostdinc++ ;;
         esac
         binary="target/framework-c-ios-modelio-status-$language-$target"
         xcrun --sdk "$sdk" "$compiler" -target "$clang_target" -std="$standard" \
-            -Wall -Wextra -Werror -pedantic -I bindings/c/include "$source" "$archive" \
+            $cpp_only_flags -Wall -Wextra -Werror -pedantic -I bindings/c/include "$source" "$archive" \
             -framework Foundation -framework ModelIO -lobjc -o "$binary"
         libraries="target/framework-c-ios-modelio-status-$language-$target-libraries.txt"
         otool -L "$binary" \
