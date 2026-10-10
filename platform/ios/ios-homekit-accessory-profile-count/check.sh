@@ -31,6 +31,8 @@ cargo +1.94.1 fmt --manifest-path "$manifest" -- --check
 cargo +1.94.1 check --locked --offline -p ios-homekit-accessory-profile-count
 cargo +1.94.1 clippy --locked --offline --all-targets -p ios-homekit-accessory-profile-count -- -D warnings
 cargo +1.94.1 doc --locked --offline -p ios-homekit-accessory-profile-count --no-deps
+# Fetch target-only bindings before the offline device and simulator checks.
+cargo +1.94.1 check --locked -p ios-homekit-accessory-profile-count --target aarch64-apple-ios
 cargo +1.94.1 check --locked --offline -p ios-homekit-accessory-profile-count --target aarch64-apple-ios
 cargo +1.94.1 check --locked --offline -p ios-homekit-accessory-profile-count --target aarch64-apple-ios-sim
 cargo +1.94.1 clippy --locked --offline --all-targets -p ios-homekit-accessory-profile-count --target aarch64-apple-ios -- -D warnings
