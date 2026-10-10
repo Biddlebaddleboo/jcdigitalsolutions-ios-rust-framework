@@ -68,7 +68,7 @@ rg -Fq 'FrameworkStatus framework_error_detail_create(' bindings/c/include/frame
 rg -Fq 'FrameworkStatus framework_error_detail_view(' bindings/c/include/framework.h
 rg -Fq 'void framework_error_detail_destroy(FrameworkErrorDetailHandle detail);' bindings/c/include/framework.h
 rg -Fq 'pub unsafe extern "C" fn framework_owned_buffer_copy' crates/framework-abi/src/lib.rs
-rg -Fq 'framework_owned_buffer_copy, framework_owned_buffer_destroy' bindings/c/src/lib.rs
+rg -Uq 'framework_owned_buffer_copy,[[:space:]]+framework_owned_buffer_destroy' bindings/c/src/lib.rs
 rg -Fq 'pub unsafe extern "C" fn framework_error_detail_create' crates/framework-abi/src/lib.rs
 rg -Fq 'pub unsafe extern "C" fn framework_error_detail_view' crates/framework-abi/src/lib.rs
 rg -Fq 'pub unsafe extern "C" fn framework_error_detail_destroy' crates/framework-abi/src/lib.rs
