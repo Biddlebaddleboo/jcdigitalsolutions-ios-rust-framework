@@ -5,6 +5,14 @@ root=$(CDPATH= cd -- "$(dirname -- "$0")/../.." && pwd)
 cd "$root"
 mkdir -p target
 
+rustc_sysroot=$(rustc --print sysroot)
+rustc_host=$(rustc -vV | sed -n 's/^host: //p')
+llvm_nm="$rustc_sysroot/lib/rustlib/$rustc_host/bin/llvm-nm"
+if [ ! -x "$llvm_nm" ]; then
+    echo "Rust LLVM symbol tool is required for Rust archive scans: $llvm_nm" >&2
+    exit 1
+fi
+
 for tool in awk cargo clang clang++ diff jq nm otool rg sed sort strings vtool xcrun; do
     if ! command -v "$tool" >/dev/null 2>&1; then
         echo "$tool is required for the F23 device/Simulator link-import gate" >&2
@@ -108,13 +116,13 @@ clang -std=c11 -Wall -Wextra -Werror -pedantic -I bindings/c/include \
 clang++ -std=c++17 -Wall -Wextra -Werror -pedantic -I bindings/c/include \
     target/framework-c-ios-key-support-cpp.cpp "$host_archive" \
     -o target/framework-c-ios-key-support-cpp-host
-nm -g "$host_archive" 2>/dev/null \
+"$llvm_nm" -g "$host_archive" 2>/dev/null \
     | rg -o '_framework_ios_key_support_[A-Za-z0-9_]+' \
     | sed 's/^_//' | LC_ALL=C sort -u \
     > target/framework-c-ios-key-support-host-symbols.txt
 diff -u target/framework-c-ios-key-support-expected-symbols.txt \
     target/framework-c-ios-key-support-host-symbols.txt
-nm -u "$host_archive" 2>/dev/null \
+"$llvm_nm" -u "$host_archive" 2>/dev/null \
     > target/framework-c-ios-key-support-host-undefined.txt
 if rg -q 'SecKey|Security|CoreFoundation|objc_msgSend|OBJC_CLASS|swift_' \
     target/framework-c-ios-key-support-host-undefined.txt; then
@@ -187,7 +195,7 @@ for target in aarch64-apple-ios aarch64-apple-ios-sim; do
         printf '%s %s CoreFoundation/Security imports and iOS %s minimum verified; probe not executed\n' \
             "$target" "$language" "$deployment_target"
     done
-    nm -g "$archive" 2>/dev/null \
+    "$llvm_nm" -g "$archive" 2>/dev/null \
         | rg -o '_framework_ios_key_support_[A-Za-z0-9_]+' \
         | sed 's/^_//' | LC_ALL=C sort -u \
         > "target/framework-c-ios-key-support-$target-archive-symbols.txt"
