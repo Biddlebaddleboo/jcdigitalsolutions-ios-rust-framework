@@ -29,9 +29,9 @@ all four HomeKit checks after the prefetch fix, then failed the Foundation Model
 because Xcode 16.4 lacks that module. The existing Foundation Models gate now runs only on
 `xcode-27`, not removed. Post-fix run
 [38035445897](https://github.com/Biddlebaddleboo/jcdigitalsolutions-ios-rust-framework/actions/runs/38035445897)
-passed Ubuntu and the Xcode 27 media import/layout gate, and remains in progress through the other
-qualification checks. The macOS 15 Foundation Models result in that run still uses the old
-workflow condition. Xcode 27 qualification remains pending.
+passed Ubuntu and the Xcode 27 media import/layout gate, then completed with a later Sign in with
+Apple failure; its macOS 15 lane failed the Foundation Models check under the old workflow
+condition. Xcode 27 qualification remains pending.
 The `macos-15` leg of run 38033435519 reached `ios-rust-validate --all` and failed the
 Photogrammetry Swift ABI oracle and AlarmKit link-import scan: default Xcode 16.4 / iOS SDK 18.5
 lacks the expected Photogrammetry ABI lowering and iOS 26 AlarmKit framework. CI now runs the
