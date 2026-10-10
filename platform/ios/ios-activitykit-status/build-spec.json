@@ -1,0 +1,17 @@
+{
+  "schema_version": 1,
+  "capability": "ActivityKit",
+  "library": "activitykit_status",
+  "sources": ["native/activitykit_status.c"],
+  "headers": ["../../../interop/swift-abi-core/include/swift_abi_runtime.h"],
+  "frameworks": ["ActivityKit"],
+  "minimum_os": "16.1",
+  "targets": [
+    {"triple": "aarch64-apple-ios", "sdk": "iphoneos"},
+    {"triple": "aarch64-apple-ios-sim", "sdk": "iphonesimulator"}
+  ],
+  "feature_guards": [],
+  "compiler_options": ["-std=c11", "-Wall", "-Wextra", "-Werror"],
+  "compile_description": "ActivityKit C swiftcall bridge compile",
+  "archive_description": "ActivityKit static archive creation"
+}

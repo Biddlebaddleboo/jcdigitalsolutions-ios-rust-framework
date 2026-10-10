@@ -1,0 +1,42 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:ios-rust-build:schema:v1",
+  "title": "ios-rust-build specification schema 1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "capability", "library", "sources", "headers", "frameworks", "minimum_os", "targets", "feature_guards", "compiler_options", "compile_description", "archive_description"],
+  "properties": {
+    "schema_version": {"const": 1},
+    "capability": {"type": "string", "minLength": 1},
+    "library": {"type": "string", "pattern": "^[A-Za-z_][A-Za-z0-9_]*$"},
+    "sources": {"type": "array", "minItems": 1, "items": {"type": "string", "pattern": "^[^/\\r\\n][^\\r\\n]*\\.c$"}},
+    "headers": {"type": "array", "items": {"type": "string", "pattern": "^[^/\\r\\n][^\\r\\n]*\\.h$"}},
+    "frameworks": {"type": "array", "minItems": 1, "items": {"type": "string", "pattern": "^[A-Za-z_][A-Za-z0-9_]*$"}},
+    "minimum_os": {"type": "string", "pattern": "^[0-9]+\\.[0-9]+$"},
+    "targets": {"type": "array", "minItems": 1, "items": {"$ref": "#/$defs/target"}},
+    "feature_guards": {"type": "array", "items": {"$ref": "#/$defs/featureGuard"}},
+    "compiler_options": {"type": "array", "items": {"type": "string", "minLength": 1}},
+    "compile_description": {"type": "string", "minLength": 1},
+    "archive_description": {"type": "string", "minLength": 1}
+  },
+  "$defs": {
+    "target": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["triple", "sdk"],
+      "properties": {
+        "triple": {"enum": ["aarch64-apple-ios", "aarch64-apple-ios-sim", "x86_64-apple-ios"]},
+        "sdk": {"enum": ["iphoneos", "iphonesimulator"]}
+      }
+    },
+    "featureGuard": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "enabled"],
+      "properties": {
+        "name": {"type": "string", "pattern": "^[A-Z0-9_]+$"},
+        "enabled": {"type": "boolean"}
+      }
+    }
+  }
+}

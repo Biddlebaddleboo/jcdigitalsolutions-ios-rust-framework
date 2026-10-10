@@ -1,0 +1,17 @@
+{
+  "schema_version": 1,
+  "capability": "AlarmKit",
+  "library": "alarmkit_status",
+  "sources": ["native/alarmkit_status.c"],
+  "headers": ["../../../interop/swift-abi-core/include/swift_abi_runtime.h"],
+  "frameworks": ["AlarmKit"],
+  "minimum_os": "26.0",
+  "targets": [
+    {"triple": "aarch64-apple-ios", "sdk": "iphoneos"},
+    {"triple": "aarch64-apple-ios-sim", "sdk": "iphonesimulator"}
+  ],
+  "feature_guards": [],
+  "compiler_options": ["-std=c11", "-Wall", "-Wextra", "-Werror"],
+  "compile_description": "AlarmKit C swiftcall and enum-witness bridge compile",
+  "archive_description": "AlarmKit static archive creation"
+}

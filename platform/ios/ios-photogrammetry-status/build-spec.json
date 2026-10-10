@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "capability": "photogrammetry",
+  "library": "photogrammetry_status",
+  "sources": ["native/photogrammetry_status.c"],
+  "headers": ["../../../interop/swift-abi-core/include/swift_abi_runtime.h"],
+  "frameworks": ["RealityFoundation"],
+  "minimum_os": "17.0",
+  "targets": [
+    {"triple": "aarch64-apple-ios", "sdk": "iphoneos"},
+    {"triple": "aarch64-apple-ios-sim", "sdk": "iphonesimulator"},
+    {"triple": "x86_64-apple-ios", "sdk": "iphonesimulator"}
+  ],
+  "feature_guards": [],
+  "compiler_options": ["-std=c11", "-Wall", "-Wextra", "-Werror"],
+  "compile_description": "RealityFoundation C swiftcall thunk compile",
+  "archive_description": "RealityFoundation static archive creation"
+}

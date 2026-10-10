@@ -1,0 +1,633 @@
+{
+  "dependency_edges": [
+    [
+      "ios-activitykit-status",
+      "swift-abi-core"
+    ],
+    [
+      "ios-activitykit-status",
+      "ios-native-build-support"
+    ],
+    [
+      "ios-alarmkit-status",
+      "swift-abi-core"
+    ],
+    [
+      "ios-photogrammetry-status",
+      "swift-abi-core"
+    ],
+    [
+      "ios-alarmkit-status",
+      "ios-native-build-support"
+    ],
+    [
+      "ios-photogrammetry-status",
+      "ios-native-build-support"
+    ],
+    [
+      "ios-homekit-identify-status",
+      "objc2-home-kit"
+    ]
+  ],
+  "pilots": [
+    {
+      "abi_scripts": [
+        "platform/ios/ios-homekit-identify-status/check-link-imports.sh"
+      ],
+      "abi_targets": [
+        {
+          "minimum_os": "11.3",
+          "sdk": "iphoneos",
+          "triple": "aarch64-apple-ios"
+        },
+        {
+          "minimum_os": "14.0",
+          "sdk": "iphonesimulator",
+          "triple": "aarch64-apple-ios-sim"
+        }
+      ],
+      "cargo_tree": false,
+      "check_script": "platform/ios/ios-homekit-identify-status/check.sh",
+      "clippy_all_targets": true,
+      "clippy_lib": false,
+      "docs": [
+        "docs/ios/homekit-identify-status.md"
+      ],
+      "expected_imports": [
+        "HomeKit.framework",
+        "objc_msgSend"
+      ],
+      "fmt_all": false,
+      "guards": [
+        {
+          "message": "typed HomeKit supportsIdentify getter is required",
+          "must_exist": true,
+          "path": "platform/ios/ios-homekit-identify-status/src/lib.rs",
+          "text": "unsafe { accessory.supportsIdentify() }"
+        },
+        {
+          "message": "iOS 11.3 availability guard is required",
+          "must_exist": true,
+          "path": "platform/ios/ios-homekit-identify-status/src/lib.rs",
+          "text": "objc2::available!(ios = 11.3, ..)"
+        },
+        {
+          "message": "HomeKit manager lifecycle is outside this pilot",
+          "must_exist": false,
+          "path": "platform/ios/ios-homekit-identify-status/src/lib.rs",
+          "text": "HMHomeManager::"
+        },
+        {
+          "message": "HomeKit authorization is outside this pilot",
+          "must_exist": false,
+          "path": "platform/ios/ios-homekit-identify-status/src/lib.rs",
+          "text": "requestAuthorization("
+        },
+        {
+          "message": "HomeKit identify operation is outside this pilot",
+          "must_exist": false,
+          "path": "platform/ios/ios-homekit-identify-status/src/lib.rs",
+          "text": ".identifyWithCompletionHandler("
+        },
+        {
+          "message": "HomeKit identify operation is outside this pilot",
+          "must_exist": false,
+          "path": "platform/ios/ios-homekit-identify-status/src/lib.rs",
+          "text": ".identify("
+        },
+        {
+          "message": "HomeKit dependency and feature scope changed",
+          "must_exist": true,
+          "path": "platform/ios/ios-homekit-identify-status/Cargo.toml",
+          "text": "objc2-home-kit = { version = \"=0.3.2\", default-features = false, features = [\"HMAccessory\"] }"
+        }
+      ],
+      "id": "ios-homekit-identify-status",
+      "manifest": "platform/ios/ios-homekit-identify-status/Cargo.toml",
+      "offline": false,
+      "package": "ios-homekit-identify-status",
+      "rustdoc_warnings": false,
+      "scoped_files": [
+        "platform/ios/ios-homekit-identify-status/src/lib.rs",
+        "platform/ios/ios-homekit-identify-status/Cargo.toml",
+        "platform/ios/ios-homekit-identify-status/check.sh",
+        "platform/ios/ios-homekit-identify-status/check-link-imports.sh",
+        "platform/ios/ios-homekit-identify-status/examples/homekit_identify_link_probe.rs",
+        "docs/ios/homekit-identify-status.md",
+        "PLAN_CAPABILITIES_HOMEKIT.md"
+      ],
+      "shell_scripts": [
+        "platform/ios/ios-homekit-identify-status/check.sh",
+        "platform/ios/ios-homekit-identify-status/check-link-imports.sh"
+      ],
+      "source_dirs": [
+        "platform/ios/ios-homekit-identify-status"
+      ],
+      "targets": [
+        {
+          "minimum_os": "11.3",
+          "sdk": "iphoneos",
+          "triple": "aarch64-apple-ios"
+        },
+        {
+          "minimum_os": "14.0",
+          "sdk": "iphonesimulator",
+          "triple": "aarch64-apple-ios-sim"
+        }
+      ],
+      "adapters": [
+        {
+          "id": "homekit-source-contract",
+          "interpreter": "python3",
+          "minimum_version": "3.9",
+          "script": "tools/validation/adapters/check_homekit_contract.py",
+          "input_paths": [
+            "platform/ios/ios-homekit-identify-status/src/lib.rs"
+          ],
+          "required": false,
+          "evidence_type": "source-contract-consistency",
+          "deadline_seconds": 10,
+          "stdout_limit_bytes": 4096,
+          "stderr_limit_bytes": 4096,
+          "temporary_space_bytes": 1048576
+        }
+      ]
+    },
+    {
+      "abi_scripts": [
+        "platform/ios/ios-photogrammetry-status/check-swiftcall.sh",
+        "platform/ios/ios-photogrammetry-status/check-link-imports.sh"
+      ],
+      "abi_targets": [
+        {
+          "minimum_os": "17.0",
+          "sdk": "iphoneos",
+          "triple": "aarch64-apple-ios"
+        },
+        {
+          "minimum_os": "17.0",
+          "sdk": "iphonesimulator",
+          "triple": "aarch64-apple-ios-sim"
+        }
+      ],
+      "cargo_tree": false,
+      "check_script": "platform/ios/ios-photogrammetry-status/check.sh",
+      "clippy_all_targets": false,
+      "clippy_lib": true,
+      "docs": [
+        "docs/ios/photogrammetry-status.md"
+      ],
+      "expected_imports": [
+        "RealityFoundation.framework",
+        "PhotogrammetrySession.isSupported",
+        "PhotogrammetrySession.limits"
+      ],
+      "fmt_all": true,
+      "guards": [],
+      "id": "ios-photogrammetry-status",
+      "manifest": "platform/ios/ios-photogrammetry-status/Cargo.toml",
+      "offline": false,
+      "package": "ios-photogrammetry-status",
+      "rustdoc_warnings": true,
+      "scoped_files": [
+        "interop/swift-abi-core/include/swift_abi_runtime.h",
+        "platform/ios/ios-photogrammetry-status/Cargo.toml",
+        "platform/ios/ios-photogrammetry-status/check.sh",
+        "platform/ios/ios-photogrammetry-status/check-swiftcall.sh",
+        "platform/ios/ios-photogrammetry-status/check-link-imports.sh",
+        "platform/ios/ios-photogrammetry-status/src/lib.rs",
+        "platform/ios/ios-photogrammetry-status/native/photogrammetry_status.c",
+        "platform/ios/ios-photogrammetry-status/build.rs",
+        "platform/ios/ios-photogrammetry-status/examples/photogrammetry_status_link_probe.rs",
+        "PLAN_CAPABILITIES_REALITYKIT.md",
+        "docs/ios/photogrammetry-status.md"
+      ],
+      "shell_scripts": [
+        "platform/ios/ios-photogrammetry-status/check.sh",
+        "platform/ios/ios-photogrammetry-status/check-swiftcall.sh",
+        "platform/ios/ios-photogrammetry-status/check-link-imports.sh"
+      ],
+      "source_dirs": [
+        "platform/ios/ios-photogrammetry-status"
+      ],
+      "targets": [
+        {
+          "minimum_os": "17.0",
+          "sdk": "iphoneos",
+          "triple": "aarch64-apple-ios"
+        },
+        {
+          "minimum_os": "17.0",
+          "sdk": "iphonesimulator",
+          "triple": "aarch64-apple-ios-sim"
+        },
+        {
+          "minimum_os": "17.0",
+          "sdk": "iphonesimulator",
+          "triple": "x86_64-apple-ios"
+        }
+      ],
+      "adapters": []
+    },
+    {
+      "abi_scripts": [
+        "platform/ios/ios-alarmkit-status/check-link-imports.sh"
+      ],
+      "abi_targets": [
+        {
+          "minimum_os": "26.0",
+          "sdk": "iphoneos",
+          "triple": "aarch64-apple-ios"
+        },
+        {
+          "minimum_os": "26.0",
+          "sdk": "iphonesimulator",
+          "triple": "aarch64-apple-ios-sim"
+        }
+      ],
+      "cargo_tree": false,
+      "check_script": "platform/ios/ios-alarmkit-status/check.sh",
+      "clippy_all_targets": false,
+      "clippy_lib": true,
+      "docs": [
+        "docs/ios/alarmkit-status.md"
+      ],
+      "expected_imports": [
+        "AlarmKit.framework"
+      ],
+      "fmt_all": false,
+      "guards": [
+        {
+          "message": "AlarmKit must remain the only public native framework link for this pilot",
+          "must_exist": true,
+          "path": "platform/ios/ios-alarmkit-status/build-spec.json",
+          "text": "\"frameworks\": [\"AlarmKit\"]"
+        }
+      ],
+      "id": "ios-alarmkit-status",
+      "manifest": "platform/ios/ios-alarmkit-status/Cargo.toml",
+      "offline": true,
+      "package": "ios-alarmkit-status",
+      "rustdoc_warnings": true,
+      "scoped_files": [
+        "interop/swift-abi-core/include/swift_abi_runtime.h",
+        "PLAN_CAPABILITIES_ALARMKIT.md",
+        "PLAN_SWIFT_ABI.md",
+        "docs/ios/alarmkit-status.md",
+        ".github/workflows/ci.yml",
+        "platform/ios/ios-alarmkit-status/Cargo.toml",
+        "platform/ios/ios-alarmkit-status/build.rs",
+        "platform/ios/ios-alarmkit-status/check.sh",
+        "platform/ios/ios-alarmkit-status/check-link-imports.sh",
+        "platform/ios/ios-alarmkit-status/native/alarmkit_status.c",
+        "platform/ios/ios-alarmkit-status/src/lib.rs",
+        "platform/ios/ios-alarmkit-status/examples/alarmkit_status_link_probe.rs"
+      ],
+      "shell_scripts": [
+        "platform/ios/ios-alarmkit-status/check.sh",
+        "platform/ios/ios-alarmkit-status/check-link-imports.sh"
+      ],
+      "source_dirs": [
+        "platform/ios/ios-alarmkit-status"
+      ],
+      "targets": [
+        {
+          "minimum_os": "26.0",
+          "sdk": "iphoneos",
+          "triple": "aarch64-apple-ios"
+        },
+        {
+          "minimum_os": "26.0",
+          "sdk": "iphonesimulator",
+          "triple": "aarch64-apple-ios-sim"
+        }
+      ],
+      "adapters": []
+    },
+    {
+      "abi_scripts": [
+        "platform/ios/ios-activitykit-status/scripts/check-swiftcall.sh",
+        "platform/ios/ios-activitykit-status/scripts/check-link-imports.sh"
+      ],
+      "abi_targets": [
+        {
+          "minimum_os": "16.1",
+          "sdk": "iphoneos",
+          "triple": "aarch64-apple-ios"
+        },
+        {
+          "minimum_os": "16.1",
+          "sdk": "iphonesimulator",
+          "triple": "aarch64-apple-ios-sim"
+        }
+      ],
+      "cargo_tree": true,
+      "check_script": "platform/ios/ios-activitykit-status/check.sh",
+      "clippy_all_targets": false,
+      "clippy_lib": true,
+      "docs": [
+        "docs/ios/activitykit-status.md"
+      ],
+      "expected_imports": [
+        "ActivityKit.framework (weak)",
+        "ActivityKit.AuthorizationInfo.areActivitiesEnabled"
+      ],
+      "fmt_all": false,
+      "guards": [
+        {
+          "message": "swift-abi-core apple-runtime feature is required",
+          "must_exist": true,
+          "path": "platform/ios/ios-activitykit-status/Cargo.toml",
+          "text": "features = [\"apple-runtime\"]"
+        },
+        {
+          "message": "ActivityKit compiler oracle must retain the selected getter",
+          "must_exist": true,
+          "path": "platform/ios/ios-activitykit-status/scripts/check-swiftcall.sh",
+          "text": "ActivityAuthorizationInfo().areActivitiesEnabled"
+        },
+        {
+          "message": "ActivityKit native thunk must retain the compiler-derived getter symbol",
+          "must_exist": true,
+          "path": "platform/ios/ios-activitykit-status/native/activitykit_status.c",
+          "text": "0A17AuthorizationInfoC20areActivitiesEnabledSbvg"
+        },
+        {
+          "message": "ActivityKit lifecycle APIs are outside this pilot",
+          "must_exist": false,
+          "path": "platform/ios/ios-activitykit-status/src/lib.rs",
+          "text": "Activity.request"
+        },
+        {
+          "message": "ActivityKit update streams are outside this pilot",
+          "must_exist": false,
+          "path": "platform/ios/ios-activitykit-status/src/lib.rs",
+          "text": "activityEnablementUpdates"
+        },
+        {
+          "message": "ActivityKit push settings are outside this pilot",
+          "must_exist": false,
+          "path": "platform/ios/ios-activitykit-status/src/lib.rs",
+          "text": "frequentPushesEnabled"
+        },
+        {
+          "message": "ActivityKit lifecycle APIs are outside this pilot",
+          "must_exist": false,
+          "path": "platform/ios/ios-activitykit-status/src/lib.rs",
+          "text": ".update("
+        },
+        {
+          "message": "ActivityKit lifecycle APIs are outside this pilot",
+          "must_exist": false,
+          "path": "platform/ios/ios-activitykit-status/src/lib.rs",
+          "text": ".end("
+        },
+        {
+          "message": "ActivityKit lifecycle APIs are outside this pilot",
+          "must_exist": false,
+          "path": "platform/ios/ios-activitykit-status/src/lib.rs",
+          "text": "ActivityAttributes"
+        },
+        {
+          "message": "WidgetKit APIs are outside this pilot",
+          "must_exist": false,
+          "path": "platform/ios/ios-activitykit-status/src/lib.rs",
+          "text": "WidgetCenter"
+        },
+        {
+          "message": "ActivityKit lifecycle APIs are outside this pilot",
+          "must_exist": false,
+          "path": "platform/ios/ios-activitykit-status/native/activitykit_status.c",
+          "text": "Activity.request"
+        },
+        {
+          "message": "ActivityKit lifecycle APIs are outside this pilot",
+          "must_exist": false,
+          "path": "platform/ios/ios-activitykit-status/native/activitykit_status.c",
+          "text": ".update("
+        },
+        {
+          "message": "ActivityKit lifecycle APIs are outside this pilot",
+          "must_exist": false,
+          "path": "platform/ios/ios-activitykit-status/native/activitykit_status.c",
+          "text": ".end("
+        },
+        {
+          "message": "ActivityKit lifecycle APIs are outside this pilot",
+          "must_exist": false,
+          "path": "platform/ios/ios-activitykit-status/native/activitykit_status.c",
+          "text": "ActivityAttributes"
+        },
+        {
+          "message": "ActivityKit lifecycle APIs are outside this pilot",
+          "must_exist": false,
+          "path": "platform/ios/ios-activitykit-status/examples/activitykit_status_link_probe.rs",
+          "text": "Activity.request"
+        },
+        {
+          "message": "ActivityKit update streams are outside this pilot",
+          "must_exist": false,
+          "path": "platform/ios/ios-activitykit-status/examples/activitykit_status_link_probe.rs",
+          "text": "activityEnablementUpdates"
+        },
+        {
+          "message": "ActivityKit push settings are outside this pilot",
+          "must_exist": false,
+          "path": "platform/ios/ios-activitykit-status/examples/activitykit_status_link_probe.rs",
+          "text": "frequentPushesEnabled"
+        },
+        {
+          "message": "ActivityKit lifecycle APIs are outside this pilot",
+          "must_exist": false,
+          "path": "platform/ios/ios-activitykit-status/examples/activitykit_status_link_probe.rs",
+          "text": ".update("
+        },
+        {
+          "message": "ActivityKit lifecycle APIs are outside this pilot",
+          "must_exist": false,
+          "path": "platform/ios/ios-activitykit-status/examples/activitykit_status_link_probe.rs",
+          "text": ".end("
+        },
+        {
+          "message": "ActivityKit lifecycle APIs are outside this pilot",
+          "must_exist": false,
+          "path": "platform/ios/ios-activitykit-status/examples/activitykit_status_link_probe.rs",
+          "text": "ActivityAttributes"
+        },
+        {
+          "message": "WidgetKit APIs are outside this pilot",
+          "must_exist": false,
+          "path": "platform/ios/ios-activitykit-status/examples/activitykit_status_link_probe.rs",
+          "text": "WidgetCenter"
+        },
+        {
+          "message": "ActivityKit update streams are outside this pilot",
+          "must_exist": false,
+          "path": "platform/ios/ios-activitykit-status/native/activitykit_status.c",
+          "text": "activityEnablementUpdates"
+        },
+        {
+          "message": "ActivityKit push settings are outside this pilot",
+          "must_exist": false,
+          "path": "platform/ios/ios-activitykit-status/native/activitykit_status.c",
+          "text": "frequentPushesEnabled"
+        },
+        {
+          "message": "WidgetKit APIs are outside this pilot",
+          "must_exist": false,
+          "path": "platform/ios/ios-activitykit-status/native/activitykit_status.c",
+          "text": "WidgetCenter"
+        },
+        {
+          "message": "ActivityKit update streams are outside this pilot",
+          "must_exist": false,
+          "path": "platform/ios/ios-activitykit-status/build.rs",
+          "text": "activityEnablementUpdates"
+        },
+        {
+          "message": "ActivityKit push settings are outside this pilot",
+          "must_exist": false,
+          "path": "platform/ios/ios-activitykit-status/build.rs",
+          "text": "frequentPushesEnabled"
+        },
+        {
+          "message": "ActivityKit lifecycle APIs are outside this pilot",
+          "must_exist": false,
+          "path": "platform/ios/ios-activitykit-status/build.rs",
+          "text": "Activity.request"
+        },
+        {
+          "message": "ActivityKit lifecycle APIs are outside this pilot",
+          "must_exist": false,
+          "path": "platform/ios/ios-activitykit-status/build.rs",
+          "text": ".update("
+        },
+        {
+          "message": "ActivityKit lifecycle APIs are outside this pilot",
+          "must_exist": false,
+          "path": "platform/ios/ios-activitykit-status/build.rs",
+          "text": ".end("
+        },
+        {
+          "message": "ActivityKit lifecycle APIs are outside this pilot",
+          "must_exist": false,
+          "path": "platform/ios/ios-activitykit-status/build.rs",
+          "text": "ActivityAttributes"
+        },
+        {
+          "message": "WidgetKit APIs are outside this pilot",
+          "must_exist": false,
+          "path": "platform/ios/ios-activitykit-status/build.rs",
+          "text": "WidgetCenter"
+        }
+      ],
+      "id": "ios-activitykit-status",
+      "manifest": "platform/ios/ios-activitykit-status/Cargo.toml",
+      "offline": false,
+      "package": "ios-activitykit-status",
+      "rustdoc_warnings": true,
+      "scoped_files": [
+        "interop/swift-abi-core/include/swift_abi_runtime.h",
+        "PLAN_CAPABILITIES_ACTIVITYKIT.md",
+        "platform/ios/ios-activitykit-status/Cargo.toml",
+        "platform/ios/ios-activitykit-status/README.md",
+        "platform/ios/ios-activitykit-status/check.sh",
+        "platform/ios/ios-activitykit-status/scripts/check-swiftcall.sh",
+        "platform/ios/ios-activitykit-status/scripts/check-link-imports.sh",
+        "platform/ios/ios-activitykit-status/src/lib.rs",
+        "platform/ios/ios-activitykit-status/native/activitykit_status.c",
+        "platform/ios/ios-activitykit-status/build.rs",
+        "platform/ios/ios-activitykit-status/examples/activitykit_status_link_probe.rs",
+        "docs/ios/activitykit-status.md"
+      ],
+      "shell_scripts": [
+        "platform/ios/ios-activitykit-status/check.sh",
+        "platform/ios/ios-activitykit-status/scripts/check-swiftcall.sh",
+        "platform/ios/ios-activitykit-status/scripts/check-link-imports.sh"
+      ],
+      "source_dirs": [
+        "platform/ios/ios-activitykit-status"
+      ],
+      "targets": [
+        {
+          "minimum_os": "16.1",
+          "sdk": "iphoneos",
+          "triple": "aarch64-apple-ios"
+        },
+        {
+          "minimum_os": "16.1",
+          "sdk": "iphonesimulator",
+          "triple": "aarch64-apple-ios-sim"
+        }
+      ],
+      "adapters": []
+    }
+  ],
+  "schema_version": 1,
+  "path_rules": [
+    {
+      "path": "Cargo.toml",
+      "global": true
+    },
+    {
+      "path": "Cargo.lock",
+      "global": true
+    },
+    {
+      "path": "rust-toolchain.toml",
+      "global": true
+    },
+    {
+      "path": ".github/workflows/",
+      "global": true
+    },
+    {
+      "path": ".cargo/",
+      "global": true
+    },
+    {
+      "path": "docs/",
+      "global": true
+    },
+    {
+      "path": "tools/xtask/",
+      "global": true
+    },
+    {
+      "path": "tools/ios-rust-validate/",
+      "global": true
+    },
+    {
+      "path": "tools/native-build-support/",
+      "node": "ios-native-build-support",
+      "global": false
+    },
+    {
+      "path": "interop/swift-abi-core/",
+      "node": "swift-abi-core",
+      "global": false
+    },
+    {
+      "path": "interop/swift-abi-generated/",
+      "node": "swift-abi-core",
+      "global": false
+    },
+    {
+      "path": "tools/validation/",
+      "global": true
+    },
+    {
+      "path": "tools/releases/",
+      "global": true
+    },
+    {
+      "path": "tools/install-tools.sh",
+      "global": true
+    },
+    {
+      "path": "tools/native-build/",
+      "node": "ios-native-build-support",
+      "global": false
+    }
+  ]
+}

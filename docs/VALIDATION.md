@@ -1,6 +1,6 @@
 # Validation and Tooling
 
-Use `cargo xtask` for shared checks from the repository root; run harness fixtures with the direct `cargo test` commands below. Reports go under `target/xtask/` by default and are build artifacts, not machine-specific source files.
+Use `cargo xtask` for non-validation shared checks from the repository root; install the pinned PATH tools before framework builds and validation. Run harness fixtures with the direct `cargo test` commands below. Reports go under `target/xtask/` by default and are build artifacts, not machine-specific source files.
 
 ```bash
 cargo xtask toolchain-manifest --output target/xtask/toolchain-manifest.json
@@ -16,20 +16,22 @@ cargo xtask codegen-audit
 cargo xtask linkage-audit --binary path/to/consumer
 cargo xtask zero-swift-source
 cargo xtask docs-check
-cargo +1.94.1 xtask validate --list
-cargo +1.94.1 xtask validate --explain ios-activitykit-status
-cargo +1.94.1 xtask validate --capability ios-homekit-identify-status
-cargo +1.94.1 xtask validate --changed <explicit-base>
-cargo +1.94.1 xtask validate --all --format json
+tools/install-tools.sh --prefix target/ios-rust-tools
+export PATH="$PWD/target/ios-rust-tools/bin:$PATH"
+ios-rust-validate --workspace-root "$PWD" --spec "$PWD/tools/validation/specs/validation-v1.json" --list
+ios-rust-validate --workspace-root "$PWD" --spec "$PWD/tools/validation/specs/validation-v1.json" --explain ios-activitykit-status
+ios-rust-validate --workspace-root "$PWD" --spec "$PWD/tools/validation/specs/validation-v1.json" --capability ios-homekit-identify-status
+ios-rust-validate --workspace-root "$PWD" --spec "$PWD/tools/validation/specs/validation-v1.json" --changed <explicit-base>
+ios-rust-validate --workspace-root "$PWD" --spec "$PWD/tools/validation/specs/validation-v1.json" --all --format json
 cargo test -p parity-harness
 cargo test -p bench-harness
 ```
 
 ## Shared native pilot validation
 
-`cargo xtask validate` is limited to HomeKit identify status, photogrammetry status, AlarmKit status, and ActivityKit status. Each pilot keeps its existing API/negative and compiler-oracle assertions; the shared runner owns command selection, target/SDK preflight, result formatting, and changed-file selection. `--explain ID` reports the declared package, target triples, SDKs, deployment floors, expected public imports, ABI fixtures, source guards, docs, and command snapshot. `--changed BASE` requires an explicit Git commit/ref, includes tracked and untracked worktree changes, and expands shared-helper changes through the pilot dependency graph; changes to `xtask`, validation schema, Cargo workspace manifests/lock, or CI conservatively select all four. CI runs the same four pilots with `--all`; each `check.sh` remains a single-capability wrapper.
+`ios-rust-validate` is limited to HomeKit identify status, photogrammetry status, AlarmKit status, and ActivityKit status. Each pilot keeps its existing feature, negative, public-import, symbol, availability, ownership, and compiler-oracle assertions; the installed runner owns command selection, target/SDK preflight, result formatting, and changed-file selection. `--explain ID` reports declared inputs, gate names, targets, SDKs, deployment floors, required and optional checks, expected public imports, ABI oracles, source guards, adapters, evidence limits, and effective commands. `--changed BASE` requires an explicit Git commit/ref, includes tracked, untracked, and deleted worktree paths, and expands shared-tool changes through the dependency graph; unknown dependencies select all pilots. CI and each pilot `check.sh` call the PATH executable directly. Required missing or invalid Python adapters report `error-blocked`, never pass; optional adapter failures remain visible in structured results without blocking unrelated required gates.
 
-Human output and `--format json` distinguish `pass`, `fail`, and `skipped` gates with a reason. Apple SDK or Rust target absence skips only gates that need them and is never reported as a pass. Target compile, compiler ABI, link/import scan, simulator execution, and physical-device proof are separate evidence classes. The current link probes are inspected but not executed; simulator execution and physical-device runtime proof are reported as skipped. No API implementation or capability expansion is performed by this harness.
+Human output and `--format json` distinguish `pass`, `fail`, `skipped`, and `error-blocked` gates with a reason. Apple SDK or Rust target absence skips only gates that need them and is never reported as a pass. Target compile, compiler ABI, link/import scan, simulator execution, and physical-device proof are separate evidence classes. The current link probes are inspected but not executed; simulator execution and physical-device runtime proof are reported as skipped. This harness does not implement application APIs or expand capabilities.
 
 ## What the checks prove
 

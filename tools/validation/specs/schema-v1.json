@@ -1,0 +1,101 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:ios-rust-validate:schema:v1",
+  "title": "ios-rust-validate specification schema 1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "dependency_edges", "path_rules", "pilots"],
+  "properties": {
+    "schema_version": {"const": 1},
+    "dependency_edges": {
+      "type": "array",
+      "items": {"type": "array", "prefixItems": [{"$ref": "#/$defs/id"}, {"$ref": "#/$defs/id"}], "minItems": 2, "maxItems": 2}
+    },
+    "path_rules": {"type": "array", "items": {"$ref": "#/$defs/pathRule"}},
+    "pilots": {"type": "array", "minItems": 1, "items": {"$ref": "#/$defs/pilot"}}
+  },
+  "$defs": {
+    "id": {"type": "string", "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$"},
+    "path": {"type": "string", "minLength": 1, "pattern": "^(?!/)(?!.*(?:^|/)\\.\\.(?:/|$))[^\\r\\n]+$"},
+    "pathRule": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["path", "global"],
+      "properties": {
+        "path": {"$ref": "#/$defs/path"},
+        "node": {"anyOf": [{"$ref": "#/$defs/id"}, {"type": "null"}]},
+        "global": {"type": "boolean"}
+      },
+      "oneOf": [
+        {"properties": {"global": {"const": true}, "node": {"type": "null"}}},
+        {"required": ["node"], "properties": {"global": {"const": false}, "node": {"$ref": "#/$defs/id"}}}
+      ]
+    },
+    "target": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["triple", "sdk", "minimum_os"],
+      "properties": {
+        "triple": {"enum": ["aarch64-apple-ios", "aarch64-apple-ios-sim", "x86_64-apple-ios"]},
+        "sdk": {"enum": ["iphoneos", "iphonesimulator"]},
+        "minimum_os": {"type": "string", "pattern": "^[0-9]+\\.[0-9]+$"}
+      }
+    },
+    "guard": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["path", "text", "must_exist", "message"],
+      "properties": {
+        "path": {"$ref": "#/$defs/path"},
+        "text": {"type": "string", "minLength": 1},
+        "must_exist": {"type": "boolean"},
+        "message": {"type": "string", "minLength": 1}
+      }
+    },
+    "adapter": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "interpreter", "minimum_version", "script", "input_paths", "required", "evidence_type", "deadline_seconds", "stdout_limit_bytes", "stderr_limit_bytes", "temporary_space_bytes"],
+      "properties": {
+        "id": {"$ref": "#/$defs/id"},
+        "interpreter": {"const": "python3"},
+        "minimum_version": {"type": "string", "pattern": "^[0-9]+\\.[0-9]+(?:\\.[0-9]+)?$"},
+        "script": {"$ref": "#/$defs/path"},
+        "input_paths": {"type": "array", "minItems": 1, "items": {"$ref": "#/$defs/path"}},
+        "required": {"type": "boolean"},
+        "evidence_type": {"$ref": "#/$defs/id"},
+        "deadline_seconds": {"type": "integer", "minimum": 1, "maximum": 300},
+        "stdout_limit_bytes": {"type": "integer", "minimum": 1, "maximum": 1048576},
+        "stderr_limit_bytes": {"type": "integer", "minimum": 1, "maximum": 1048576},
+        "temporary_space_bytes": {"type": "integer", "minimum": 1, "maximum": 536870912}
+      }
+    },
+    "pilot": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "package", "manifest", "check_script", "targets", "abi_targets", "expected_imports", "abi_scripts", "shell_scripts", "docs", "scoped_files", "source_dirs", "guards", "adapters", "offline", "fmt_all", "clippy_all_targets", "clippy_lib", "rustdoc_warnings", "cargo_tree"],
+      "properties": {
+        "id": {"$ref": "#/$defs/id"},
+        "package": {"$ref": "#/$defs/id"},
+        "manifest": {"$ref": "#/$defs/path"},
+        "check_script": {"$ref": "#/$defs/path"},
+        "targets": {"type": "array", "minItems": 1, "items": {"$ref": "#/$defs/target"}},
+        "abi_targets": {"type": "array", "minItems": 1, "items": {"$ref": "#/$defs/target"}},
+        "expected_imports": {"type": "array", "items": {"type": "string"}},
+        "abi_scripts": {"type": "array", "items": {"$ref": "#/$defs/path"}},
+        "shell_scripts": {"type": "array", "items": {"$ref": "#/$defs/path"}},
+        "docs": {"type": "array", "items": {"$ref": "#/$defs/path"}},
+        "scoped_files": {"type": "array", "items": {"$ref": "#/$defs/path"}},
+        "source_dirs": {"type": "array", "items": {"$ref": "#/$defs/path"}},
+        "guards": {"type": "array", "items": {"$ref": "#/$defs/guard"}},
+        "adapters": {"type": "array", "items": {"$ref": "#/$defs/adapter"}},
+        "offline": {"type": "boolean"},
+        "fmt_all": {"type": "boolean"},
+        "clippy_all_targets": {"type": "boolean"},
+        "clippy_lib": {"type": "boolean"},
+        "rustdoc_warnings": {"type": "boolean"},
+        "cargo_tree": {"type": "boolean"}
+      }
+    }
+  }
+}

@@ -1,7 +1,7 @@
 [workspace]
 members = ["crates/*", "platform/ios/*", "platform/ios/callkit/ios-call-observer", "interop/*", "examples/*", "tools/*", "bindings/*"]
 # The C++ header checks share this path glob but are not a Cargo package.
-exclude = ["examples/c-minimal", "bindings/cpp", "platform/ios/callkit"]
+exclude = ["examples/c-minimal", "bindings/cpp", "platform/ios/callkit", "tools/validation", "tools/native-build", "tools/releases"]
 resolver = "3"
 
 [workspace.package]

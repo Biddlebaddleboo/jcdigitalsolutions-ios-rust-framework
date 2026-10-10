@@ -1,0 +1,70 @@
+{
+  "schema_version": 1,
+  "dependency_edges": [],
+  "path_rules": [
+    {
+      "path": "tools/validation/fixtures/",
+      "node": "example-validation-fixture",
+      "global": false
+    }
+  ],
+  "pilots": [
+    {
+      "id": "example-validation-fixture",
+      "package": "ios-rust-validate",
+      "manifest": "tools/ios-rust-validate/Cargo.toml",
+      "check_script": "tools/validation/fixtures/passing_adapter.py",
+      "targets": [
+        {"triple": "aarch64-apple-ios", "sdk": "iphoneos", "minimum_os": "15.0"}
+      ],
+      "abi_targets": [
+        {"triple": "aarch64-apple-ios", "sdk": "iphoneos", "minimum_os": "15.0"}
+      ],
+      "expected_imports": [],
+      "abi_scripts": [],
+      "shell_scripts": [],
+      "docs": ["tools/validation/README.md"],
+      "scoped_files": [
+        "tools/validation/fixtures/example-validation-v1.json",
+        "tools/validation/fixtures/passing_adapter.py",
+        "tools/validation/fixtures/invalid_adapter.py"
+      ],
+      "source_dirs": ["tools/validation/fixtures"],
+      "guards": [],
+      "adapters": [
+        {
+          "id": "adapter-pass-fixture",
+          "interpreter": "python3",
+          "minimum_version": "3.9",
+          "script": "tools/validation/fixtures/passing_adapter.py",
+          "input_paths": ["tools/validation/fixtures/example-validation-v1.json"],
+          "required": true,
+          "evidence_type": "fixture-contract",
+          "deadline_seconds": 10,
+          "stdout_limit_bytes": 4096,
+          "stderr_limit_bytes": 4096,
+          "temporary_space_bytes": 1048576
+        },
+        {
+          "id": "adapter-invalid-fixture",
+          "interpreter": "python3",
+          "minimum_version": "3.9",
+          "script": "tools/validation/fixtures/invalid_adapter.py",
+          "input_paths": ["tools/validation/fixtures/example-validation-v1.json"],
+          "required": true,
+          "evidence_type": "invalid-protocol-fixture",
+          "deadline_seconds": 10,
+          "stdout_limit_bytes": 4096,
+          "stderr_limit_bytes": 4096,
+          "temporary_space_bytes": 1048576
+        }
+      ],
+      "offline": false,
+      "fmt_all": false,
+      "clippy_all_targets": false,
+      "clippy_lib": true,
+      "rustdoc_warnings": false,
+      "cargo_tree": false
+    }
+  ]
+}

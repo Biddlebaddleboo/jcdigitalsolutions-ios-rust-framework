@@ -15,6 +15,16 @@ jobs:
         os: [macos-15, ubuntu-24.04]
     steps:
       - uses: actions/checkout@v4
+      - name: Bootstrap PATH tools from the checked-out source
+        env:
+          TOOL_SOURCE_SHA: ${{ github.sha }}
+        run: |
+          host="$(rustc +1.94.1 -vV | sed -n 's/^host: //p')"
+          TOOL_RUSTC_VERSION="$(rustc +1.94.1 --version)" HOST="$host" cargo +1.94.1 build --locked --release -p ios-native-build-support -p ios-rust-validate
+          mkdir -p "$RUNNER_TEMP/ios-rust-tools/bin"
+          cp target/release/ios-rust-build "$RUNNER_TEMP/ios-rust-tools/bin/ios-rust-build"
+          cp target/release/ios-rust-validate "$RUNNER_TEMP/ios-rust-tools/bin/ios-rust-validate"
+          echo "$RUNNER_TEMP/ios-rust-tools/bin" >> "$GITHUB_PATH"
       - name: Install Rust components
         run: rustup component add rustfmt clippy --toolchain 1.94.1
       - name: Install iOS device and simulator targets
@@ -371,7 +381,7 @@ jobs:
         run: sh platform/ios/ios-storekit2-status/check.sh
       - name: Validate shared native pilot capabilities
         if: runner.os == 'macOS'
-        run: cargo +1.94.1 xtask validate --all
+        run: ios-rust-validate --workspace-root "$GITHUB_WORKSPACE" --spec "$GITHUB_WORKSPACE/tools/validation/specs/validation-v1.json" --all
       - name: Check MatterSupport request API status
         if: runner.os == 'macOS'
         run: sh platform/ios/ios-matter-support-status/check.sh

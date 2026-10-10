@@ -1,0 +1,75 @@
+name: Shared tool artifacts
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - Cargo.lock
+      - Cargo.toml
+      - tools/native-build-support/**
+      - tools/ios-rust-validate/**
+      - tools/xtask/src/validation.rs
+      - tools/validation/**
+      - .github/workflows/shared-tools.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Build pinned tools (${{ matrix.host }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-24.04
+            host: x86_64-unknown-linux-gnu
+            host_os: linux
+          - os: macos-14
+            host: aarch64-apple-darwin
+            host_os: macos
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install pinned Rust toolchain
+        run: rustup toolchain install 1.94.1 --profile minimal
+      - name: Build and verify PATH tools
+        env:
+          EXPECTED_HOST: ${{ matrix.host }}
+          TOOL_SOURCE_SHA: ${{ github.sha }}
+          TOOL_HOST_OS: ${{ matrix.host_os }}
+        run: |
+          host="$(rustc +1.94.1 -vV | sed -n 's/^host: //p')"
+          test "$host" = "$EXPECTED_HOST"
+          rustc_version="$(rustc +1.94.1 --version)"
+          cargo +1.94.1 fmt --all -- --check
+          cargo +1.94.1 test --locked -p ios-native-build-support -p ios-rust-validate
+          cargo +1.94.1 clippy --locked -p ios-native-build-support -p ios-rust-validate --all-targets -- -D warnings
+          TOOL_RUSTC_VERSION="$rustc_version" HOST="$host" cargo +1.94.1 build --locked --release -p ios-native-build-support -p ios-rust-validate
+          target/release/ios-rust-build --help
+          target/release/ios-rust-validate --help
+          target/release/ios-rust-build --version --format json > "$RUNNER_TEMP/ios-rust-build-version.json"
+          target/release/ios-rust-validate --version --format json > "$RUNNER_TEMP/ios-rust-validate-version.json"
+          grep -F "\"source_sha\":\"$TOOL_SOURCE_SHA\"" "$RUNNER_TEMP/ios-rust-build-version.json"
+          grep -F "\"host\":\"$host\"" "$RUNNER_TEMP/ios-rust-build-version.json"
+          grep -F "\"source_sha\":\"$TOOL_SOURCE_SHA\"" "$RUNNER_TEMP/ios-rust-validate-version.json"
+          grep -F "\"host\":\"$host\"" "$RUNNER_TEMP/ios-rust-validate-version.json"
+          target/release/ios-rust-validate --workspace-root "$GITHUB_WORKSPACE" --spec "$GITHUB_WORKSPACE/tools/validation/specs/validation-v1.json" --list --format json
+          target/release/ios-rust-build build --workspace-root "$GITHUB_WORKSPACE" --spec "$GITHUB_WORKSPACE/platform/ios/ios-activitykit-status/build-spec.json" --target "$host" --target-os "$TOOL_HOST_OS" --out-dir "$RUNNER_TEMP/ios-rust-build-out" --manifest-dir "$GITHUB_WORKSPACE/platform/ios/ios-activitykit-status" --format json
+          mkdir -p "$RUNNER_TEMP/ios-rust-tools/bin"
+          cp target/release/ios-rust-build "$RUNNER_TEMP/ios-rust-tools/bin/ios-rust-build"
+          cp target/release/ios-rust-validate "$RUNNER_TEMP/ios-rust-tools/bin/ios-rust-validate"
+          printf '{"schema_version":1,"release_id":"ios-rust-tools-0.1.0+%s","source_sha":"%s","origin":"https://github.com/Biddlebaddleboo/jcdigitalsolutions-ios-rust-framework/tree/%s","host_triple":"%s","rustc_version":"%s"}\n' "$TOOL_SOURCE_SHA" "$TOOL_SOURCE_SHA" "$TOOL_SOURCE_SHA" "$host" "$rustc_version" > "$RUNNER_TEMP/ios-rust-tools/tool-metadata.json"
+          if command -v shasum >/dev/null 2>&1; then (cd "$RUNNER_TEMP/ios-rust-tools/bin" && shasum -a 256 ios-rust-build ios-rust-validate > "$RUNNER_TEMP/ios-rust-tools/SHA256SUMS"); else (cd "$RUNNER_TEMP/ios-rust-tools/bin" && sha256sum ios-rust-build ios-rust-validate > "$RUNNER_TEMP/ios-rust-tools/SHA256SUMS"); fi
+          tar -C "$RUNNER_TEMP/ios-rust-tools" -czf "$RUNNER_TEMP/ios-rust-tools-${host}.tar.gz" bin tool-metadata.json SHA256SUMS
+          if command -v shasum >/dev/null 2>&1; then shasum -a 256 "$RUNNER_TEMP/ios-rust-tools-${host}.tar.gz" > "$RUNNER_TEMP/ios-rust-tools-${host}.tar.gz.sha256"; else sha256sum "$RUNNER_TEMP/ios-rust-tools-${host}.tar.gz" > "$RUNNER_TEMP/ios-rust-tools-${host}.tar.gz.sha256"; fi
+      - name: Upload immutable-source build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ios-rust-tools-${{ matrix.host }}-${{ github.sha }}
+          path: |
+            ${{ runner.temp }}/ios-rust-tools-${{ matrix.host }}.tar.gz
+            ${{ runner.temp }}/ios-rust-tools-${{ matrix.host }}.tar.gz.sha256
+          if-no-files-found: error
+          retention-days: 90

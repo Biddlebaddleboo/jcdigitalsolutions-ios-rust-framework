@@ -1,16 +1,16 @@
-//! Typed, build-script-only support for compiling capability-scoped iOS C bridges.
-//!
-//! This crate is intended only for Cargo build dependencies. It has no runtime
-//! dependency and does not define native ABI or capability behavior.
+//! PATH-installed native build engine for capability-scoped iOS C bridges.
+//! The engine has no shipping runtime dependency and does not define native ABI or capability behavior.
 
+use serde::Deserialize;
 use std::collections::HashSet;
 use std::ffi::{OsStr, OsString};
 use std::fmt;
 use std::io;
 use std::path::{Component, Path, PathBuf};
-use std::process::{Command, Output};
+use std::process::{Command, Output, Stdio};
 
 const RERUN_ENV: [&str; 2] = ["SDKROOT", "DEVELOPER_DIR"];
+const MAX_BUILD_SPEC_BYTES: usize = 65_536;
 
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
 /// A native CPU architecture supported by the iOS build config.
@@ -204,7 +204,10 @@ impl CommandRunner for ProcessRunner {
         command.args(args);
         match output_mode {
             OutputMode::Capture => command.output().map(CommandResult::from_output),
-            OutputMode::Inherit => command.status().map(CommandResult::from_status),
+            OutputMode::Inherit => command
+                .stdout(Stdio::null())
+                .status()
+                .map(CommandResult::from_status),
         }
     }
 }
@@ -231,6 +234,334 @@ pub fn build(config: &IosNativeBuildConfig) {
         &mut cargo_output,
     ) {
         panic!("{error}");
+    }
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct NativeBuildSpec {
+    schema_version: u32,
+    capability: String,
+    library: String,
+    sources: Vec<String>,
+    headers: Vec<String>,
+    frameworks: Vec<String>,
+    minimum_os: String,
+    targets: Vec<NativeBuildTargetSpec>,
+    feature_guards: Vec<NativeBuildFeatureGuard>,
+    compiler_options: Vec<String>,
+    compile_description: String,
+    archive_description: String,
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct NativeBuildTargetSpec {
+    triple: String,
+    sdk: String,
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct NativeBuildFeatureGuard {
+    name: String,
+    enabled: bool,
+}
+
+/// Run the installed build tool protocol and emit one JSON result on stdout.
+pub fn run_cli(args: &[String]) -> Result<(), String> {
+    if args == ["--help"] || args == ["-h"] {
+        print!("{}", build_help());
+        return Ok(());
+    }
+    if args == ["--version"] {
+        println!("ios-rust-build {}", env!("CARGO_PKG_VERSION"));
+        return Ok(());
+    }
+    if args == ["--version", "--format", "json"] {
+        let source_sha = option_env!("TOOL_SOURCE_SHA").unwrap_or("working-tree");
+        println!(
+            "{}",
+            serde_json::json!({
+                "tool": "ios-rust-build",
+                "version": env!("CARGO_PKG_VERSION"),
+                "schema_major": 1,
+                "build_spec_schema": 1,
+                "result_schema": 1,
+                "release_id": format!("ios-rust-tools-{}+{}", env!("CARGO_PKG_VERSION"), source_sha),
+                "source_sha": source_sha,
+                "rustc_version": option_env!("TOOL_RUSTC_VERSION").unwrap_or("unknown"),
+                "host": option_env!("HOST").unwrap_or("unknown")
+            })
+        );
+        return Ok(());
+    }
+
+    let options = parse_cli_options(args)?;
+    let workspace_root = required_option(&options, "--workspace-root")?;
+    let spec_path = required_option(&options, "--spec")?;
+    let target = required_option(&options, "--target")?;
+    let target_os = required_option(&options, "--target-os")?;
+    let out_dir = required_option(&options, "--out-dir")?;
+    let manifest_dir = required_option(&options, "--manifest-dir")?;
+    if required_option(&options, "--format")? != "json" {
+        return Err("`--format` must be `json`".into());
+    }
+    let compiled_host = option_env!("HOST").ok_or_else(|| {
+        "ios-rust-build has no pinned host provenance; install the verified PATH tool package"
+            .to_owned()
+    })?;
+    if runtime_host_triple() != Some(compiled_host) {
+        return Err(format!(
+            "ios-rust-build host mismatch: binary={compiled_host}, runtime={}",
+            runtime_host_triple().unwrap_or("unsupported")
+        ));
+    }
+
+    let workspace_root = PathBuf::from(workspace_root)
+        .canonicalize()
+        .map_err(|error| format!("invalid workspace root: {error}"))?;
+    let manifest_dir = PathBuf::from(manifest_dir)
+        .canonicalize()
+        .map_err(|error| format!("invalid manifest directory: {error}"))?;
+    if !manifest_dir.starts_with(&workspace_root) {
+        return Err("manifest directory is outside the workspace root".into());
+    }
+    let spec_path = resolve_workspace_path(&workspace_root, spec_path, "build spec")?;
+    let spec_bytes = std::fs::read(&spec_path)
+        .map_err(|error| format!("cannot read build spec {}: {error}", spec_path.display()))?;
+    if spec_bytes.len() > MAX_BUILD_SPEC_BYTES {
+        return Err(format!(
+            "build spec exceeds the {MAX_BUILD_SPEC_BYTES} byte limit"
+        ));
+    }
+    let spec: NativeBuildSpec = serde_json::from_slice(&spec_bytes)
+        .map_err(|error| format!("invalid build spec {}: {error}", spec_path.display()))?;
+    if spec.schema_version != 1 {
+        return Err(format!(
+            "unsupported build spec schema major {}; this tool supports 1",
+            spec.schema_version
+        ));
+    }
+    for guard in &spec.feature_guards {
+        if guard.name.is_empty()
+            || !guard
+                .name
+                .bytes()
+                .all(|byte| byte.is_ascii_uppercase() || byte.is_ascii_digit() || byte == b'_')
+        {
+            return Err(format!("invalid feature guard `{}`", guard.name));
+        }
+        let env_name = format!("CARGO_FEATURE_{}", guard.name);
+        let enabled = std::env::var_os(&env_name).is_some();
+        if enabled != guard.enabled {
+            return Err(format!(
+                "feature guard {env_name} expected {}, got {}",
+                if guard.enabled { "enabled" } else { "disabled" },
+                if enabled { "enabled" } else { "disabled" }
+            ));
+        }
+    }
+    for source in &spec.sources {
+        resolve_package_path(&workspace_root, &manifest_dir, source, "native source")?;
+    }
+    for header in &spec.headers {
+        resolve_package_path(&workspace_root, &manifest_dir, header, "native header")?;
+    }
+    let minimum_os = parse_deployment_target(&spec.minimum_os)?;
+    let targets = spec
+        .targets
+        .iter()
+        .map(|target_spec| {
+            let target = IosTarget::from_cargo_target(&target_spec.triple).ok_or_else(|| {
+                format!("unsupported configured iOS target `{}`", target_spec.triple)
+            })?;
+            if target.sdk() != target_spec.sdk {
+                return Err(format!(
+                    "SDK `{}` does not match target `{}`",
+                    target_spec.sdk, target_spec.triple
+                ));
+            }
+            Ok(target)
+        })
+        .collect::<Result<Vec<_>, String>>()?;
+    let architectures = targets
+        .iter()
+        .map(|target| target.architecture())
+        .collect::<HashSet<_>>()
+        .into_iter()
+        .collect::<Vec<_>>();
+    let config = IosNativeBuildConfig {
+        capability: leak_string(spec.capability),
+        library: leak_string(spec.library),
+        sources: leak_strings(spec.sources),
+        headers: leak_strings(spec.headers),
+        frameworks: leak_strings(spec.frameworks),
+        minimum_os,
+        supported_architectures: leak_values(architectures),
+        targets: leak_values(targets),
+        compiler_options: leak_strings(spec.compiler_options),
+        compile_description: leak_string(spec.compile_description),
+        archive_description: leak_string(spec.archive_description),
+    };
+    let environment = BuildEnvironment {
+        target_os: Some(target_os.to_owned()),
+        target: Some(target.to_owned()),
+        out_dir: Some(PathBuf::from(out_dir)),
+        manifest_dir: Some(manifest_dir.clone()),
+    };
+    if let Some(cargo_target) = std::env::var("TARGET").ok()
+        && cargo_target != target
+    {
+        return Err(format!(
+            "explicit target `{target}` does not match Cargo TARGET `{cargo_target}`"
+        ));
+    }
+    if let Some(cargo_os) = std::env::var("CARGO_CFG_TARGET_OS").ok()
+        && cargo_os != target_os
+    {
+        return Err(format!(
+            "explicit target OS `{target_os}` does not match CARGO_CFG_TARGET_OS `{cargo_os}`"
+        ));
+    }
+    if target_os == "ios" && std::env::consts::OS != "macos" {
+        return Err("iOS native builds require a macOS host with Xcode command line tools".into());
+    }
+    std::env::set_current_dir(&manifest_dir)
+        .map_err(|error| format!("cannot enter manifest directory: {error}"))?;
+    let mut runner = ProcessRunner;
+    let mut cargo_output = Vec::new();
+    build_with(&config, &environment, &mut runner, &mut cargo_output)
+        .map_err(|error| error.to_string())?;
+    let directives = String::from_utf8(cargo_output)
+        .map_err(|error| format!("Cargo directives are not UTF-8: {error}"))?
+        .lines()
+        .map(str::to_owned)
+        .collect::<Vec<_>>();
+    println!(
+        "{}",
+        serde_json::json!({"schema_version":1,"status":"ok","directives":directives})
+    );
+    Ok(())
+}
+
+fn parse_cli_options(args: &[String]) -> Result<std::collections::BTreeMap<&str, &str>, String> {
+    if args.first().map(String::as_str) != Some("build") {
+        return Err("usage: ios-rust-build build --workspace-root PATH --spec PATH --target TRIPLE --target-os OS --out-dir PATH --manifest-dir PATH --format json".into());
+    }
+    let mut options = std::collections::BTreeMap::new();
+    let mut index = 1;
+    while index < args.len() {
+        let name = args[index].as_str();
+        if ![
+            "--workspace-root",
+            "--spec",
+            "--target",
+            "--target-os",
+            "--out-dir",
+            "--manifest-dir",
+            "--format",
+        ]
+        .contains(&name)
+        {
+            return Err(format!("unknown build option `{name}`"));
+        }
+        let value = args
+            .get(index + 1)
+            .ok_or_else(|| format!("`{name}` requires a value"))?;
+        if value.starts_with('-') && name != "--spec" {
+            return Err(format!("invalid value for `{name}`"));
+        }
+        if options.insert(name, value.as_str()).is_some() {
+            return Err(format!("duplicate build option `{name}`"));
+        }
+        index += 2;
+    }
+    Ok(options)
+}
+
+fn required_option<'a>(
+    options: &'a std::collections::BTreeMap<&str, &str>,
+    name: &str,
+) -> Result<&'a str, String> {
+    options
+        .get(name)
+        .copied()
+        .ok_or_else(|| format!("missing required option `{name}`"))
+}
+
+fn resolve_workspace_path(root: &Path, path: &str, kind: &str) -> Result<PathBuf, String> {
+    let path = PathBuf::from(path);
+    let resolved = if path.is_absolute() {
+        path.canonicalize()
+    } else {
+        root.join(path).canonicalize()
+    }
+    .map_err(|error| format!("invalid {kind} path: {error}"))?;
+    if !resolved.starts_with(root) {
+        return Err(format!("{kind} is outside the workspace root"));
+    }
+    Ok(resolved)
+}
+
+fn resolve_package_path(
+    root: &Path,
+    manifest_dir: &Path,
+    path: &str,
+    kind: &str,
+) -> Result<PathBuf, String> {
+    if path.is_empty() || path.contains('\n') || path.contains('\r') {
+        return Err(format!("invalid {kind} path"));
+    }
+    let resolved = manifest_dir
+        .join(path)
+        .canonicalize()
+        .map_err(|error| format!("invalid {kind} `{path}`: {error}"))?;
+    if !resolved.starts_with(root) {
+        return Err(format!("{kind} `{path}` is outside the workspace root"));
+    }
+    Ok(resolved)
+}
+
+fn parse_deployment_target(version: &str) -> Result<DeploymentTarget, String> {
+    let mut parts = version.split('.');
+    let major = parts
+        .next()
+        .and_then(|part| part.parse::<u16>().ok())
+        .ok_or_else(|| format!("invalid iOS deployment floor `{version}`"))?;
+    let minor = parts
+        .next()
+        .and_then(|part| part.parse::<u8>().ok())
+        .ok_or_else(|| format!("invalid iOS deployment floor `{version}`"))?;
+    if parts.next().is_some() {
+        return Err(format!("invalid iOS deployment floor `{version}`"));
+    }
+    Ok(DeploymentTarget { major, minor })
+}
+
+fn leak_string(value: String) -> &'static str {
+    Box::leak(value.into_boxed_str())
+}
+
+fn leak_strings(values: Vec<String>) -> &'static [&'static str] {
+    let values = values.into_iter().map(leak_string).collect::<Vec<_>>();
+    Box::leak(values.into_boxed_slice())
+}
+
+fn leak_values<T: 'static>(values: Vec<T>) -> &'static [T] {
+    Box::leak(values.into_boxed_slice())
+}
+
+fn build_help() -> &'static str {
+    "ios-rust-build <command>\n\nCommands:\n  --help, -h\n  --version [--format json]\n  build --workspace-root PATH --spec PATH --target TRIPLE --target-os OS --out-dir PATH --manifest-dir PATH --format json\n"
+}
+
+fn runtime_host_triple() -> Option<&'static str> {
+    match (std::env::consts::OS, std::env::consts::ARCH) {
+        ("macos", "aarch64") => Some("aarch64-apple-darwin"),
+        ("macos", "x86_64") => Some("x86_64-apple-darwin"),
+        ("linux", "x86_64") => Some("x86_64-unknown-linux-gnu"),
+        _ => None,
     }
 }
 
