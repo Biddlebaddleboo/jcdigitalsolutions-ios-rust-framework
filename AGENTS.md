@@ -22,6 +22,20 @@ For ordinary API/capability development, treat `ios-rust-build` and `ios-rust-va
 
 The above is a **workflow isolation policy**, not a security boundary. Engine source remains recoverable from immutable Git history for a deliberately separate maintenance session. Preserve all existing architecture, public Apple API, ABI, privacy, feature-isolation, zero-shipping-Swift and testing invariants in this file.
 
+## Required validation registration for API work
+
+Every new or materially expanded API capability must have **registered, executable validation coverage**, not merely a list of manually executed commands. Before declaring a capability complete:
+
+1. Check the installed pinned validator's `--version --format json`, `--list`, and `--explain ID` contract. Inspect the capability's code, tests, and `tools/validation/specs/validation-v1.json`; do not inspect the historical engine implementation.
+2. Implement the smallest correct tests and negative regression for the capability. Extend the existing profile, or add a schema-v1 profile when supported; declare exact source inputs, ABI/SDK dependencies, path rules, reverse dependencies, and required gates. Confirm the profile actually selects and runs the new assertions.
+3. Prefer declarative guards and existing Cargo, Clippy, native `check.sh`, C/C++ linkage, Swift ABI/oracle and import checks. Add a **small, deterministic Python 3 adapter only when the existing schema and native checks cannot faithfully express a distinct requirement**; register its input paths, evidence category, deadline, bounded output and `required` status. Do not write Python merely as a wrapper for a shell command or Cargo invocation. Do not invent a PASS from textual matching when compiler/link/runtime evidence is required.
+4. Execute the registered check through `ios-rust-validate --workspace-root "$PWD" --spec "$PWD/tools/validation/specs/validation-v1.json" --capability ID`; use `--changed EXPLICIT_BASE` and broader coverage when shared inputs changed. Direct Cargo/shell/Clang/Swift commands are useful for debugging and for checks not yet supported by the pinned validator, **but do not substitute them for registered acceptance gates**. If a needed gate cannot be represented by schema v1, preserve its independent CI check, record the coverage gap, and request separate tooling maintenance; never silently omit it.
+5. Report the executed validator command, pinned tool identity, capability and changed spec/fixture/adapter files, test and negative-regression results, and FAIL/BLOCKED/SKIPPED distinctions. Static checks are not simulator or physical-device runtime proof. Do not report success for a required gate that did not run.
+
+**Version boundary:** `tools/releases/manifest-v1.tsv` currently pins the historical framework-source release, not the new `Biddlebaddleboo/jcdigitalsolutions-rust-tooling` implementation. Its newer `--watch`, immutable dirty-worktree snapshots, resource-aware scheduling, caching, and cleanup are **future consumer capabilities until a verified new release is pinned and installed**. Never assume a local PATH binary has those features: inspect the effective help/version. Once promoted, prefer the native `--watch` workflow and snapshot-tagged diagnostics for local Codex iteration; do not require Git commits for local validation.
+
+Avoid repetitive repository-wide audits and documentation-only checkpoint cycles unless a concrete code change, unsupported gate, toolchain change, or correctness failure requires them. Prioritize usable API increments with their registered tests.
+
 ## Hard rules
 
 ### Rust-native fast path
