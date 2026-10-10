@@ -5,6 +5,14 @@ root=$(CDPATH= cd -- "$(dirname -- "$0")/../.." && pwd)
 cd "$root"
 mkdir -p target
 
+sysroot=$(rustc --print sysroot)
+host=$(rustc -vV | sed -n 's/^host: //p')
+llvm_nm="$sysroot/lib/rustlib/$host/bin/llvm-nm"
+if [ ! -x "$llvm_nm" ]; then
+    echo "Rust LLVM symbol tool is required for this audit: $llvm_nm" >&2
+    exit 1
+fi
+
 python3 -m json.tool bindings/c/abi-manifest.json > /dev/null
 sh -n bindings/c/check-ios-modelio-status.sh
 cargo fmt --package framework-c-api -- --check
@@ -136,12 +144,12 @@ clang -std=c11 -Wall -Wextra -Werror -pedantic -I bindings/c/include \
 clang++ -std=c++17 -Wall -Wextra -Werror -pedantic -I bindings/c/include \
     target/framework-c-ios-modelio-status-cpp.cpp "$host_archive" \
     -o target/framework-c-ios-modelio-status-cpp-host
-nm -g "$host_archive" 2>/dev/null \
+"$llvm_nm" -g "$host_archive" 2>/dev/null \
     | rg -o '_framework_ios_modelio_[A-Za-z0-9_]+' | sed 's/^_//' | sort -u \
     > target/framework-c-ios-modelio-status-host-symbols.txt
 diff -u target/framework-c-ios-modelio-status-expected-symbols.txt \
     target/framework-c-ios-modelio-status-host-symbols.txt
-nm -u "$host_archive" 2>/dev/null \
+"$llvm_nm" -u "$host_archive" 2>/dev/null \
     > target/framework-c-ios-modelio-status-host-undefined.txt
 if rg -q 'MDLAsset|ModelIO|objc_msgSend|OBJC_CLASS|libobjc|swift_' \
     target/framework-c-ios-modelio-status-host-undefined.txt; then
@@ -216,7 +224,7 @@ for target in aarch64-apple-ios aarch64-apple-ios-sim; do
         printf '%s %s ModelIO imports and iOS %s minimum verified; probe not executed\n' \
             "$target" "$language" "$deployment_target"
     done
-    nm -g "$archive" 2>/dev/null \
+    "$llvm_nm" -g "$archive" 2>/dev/null \
         | rg -o '_framework_ios_modelio_[A-Za-z0-9_]+' | sed 's/^_//' | sort -u \
         > "target/framework-c-ios-modelio-status-$target-archive-symbols.txt"
     diff -u target/framework-c-ios-modelio-status-expected-symbols.txt \
