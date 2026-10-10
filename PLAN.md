@@ -72,7 +72,14 @@ ownership Rust caller probe`), skipping Clippy steps 231–232. Integrated mainl
 [38037910253](https://github.com/Biddlebaddleboo/jcdigitalsolutions-ios-rust-framework/actions/runs/38037910253)
 also passed B47 and MediaPlayer on macOS at steps 178 and 225, then failed at the same step 229;
 Clippy remains unverified. Its Xcode 27 job is still active and has not yet reached B47. The
-combined mainline qualification and Apple Clippy results remain pending. Local Xcode 26.6 (build 17F113), SDK 26.5 gates also pass for
+step-229 diagnostic is that `otool -L` did not use the expected `@rpath/libswiftCore.dylib`
+spelling on the hosted arm64 runner. Commit `0f35e0a` matches the `libswiftCore.dylib` basename
+instead, retaining the import, active `LC_RPATH`, and exactly-one-runtime-load assertions. The
+pre-fix probe passed on local x86_64 macOS and did not reproduce the hosted path difference; only
+shell syntax and whitespace checks ran after the fix. Mainline rerun
+[38039510421](https://github.com/Biddlebaddleboo/jcdigitalsolutions-ios-rust-framework/actions/runs/38039510421)
+is queued. The combined mainline qualification and Apple Clippy results remain pending. Local
+Xcode 26.6 (build 17F113), SDK 26.5 gates also pass for
 B47 full audio (`sh platform/ios/ios-media/check-audio-playback.sh`), B50 package
 (`sh platform/ios/ios-media/check.sh`), and F25 C link/import
 (`sh bindings/c/check-ios-videotoolbox-link.sh`); detailed results and limits are in [PLAN_IOS_OTHER_AUDIO.md](PLAN_IOS_OTHER_AUDIO.md), [PLAN_VALIDATION_IOS_OTHER_AUDIO.md](PLAN_VALIDATION_IOS_OTHER_AUDIO.md), [PLAN_IOS_VIDEOTOOLBOX.md](PLAN_IOS_VIDEOTOOLBOX.md), and [PLAN_BINDINGS_F25.md](PLAN_BINDINGS_F25.md). These local passes do not establish runtime behavior; no tests, probe execution, live codec query, or device behavior is claimed.
