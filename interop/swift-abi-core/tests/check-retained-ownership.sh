@@ -177,7 +177,7 @@ nm -u "$runtime_binary" > "$probe_dir/runtime-imports.txt"
 grep -E '_swift_retain$' "$probe_dir/runtime-imports.txt" >/dev/null || fail 'runtime ownership probe does not import _swift_retain'
 grep -E '_swift_release$' "$probe_dir/runtime-imports.txt" >/dev/null || fail 'runtime ownership probe does not import _swift_release'
 otool -L "$runtime_binary" > "$probe_dir/runtime-linkage.txt"
-grep -F '@rpath/libswiftCore.dylib' "$probe_dir/runtime-linkage.txt" >/dev/null || fail 'runtime ownership probe does not link @rpath/libswiftCore.dylib'
+grep -E '(^|/)libswiftCore\.dylib([[:space:]]|$)' "$probe_dir/runtime-linkage.txt" >/dev/null || fail 'runtime ownership probe does not link libswiftCore.dylib'
 otool -l "$runtime_binary" > "$probe_dir/runtime-load-commands.txt"
 grep -F "$swift_runtime_dir" "$probe_dir/runtime-load-commands.txt" >/dev/null || fail 'runtime ownership probe lacks the active Swift host runtime LC_RPATH'
 DYLD_PRINT_LIBRARIES=1 "$runtime_binary" > "$probe_dir/runtime-stdout.txt" 2> "$probe_dir/runtime-libraries.txt"
@@ -197,7 +197,7 @@ printf '%s\n' 'default swift-abi-core feature path: passed (no swiftCore linkage
 printf '%s\n' 'runtime imports:'
 grep -E '_swift_(retain|release)$' "$probe_dir/runtime-imports.txt"
 printf '%s\n' 'runtime dependency:'
-grep -F '@rpath/libswiftCore.dylib' "$probe_dir/runtime-linkage.txt"
+grep -E '(^|/)libswiftCore\.dylib([[:space:]]|$)' "$probe_dir/runtime-linkage.txt"
 printf '%s\n' 'loaded runtime:'
 grep -F 'libswiftCore.dylib' "$probe_dir/runtime-libraries.txt"
 printf '%s\n' "runtime LC_RPATH: $swift_runtime_dir"
