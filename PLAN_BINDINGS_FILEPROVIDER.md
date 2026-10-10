@@ -6,6 +6,8 @@ F16 source, header, ABI manifest, guide, and focused check are complete. `sh bin
 
 Xcode 27 run `38054423923`, job `114219854062`, passed Location step247 and failed FileProvider step248 because `result_record` did not handle `FileProviderQueryError::CountOutOfRange`. The adapter now maps that impossible fixed-width count conversion to `FRAMEWORK_STATUS_INTERNAL_ERROR`, preserving the existing native NSError, API-unavailable, unsupported-platform, and panic mappings. Requalification is pending; no tests or linked probes ran for this repair
 
+Xcode 27 follow-up run `38056880188`, macOS job `114227073095`, passed Location step247 and failed FileProvider step248 immediately after the host Release archive build, with no compiler diagnostic or fixture output. The focused check scans Rust archives with Apple `nm` while suppressing its stderr. This step order and failure shape make an archive-inspection failure the likely cause, but the exact failing command is not present in the hosted log. The check now uses the Rust sysroot `llvm-nm` only for host, device, and Simulator Rust archives; Apple `nm` remains on linked Mach-O probes. Requalification is pending; no tests or linked probes ran
+
 ## Goal
 
 Expose B75's one-shot registered-domain presence query through an opt-in C ABI. Return only a Boolean snapshot or an owned native NSError domain/code. Preserve the unspecified Apple callback queue, per-request ownership, and noncancellable native request contract. Do not add a main-thread rule, native object handle, domain identifier, global registry, or executor
