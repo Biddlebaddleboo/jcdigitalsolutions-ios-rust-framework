@@ -116,24 +116,39 @@ pub struct Authenticator<B> {
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
 #[non_exhaustive]
 pub enum AppTrackingAuthorizationStatus {
-    /// No tracking-authorization decision is available as a determined status.
+    /// The app cannot determine the calling app's authorization status for tracking-related data.
+    ///
+    /// Apple also returns this status before the device receives an authorization request. It is
+    /// neither approval nor denial.
     NotDetermined,
-    /// Tracking authorization is restricted by the system or device policy.
+    /// Authorization to access tracking-related data is restricted.
+    ///
+    /// Apple may return this status when the restriction is managed by the system. It is distinct
+    /// from a user denial.
     Restricted,
-    /// Tracking authorization is denied.
+    /// The user denies authorization to access app-related data that may be used to track the user
+    /// or device.
     Denied,
-    /// Tracking authorization is authorized for this app.
+    /// The user authorizes access to app-related data that may be used to track the user or device.
+    ///
+    /// This reports only the App Tracking Transparency status; it is not a general permission or
+    /// legal determination.
     Authorized,
-    /// The backend returned a status value this version does not recognize.
+    /// The backend received a native status value this version does not recognize.
+    ///
+    /// Backends must preserve unrecognized native values as this status rather than treating them
+    /// as authorization.
     Unknown,
 }
 
 /// A statically selected backend for a non-prompting App Tracking Transparency status query.
 ///
-/// The query reads the status for the calling app. It must not request authorization or infer
-/// authorization for any privacy capability beyond App Tracking Transparency.
+/// This synchronous query reads the current status for the calling app only. It must not request
+/// authorization, display a prompt, access an identifier, perform tracking, or infer authorization
+/// for any privacy capability beyond App Tracking Transparency. A native status this version does
+/// not recognize must be returned as [`AppTrackingAuthorizationStatus::Unknown`].
 pub trait AppTrackingAuthorizationBackend {
-    /// Reads the current App Tracking Transparency status.
+    /// Reads the current App Tracking Transparency status for the calling app without prompting.
     fn status(&self) -> AppTrackingAuthorizationStatus;
 }
 
@@ -203,8 +218,16 @@ mod tracking_tests {
     }
 
     #[test]
-    fn tracking_backend_returns_its_status_value() {
-        let backend = FixedBackend(AppTrackingAuthorizationStatus::Restricted);
-        assert_eq!(backend.status(), AppTrackingAuthorizationStatus::Restricted);
+    fn tracking_backend_preserves_each_status_value() {
+        let values = [
+            AppTrackingAuthorizationStatus::NotDetermined,
+            AppTrackingAuthorizationStatus::Restricted,
+            AppTrackingAuthorizationStatus::Denied,
+            AppTrackingAuthorizationStatus::Authorized,
+            AppTrackingAuthorizationStatus::Unknown,
+        ];
+        for value in values {
+            assert_eq!(FixedBackend(value).status(), value);
+        }
     }
 }
