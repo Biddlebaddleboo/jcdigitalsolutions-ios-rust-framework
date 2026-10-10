@@ -159,7 +159,9 @@ impl<B: BluetoothCentralBackend> BluetoothCentral<B> {
 /// The query must not instantiate a central/peripheral manager, request permission, prompt the
 /// user, power on the radio, scan, connect, or advertise. The returned state is only an
 /// authorization snapshot and is not proof that Bluetooth is available or that an operation can
-/// succeed. No global service, dynamic dispatch, or executor is required by this contract.
+/// succeed. Backends must map unrecognized or unclassifiable native authorization states to
+/// [`BluetoothAuthorization::Unknown`]. No global service, dynamic dispatch, or executor is
+/// required by this contract.
 pub trait BluetoothAuthorizationBackend {
     /// Queries the normalized authorization state without prompting or starting Bluetooth use.
     fn authorization_status(&self) -> BluetoothAuthorization;
@@ -195,10 +197,20 @@ mod tests {
     }
 
     #[test]
-    fn status_has_fixed_width_and_only_allowed_means_authorized() {
+    fn status_has_fixed_width_distinct_values_and_only_allowed_means_authorized() {
         assert_eq!(core::mem::size_of::<BluetoothAuthorization>(), 1);
         assert_eq!(core::mem::size_of::<BluetoothScanState>(), 1);
         assert_eq!(core::mem::size_of::<BluetoothScanError>(), 1);
+        assert_eq!(
+            [
+                BluetoothAuthorization::Unknown as u8,
+                BluetoothAuthorization::NotDetermined as u8,
+                BluetoothAuthorization::Restricted as u8,
+                BluetoothAuthorization::Denied as u8,
+                BluetoothAuthorization::Allowed as u8,
+            ],
+            [0, 1, 2, 3, 4],
+        );
         assert!(BluetoothAuthorization::Allowed.allows_bluetooth_use());
         assert!(!BluetoothAuthorization::Unknown.allows_bluetooth_use());
         assert!(!BluetoothAuthorization::NotDetermined.allows_bluetooth_use());

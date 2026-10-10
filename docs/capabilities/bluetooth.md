@@ -8,7 +8,8 @@ platform manager, connection, advertisement, peripheral, beacon, or radio-contro
 `BluetoothAuthorization` distinguishes Unknown, NotDetermined, Restricted, Denied, and Allowed.
 `Allowed` reports that the backend's platform authorization status permits Bluetooth use. It does
 not say that the radio is powered on, that a Bluetooth role is supported, or that a later scan or
-connection will succeed. A status query is a snapshot and does not request permission.
+connection will succeed. A backend maps any unrecognized or unclassifiable native authorization
+state to `Unknown`. A status query is a snapshot and does not request permission.
 
 ## Backend and scope
 
