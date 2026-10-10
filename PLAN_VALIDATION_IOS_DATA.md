@@ -9,8 +9,9 @@ The R1/R2 build and validation engines are already installed, pinned PATH tools;
 CI wiring, the B19 `ios-data` package, and its focused link/import script are present. On
 2026-10-08, the device/Simulator checks, strict Clippy gates, and import script passed locally
 on Rust 1.94.1 with Xcode 26.6 build 17F113 and SDK 26.5. The linked probes import exactly
-CoreFoundation.framework and `/usr/lib/libSystem.B.dylib`; they were not executed. No passing CI
-workflow run or live `CFData` behavior is claimed
+CoreFoundation.framework and `/usr/lib/libSystem.B.dylib`; they were not executed. Hosted run
+38075483431 later passed G13's device, Simulator, Clippy, and link/import steps at source SHA
+`85db105389c1d0b212bc385d9b4b6a1f6e049c0b`; see below. No live `CFData` behavior is claimed.
 
 ## Objective
 
@@ -62,10 +63,9 @@ or other target gates. Root owns capability counts and shared indexes
   use SDK 26.5. The script's forbidden-symbol scan passed; `nm -u` includes the expected
   `_CFDataCreate`, `_CFDataGetBytes`, `_CFDataGetLength`, and `_CFRelease` imports alongside
   C/runtime symbols
-- The available Xcode 26.6 toolchain is below the planned Xcode 27.x baseline. The probe
+- The local Xcode 26.6 toolchain is below the planned Xcode 27.x baseline. The probe
   executables were not run; compile/link/import checks do not establish live app use, `NSData`
-  runtime behavior, parity, allocation behavior under memory pressure, or performance. No
-  passing CI workflow run is recorded
+  runtime behavior, parity, allocation behavior under memory pressure, or performance.
 - Report compile/link/import evidence only. It does not establish live app use, `NSData` runtime
   behavior, parity, allocation behavior under memory pressure, or performance
 - Run `cargo xtask docs-check`, `cargo xtask zero-swift-source`, workflow YAML parsing, and
@@ -83,4 +83,14 @@ SDK 26.5:
 - PASS: `sh platform/ios/ios-data/check-link-imports.sh` for device and Simulator. Both probes import exactly CoreFoundation.framework and `/usr/lib/libSystem.B.dylib`; device minos is 10.0 and Simulator minos is 14.0; both use SDK 26.5. The forbidden-symbol scan passes, with expected `_CFDataCreate`, `_CFDataGetBytes`, `_CFDataGetLength`, and `_CFRelease` imports.
 - PASS: `cargo +1.94.1 clippy --locked --workspace --all-targets --all-features -- -D warnings`, `cargo +1.94.1 fmt --all -- --check`, `cargo +1.94.1 xtask docs-check`, `cargo +1.94.1 xtask zero-swift-source`, Ruby CI YAML parse, and `git diff --check`.
 
-No test, probe execution, app, live `CFData` use, parity, memory-pressure allocation query, or performance measurement ran. These are compile, Clippy, static link/import, format, and docs results only. Xcode 27.x qualification and a passing GitHub workflow run remain unrecorded.
+No test, probe execution, app, live `CFData` use, parity, memory-pressure allocation query, or performance measurement ran. These are compile, Clippy, static link/import, format, and docs results only. The hosted Xcode 27.0 CI evidence below is for historical source SHA `85db105389c1d0b212bc385d9b4b6a1f6e049c0b`, not this local Xcode 26.6 recheck at `790a18db95d8a9b8a8ee5ae331222135f0957d26`.
+
+## 2026-10-10 hosted Xcode 27 CI evidence
+
+[GitHub Actions run 38075483431](https://github.com/Biddlebaddleboo/jcdigitalsolutions-ios-rust-framework/actions/runs/38075483431) completed successfully at source SHA `85db105389c1d0b212bc385d9b4b6a1f6e049c0b`. The `Rust checks (ubuntu-24.04)`, `Rust checks (macos-15)`, and `Rust checks (xcode-27)` jobs all concluded `success`. The Xcode 27 job's `Select and record Xcode 27.x` and `Fingerprint Xcode 27 runner and iOS SDKs` steps succeeded and recorded Xcode 27.0 build 27A266a, iPhoneOS SDK 27.0, and iPhoneSimulator SDK 27.0.
+
+- In both macOS jobs, `Check iOS data device target`, `Check iOS data simulator target`, `Clippy iOS data device target`, `Clippy iOS data simulator target`, and `Link and audit iOS data imports` concluded `success`.
+- The Ubuntu job concluded `success`; those Apple-targeted G13 steps were skipped there.
+- The link/import script built device and Simulator probes, checked the exact `CoreFoundation` and `libSystem.B.dylib` linked-library set, expected CoreFoundation data symbols, forbidden imports, and zero-Swift boundary. The probes were not executed.
+
+This hosted evidence establishes compilation, strict Clippy, and static link/import checks for the recorded source SHA only. It does not establish runtime CFData behavior, live app use, data parity, allocation behavior under memory pressure, or performance, and it does not requalify commits after `85db105`.

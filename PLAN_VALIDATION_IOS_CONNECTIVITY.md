@@ -6,7 +6,7 @@ R1/R2 tooling is complete and installed on PATH; consult `docs/SHARED_TOOLING.md
 
 ## Status
 
-CI wiring, the B18 `ios-connectivity` crate, and its focused link/import script are present. On 2026-10-08, the device/simulator checks, strict Clippy gates, and link/import script passed independently on Rust 1.94.1 with Xcode 26.6 build 17F113 and SDK 26.5. The direct imports are exactly Network.framework and `/usr/lib/libSystem.B.dylib`; the probes were linked, not executed. G12 local validation is complete, but this is not evidence of a passing CI workflow run or live connectivity/path behavior
+CI wiring, the B18 `ios-connectivity` crate, and its focused link/import script are present. On 2026-10-08, the device/simulator checks, strict Clippy gates, and link/import script passed independently on Rust 1.94.1 with Xcode 26.6 build 17F113 and SDK 26.5. The direct imports are exactly Network.framework and `/usr/lib/libSystem.B.dylib`; the probes were linked, not executed. Hosted run 38075483431 later passed G12's device, Simulator, Clippy, and link/import steps at source SHA `85db105389c1d0b212bc385d9b4b6a1f6e049c0b`; see below. No hosted or local compile/link evidence establishes live connectivity or path behavior.
 
 ## Objective
 
@@ -76,4 +76,14 @@ SDK 26.5:
 - PASS: `sh platform/ios/ios-connectivity/check-link-imports.sh` for device and Simulator. Both probes import exactly Network.framework and `/usr/lib/libSystem.B.dylib`; device minos is 12.0 and Simulator minos is 14.0; both use SDK 26.5.
 - PASS: `cargo +1.94.1 fmt --all -- --check`, `cargo +1.94.1 xtask docs-check`, `cargo +1.94.1 xtask zero-swift-source`, Ruby CI YAML parse, and `git diff --check`.
 
-No tests, probe execution, app, path-change query, endpoint request, live reachability, request success, or cancellation event ran. These are compile, Clippy, static link/import, format, and docs results only. Xcode 27.x qualification and a passing GitHub workflow run remain unrecorded.
+No tests, probe execution, app, path-change query, endpoint request, live reachability, request success, or cancellation event ran. These are compile, Clippy, static link/import, format, and docs results only. The hosted Xcode 27.0 CI evidence below is for historical source SHA `85db105389c1d0b212bc385d9b4b6a1f6e049c0b`, not this local Xcode 26.6 recheck at `14720ad9848be5f610be3f578ead2a16b5d3ef67`.
+
+## 2026-10-10 hosted Xcode 27 CI evidence
+
+[GitHub Actions run 38075483431](https://github.com/Biddlebaddleboo/jcdigitalsolutions-ios-rust-framework/actions/runs/38075483431) completed successfully at source SHA `85db105389c1d0b212bc385d9b4b6a1f6e049c0b`. The `Rust checks (ubuntu-24.04)`, `Rust checks (macos-15)`, and `Rust checks (xcode-27)` jobs all concluded `success`. The Xcode 27 job's `Select and record Xcode 27.x` and `Fingerprint Xcode 27 runner and iOS SDKs` steps succeeded and recorded Xcode 27.0 build 27A266a, iPhoneOS SDK 27.0, and iPhoneSimulator SDK 27.0.
+
+- In both macOS jobs, `Check iOS connectivity device target`, `Check iOS connectivity simulator target`, `Clippy iOS connectivity device target`, `Clippy iOS connectivity simulator target`, and `Link and audit iOS connectivity imports` concluded `success`.
+- The Ubuntu job concluded `success`; those Apple-targeted G12 steps were skipped there.
+- The link/import script built device and Simulator probes, checked the exact `Network` and `libSystem.B.dylib` linked-library set, deployment metadata, forbidden imports, and zero-Swift boundary. The probes were not executed.
+
+This hosted evidence establishes compilation, strict Clippy, and static link/import checks for the recorded source SHA only. It does not establish runtime path-change delivery, live connectivity, endpoint reachability, request success, or cancellation behavior, and it does not requalify commits after `85db105`.
