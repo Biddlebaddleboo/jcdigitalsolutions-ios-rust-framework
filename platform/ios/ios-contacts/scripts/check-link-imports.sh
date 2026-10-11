@@ -54,7 +54,7 @@ for target in aarch64-apple-ios aarch64-apple-ios-sim; do
         exit 1
     }
     binary_strings=$(strings "$binary")
-    for class in CNMutableContact CNSaveRequest; do
+    for class in CNMutableContact CNSaveRequest CNContactVCardSerialization; do
         printf '%s\n' "$binary_strings" | grep -Fx "$class" >/dev/null || {
             printf '%s probe does not reference the public Contacts runtime class name %s\n' "$target" "$class" >&2
             exit 1
@@ -78,7 +78,9 @@ for target in aarch64-apple-ios aarch64-apple-ios-sim; do
         'setOrganizationName:' \
         'setPhoneNumbers:' \
         'setEmailAddresses:' \
-        'deleteContact:'; do
+        'deleteContact:' \
+        'descriptorForRequiredKeys' \
+        'dataWithContacts:error:'; do
         printf '%s\n' "$binary_strings" | grep -F "$selector" >/dev/null || {
             printf '%s probe does not link the public Contacts selector %s\n' "$target" "$selector" >&2
             exit 1

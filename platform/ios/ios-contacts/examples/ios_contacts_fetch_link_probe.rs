@@ -7,6 +7,7 @@ fn main() {
 
     let contacts = Contacts::new(IosContactsBackend::new());
     let _ = core::hint::black_box(contacts.fetch_contact("selected-local-identifier"));
+    let _ = core::hint::black_box(contacts.export_contact_vcard("selected-local-identifier"));
     let _ = core::hint::black_box(contacts.search_contacts_by_name("selected name", 2));
     let draft = ContactDraft {
         given_name: String::from("Selected"),

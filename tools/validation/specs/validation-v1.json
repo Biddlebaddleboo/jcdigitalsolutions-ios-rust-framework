@@ -3238,7 +3238,7 @@
           "text": "ContactsUI"
         },
         {
-          "message": "the Contacts binding must enable only the required create, update, and delete mutable-contact APIs",
+          "message": "the Contacts binding must enable the required create, update, and delete mutable-contact APIs",
           "must_exist": true,
           "path": "platform/ios/ios-contacts/Cargo.toml",
           "text": "\"CNMutableContact\", \"CNSaveRequest\""
@@ -3794,6 +3794,144 @@
           "must_exist": false,
           "path": "platform/ios/ios-contacts/src/delete.rs",
           "text": "ContactsUI"
+        },
+        {
+          "message": "vCard export must be a separate source-compatible backend extension",
+          "must_exist": true,
+          "path": "crates/framework-contacts/src/lib.rs",
+          "text": "pub trait ContactsExportBackend: ContactsBackend"
+        },
+        {
+          "message": "the portable facade must return owned vCard bytes for one identifier",
+          "must_exist": true,
+          "path": "crates/framework-contacts/src/lib.rs",
+          "text": "pub fn export_contact_vcard(&self, identifier: &str) -> Result<Vec<u8>, ContactsError>"
+        },
+        {
+          "message": "export must validate the caller identifier",
+          "must_exist": true,
+          "path": "platform/ios/ios-contacts/src/export.rs",
+          "text": "validate_identifier(identifier)?;"
+        },
+        {
+          "message": "export must re-check authorization without prompting",
+          "must_exist": true,
+          "path": "platform/ios/ios-contacts/src/export.rs",
+          "text": "fetch_authorization_error(status)"
+        },
+        {
+          "message": "export must fetch exactly the caller-selected contact",
+          "must_exist": true,
+          "path": "platform/ios/ios-contacts/src/export.rs",
+          "text": "unifiedContactWithIdentifier_keysToFetch_error"
+        },
+        {
+          "message": "export lookup errors must preserve existing authorization and not-found mapping",
+          "must_exist": true,
+          "path": "platform/ios/ios-contacts/src/export.rs",
+          "text": "fetch_error_from_native(current_status, contacts_domain, error.code())"
+        },
+        {
+          "message": "export must request the serializer's required key descriptor",
+          "must_exist": true,
+          "path": "platform/ios/ios-contacts/src/export.rs",
+          "text": "CNContactVCardSerialization::descriptorForRequiredKeys()"
+        },
+        {
+          "message": "export must serialize exactly the fetched single contact",
+          "must_exist": true,
+          "path": "platform/ios/ios-contacts/src/export.rs",
+          "text": "NSArray::from_slice(&[contact.as_ref()])"
+        },
+        {
+          "message": "export must use the public vCard serializer",
+          "must_exist": true,
+          "path": "platform/ios/ios-contacts/src/export.rs",
+          "text": "CNContactVCardSerialization::dataWithContacts_error(&contacts)"
+        },
+        {
+          "message": "export serializer failures must retain the native backend error code",
+          "must_exist": true,
+          "path": "platform/ios/ios-contacts/src/export.rs",
+          "text": "export_error_from_native(current_status, error.code())"
+        },
+        {
+          "message": "export must copy exact native bytes into owned Rust storage",
+          "must_exist": true,
+          "path": "platform/ios/ios-contacts/src/export.rs",
+          "text": "data.to_vec()"
+        },
+        {
+          "message": "the Contacts binding must enable public vCard serialization",
+          "must_exist": true,
+          "path": "platform/ios/ios-contacts/Cargo.toml",
+          "text": "\"CNContactVCardSerialization\""
+        },
+        {
+          "message": "export must not request authorization",
+          "must_exist": false,
+          "path": "platform/ios/ios-contacts/src/export.rs",
+          "text": "requestAccessForEntityType_completionHandler"
+        },
+        {
+          "message": "export must not enumerate contacts",
+          "must_exist": false,
+          "path": "platform/ios/ios-contacts/src/export.rs",
+          "text": "enumerateContactsWithFetchRequest_error_usingBlock"
+        },
+        {
+          "message": "export must not use the eager all-matches lookup API",
+          "must_exist": false,
+          "path": "platform/ios/ios-contacts/src/export.rs",
+          "text": "unifiedContactsMatchingPredicate"
+        },
+        {
+          "message": "export must not search contacts",
+          "must_exist": false,
+          "path": "platform/ios/ios-contacts/src/export.rs",
+          "text": "predicateForContactsMatchingName"
+        },
+        {
+          "message": "export must not use the unrelated common-field fetch descriptor",
+          "must_exist": false,
+          "path": "platform/ios/ios-contacts/src/export.rs",
+          "text": "contact_key_descriptors()"
+        },
+        {
+          "message": "export must not mutate the Contacts store",
+          "must_exist": false,
+          "path": "platform/ios/ios-contacts/src/export.rs",
+          "text": "executeSaveRequest_error"
+        },
+        {
+          "message": "export must not create or mutate native contacts",
+          "must_exist": false,
+          "path": "platform/ios/ios-contacts/src/export.rs",
+          "text": "CNMutableContact"
+        },
+        {
+          "message": "export must not construct or execute a Contacts save request",
+          "must_exist": false,
+          "path": "platform/ios/ios-contacts/src/export.rs",
+          "text": "CNSaveRequest"
+        },
+        {
+          "message": "export must not delete selected contacts",
+          "must_exist": false,
+          "path": "platform/ios/ios-contacts/src/export.rs",
+          "text": "deleteContact"
+        },
+        {
+          "message": "export must not use ContactsUI or picker APIs",
+          "must_exist": false,
+          "path": "platform/ios/ios-contacts/src/export.rs",
+          "text": "ContactsUI"
+        },
+        {
+          "message": "export must not parse or alter vCard data before returning it",
+          "must_exist": false,
+          "path": "platform/ios/ios-contacts/src/export.rs",
+          "text": "contactsWithData_error"
         }
       ],
       "id": "ios-contacts-fetch",
@@ -3826,7 +3964,9 @@
         "tools/validation/specs/validation-v1.json",
         "platform/ios/ios-contacts/src/update.rs",
         "platform/ios/ios-contacts/tests/update_contract.rs",
-        "platform/ios/ios-contacts/tests/delete_contract.rs"
+        "platform/ios/ios-contacts/tests/delete_contract.rs",
+        "platform/ios/ios-contacts/src/export.rs",
+        "platform/ios/ios-contacts/tests/export_contract.rs"
       ],
       "shell_scripts": [
         "platform/ios/ios-contacts/scripts/check-link-imports.sh"

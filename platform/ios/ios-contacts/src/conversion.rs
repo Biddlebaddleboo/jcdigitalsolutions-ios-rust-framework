@@ -91,6 +91,14 @@ pub(crate) const fn fetch_authorization_error(
     }
 }
 
+/// Maps failed vCard serialization after re-checking current authorization.
+pub(crate) fn export_error_from_native(
+    status: ContactsAuthorization,
+    native_error_code: isize,
+) -> ContactsError {
+    fetch_authorization_error(status).unwrap_or_else(|| error_from_native(native_error_code))
+}
+
 /// Maps a native one-record fetch failure without exposing Contacts framework types portably.
 pub(crate) fn fetch_error_from_native(
     status: ContactsAuthorization,
@@ -391,6 +399,17 @@ mod tests {
             denied,
             ContactsError::AuthorizationRequired(ContactsAuthorization::Denied)
         );
+    }
+
+    #[test]
+    fn export_failure_rechecks_authorization_and_preserves_native_code() {
+        assert_eq!(
+            export_error_from_native(ContactsAuthorization::Denied, -42),
+            ContactsError::AuthorizationRequired(ContactsAuthorization::Denied)
+        );
+        let error = export_error_from_native(ContactsAuthorization::Limited, -42);
+        assert_eq!(error.kind(), ErrorKind::Platform);
+        assert_eq!(error.platform_code().unwrap().get(), -42);
     }
 
     #[test]

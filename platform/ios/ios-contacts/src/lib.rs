@@ -22,6 +22,9 @@ mod create;
 mod delete;
 
 #[cfg(target_os = "ios")]
+mod export;
+
+#[cfg(target_os = "ios")]
 mod update;
 
 #[cfg(target_os = "ios")]

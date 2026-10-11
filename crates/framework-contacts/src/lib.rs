@@ -254,6 +254,17 @@ pub trait ContactsDeleteBackend: ContactsBackend {
     fn delete_contact(&self, identifier: &str) -> Result<(), ContactsError>;
 }
 
+/// A read-only extension for backends that export one record as native vCard bytes.
+///
+/// Implementations must reject empty/NUL identifiers, re-check authorization without prompting,
+/// permit only `Authorized` or `Limited`, fetch only the supplied identifier with the native
+/// serializer's required keys, and return owned bytes without text conversion. This separate
+/// trait keeps existing [`ContactsBackend`] implementors source-compatible.
+pub trait ContactsExportBackend: ContactsBackend {
+    /// Exports one accessible contact as an owned vCard byte sequence without prompting.
+    fn export_contact_vcard(&self, identifier: &str) -> Result<Vec<u8>, ContactsError>;
+}
+
 /// A thin facade over caller-owned, statically selected Contacts backend state.
 pub struct Contacts<B> {
     backend: B,
@@ -324,6 +335,13 @@ impl<B: ContactsDeleteBackend> Contacts<B> {
     }
 }
 
+impl<B: ContactsExportBackend> Contacts<B> {
+    /// Exports one contact as native vCard bytes without prompting or enumerating contacts.
+    pub fn export_contact_vcard(&self, identifier: &str) -> Result<Vec<u8>, ContactsError> {
+        self.backend.export_contact_vcard(identifier)
+    }
+}
+
 #[cfg(test)]
 extern crate std;
 
@@ -334,6 +352,7 @@ mod tests {
     use core::task::{Context, Poll, Waker};
     use std::cell::Cell;
     use std::rc::Rc;
+    use std::vec;
 
     struct FakeBackend {
         status: ContactsAuthorization,

@@ -5,7 +5,7 @@ edition.workspace = true
 rust-version.workspace = true
 license.workspace = true
 repository.workspace = true
-description = "Contacts authorization, fetch, search, create, update, and delete backend using public iOS Contacts APIs"
+description = "Contacts authorization, fetch, search, vCard export, create, update, and delete backend using public iOS Contacts APIs"
 
 [dependencies]
 framework-core.workspace = true
@@ -14,8 +14,8 @@ framework-contacts = { path = "../../../crates/framework-contacts" }
 [target.'cfg(target_os = "ios")'.dependencies]
 block2 = { workspace = true, features = ["alloc"] }
 objc2 = { workspace = true, features = ["std"] }
-objc2-contacts = { workspace = true, features = ["block2", "CNContact", "CNContactStore", "CNContact_Predicates", "CNContactFetchRequest", "CNFetchRequest", "CNMutableContact", "CNSaveRequest", "CNLabeledValue", "CNPhoneNumber", "CNError"] }
-objc2-foundation = { workspace = true, features = ["NSArray", "NSError", "NSString"] }
+objc2-contacts = { workspace = true, features = ["block2", "CNContact", "CNContactStore", "CNContact_Predicates", "CNContactFetchRequest", "CNFetchRequest", "CNMutableContact", "CNSaveRequest", "CNContactVCardSerialization", "CNLabeledValue", "CNPhoneNumber", "CNError"] }
+objc2-foundation = { workspace = true, features = ["NSArray", "NSData", "NSError", "NSString"] }
 
 [lints]
 workspace = true
