@@ -94,8 +94,6 @@ for target in aarch64-apple-ios aarch64-apple-ios-sim; do
         portType \
         portName \
         UID \
-        AVAudioSessionRouteChangeNotification \
-        AVAudioSessionInterruptionNotification \
         userInfo \
         objectForKey: \
         integerValue \

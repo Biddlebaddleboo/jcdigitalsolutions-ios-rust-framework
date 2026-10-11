@@ -458,7 +458,8 @@ fn add_audio_event_observer(
 
 #[cfg(target_os = "ios")]
 fn interruption_type(notification: &NSNotification) -> Option<isize> {
-    let key = objc2_avf_audio::AVAudioSessionInterruptionTypeKey?;
+    // SAFETY: AVFAudio exposes this immutable public NSString notification-key constant.
+    let key = unsafe { objc2_avf_audio::AVAudioSessionInterruptionTypeKey }?;
     let user_info: Retained<NSDictionary> = notification.userInfo()?;
     let value = user_info.objectForKey(key)?;
     value
@@ -474,16 +475,17 @@ fn add_interruption_observer(
     events: &Arc<PendingAudioSessionEvents>,
 ) -> ObserverToken {
     let events = Arc::downgrade(events);
-    let block: RcBlock<dyn Fn(NonNull<NSNotification>)> = RcBlock::new(move |notification| {
-        let _ = catch_unwind(AssertUnwindSafe(|| {
-            if let Some(events) = events.upgrade() {
-                // SAFETY: NotificationCenter supplies a live notification for this block call;
-                // the borrowed payload is parsed immediately and is never retained.
-                let interruption_type = unsafe { interruption_type(notification.as_ref()) };
-                events.record_interruption(interruption_type);
-            }
-        }));
-    });
+    let block: RcBlock<dyn Fn(NonNull<NSNotification>)> =
+        RcBlock::new(move |notification: NonNull<NSNotification>| {
+            let _ = catch_unwind(AssertUnwindSafe(|| {
+                if let Some(events) = events.upgrade() {
+                    // SAFETY: NotificationCenter supplies a live notification for this block call;
+                    // the borrowed payload is parsed immediately and is never retained.
+                    let interruption_type = unsafe { interruption_type(notification.as_ref()) };
+                    events.record_interruption(interruption_type);
+                }
+            }));
+        });
     // SAFETY: `name` is AVFAudio's public process-lifetime interruption name. With no operation
     // queue, Foundation invokes the block on the posting thread; it only reads the documented
     // interruption-type NSNumber and updates weakly held atomic state. The owner removes its token.
