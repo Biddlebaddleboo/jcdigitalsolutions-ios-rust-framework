@@ -1,0 +1,18 @@
+[package]
+name = "ios-call-provider"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.85"
+license = "MIT OR Apache-2.0"
+repository = "https://github.com/Biddlebaddleboo/jcdigitalsolutions-ios-rust-framework"
+description = "Rust-owned iOS CallKit provider and call action handling"
+
+[target.'cfg(target_os = "ios")'.dependencies]
+objc2 = { workspace = true }
+objc2-foundation = { workspace = true, features = ["NSDate", "NSError", "NSObject", "NSSet", "NSString", "NSUUID", "NSValue"] }
+objc2-call-kit = { workspace = true, features = ["alloc", "block2", "dispatch2", "CXAction", "CXAnswerCallAction", "CXCallAction", "CXCallUpdate", "CXEndCallAction", "CXHandle", "CXProvider", "CXProviderConfiguration"] }
+block2 = { workspace = true, features = ["alloc"] }
+dispatch2 = { workspace = true, features = ["alloc", "objc2"] }
+
+[lints]
+workspace = true

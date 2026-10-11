@@ -166,6 +166,7 @@ separate [capability](capabilities/spritekit-node-position.md) and
 [iOS](ios/spritekit-node-position.md) guides; they do not create scenes, views, or rendered content.
 The CallKit active-call count/state snapshot has an [iOS guide](ios/call-observer.md) and an opt-in
 [C ABI guide](bindings/ios-call-observer.md); it exposes no identifiers or call-control surface.
+The separate Rust CallKit provider and answer/end action API has an [iOS guide](ios/call-provider.md).
 The finite portable map geometry and MapKit backend have separate
 [capability](capabilities/mapkit.md) and [iOS](ios/mapkit.md) guides. The opt-in F12–F14 C ABI
 guides are [CallKit](bindings/ios-call-observer.md), [MapKit](bindings/ios-maps.md), and

@@ -24,6 +24,9 @@ This is a current-state snapshot, not CallKit availability or service readiness.
 may change immediately after the function returns. Do not log or persist the values by
 default.
 
+Provider and answer/end action support is a separate opt-in package documented in the
+[iOS CallKit provider guide](call-provider.md); it does not expand this observer's snapshot API.
+
 Package-local compile, Clippy, docs, format, and dependency-feature checks:
 
 ```sh

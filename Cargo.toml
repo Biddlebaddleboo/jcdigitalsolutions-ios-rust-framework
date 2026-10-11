@@ -1,5 +1,5 @@
 [workspace]
-members = ["crates/*", "platform/ios/*", "platform/ios/callkit/ios-call-observer", "interop/*", "examples/*", "tools/*", "bindings/*"]
+members = ["crates/*", "platform/ios/*", "platform/ios/callkit/ios-call-observer", "platform/ios/callkit/ios-call-provider", "interop/*", "examples/*", "tools/*", "bindings/*"]
 # C++ helpers and the isolated Python extension use separate build roots.
 exclude = ["examples/c-minimal", "bindings/cpp", "bindings/python", "platform/ios/callkit", "tools/validation", "tools/native-build", "tools/releases", "tools/native-build-support", "tools/ios-rust-validate"]
 resolver = "3"
@@ -19,6 +19,7 @@ iri-string = { version = "0.7.14", default-features = false }
 libc = { version = "0.2.189", default-features = false }
 objc2 = { version = "0.6.5", default-features = false }
 objc2-pass-kit = { version = "=0.3.2", default-features = false }
+objc2-call-kit = { version = "=0.3.2", default-features = false }
 objc2-background-tasks = { version = "0.3.2", default-features = false }
 objc2-background-assets = { version = "=0.3.2", default-features = false }
 objc2-av-foundation = { version = "=0.3.2", default-features = false }
