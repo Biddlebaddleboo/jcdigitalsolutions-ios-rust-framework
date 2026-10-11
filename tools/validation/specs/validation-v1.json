@@ -1840,6 +1840,168 @@
           "must_exist": false,
           "path": "platform/ios/ios-photos/src/import.rs",
           "text": "to_string_lossy"
+        },
+        {
+          "message": "original-photo fetch accepts one explicit local identifier",
+          "must_exist": true,
+          "path": "platform/ios/ios-photos/src/fetch.rs",
+          "text": "PHAsset::fetchAssetsWithLocalIdentifiers_options(&identifiers, None)"
+        },
+        {
+          "message": "PhotoKit fetch array must contain exactly the caller's one identifier",
+          "must_exist": true,
+          "path": "platform/ios/ios-photos/src/fetch.rs",
+          "text": "NSArray::from_retained_slice(core::slice::from_ref(&identifier))"
+        },
+        {
+          "message": "empty identifiers must fail before native work",
+          "must_exist": true,
+          "path": "platform/ios/ios-photos/src/fetch.rs",
+          "text": "if identifier.is_empty()"
+        },
+        {
+          "message": "NUL identifiers must fail before native work",
+          "must_exist": true,
+          "path": "platform/ios/ios-photos/src/fetch.rs",
+          "text": "identifier.contains('\\0')"
+        },
+        {
+          "message": "zero byte caps must fail before native work",
+          "must_exist": true,
+          "path": "platform/ios/ios-photos/src/fetch.rs",
+          "text": "maximum_byte_count == 0"
+        },
+        {
+          "message": "original-photo fetch requires existing read/write authorization without prompting",
+          "must_exist": true,
+          "path": "platform/ios/ios-photos/src/fetch.rs",
+          "text": "require_read_write_authorized(status)"
+        },
+        {
+          "message": "original-photo fetch accepts only Authorized or Limited",
+          "must_exist": true,
+          "path": "platform/ios/ios-photos/src/fetch.rs",
+          "text": "PhotoLibraryAuthorizationStatus::Authorized | PhotoLibraryAuthorizationStatus::Limited"
+        },
+        {
+          "message": "original-photo fetch rejects non-image assets",
+          "must_exist": true,
+          "path": "platform/ios/ios-photos/src/fetch.rs",
+          "text": "PHAssetMediaType::Image"
+        },
+        {
+          "message": "original-photo fetch selects only the original Photo resource type",
+          "must_exist": true,
+          "path": "platform/ios/ios-photos/src/fetch.rs",
+          "text": "PHAssetResourceType::Photo.0"
+        },
+        {
+          "message": "network access choice must be applied to the PhotoKit resource request",
+          "must_exist": true,
+          "path": "platform/ios/ios-photos/src/fetch.rs",
+          "text": "options.setNetworkAccessAllowed(self.allow_network_access)"
+        },
+        {
+          "message": "resource chunks must use checked byte-cap arithmetic",
+          "must_exist": true,
+          "path": "platform/ios/ios-photos/src/fetch.rs",
+          "text": "checked_add(chunk_length)"
+        },
+        {
+          "message": "resource chunks must allocate fallibly before copying callback-scoped data",
+          "must_exist": true,
+          "path": "platform/ios/ios-photos/src/fetch.rs",
+          "text": ".try_reserve_exact(additional)"
+        },
+        {
+          "message": "callback-scoped NSData bytes must be copied before the callback returns",
+          "must_exist": true,
+          "path": "platform/ios/ios-photos/src/fetch.rs",
+          "text": "data.getBytes_length(destination, length)"
+        },
+        {
+          "message": "late chunks must be ignored after any terminal request state",
+          "must_exist": true,
+          "path": "platform/ios/ios-photos/src/fetch.rs",
+          "text": "state.phase != RequestPhase::Active"
+        },
+        {
+          "message": "Objective-C resource callbacks must contain panics",
+          "must_exist": true,
+          "path": "platform/ios/ios-photos/src/fetch.rs",
+          "text": "catch_unwind(AssertUnwindSafe"
+        },
+        {
+          "message": "dropping an active fetch must cancel the PhotoKit data request",
+          "must_exist": true,
+          "path": "platform/ios/ios-photos/src/fetch.rs",
+          "text": "manager.cancelDataRequest(request_id)"
+        },
+        {
+          "message": "native PhotoKit errors must preserve NSError domain and code",
+          "must_exist": true,
+          "path": "platform/ios/ios-photos/src/fetch.rs",
+          "text": "error.domain().to_string()"
+        },
+        {
+          "message": "native PhotoKit errors must preserve NSError code",
+          "must_exist": true,
+          "path": "platform/ios/ios-photos/src/fetch.rs",
+          "text": "code: error.code()"
+        },
+        {
+          "message": "fetch must not enumerate all Photos assets",
+          "must_exist": false,
+          "path": "platform/ios/ios-photos/src/fetch.rs",
+          "text": "fetchAssetsWithOptions"
+        },
+        {
+          "message": "fetch must not use image-manager edited or paired resource loading",
+          "must_exist": false,
+          "path": "platform/ios/ios-photos/src/fetch.rs",
+          "text": "PHImageManager"
+        },
+        {
+          "message": "fetch must not select edited or paired resources",
+          "must_exist": false,
+          "path": "platform/ios/ios-photos/src/fetch.rs",
+          "text": "PHAssetResourceType::AlternatePhoto"
+        },
+        {
+          "message": "fetch must not select full-size or paired resources",
+          "must_exist": false,
+          "path": "platform/ios/ios-photos/src/fetch.rs",
+          "text": "PHAssetResourceType::FullSizePhoto"
+        },
+        {
+          "message": "fetch must not select Live Photo paired video resources",
+          "must_exist": false,
+          "path": "platform/ios/ios-photos/src/fetch.rs",
+          "text": "PHAssetResourceType::PairedVideo"
+        },
+        {
+          "message": "fetch must not request authorization or mutate Photos",
+          "must_exist": false,
+          "path": "platform/ios/ios-photos/src/fetch.rs",
+          "text": "requestAuthorizationForAccessLevel_handler"
+        },
+        {
+          "message": "fetch must not create or mutate Photos assets",
+          "must_exist": false,
+          "path": "platform/ios/ios-photos/src/fetch.rs",
+          "text": "PHAssetCreationRequest"
+        },
+        {
+          "message": "fetch must not start a Photos change transaction",
+          "must_exist": false,
+          "path": "platform/ios/ios-photos/src/fetch.rs",
+          "text": "performChanges_completionHandler"
+        },
+        {
+          "message": "fetch must not use PhotosUI picker flows",
+          "must_exist": false,
+          "path": "platform/ios/ios-photos/src/fetch.rs",
+          "text": "PhotosUI"
         }
       ],
       "id": "ios-photos",
@@ -1856,6 +2018,7 @@
         "platform/ios/ios-photos/examples/ios_photos_link_import_probe.rs",
         "platform/ios/ios-photos/examples/photos_api_floor.m",
         "platform/ios/ios-photos/src/import.rs",
+        "platform/ios/ios-photos/src/fetch.rs",
         "platform/ios/ios-photos/src/lib.rs",
         "platform/ios/ios-photos/src/operation.rs",
         "platform/ios/ios-photos/src/platform.rs",

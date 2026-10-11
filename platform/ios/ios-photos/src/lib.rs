@@ -3,6 +3,7 @@
 #![cfg_attr(not(target_os = "ios"), allow(dead_code))]
 #![doc = "iOS PhotoKit read/write authorization backend for `framework-photos`"]
 
+mod fetch;
 mod operation;
 mod save;
 mod status;
@@ -12,9 +13,12 @@ mod import;
 #[cfg(target_os = "ios")]
 mod platform;
 
+pub use fetch::PhotosFetchError;
 pub use save::{PhotosAssetFileKind, PhotosSaveError, PhotosSourcePathError};
 pub use status::{add_only_authorization_status_from_native, authorization_status_from_native};
 
+#[cfg(target_os = "ios")]
+pub use fetch::IosPhotosOriginalPhotoFuture;
 #[cfg(target_os = "ios")]
 pub use import::IosPhotosSaveFuture;
 #[cfg(target_os = "ios")]

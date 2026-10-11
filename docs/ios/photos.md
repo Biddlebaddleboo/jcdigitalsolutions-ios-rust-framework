@@ -1,4 +1,4 @@
-# iOS Photos authorization and file import
+# iOS Photos authorization, file import, and original-resource fetch
 
 `ios-photos` implements `framework-photos` with Apple's public PhotoKit access-level authorization API. It has no global state or host-app configuration
 
@@ -24,13 +24,24 @@ The access-level methods and `PHAuthorizationStatusLimited` require iOS 14.0 or 
 
 The host app must provide `NSPhotoLibraryAddUsageDescription` for add-only saves. The operation explicitly sets `PHAssetResourceCreationOptions.shouldMoveFile` to false. It does not move, delete, or mutate the source; the caller must keep it readable and unchanged until the completion future resolves. If the caller supplies a security-scoped path, it must keep its own access scope open until completion. Future drop suppresses the Rust result but does not cancel PhotoKit work
 
+## Original still-photo resource fetch
+
+`IosPhotosBackend::fetch_original_photo_bytes(local_identifier, maximum_byte_count, allow_network_access)` lazily fetches the original still-photo resource for one caller-supplied PhotoKit local identifier. Empty or NUL identifiers and a zero byte cap fail before native work. The first Future poll rechecks read/write status; only `Authorized` and `Limited` proceed. The method never prompts, and limited access only exposes assets the user has made available to the app
+
+The backend passes an array with exactly that one identifier to the public `PHAsset` selector `fetchAssetsWithLocalIdentifiers:options:`, requires an image asset, and selects only a `PHAssetResourceType::Photo` resource. It does not return an edited/full-size variant or a Live Photo paired video. The caller must explicitly allow or disallow network access; when allowed, PhotoKit may retrieve an iCloud-backed resource. Native `NSError` domain and code are retained in the Rust error
+
+PhotoKit supplies `NSData` chunks only for the callback duration. Each chunk is copied into one owned `Vec<u8>` after checked addition, the caller's byte-cap check, and fallible reservation; the future never retains callback-scoped `NSData`. Exceeding the cap, size overflow, allocation failure, a callback panic, or a native error ends the request without returning partial bytes. Dropping the future clears buffered bytes and best-effort cancels its PhotoKit data request without waiting for callbacks; late callbacks are ignored
+
 ## Boundary
 
-This crate contains no asset enumeration, image request, asset edit, PhotosUI picker, album selection, C ABI, or Swift source. Compile, Clippy, rustdoc, and link/import evidence do not show live authorization UI, host plist behavior, permission outcome, or runtime asset creation
+This crate contains no broad asset enumeration, image-manager preview/degraded request, asset edit, PhotosUI picker, album selection, C ABI, or Swift source. Compile, Clippy, rustdoc, and link/import evidence do not show live authorization UI, host plist behavior, permission outcome, iCloud retrieval, runtime asset access, or runtime asset creation
 
 ## Apple references
 
 - [`PHPhotoLibrary`](https://developer.apple.com/documentation/photos/phphotolibrary)
 - [`PHAuthorizationStatus`](https://developer.apple.com/documentation/photos/phauthorizationstatus)
+- [`PHAsset`](https://developer.apple.com/documentation/photos/phasset)
+- [`PHAssetResource`](https://developer.apple.com/documentation/photos/phassetresource)
+- [`PHAssetResourceManager`](https://developer.apple.com/documentation/photos/phassetresourcemanager)
 - [`NSPhotoLibraryUsageDescription`](https://developer.apple.com/documentation/bundleresources/information-property-list/nsphotolibraryusagedescription)
 - [`NSPhotoLibraryAddUsageDescription`](https://developer.apple.com/documentation/bundleresources/information-property-list/nsphotolibraryaddusagedescription)

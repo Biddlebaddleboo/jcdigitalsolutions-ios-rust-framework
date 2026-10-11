@@ -5,7 +5,7 @@ edition.workspace = true
 rust-version.workspace = true
 license.workspace = true
 repository.workspace = true
-description = "iOS Photos read/write authorization backend"
+description = "iOS PhotoKit authorization and media I/O backend"
 
 [dependencies]
 framework-photos = { path = "../../../crates/framework-photos" }
@@ -13,12 +13,18 @@ framework-photos = { path = "../../../crates/framework-photos" }
 [target.'cfg(target_os = "ios")'.dependencies]
 block2 = { workspace = true, features = ["alloc"] }
 objc2.workspace = true
-objc2-foundation = { workspace = true, features = ["NSError", "NSString", "NSURL"] }
+objc2-foundation = { workspace = true, features = ["NSArray", "NSData", "NSError", "NSString", "NSURL"] }
 objc2-photos = { version = "=0.3.2", default-features = false, features = [
+    "PHAsset",
     "PHAssetCreationRequest",
     "PHAssetChangeRequest",
     "PHChangeRequest",
+    "PHAssetResource",
+    "PHAssetResourceManager",
+    "PHFetchOptions",
+    "PHFetchResult",
     "PHPhotoLibrary",
+    "PHObject",
     "block2",
     "dispatch2",
     "PhotosTypes",

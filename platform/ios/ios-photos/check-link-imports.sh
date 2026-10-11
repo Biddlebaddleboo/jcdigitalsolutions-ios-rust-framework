@@ -5,7 +5,7 @@ root=$(CDPATH= cd -- "$(dirname -- "$0")/../../.." && pwd)
 cd "$root"
 mkdir -p target
 
-for tool in awk cargo diff grep nm otool sort vtool; do
+for tool in awk cargo diff grep nm otool sort strings vtool; do
     if ! command -v "$tool" >/dev/null 2>&1; then
         echo "$tool is required for the iOS Photos link/import check" >&2
         exit 1
@@ -40,6 +40,7 @@ for target in aarch64-apple-ios aarch64-apple-ios-sim; do
     imports="target/ios-photos-link-imports-$target.txt"
     libraries="target/ios-photos-link-libraries-$target.txt"
     symbols="target/ios-photos-link-symbols-$target.txt"
+    selector_strings="target/ios-photos-link-selectors-$target.txt"
     build_info="target/ios-photos-link-build-$target.txt"
 
     otool -L "$binary" > "$imports"
@@ -47,6 +48,7 @@ for target in aarch64-apple-ios aarch64-apple-ios-sim; do
     diff -u target/ios-photos-link-imports-expected.txt "$libraries"
 
     nm -u "$binary" > "$symbols"
+    strings "$binary" > "$selector_strings"
     if ! grep -q 'objc_getClass' "$symbols" || ! grep -q 'objc_msgSend' "$symbols"; then
         echo "$target probe does not import Objective-C class and message lookup symbols" >&2
         exit 1
@@ -55,6 +57,20 @@ for target in aarch64-apple-ios aarch64-apple-ios-sim; do
         echo "unexpected Swift runtime or out-of-scope Photos symbol import in $symbols" >&2
         exit 1
     fi
+    for selector in \
+        'authorizationStatusForAccessLevel:' \
+        'fetchAssetsWithLocalIdentifiers:options:' \
+        'assetResourcesForAsset:' \
+        'mediaType' \
+        'type' \
+        'setNetworkAccessAllowed:' \
+        'requestDataForAssetResource:options:dataReceivedHandler:completionHandler:' \
+        'cancelDataRequest:'; do
+        if ! grep -Fq "$selector" "$selector_strings"; then
+            echo "$target probe does not retain PhotoKit selector $selector" >&2
+            exit 1
+        fi
+    done
 
     vtool -show-build "$binary" > "$build_info"
     actual_deployment_target=$(awk '$1 == "minos" { print $2; exit }' "$build_info")

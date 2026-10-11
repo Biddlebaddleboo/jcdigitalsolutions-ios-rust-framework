@@ -188,6 +188,10 @@ B461 independently adds opt-in video-only `AVCaptureVideoDataOutput` samples to 
 
 B462 adds an opt-in `ContactsFetchBackend` extension and public iOS `CNContactStore` lookup by a caller-supplied local identifier. It returns owned identifier, name, organization, phone, and email values; each synchronous fetch rechecks `Authorized` or `Limited` status and never prompts. Because the store read may block, callers should keep it off latency-sensitive UI contexts when appropriate; the crate adds no hidden executor. Limited-scope visibility and local identifier lifetime remain platform-dependent. Registered host regressions plus iOS 10.0 device / iOS 14.0 Simulator compile-link checks do not prove a live record fetch; see [docs/ios/contacts.md](docs/ios/contacts.md).
 
+### B464 — bounded original Photos resource fetch (row 068)
+
+B464 adds `IosPhotosBackend::fetch_original_photo_bytes` for exactly one caller-supplied PhotoKit local identifier. It requires existing read/write `Authorized` or `Limited` access, never prompts, selects only an original `PHAssetResourceType::Photo`, requires an explicit network-access choice and nonzero byte cap, and returns owned bytes from callback-scoped chunks. Checked size arithmetic, fallible reservations, terminal-state arbitration, panic containment, native NSError domain/code preservation, and best-effort request cancellation on future drop keep the fetch bounded and failure-safe. The existing `ios-photos` profile covers host regressions, iOS 14 device/Simulator compile and selector link checks, source/negative guards, Clippy, rustdoc, and docs. Live Photos authorization/access, iCloud retrieval, cancellation timing, and runtime asset reads remain unverified; broad enumeration, edits, picker UI, and Photos writes are not part of B464.
+
 ## Active work selection and limits
 
 1. Inspect the canonical capability status/owner, the relevant family plan, then the named workstream plan and exact files/symbols. Do not scan the entire planning corpus or treat every existing plan as pending work.

@@ -3,7 +3,13 @@
 #[cfg(target_os = "ios")]
 use block2::RcBlock;
 #[cfg(target_os = "ios")]
+use core::future::Future;
+#[cfg(target_os = "ios")]
+use core::pin::Pin;
+#[cfg(target_os = "ios")]
 use ios_photos::IosPhotosBackend;
+#[cfg(target_os = "ios")]
+use ios_photos::IosPhotosOriginalPhotoFuture;
 #[cfg(target_os = "ios")]
 use objc2::runtime::Bool;
 #[cfg(target_os = "ios")]
@@ -15,6 +21,8 @@ use objc2_photos::{
 };
 #[cfg(target_os = "ios")]
 use std::path::Path;
+#[cfg(target_os = "ios")]
+use std::task::{Context, Waker};
 
 #[cfg(target_os = "ios")]
 fn main() {
@@ -67,6 +75,21 @@ fn main() {
     let _ = core::hint::black_box(
         backend.save_movie_from_file(Path::new("/tmp/ios-photos-link-probe.mov")),
     );
+
+    let fetch = backend.fetch_original_photo_bytes("link-probe-id", 1, false);
+    if let Ok(future) = fetch {
+        let mut future = Box::pin(future);
+        let mut context = Context::from_waker(Waker::noop());
+        let _ = core::hint::black_box(Future::poll(future.as_mut(), &mut context));
+        let _ = core::hint::black_box(
+            <IosPhotosOriginalPhotoFuture as Future>::poll
+                as fn(
+                    Pin<&mut IosPhotosOriginalPhotoFuture>,
+                    &mut Context<'_>,
+                )
+                    -> core::task::Poll<Result<Vec<u8>, ios_photos::PhotosFetchError>>,
+        );
+    }
 }
 
 #[cfg(not(target_os = "ios"))]
