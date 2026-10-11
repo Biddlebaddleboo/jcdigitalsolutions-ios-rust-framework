@@ -32,7 +32,7 @@ use objc2::{AnyThread, DefinedClass, MainThreadMarker, define_class, msg_send};
 #[cfg(target_os = "ios")]
 use objc2_av_foundation::{
     AVCaptureConnection, AVCaptureDevice, AVCaptureDeviceInput, AVCaptureDevicePosition,
-    AVCaptureDeviceTypeBuiltInWideAngleCamera, AVCaptureFileOutput,
+    AVCaptureDeviceTypeBuiltInWideAngleCamera, AVCaptureExposureMode, AVCaptureFileOutput,
     AVCaptureFileOutputRecordingDelegate, AVCaptureFocusMode, AVCaptureMovieFileOutput,
     AVCaptureOutput, AVCapturePhoto, AVCapturePhotoCaptureDelegate, AVCapturePhotoOutput,
     AVCapturePhotoSettings, AVCaptureSession, AVCaptureTorchMode, AVCaptureVideoDataOutput,
@@ -951,6 +951,52 @@ pub enum FocusControlError {
     ConfigurationLockFailed,
 }
 
+/// Public AVFoundation exposure behavior for the selected camera
+#[cfg(any(target_os = "ios", test))]
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum IosCameraExposureMode {
+    /// Determine exposure once, then hold the resulting exposure settings
+    AutoExpose,
+    /// Continue to adjust exposure as the camera determines it is needed
+    ContinuousAutoExposure,
+    /// Hold the current exposure settings
+    Locked,
+}
+
+/// Inclusive exposure target-bias range reported by the selected camera, in EV
+#[cfg(any(target_os = "ios", test))]
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct IosExposureTargetBiasRange {
+    /// Minimum supported exposure target bias, in EV
+    pub minimum: f32,
+    /// Maximum supported exposure target bias, in EV
+    pub maximum: f32,
+}
+
+/// Failure to configure exposure on the session's selected camera
+#[cfg(any(target_os = "ios", test))]
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum ExposureControlError {
+    /// The session graph has no configured video device
+    NoSelectedCamera,
+    /// Either normalized point coordinate is non-finite or outside `[0.0, 1.0]`
+    InvalidExposurePoint,
+    /// A locked exposure mode cannot apply a requested exposure point
+    LockedModeCannotUseExposurePoint,
+    /// The selected camera does not support the requested exposure mode
+    ExposureModeUnsupported,
+    /// The selected camera does not support exposure points of interest
+    ExposurePointUnsupported,
+    /// The requested exposure target bias is not finite
+    InvalidExposureBias,
+    /// The requested exposure target bias is outside the selected camera's inclusive range
+    ExposureBiasOutOfRange,
+    /// AVFoundation reported non-finite or reversed exposure target bias bounds
+    InvalidSupportedExposureBiasRange,
+    /// AVFoundation could not lock the selected camera for configuration
+    ConfigurationLockFailed,
+}
+
 #[cfg(any(target_os = "ios", test))]
 struct UnlockDeviceConfiguration<F: FnOnce()>(Option<F>);
 
@@ -1061,6 +1107,78 @@ fn configure_focus(
         set_point(point);
     }
     set_mode(mode);
+    drop(unlock);
+    Ok(())
+}
+
+#[cfg(any(target_os = "ios", test))]
+fn with_selected_exposure_camera<T, R>(
+    device: Option<T>,
+    operation: impl FnOnce(T) -> Result<R, ExposureControlError>,
+) -> Result<R, ExposureControlError> {
+    operation(device.ok_or(ExposureControlError::NoSelectedCamera)?)
+}
+
+#[cfg(any(target_os = "ios", test))]
+fn configure_exposure(
+    mode: IosCameraExposureMode,
+    point: Option<NormalizedFocusPoint>,
+    validate_support: impl FnOnce(
+        IosCameraExposureMode,
+        Option<NormalizedFocusPoint>,
+    ) -> Result<(), ExposureControlError>,
+    lock: impl FnOnce() -> Result<(), ()>,
+    set_point: impl FnOnce(NormalizedFocusPoint),
+    set_mode: impl FnOnce(IosCameraExposureMode),
+    unlock: impl FnOnce(),
+) -> Result<(), ExposureControlError> {
+    if point.is_some_and(|point| !valid_focus_point(point)) {
+        return Err(ExposureControlError::InvalidExposurePoint);
+    }
+    if mode == IosCameraExposureMode::Locked && point.is_some() {
+        return Err(ExposureControlError::LockedModeCannotUseExposurePoint);
+    }
+    validate_support(mode, point)?;
+    lock().map_err(|()| ExposureControlError::ConfigurationLockFailed)?;
+    let unlock = UnlockDeviceConfiguration(Some(unlock));
+    if let Some(point) = point {
+        set_point(point);
+    }
+    set_mode(mode);
+    drop(unlock);
+    Ok(())
+}
+
+#[cfg(any(target_os = "ios", test))]
+fn exposure_target_bias_range(
+    minimum: f32,
+    maximum: f32,
+) -> Result<IosExposureTargetBiasRange, ExposureControlError> {
+    if !minimum.is_finite() || !maximum.is_finite() || minimum > maximum {
+        return Err(ExposureControlError::InvalidSupportedExposureBiasRange);
+    }
+    Ok(IosExposureTargetBiasRange { minimum, maximum })
+}
+
+#[cfg(any(target_os = "ios", test))]
+fn configure_exposure_target_bias(
+    bias_ev: f32,
+    read_range: impl FnOnce() -> (f32, f32),
+    lock: impl FnOnce() -> Result<(), ()>,
+    set_bias: impl FnOnce(f32),
+    unlock: impl FnOnce(),
+) -> Result<(), ExposureControlError> {
+    if !bias_ev.is_finite() {
+        return Err(ExposureControlError::InvalidExposureBias);
+    }
+    lock().map_err(|()| ExposureControlError::ConfigurationLockFailed)?;
+    let unlock = UnlockDeviceConfiguration(Some(unlock));
+    let (minimum, maximum) = read_range();
+    let range = exposure_target_bias_range(minimum, maximum)?;
+    if bias_ev < range.minimum || bias_ev > range.maximum {
+        return Err(ExposureControlError::ExposureBiasOutOfRange);
+    }
+    set_bias(bias_ev);
     drop(unlock);
     Ok(())
 }
@@ -1394,6 +1512,131 @@ impl IosCameraCaptureSession {
                 // SAFETY: configure_focus invokes this only after a successful matching lock.
                 || unsafe { device.unlockForConfiguration() },
             );
+        });
+        result
+    }
+
+    /// Set the selected camera's exposure mode and optional normalized point of interest
+    ///
+    /// Exposure points use AVFoundation's image coordinate system and reuse
+    /// `NormalizedFocusPoint`; they are not UIKit preview-layer coordinates. `None` preserves the
+    /// native point. Points are accepted only with automatic exposure modes, are checked against
+    /// the selected camera before locking, and are set before the explicitly requested supported
+    /// mode. `Locked` holds the current exposure and rejects a point. This does not expose custom
+    /// ISO/duration controls, prompt, switch cameras, or alter capture-session or audio policy.
+    pub fn set_exposure(
+        &self,
+        mode: IosCameraExposureMode,
+        point: Option<NormalizedFocusPoint>,
+    ) -> Result<(), ExposureControlError> {
+        let graph = Arc::clone(&self.graph);
+        let mut result = Err(ExposureControlError::NoSelectedCamera);
+        self.queue.exec_sync(|| {
+            let graph = graph
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner);
+            result = with_selected_exposure_camera(graph.device.as_ref(), |device| {
+                let native_mode = |mode| match mode {
+                    IosCameraExposureMode::AutoExpose => AVCaptureExposureMode::AutoExpose,
+                    IosCameraExposureMode::ContinuousAutoExposure => {
+                        AVCaptureExposureMode::ContinuousAutoExposure
+                    }
+                    IosCameraExposureMode::Locked => AVCaptureExposureMode::Locked,
+                };
+                configure_exposure(
+                    mode,
+                    point,
+                    // SAFETY: These public exposure APIs are available from iOS 4.0, below the
+                    // package's iOS 10.0 device and iOS 14.0 Simulator floors.
+                    |mode, point| {
+                        if !unsafe { device.isExposureModeSupported(native_mode(mode)) } {
+                            return Err(ExposureControlError::ExposureModeUnsupported);
+                        }
+                        if point.is_some()
+                            && !unsafe { device.isExposurePointOfInterestSupported() }
+                        {
+                            return Err(ExposureControlError::ExposurePointUnsupported);
+                        }
+                        Ok(())
+                    },
+                    // SAFETY: The retained selected device remains protected by the graph mutex
+                    // for this serialized operation; lockForConfiguration is public AVFoundation API.
+                    || unsafe { device.lockForConfiguration().map_err(|_| ()) },
+                    // SAFETY: The normalized point was validated and point support checked before
+                    // the selected device's configuration lock was acquired.
+                    |point| unsafe {
+                        device.setExposurePointOfInterest(CGPoint::new(point.x(), point.y()))
+                    },
+                    // SAFETY: The requested public mode was checked before locking, and the lock is held.
+                    |mode| unsafe { device.setExposureMode(native_mode(mode)) },
+                    // SAFETY: configure_exposure invokes this only after a successful matching lock.
+                    || unsafe { device.unlockForConfiguration() },
+                )
+            });
+        });
+        result
+    }
+
+    /// Read the selected camera's supported exposure target-bias range in EV
+    ///
+    /// The returned values are a read-only snapshot; device formats or availability may change
+    /// later. This does not acquire a configuration lock or claim that a future bias request will
+    /// be applied to a particular frame.
+    pub fn exposure_target_bias_range(
+        &self,
+    ) -> Result<IosExposureTargetBiasRange, ExposureControlError> {
+        let graph = Arc::clone(&self.graph);
+        let mut result = Err(ExposureControlError::NoSelectedCamera);
+        self.queue.exec_sync(|| {
+            let graph = graph
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner);
+            result = with_selected_exposure_camera(graph.device.as_ref(), |device| {
+                // SAFETY: These public read-only bias bounds are available from iOS 8.0, below
+                // both package deployment floors; the selected device remains retained under the graph lock.
+                let minimum = unsafe { device.minExposureTargetBias() };
+                // SAFETY: Same retained-device and public-API conditions as the minimum above.
+                let maximum = unsafe { device.maxExposureTargetBias() };
+                exposure_target_bias_range(minimum, maximum)
+            });
+        });
+        result
+    }
+
+    /// Set an exact exposure target bias in EV on the selected camera
+    ///
+    /// The finite value must be within the device's inclusive `minExposureTargetBias` through
+    /// `maxExposureTargetBias` range. The bounds are read under the configuration lock; unsupported
+    /// values are rejected without clamping. `Ok(())` means AVFoundation accepted the request, not
+    /// that a captured frame has used it. No completion callback or custom exposure is exposed.
+    pub fn set_exposure_target_bias(&self, bias_ev: f32) -> Result<(), ExposureControlError> {
+        let graph = Arc::clone(&self.graph);
+        let mut result = Err(ExposureControlError::NoSelectedCamera);
+        self.queue.exec_sync(|| {
+            let graph = graph
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner);
+            result = with_selected_exposure_camera(graph.device.as_ref(), |device| {
+                configure_exposure_target_bias(
+                    bias_ev,
+                    // SAFETY: The public read-only bounds are available from iOS 8.0. The helper
+                    // reads them only after lockForConfiguration succeeds.
+                    || unsafe {
+                        (
+                            device.minExposureTargetBias(),
+                            device.maxExposureTargetBias(),
+                        )
+                    },
+                    // SAFETY: The retained selected device remains protected by the graph mutex
+                    // for this serialized operation; lockForConfiguration is public AVFoundation API.
+                    || unsafe { device.lockForConfiguration().map_err(|_| ()) },
+                    // SAFETY: The exact finite bias was checked against native bounds while
+                    // locked; the nil completion handler is explicitly supported by the public API.
+                    |bias| unsafe { device.setExposureTargetBias_completionHandler(bias, None) },
+                    // SAFETY: configure_exposure_target_bias invokes this only after a successful lock.
+                    || unsafe { device.unlockForConfiguration() },
+                )
+            });
         });
         result
     }
@@ -1959,15 +2202,17 @@ fn invoke_video_completion(completion: VideoRecordingCompletion, result: VideoRe
 #[cfg(test)]
 mod tests {
     use super::{
-        CameraCaptureError, FocusControlError, IosCameraFocusMode, IosCameraPosition,
-        MediaAuthorizationStatus, MovieRecordingState, NormalizedFocusPoint, PhotoCaptureError,
-        PhotoCaptureResult, TorchControlError, VideoFrameStreamError, VideoFrameStreamState,
-        VideoRecordingError, VideoRecordingResult, ZoomControlError, configure_focus,
+        CameraCaptureError, ExposureControlError, FocusControlError, IosCameraExposureMode,
+        IosCameraFocusMode, IosCameraPosition, MediaAuthorizationStatus, MovieRecordingState,
+        NormalizedFocusPoint, PhotoCaptureError, PhotoCaptureResult, TorchControlError,
+        VideoFrameStreamError, VideoFrameStreamState, VideoRecordingError, VideoRecordingResult,
+        ZoomControlError, configure_exposure, configure_exposure_target_bias, configure_focus,
         configure_torch_enabled, configure_video_zoom_factor, drop_video_frame_callback_safely,
-        invoke_video_frame_callback, may_create_device_input, photo_request_error,
-        require_camera_at_position, require_selected_camera, require_selected_focus_camera,
-        settle_movie_result, settle_photo_result, take_photo_completion, take_video_completion,
-        validate_movie_destination,
+        exposure_target_bias_range, invoke_video_frame_callback, may_create_device_input,
+        photo_request_error, require_camera_at_position, require_selected_camera,
+        require_selected_focus_camera, settle_movie_result, settle_photo_result,
+        take_photo_completion, take_video_completion, validate_movie_destination,
+        with_selected_exposure_camera,
     };
     use std::cell::RefCell;
     use std::path::PathBuf;
@@ -2359,6 +2604,329 @@ mod tests {
         }));
         assert!(result.is_err());
         assert_eq!(*events.borrow(), ["lock", "set-point", "unlock"]);
+    }
+
+    #[test]
+    fn exposure_control_requires_a_selected_camera() {
+        assert_eq!(with_selected_exposure_camera(Some(17_u8), Ok), Ok(17));
+        assert_eq!(
+            with_selected_exposure_camera::<u8, ()>(None, |_| {
+                panic!("missing selected camera must not query or mutate native device state")
+            }),
+            Err(ExposureControlError::NoSelectedCamera)
+        );
+    }
+
+    #[test]
+    fn exposure_control_rejects_invalid_points_and_locked_points_before_native_calls() {
+        for point in [
+            NormalizedFocusPoint::new(f64::NAN, 0.5),
+            NormalizedFocusPoint::new(0.5, f64::NAN),
+            NormalizedFocusPoint::new(f64::INFINITY, 0.5),
+            NormalizedFocusPoint::new(0.5, f64::NEG_INFINITY),
+            NormalizedFocusPoint::new(-f64::EPSILON, 0.5),
+            NormalizedFocusPoint::new(0.5, -f64::EPSILON),
+            NormalizedFocusPoint::new(1.0 + f64::EPSILON, 0.5),
+            NormalizedFocusPoint::new(0.5, 1.0 + f64::EPSILON),
+        ] {
+            assert_eq!(
+                configure_exposure(
+                    IosCameraExposureMode::AutoExpose,
+                    Some(point),
+                    |_, _| panic!("invalid point must be rejected before support queries"),
+                    || panic!("invalid point must not lock the device"),
+                    |_| panic!("invalid point must not be set"),
+                    |_| panic!("invalid point must not change mode"),
+                    || panic!("device was not locked"),
+                ),
+                Err(ExposureControlError::InvalidExposurePoint)
+            );
+        }
+        assert_eq!(
+            configure_exposure(
+                IosCameraExposureMode::Locked,
+                Some(NormalizedFocusPoint::new(0.5, 0.5)),
+                |_, _| panic!("locked exposure point must be rejected before native checks"),
+                || panic!("invalid combination must not lock the device"),
+                |_| panic!("invalid combination must not set a point"),
+                |_| panic!("invalid combination must not change mode"),
+                || panic!("device was not locked"),
+            ),
+            Err(ExposureControlError::LockedModeCannotUseExposurePoint)
+        );
+    }
+
+    #[test]
+    fn exposure_control_rejects_unsupported_mode_or_point_before_lock() {
+        assert_eq!(
+            configure_exposure(
+                IosCameraExposureMode::ContinuousAutoExposure,
+                None,
+                |mode, point| {
+                    assert_eq!(mode, IosCameraExposureMode::ContinuousAutoExposure);
+                    assert!(point.is_none());
+                    Err(ExposureControlError::ExposureModeUnsupported)
+                },
+                || panic!("unsupported mode must not lock the device"),
+                |_| panic!("unsupported mode must not set a point"),
+                |_| panic!("unsupported mode must not change"),
+                || panic!("device was not locked"),
+            ),
+            Err(ExposureControlError::ExposureModeUnsupported)
+        );
+        assert_eq!(
+            configure_exposure(
+                IosCameraExposureMode::AutoExpose,
+                Some(NormalizedFocusPoint::new(0.25, 0.75)),
+                |_, point| {
+                    assert!(point.is_some());
+                    Err(ExposureControlError::ExposurePointUnsupported)
+                },
+                || panic!("unsupported point must not lock the device"),
+                |_| panic!("unsupported point must not be set"),
+                |_| panic!("unsupported point must not change mode"),
+                || panic!("device was not locked"),
+            ),
+            Err(ExposureControlError::ExposurePointUnsupported)
+        );
+    }
+
+    #[test]
+    fn exposure_control_sets_requested_point_before_exact_mode_and_none_preserves_point() {
+        for mode in [
+            IosCameraExposureMode::AutoExpose,
+            IosCameraExposureMode::ContinuousAutoExposure,
+            IosCameraExposureMode::Locked,
+        ] {
+            let events = RefCell::new(Vec::new());
+            let point = (mode != IosCameraExposureMode::Locked)
+                .then_some(NormalizedFocusPoint::new(0.25, 0.75));
+            assert_eq!(
+                configure_exposure(
+                    mode,
+                    point,
+                    |requested, requested_point| {
+                        assert_eq!(requested, mode);
+                        assert_eq!(requested_point, point);
+                        events.borrow_mut().push("supports-mode-and-point");
+                        Ok(())
+                    },
+                    || {
+                        events.borrow_mut().push("lock");
+                        Ok(())
+                    },
+                    |requested| {
+                        assert_eq!(Some(requested), point);
+                        events.borrow_mut().push("set-point");
+                    },
+                    |requested| {
+                        assert_eq!(requested, mode);
+                        events.borrow_mut().push("set-mode");
+                    },
+                    || events.borrow_mut().push("unlock"),
+                ),
+                Ok(())
+            );
+            let expected = if point.is_some() {
+                vec![
+                    "supports-mode-and-point",
+                    "lock",
+                    "set-point",
+                    "set-mode",
+                    "unlock",
+                ]
+            } else {
+                vec!["supports-mode-and-point", "lock", "set-mode", "unlock"]
+            };
+            assert_eq!(*events.borrow(), expected);
+        }
+    }
+
+    #[test]
+    fn exposure_control_reports_lock_failure_and_unlocks_after_unwind() {
+        assert_eq!(
+            configure_exposure(
+                IosCameraExposureMode::AutoExpose,
+                None,
+                |_, _| Ok(()),
+                || Err(()),
+                |_| panic!("device lock failed"),
+                |_| panic!("device lock failed"),
+                || panic!("device was not locked"),
+            ),
+            Err(ExposureControlError::ConfigurationLockFailed)
+        );
+        let events = RefCell::new(Vec::new());
+        let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            configure_exposure(
+                IosCameraExposureMode::AutoExpose,
+                Some(NormalizedFocusPoint::new(0.5, 0.5)),
+                |_, _| Ok(()),
+                || {
+                    events.borrow_mut().push("lock");
+                    Ok(())
+                },
+                |_| events.borrow_mut().push("set-point"),
+                |_| panic!("simulated exposure mode set panic"),
+                || events.borrow_mut().push("unlock"),
+            )
+        }));
+        assert!(result.is_err());
+        assert_eq!(*events.borrow(), ["lock", "set-point", "unlock"]);
+    }
+
+    #[test]
+    fn exposure_bias_rejects_nonfinite_values_before_native_calls() {
+        for bias_ev in [f32::NAN, f32::INFINITY, f32::NEG_INFINITY] {
+            assert_eq!(
+                configure_exposure_target_bias(
+                    bias_ev,
+                    || panic!("non-finite bias must not read device bounds"),
+                    || panic!("non-finite bias must not lock the device"),
+                    |_| panic!("non-finite bias must not be set"),
+                    || panic!("device was not locked"),
+                ),
+                Err(ExposureControlError::InvalidExposureBias)
+            );
+        }
+    }
+
+    #[test]
+    fn exposure_bias_rejects_invalid_bounds_and_out_of_range_values_without_setting() {
+        for bounds in [
+            (f32::NAN, 1.0),
+            (-1.0, f32::INFINITY),
+            (f32::NEG_INFINITY, 1.0),
+            (1.0, -1.0),
+        ] {
+            let events = RefCell::new(Vec::new());
+            assert_eq!(
+                configure_exposure_target_bias(
+                    0.0,
+                    || {
+                        events.borrow_mut().push("read-range");
+                        bounds
+                    },
+                    || {
+                        events.borrow_mut().push("lock");
+                        Ok(())
+                    },
+                    |_| panic!("invalid native range must not be set"),
+                    || events.borrow_mut().push("unlock"),
+                ),
+                Err(ExposureControlError::InvalidSupportedExposureBiasRange)
+            );
+            assert_eq!(*events.borrow(), ["lock", "read-range", "unlock"]);
+        }
+        for bias_ev in [-2.01_f32, 2.01_f32] {
+            let events = RefCell::new(Vec::new());
+            assert_eq!(
+                configure_exposure_target_bias(
+                    bias_ev,
+                    || {
+                        events.borrow_mut().push("read-range");
+                        (-2.0, 2.0)
+                    },
+                    || {
+                        events.borrow_mut().push("lock");
+                        Ok(())
+                    },
+                    |_| panic!("out-of-range bias must not be set"),
+                    || events.borrow_mut().push("unlock"),
+                ),
+                Err(ExposureControlError::ExposureBiasOutOfRange)
+            );
+            assert_eq!(*events.borrow(), ["lock", "read-range", "unlock"]);
+        }
+    }
+
+    #[test]
+    fn exposure_bias_locks_reads_range_sets_exact_value_without_callback_and_unlocks() {
+        for bias_ev in [-2.0_f32, 2.0_f32] {
+            let events = RefCell::new(Vec::new());
+            assert_eq!(
+                configure_exposure_target_bias(
+                    bias_ev,
+                    || {
+                        events.borrow_mut().push("read-range");
+                        (-2.0, 2.0)
+                    },
+                    || {
+                        events.borrow_mut().push("lock");
+                        Ok(())
+                    },
+                    |set| {
+                        assert_eq!(set, bias_ev);
+                        events.borrow_mut().push("set-exact-bias-without-callback");
+                    },
+                    || events.borrow_mut().push("unlock"),
+                ),
+                Ok(())
+            );
+            assert_eq!(
+                *events.borrow(),
+                [
+                    "lock",
+                    "read-range",
+                    "set-exact-bias-without-callback",
+                    "unlock"
+                ]
+            );
+        }
+        assert_eq!(
+            exposure_target_bias_range(-2.0, 2.0),
+            Ok(super::IosExposureTargetBiasRange {
+                minimum: -2.0,
+                maximum: 2.0,
+            })
+        );
+    }
+
+    #[test]
+    fn exposure_bias_lock_failure_and_unwind_do_not_leak_or_mutate() {
+        assert_eq!(
+            configure_exposure_target_bias(
+                0.0,
+                || panic!("lock failure must not query device bounds"),
+                || Err(()),
+                |_| panic!("lock failure must not set bias"),
+                || panic!("device was not locked"),
+            ),
+            Err(ExposureControlError::ConfigurationLockFailed)
+        );
+        let events = RefCell::new(Vec::new());
+        let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            configure_exposure_target_bias(
+                0.5,
+                || {
+                    events.borrow_mut().push("read-range");
+                    (-1.0, 1.0)
+                },
+                || {
+                    events.borrow_mut().push("lock");
+                    Ok(())
+                },
+                |_| panic!("simulated bias-set panic"),
+                || events.borrow_mut().push("unlock"),
+            )
+        }));
+        assert!(result.is_err());
+        assert_eq!(*events.borrow(), ["lock", "read-range", "unlock"]);
+    }
+
+    #[test]
+    fn exposure_bias_range_snapshot_rejects_invalid_native_bounds() {
+        for (minimum, maximum) in [
+            (f32::NAN, 1.0),
+            (-1.0, f32::INFINITY),
+            (f32::NEG_INFINITY, 1.0),
+            (1.0, -1.0),
+        ] {
+            assert_eq!(
+                exposure_target_bias_range(minimum, maximum),
+                Err(ExposureControlError::InvalidSupportedExposureBiasRange)
+            );
+        }
     }
 
     #[test]

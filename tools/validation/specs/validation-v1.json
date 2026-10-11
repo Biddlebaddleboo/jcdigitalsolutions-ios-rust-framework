@@ -1593,6 +1593,222 @@
           "must_exist": true,
           "path": "platform/ios/ios-camera-capture-session/check-link-imports.sh",
           "text": "setFocusPointOfInterest:"
+        },
+        {
+          "message": "selected-camera exposure must expose an explicit mode and optional normalized point",
+          "must_exist": true,
+          "path": "platform/ios/ios-camera-capture-session/src/lib.rs",
+          "text": "pub fn set_exposure("
+        },
+        {
+          "message": "exposure mode must use a framework-owned semantic enum",
+          "must_exist": true,
+          "path": "platform/ios/ios-camera-capture-session/src/lib.rs",
+          "text": "pub enum IosCameraExposureMode"
+        },
+        {
+          "message": "exposure mode mapping must preserve one-shot auto exposure",
+          "must_exist": true,
+          "path": "platform/ios/ios-camera-capture-session/src/lib.rs",
+          "text": "IosCameraExposureMode::AutoExpose => AVCaptureExposureMode::AutoExpose"
+        },
+        {
+          "message": "exposure mode mapping must preserve continuous auto exposure",
+          "must_exist": true,
+          "path": "platform/ios/ios-camera-capture-session/src/lib.rs",
+          "text": "IosCameraExposureMode::ContinuousAutoExposure =>"
+        },
+        {
+          "message": "exposure mode mapping must preserve locked exposure",
+          "must_exist": true,
+          "path": "platform/ios/ios-camera-capture-session/src/lib.rs",
+          "text": "IosCameraExposureMode::Locked => AVCaptureExposureMode::Locked"
+        },
+        {
+          "message": "exposure points must reuse the existing normalized focus point type",
+          "must_exist": true,
+          "path": "platform/ios/ios-camera-capture-session/src/lib.rs",
+          "text": "point: Option<NormalizedFocusPoint>"
+        },
+        {
+          "message": "exposure configuration must reuse finite inclusive normalized point validation",
+          "must_exist": true,
+          "path": "platform/ios/ios-camera-capture-session/src/lib.rs",
+          "text": "if point.is_some_and(|point| !valid_focus_point(point))"
+        },
+        {
+          "message": "exposure configuration must reject a point with locked mode before native access",
+          "must_exist": true,
+          "path": "platform/ios/ios-camera-capture-session/src/lib.rs",
+          "text": "ExposureControlError::LockedModeCannotUseExposurePoint"
+        },
+        {
+          "message": "exposure mode support must be checked on the selected device before locking",
+          "must_exist": true,
+          "path": "platform/ios/ios-camera-capture-session/src/lib.rs",
+          "text": "device.isExposureModeSupported(native_mode(mode))"
+        },
+        {
+          "message": "exposure point support must be checked only when requested",
+          "must_exist": true,
+          "path": "platform/ios/ios-camera-capture-session/src/lib.rs",
+          "text": "device.isExposurePointOfInterestSupported()"
+        },
+        {
+          "message": "exposure point must be set in AVFoundation normalized coordinates",
+          "must_exist": true,
+          "path": "platform/ios/ios-camera-capture-session/src/lib.rs",
+          "text": "device.setExposurePointOfInterest(CGPoint::new(point.x(), point.y()))"
+        },
+        {
+          "message": "exposure mode must apply only the caller-requested supported native mode",
+          "must_exist": true,
+          "path": "platform/ios/ios-camera-capture-session/src/lib.rs",
+          "text": "device.setExposureMode(native_mode(mode))"
+        },
+        {
+          "message": "exposure controls must require the retained selected device",
+          "must_exist": true,
+          "path": "platform/ios/ios-camera-capture-session/src/lib.rs",
+          "text": "with_selected_exposure_camera(graph.device.as_ref()"
+        },
+        {
+          "message": "exposure configuration must release a successful lock through the shared guard",
+          "must_exist": true,
+          "path": "platform/ios/ios-camera-capture-session/src/lib.rs",
+          "text": "let unlock = UnlockDeviceConfiguration(Some(unlock))"
+        },
+        {
+          "message": "exposure control must retain deterministic point rejection regressions",
+          "must_exist": true,
+          "path": "platform/ios/ios-camera-capture-session/src/lib.rs",
+          "text": "fn exposure_control_rejects_invalid_points_and_locked_points_before_native_calls()"
+        },
+        {
+          "message": "exposure control must retain unsupported-mode and point negative regressions",
+          "must_exist": true,
+          "path": "platform/ios/ios-camera-capture-session/src/lib.rs",
+          "text": "fn exposure_control_rejects_unsupported_mode_or_point_before_lock()"
+        },
+        {
+          "message": "exposure bias range must be exposed as a Rust-owned value",
+          "must_exist": true,
+          "path": "platform/ios/ios-camera-capture-session/src/lib.rs",
+          "text": "pub struct IosExposureTargetBiasRange"
+        },
+        {
+          "message": "exposure bias range query must expose the selected device bounds",
+          "must_exist": true,
+          "path": "platform/ios/ios-camera-capture-session/src/lib.rs",
+          "text": "pub fn exposure_target_bias_range("
+        },
+        {
+          "message": "exposure bias range must preserve the native minimum and maximum",
+          "must_exist": true,
+          "path": "platform/ios/ios-camera-capture-session/src/lib.rs",
+          "text": "IosExposureTargetBiasRange { minimum, maximum }"
+        },
+        {
+          "message": "exposure bias setter must reject non-finite values before locking",
+          "must_exist": true,
+          "path": "platform/ios/ios-camera-capture-session/src/lib.rs",
+          "text": "if !bias_ev.is_finite()"
+        },
+        {
+          "message": "exposure bias setter must validate finite ordered native bounds",
+          "must_exist": true,
+          "path": "platform/ios/ios-camera-capture-session/src/lib.rs",
+          "text": "!minimum.is_finite() || !maximum.is_finite() || minimum > maximum"
+        },
+        {
+          "message": "exposure bias setter must accept only the inclusive native range without clamping",
+          "must_exist": true,
+          "path": "platform/ios/ios-camera-capture-session/src/lib.rs",
+          "text": "if bias_ev < range.minimum || bias_ev > range.maximum"
+        },
+        {
+          "message": "exposure bias setter must use the public target-bias selector with a nil handler",
+          "must_exist": true,
+          "path": "platform/ios/ios-camera-capture-session/src/lib.rs",
+          "text": "device.setExposureTargetBias_completionHandler(bias, None)"
+        },
+        {
+          "message": "exposure bias setter must retain invalid and out-of-range negative regressions",
+          "must_exist": true,
+          "path": "platform/ios/ios-camera-capture-session/src/lib.rs",
+          "text": "fn exposure_bias_rejects_invalid_bounds_and_out_of_range_values_without_setting()"
+        },
+        {
+          "message": "exposure bias setter must test exact inclusive endpoints and native operation order",
+          "must_exist": true,
+          "path": "platform/ios/ios-camera-capture-session/src/lib.rs",
+          "text": "fn exposure_bias_locks_reads_range_sets_exact_value_without_callback_and_unlocks()"
+        },
+        {
+          "message": "exposure controls must not add manual custom exposure behavior",
+          "must_exist": false,
+          "path": "platform/ios/ios-camera-capture-session/src/lib.rs",
+          "text": "AVCaptureExposureMode::Custom"
+        },
+        {
+          "message": "exposure controls must not set custom ISO or duration",
+          "must_exist": false,
+          "path": "platform/ios/ios-camera-capture-session/src/lib.rs",
+          "text": "setExposureModeCustomWithDuration_ISO_completionHandler"
+        },
+        {
+          "message": "exposure points must not silently convert preview-layer coordinates",
+          "must_exist": false,
+          "path": "platform/ios/ios-camera-capture-session/src/lib.rs",
+          "text": "captureDevicePointOfInterestForPoint"
+        },
+        {
+          "message": "exposure link probe must retain the public exposure mode support selector",
+          "must_exist": true,
+          "path": "platform/ios/ios-camera-capture-session/check-link-imports.sh",
+          "text": "isExposureModeSupported:"
+        },
+        {
+          "message": "exposure link probe must retain the public exposure mode setter selector",
+          "must_exist": true,
+          "path": "platform/ios/ios-camera-capture-session/check-link-imports.sh",
+          "text": "setExposureMode:"
+        },
+        {
+          "message": "exposure link probe must retain the public exposure point support selector",
+          "must_exist": true,
+          "path": "platform/ios/ios-camera-capture-session/check-link-imports.sh",
+          "text": "isExposurePointOfInterestSupported"
+        },
+        {
+          "message": "exposure link probe must retain the public exposure point setter selector",
+          "must_exist": true,
+          "path": "platform/ios/ios-camera-capture-session/check-link-imports.sh",
+          "text": "setExposurePointOfInterest:"
+        },
+        {
+          "message": "exposure link probe must retain the public target-bias minimum selector",
+          "must_exist": true,
+          "path": "platform/ios/ios-camera-capture-session/check-link-imports.sh",
+          "text": "minExposureTargetBias"
+        },
+        {
+          "message": "exposure link probe must retain the public target-bias maximum selector",
+          "must_exist": true,
+          "path": "platform/ios/ios-camera-capture-session/check-link-imports.sh",
+          "text": "maxExposureTargetBias"
+        },
+        {
+          "message": "exposure link probe must retain the public target-bias setter selector",
+          "must_exist": true,
+          "path": "platform/ios/ios-camera-capture-session/check-link-imports.sh",
+          "text": "setExposureTargetBias:completionHandler:"
+        },
+        {
+          "message": "exposure link probe must invoke each new Rust API",
+          "must_exist": true,
+          "path": "platform/ios/ios-camera-capture-session/examples/camera_capture_link_probe.rs",
+          "text": "session.set_exposure_target_bias(0.0)"
         }
       ],
       "id": "ios-camera-capture-session",

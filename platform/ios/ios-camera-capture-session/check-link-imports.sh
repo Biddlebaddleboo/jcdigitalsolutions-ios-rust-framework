@@ -84,6 +84,13 @@ for target in aarch64-apple-ios aarch64-apple-ios-sim; do
         setFocusMode: \
         isFocusPointOfInterestSupported \
         setFocusPointOfInterest: \
+        isExposureModeSupported: \
+        setExposureMode: \
+        isExposurePointOfInterestSupported \
+        setExposurePointOfInterest: \
+        minExposureTargetBias \
+        maxExposureTargetBias \
+        setExposureTargetBias:completionHandler: \
         canAddInput: \
         addInput: \
         layerWithSession: \
