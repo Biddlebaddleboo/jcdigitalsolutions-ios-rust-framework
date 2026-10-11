@@ -15,6 +15,7 @@ block2 = { workspace = true }
 ios-media-authorization = { path = "../ios-media-authorization", version = "0.1.0" }
 objc2 = { workspace = true }
 objc2-avf-audio = { workspace = true, features = ["AVAudioBuffer", "AVAudioEngine", "AVAudioFormat", "AVAudioIONode", "AVAudioNode", "AVAudioSession", "AVAudioSessionRoute", "AVAudioSessionTypes", "AVAudioTime", "AVAudioTypes", "block2"] }
+objc2-foundation = { workspace = true, features = ["NSDictionary", "NSNotification", "NSObject", "NSOperation", "NSValue", "NSString", "block2"] }
 
 [lints]
 workspace = true

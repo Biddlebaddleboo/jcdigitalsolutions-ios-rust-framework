@@ -5,7 +5,7 @@
 #[cfg(any(target_os = "ios", test))]
 use core::cell::UnsafeCell;
 #[cfg(any(target_os = "ios", test))]
-use core::sync::atomic::{AtomicBool, AtomicU32, AtomicU64, Ordering};
+use core::sync::atomic::{AtomicBool, AtomicU8, AtomicU32, AtomicU64, Ordering};
 
 #[cfg(any(target_os = "ios", test))]
 use framework_media_authorization::MediaAuthorizationStatus;
@@ -21,18 +21,28 @@ use framework_media_authorization::MediaAuthorization;
 #[cfg(target_os = "ios")]
 use ios_media_authorization::IosMediaAuthorization;
 #[cfg(target_os = "ios")]
+use objc2::runtime::{AnyObject, ProtocolObject};
+#[cfg(target_os = "ios")]
 use objc2::{AnyThread, rc::Retained};
 #[cfg(target_os = "ios")]
 use objc2_avf_audio::{
     AVAudioCommonFormat, AVAudioEngine, AVAudioFormat, AVAudioInputNode, AVAudioNodeTapBlock,
-    AVAudioPCMBuffer, AVAudioSession, AVAudioTime,
+    AVAudioPCMBuffer, AVAudioSession, AVAudioSessionInterruptionNotification,
+    AVAudioSessionRouteChangeNotification, AVAudioTime,
 };
 #[cfg(target_os = "ios")]
+use objc2_foundation::{
+    NSDictionary, NSNotification, NSNotificationCenter, NSNotificationName, NSNumber,
+    NSObjectProtocol,
+};
+#[cfg(any(target_os = "ios", test))]
 use std::panic::{AssertUnwindSafe, catch_unwind};
 #[cfg(target_os = "ios")]
 use std::rc::Rc;
 #[cfg(target_os = "ios")]
 use std::sync::Arc;
+#[cfg(any(target_os = "ios", test))]
+use std::sync::Weak;
 
 #[cfg(any(target_os = "ios", test))]
 const MAX_CAPACITY_FRAMES: u32 = 1_048_576;
@@ -149,6 +159,165 @@ pub enum MicrophoneInputSelectionError {
     NativeFailure,
 }
 
+/// Failure to subscribe to public AVAudioSession notifications.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[cfg(any(target_os = "ios", test))]
+pub enum IosAudioSessionEventMonitorError {
+    /// The route-change and interruption notifications require iOS 6.0 or newer.
+    UnsupportedOperatingSystem,
+}
+
+#[cfg(any(target_os = "ios", test))]
+const ROUTE_CHANGE_EVENT: u8 = 1 << 0;
+#[cfg(any(target_os = "ios", test))]
+const INTERRUPTION_BEGAN_EVENT: u8 = 1 << 1;
+#[cfg(any(target_os = "ios", test))]
+const INTERRUPTION_ENDED_EVENT: u8 = 1 << 2;
+#[cfg(any(target_os = "ios", test))]
+const INTERRUPTION_UNCLASSIFIED_EVENT: u8 = 1 << 3;
+
+/// Notification categories observed since the last audio-session event drain.
+///
+/// Each flag is coalesced, not counted. This value does not preserve notification order, route
+/// details, or interruption resumption options. Both interruption-type flags may be set when
+/// opposite events occur before the next drain.
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
+#[cfg(any(target_os = "ios", test))]
+pub struct IosAudioSessionEventFlags {
+    route_change: bool,
+    interruption_began: bool,
+    interruption_ended: bool,
+    interruption_unclassified: bool,
+}
+
+#[cfg(any(target_os = "ios", test))]
+impl IosAudioSessionEventFlags {
+    /// Returns whether at least one route-change notification occurred before this drain.
+    pub const fn route_change(self) -> bool {
+        self.route_change
+    }
+
+    /// Returns whether at least one interruption notification occurred before this drain.
+    pub const fn interruption(self) -> bool {
+        self.interruption_began || self.interruption_ended || self.interruption_unclassified
+    }
+
+    /// Returns whether a classified interruption-began notification occurred before this drain.
+    pub const fn interruption_began(self) -> bool {
+        self.interruption_began
+    }
+
+    /// Returns whether a classified interruption-ended notification occurred before this drain.
+    pub const fn interruption_ended(self) -> bool {
+        self.interruption_ended
+    }
+
+    /// Returns whether an interruption notification had a missing or unknown type before this drain.
+    pub const fn interruption_unclassified(self) -> bool {
+        self.interruption_unclassified
+    }
+
+    /// Returns whether neither observed notification category occurred before this drain.
+    pub const fn is_empty(self) -> bool {
+        !self.route_change && !self.interruption()
+    }
+}
+
+#[derive(Default)]
+#[cfg(any(target_os = "ios", test))]
+struct PendingAudioSessionEvents(AtomicU8);
+
+#[cfg(any(target_os = "ios", test))]
+impl PendingAudioSessionEvents {
+    fn record(&self, event: u8) {
+        self.0.fetch_or(event, Ordering::Relaxed);
+    }
+
+    fn drain(&self) -> IosAudioSessionEventFlags {
+        let events = self.0.swap(0, Ordering::Relaxed);
+        IosAudioSessionEventFlags {
+            route_change: events & ROUTE_CHANGE_EVENT != 0,
+            interruption_began: events & INTERRUPTION_BEGAN_EVENT != 0,
+            interruption_ended: events & INTERRUPTION_ENDED_EVENT != 0,
+            interruption_unclassified: events & INTERRUPTION_UNCLASSIFIED_EVENT != 0,
+        }
+    }
+
+    fn record_interruption(&self, interruption_type: Option<isize>) {
+        let event = match interruption_type {
+            Some(1) => INTERRUPTION_BEGAN_EVENT,
+            Some(0) => INTERRUPTION_ENDED_EVENT,
+            _ => INTERRUPTION_UNCLASSIFIED_EVENT,
+        };
+        self.record(event);
+    }
+}
+
+#[cfg(any(target_os = "ios", test))]
+fn make_audio_event_callback(
+    events: Weak<PendingAudioSessionEvents>,
+    event: u8,
+) -> impl Fn() + Send + Sync + 'static {
+    move || {
+        let _ = catch_unwind(AssertUnwindSafe(|| {
+            if let Some(events) = events.upgrade() {
+                events.record(event);
+            }
+        }));
+    }
+}
+
+#[cfg(any(target_os = "ios", test))]
+trait ObserverTokenRemover<T> {
+    fn remove(&self, token: &T);
+}
+
+#[cfg(any(target_os = "ios", test))]
+struct ObserverTokenOwner<C, T, const N: usize>
+where
+    C: ObserverTokenRemover<T>,
+{
+    remover: C,
+    tokens: [Option<T>; N],
+}
+
+#[cfg(any(target_os = "ios", test))]
+impl<C, T, const N: usize> ObserverTokenOwner<C, T, N>
+where
+    C: ObserverTokenRemover<T>,
+{
+    fn new(remover: C) -> Self {
+        Self {
+            remover,
+            tokens: [const { None }; N],
+        }
+    }
+
+    fn register(&mut self, token: T) {
+        let Some(slot) = self.tokens.iter_mut().find(|slot| slot.is_none()) else {
+            panic!("audio session observer capacity exceeded");
+        };
+        *slot = Some(token);
+    }
+
+    #[cfg(target_os = "ios")]
+    fn remover(&self) -> &C {
+        &self.remover
+    }
+}
+
+#[cfg(any(target_os = "ios", test))]
+impl<C, T, const N: usize> Drop for ObserverTokenOwner<C, T, N>
+where
+    C: ObserverTokenRemover<T>,
+{
+    fn drop(&mut self) {
+        for token in self.tokens.iter().flatten() {
+            self.remover.remove(token);
+        }
+    }
+}
+
 /// Reads one owned snapshot of the host-configured session's available input ports.
 ///
 /// The host owns audio-session category, mode, activation, and route policy. This function only
@@ -256,6 +425,133 @@ where
             uid,
         })
         .collect()
+}
+
+#[cfg(target_os = "ios")]
+type ObserverToken = Retained<ProtocolObject<dyn NSObjectProtocol>>;
+
+#[cfg(target_os = "ios")]
+impl ObserverTokenRemover<ObserverToken> for Retained<NSNotificationCenter> {
+    fn remove(&self, token: &ObserverToken) {
+        let observer: &AnyObject = AsRef::<AnyObject>::as_ref(&**token);
+        // SAFETY: the token came from this notification center and is removed exactly once.
+        unsafe { self.removeObserver(observer) };
+    }
+}
+
+#[cfg(target_os = "ios")]
+fn add_audio_event_observer(
+    center: &NSNotificationCenter,
+    name: &'static NSNotificationName,
+    events: &Arc<PendingAudioSessionEvents>,
+    event: u8,
+) -> ObserverToken {
+    let callback = make_audio_event_callback(Arc::downgrade(events), event);
+    let block: RcBlock<dyn Fn(NonNull<NSNotification>)> =
+        RcBlock::new(move |_notification| callback());
+    // SAFETY: `name` is one of AVFAudio's public process-lifetime notification names. With no
+    // operation queue, Foundation invokes the block on the posting thread; the block captures
+    // only weak atomic event state and does no user work or AVAudioSession mutation. The center
+    // returns the observer token, whose owner removes it on drop.
+    unsafe { center.addObserverForName_object_queue_usingBlock(Some(name), None, None, &block) }
+}
+
+#[cfg(target_os = "ios")]
+fn interruption_type(notification: &NSNotification) -> Option<isize> {
+    let key = objc2_avf_audio::AVAudioSessionInterruptionTypeKey?;
+    let user_info: Retained<NSDictionary> = notification.userInfo()?;
+    let value = user_info.objectForKey(key)?;
+    value
+        .downcast::<NSNumber>()
+        .ok()
+        .map(|number| number.integerValue())
+}
+
+#[cfg(target_os = "ios")]
+fn add_interruption_observer(
+    center: &NSNotificationCenter,
+    name: &'static NSNotificationName,
+    events: &Arc<PendingAudioSessionEvents>,
+) -> ObserverToken {
+    let events = Arc::downgrade(events);
+    let block: RcBlock<dyn Fn(NonNull<NSNotification>)> = RcBlock::new(move |notification| {
+        let _ = catch_unwind(AssertUnwindSafe(|| {
+            if let Some(events) = events.upgrade() {
+                // SAFETY: NotificationCenter supplies a live notification for this block call;
+                // the borrowed payload is parsed immediately and is never retained.
+                let interruption_type = unsafe { interruption_type(notification.as_ref()) };
+                events.record_interruption(interruption_type);
+            }
+        }));
+    });
+    // SAFETY: `name` is AVFAudio's public process-lifetime interruption name. With no operation
+    // queue, Foundation invokes the block on the posting thread; it only reads the documented
+    // interruption-type NSNumber and updates weakly held atomic state. The owner removes its token.
+    unsafe { center.addObserverForName_object_queue_usingBlock(Some(name), None, None, &block) }
+}
+
+/// Observes host audio-session route and interruption notification categories without changing
+/// session policy.
+///
+/// The monitor subscribes to public AVAudioSession notifications from iOS 6.0. It does not
+/// configure, activate, or deactivate the session, request permission, start audio I/O, parse route
+/// details, or run user closures. The interruption observer reads only the documented interruption
+/// type NSNumber; missing, mistyped, or unknown values are reported as unclassified. Foundation
+/// invokes its private observer blocks on the posting thread; each block only updates atomic flags.
+/// Repeated notifications of each type coalesce until `drain`; the snapshot preserves neither
+/// count nor ordering. Opposite interruption flags may both be set. An atomic drain separates
+/// batches: an event concurrent with the swap belongs either to the returned snapshot or the next
+/// one. The state is fixed-size and cannot overflow. Observer tokens are removed on drop.
+#[cfg(target_os = "ios")]
+pub struct IosAudioSessionEventMonitor {
+    _observers: ObserverTokenOwner<Retained<NSNotificationCenter>, ObserverToken, 2>,
+    events: Arc<PendingAudioSessionEvents>,
+}
+
+#[cfg(target_os = "ios")]
+impl IosAudioSessionEventMonitor {
+    /// Subscribes to public route-change and interruption notifications without changing session
+    /// policy. Returns `UnsupportedOperatingSystem` below iOS 6.0.
+    pub fn new() -> Result<Self, IosAudioSessionEventMonitorError> {
+        if !objc2::available!(ios = 6.0, ..) {
+            return Err(IosAudioSessionEventMonitorError::UnsupportedOperatingSystem);
+        }
+        // SAFETY: these public AVFAudio notification names are process-lifetime constants when
+        // present. Their absence means the runtime does not provide the supported API surface.
+        let names = unsafe {
+            (
+                AVAudioSessionRouteChangeNotification,
+                AVAudioSessionInterruptionNotification,
+            )
+        };
+        let (Some(route_change_name), Some(interruption_name)) = names else {
+            return Err(IosAudioSessionEventMonitorError::UnsupportedOperatingSystem);
+        };
+
+        let events = Arc::new(PendingAudioSessionEvents::default());
+        let center = NSNotificationCenter::defaultCenter();
+        let mut observers = ObserverTokenOwner::new(center);
+        let route_change_observer = add_audio_event_observer(
+            observers.remover(),
+            route_change_name,
+            &events,
+            ROUTE_CHANGE_EVENT,
+        );
+        observers.register(route_change_observer);
+        let interruption_observer =
+            add_interruption_observer(observers.remover(), interruption_name, &events);
+        observers.register(interruption_observer);
+
+        Ok(Self {
+            _observers: observers,
+            events,
+        })
+    }
+
+    /// Atomically drains notification-category flags without waiting for a future event.
+    pub fn drain(&self) -> IosAudioSessionEventFlags {
+        self.events.drain()
+    }
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -786,12 +1082,16 @@ const fn may_stream(status: MediaAuthorizationStatus) -> bool {
 #[cfg(test)]
 mod tests {
     use super::{
-        FrameRing, Lifecycle, MicrophoneInputSelectionError, MicrophoneStreamError,
-        allocate_storage, collect_input_port_snapshot, may_stream, select_available_input,
+        FrameRing, INTERRUPTION_BEGAN_EVENT, INTERRUPTION_ENDED_EVENT, IosAudioSessionEventFlags,
+        Lifecycle, MicrophoneInputSelectionError, MicrophoneStreamError, ObserverTokenOwner,
+        ObserverTokenRemover, PendingAudioSessionEvents, ROUTE_CHANGE_EVENT, allocate_storage,
+        collect_input_port_snapshot, make_audio_event_callback, may_stream, select_available_input,
         validate_input_format,
     };
     use framework_media_authorization::MediaAuthorizationStatus;
-    use std::cell::{Cell, UnsafeCell};
+    use std::cell::{Cell, RefCell, UnsafeCell};
+    use std::rc::Rc;
+    use std::sync::Arc;
 
     #[derive(Debug)]
     struct TestInputPort {
@@ -808,6 +1108,95 @@ mod tests {
             stride,
             stride == channels,
         )
+    }
+
+    #[test]
+    fn audio_event_flags_coalesce_independent_categories_until_drain() {
+        let events = Arc::new(PendingAudioSessionEvents::default());
+        let route_change = make_audio_event_callback(Arc::downgrade(&events), ROUTE_CHANGE_EVENT);
+        let interruption_began =
+            make_audio_event_callback(Arc::downgrade(&events), INTERRUPTION_BEGAN_EVENT);
+        let interruption_ended =
+            make_audio_event_callback(Arc::downgrade(&events), INTERRUPTION_ENDED_EVENT);
+
+        route_change();
+        route_change();
+        assert_eq!(
+            events.drain(),
+            IosAudioSessionEventFlags {
+                route_change: true,
+                interruption_began: false,
+                interruption_ended: false,
+                interruption_unclassified: false,
+            }
+        );
+        assert!(events.drain().is_empty());
+
+        interruption_began();
+        interruption_began();
+        interruption_ended();
+        route_change();
+        assert_eq!(
+            events.drain(),
+            IosAudioSessionEventFlags {
+                route_change: true,
+                interruption_began: true,
+                interruption_ended: true,
+                interruption_unclassified: false,
+            }
+        );
+        assert!(events.drain().is_empty());
+    }
+
+    #[test]
+    fn interruption_types_are_classified_and_unexpected_payloads_are_preserved() {
+        let events = PendingAudioSessionEvents::default();
+        events.record_interruption(Some(1));
+        assert!(events.drain().interruption_began());
+        events.record_interruption(Some(0));
+        assert!(events.drain().interruption_ended());
+
+        events.record_interruption(None);
+        events.record_interruption(Some(7));
+        let flags = events.drain();
+        assert!(flags.interruption());
+        assert!(flags.interruption_unclassified());
+        assert!(!flags.interruption_began());
+        assert!(!flags.interruption_ended());
+        assert!(events.drain().is_empty());
+    }
+
+    #[test]
+    fn audio_observer_callback_does_not_retain_or_update_dropped_event_state() {
+        let events = Arc::new(PendingAudioSessionEvents::default());
+        let weak_events = Arc::downgrade(&events);
+        let callback = make_audio_event_callback(weak_events.clone(), ROUTE_CHANGE_EVENT);
+
+        drop(events);
+        callback();
+
+        assert!(weak_events.upgrade().is_none());
+    }
+
+    struct FakeObserverRemover(Rc<RefCell<Vec<u8>>>);
+
+    impl ObserverTokenRemover<u8> for FakeObserverRemover {
+        fn remove(&self, token: &u8) {
+            self.0.borrow_mut().push(*token);
+        }
+    }
+
+    #[test]
+    fn observer_owner_removes_each_registered_token_once_on_drop() {
+        let removed = Rc::new(RefCell::new(Vec::new()));
+        let mut observers =
+            ObserverTokenOwner::<_, _, 2>::new(FakeObserverRemover(Rc::clone(&removed)));
+        observers.register(3);
+        observers.register(7);
+
+        drop(observers);
+
+        assert_eq!(*removed.borrow(), [3, 7]);
     }
 
     #[test]

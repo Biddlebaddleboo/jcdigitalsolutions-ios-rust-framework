@@ -5,8 +5,8 @@ fn main() {
     }
 
     use ios_microphone_pcm_stream::{
-        IosMicrophonePcmStream, MicrophoneInputSelectionError, available_input_ports,
-        select_input_port,
+        IosAudioSessionEventMonitor, IosMicrophonePcmStream, MicrophoneInputSelectionError,
+        available_input_ports, select_input_port,
     };
 
     std::hint::black_box(
@@ -17,6 +17,10 @@ fn main() {
         for input_port in input_ports {
             std::hint::black_box((input_port.port_type(), input_port.name(), input_port.uid()));
         }
+    }
+
+    if let Ok(events) = IosAudioSessionEventMonitor::new() {
+        std::hint::black_box(events.drain());
     }
 
     let Ok(mut stream) = IosMicrophonePcmStream::new(48_000) else {

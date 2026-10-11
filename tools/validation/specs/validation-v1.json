@@ -550,19 +550,19 @@
           "text": "requestRecordPermission"
         },
         {
-          "message": "the input-port query may read AVAudioSession but must not set its category",
+          "message": "audio queries, selection, capture, and observation must not set the host session category",
           "must_exist": false,
           "path": "platform/ios/ios-microphone-pcm-stream/src/lib.rs",
           "text": "setCategory"
         },
         {
-          "message": "the input-port query must not set the shared session mode",
+          "message": "audio queries, selection, capture, and observation must not set the host session mode",
           "must_exist": false,
           "path": "platform/ios/ios-microphone-pcm-stream/src/lib.rs",
           "text": "setMode"
         },
         {
-          "message": "the input-port query must not activate or deactivate the shared session",
+          "message": "audio queries, selection, capture, and observation must not activate or deactivate the host session",
           "must_exist": false,
           "path": "platform/ios/ios-microphone-pcm-stream/src/lib.rs",
           "text": "setActive"
@@ -598,10 +598,100 @@
           "text": "overrideOutputAudioPort"
         },
         {
-          "message": "the input-port query must not register session or route observers",
+          "message": "the audio event monitor must observe route-change notifications",
+          "must_exist": true,
+          "path": "platform/ios/ios-microphone-pcm-stream/src/lib.rs",
+          "text": "AVAudioSessionRouteChangeNotification"
+        },
+        {
+          "message": "the audio event monitor must observe interruption notifications",
+          "must_exist": true,
+          "path": "platform/ios/ios-microphone-pcm-stream/src/lib.rs",
+          "text": "AVAudioSessionInterruptionNotification"
+        },
+        {
+          "message": "interruption type must be read from the documented public notification key",
+          "must_exist": true,
+          "path": "platform/ios/ios-microphone-pcm-stream/src/lib.rs",
+          "text": "AVAudioSessionInterruptionTypeKey"
+        },
+        {
+          "message": "interruption type must be parsed from userInfo as an NSNumber",
+          "must_exist": true,
+          "path": "platform/ios/ios-microphone-pcm-stream/src/lib.rs",
+          "text": ".downcast::<NSNumber>()"
+        },
+        {
+          "message": "interruption payload must map the public began and ended values",
+          "must_exist": true,
+          "path": "platform/ios/ios-microphone-pcm-stream/src/lib.rs",
+          "text": "Some(1) => INTERRUPTION_BEGAN_EVENT"
+        },
+        {
+          "message": "the public interruption-ended value must remain distinct from began",
+          "must_exist": true,
+          "path": "platform/ios/ios-microphone-pcm-stream/src/lib.rs",
+          "text": "Some(0) => INTERRUPTION_ENDED_EVENT"
+        },
+        {
+          "message": "interruption payload parsing must read NSNumber's integer value",
+          "must_exist": true,
+          "path": "platform/ios/ios-microphone-pcm-stream/src/lib.rs",
+          "text": "number.integerValue()"
+        },
+        {
+          "message": "missing or unknown interruption types must remain observable",
+          "must_exist": true,
+          "path": "platform/ios/ios-microphone-pcm-stream/src/lib.rs",
+          "text": "_ => INTERRUPTION_UNCLASSIFIED_EVENT"
+        },
+        {
+          "message": "interruption notification objects must not be retained by monitor state",
+          "must_exist": true,
+          "path": "platform/ios/ios-microphone-pcm-stream/src/lib.rs",
+          "text": "the borrowed payload is parsed immediately and is never retained"
+        },
+        {
+          "message": "the monitor must expose an owned, nonblocking drain API",
+          "must_exist": true,
+          "path": "platform/ios/ios-microphone-pcm-stream/src/lib.rs",
+          "text": "pub fn drain(&self) -> IosAudioSessionEventFlags"
+        },
+        {
+          "message": "event drain must atomically reset its bounded flag state",
+          "must_exist": true,
+          "path": "platform/ios/ios-microphone-pcm-stream/src/lib.rs",
+          "text": "self.0.swap(0, Ordering::Relaxed)"
+        },
+        {
+          "message": "notification callbacks must update flags without a mutex",
           "must_exist": false,
           "path": "platform/ios/ios-microphone-pcm-stream/src/lib.rs",
-          "text": "addObserver"
+          "text": "Mutex"
+        },
+        {
+          "message": "observer state must be weakly captured",
+          "must_exist": true,
+          "path": "platform/ios/ios-microphone-pcm-stream/src/lib.rs",
+          "text": "events: Weak<PendingAudioSessionEvents>"
+        },
+        {
+          "message": "observer tokens must be removed on drop",
+          "must_exist": true,
+          "path": "platform/ios/ios-microphone-pcm-stream/src/lib.rs",
+          "text": "impl<C, T, const N: usize> Drop for ObserverTokenOwner"
+        },
+        {
+          "message": "AVAudioSession notification observers must remove their Foundation tokens",
+          "must_exist": true,
+          "path": "platform/ios/ios-microphone-pcm-stream/src/lib.rs",
+          "text": "self.removeObserver(observer)"
+        },
+        {
+          "message": "the monitor must use no object filter or operation queue",
+          "must_exist": true,
+          "path": "platform/ios/ios-microphone-pcm-stream/src/lib.rs",
+          "text": "Some(name), None, None, &block"
         },
         {
           "message": "the native binding must enable the AVAudioSession class",
@@ -620,6 +710,12 @@
           "must_exist": true,
           "path": "platform/ios/ios-microphone-pcm-stream/Cargo.toml",
           "text": "\"AVAudioSessionTypes\""
+        },
+        {
+          "message": "Foundation must enable notification payload parsing and NotificationCenter block registration",
+          "must_exist": true,
+          "path": "platform/ios/ios-microphone-pcm-stream/Cargo.toml",
+          "text": "features = [\"NSDictionary\", \"NSNotification\", \"NSObject\", \"NSOperation\", \"NSValue\", \"NSString\", \"block2\"]"
         }
       ],
       "id": "ios-microphone-pcm-stream",

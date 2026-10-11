@@ -74,6 +74,8 @@ for target in aarch64-apple-ios aarch64-apple-ios-sim; do
     }
     binary_strings=$(strings -n 3 "$probe")
     for symbol in \
+        addObserverForName:object:queue:usingBlock: \
+        removeObserver: \
         AVAudioEngine \
         inputNode \
         outputFormatForBus: \
@@ -92,6 +94,11 @@ for target in aarch64-apple-ios aarch64-apple-ios-sim; do
         portType \
         portName \
         UID \
+        AVAudioSessionRouteChangeNotification \
+        AVAudioSessionInterruptionNotification \
+        userInfo \
+        objectForKey: \
+        integerValue \
         format \
         channelCount \
         isInterleaved \
@@ -99,6 +106,16 @@ for target in aarch64-apple-ios aarch64-apple-ios-sim; do
     do
         printf '%s\n' "$binary_strings" | grep -F "$symbol" >/dev/null || {
             printf '%s probe does not retain the %s API reference\n' "$target" "$symbol" >&2
+            exit 1
+        }
+    done
+    for symbol in \
+        _AVAudioSessionRouteChangeNotification \
+        _AVAudioSessionInterruptionNotification \
+        _AVAudioSessionInterruptionTypeKey
+    do
+        printf '%s\n' "$symbols" | grep -F "$symbol" >/dev/null || {
+            printf '%s probe does not import %s\n' "$target" "$symbol" >&2
             exit 1
         }
     done
