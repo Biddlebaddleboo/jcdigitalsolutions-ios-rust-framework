@@ -80,3 +80,29 @@ The installed Xcode 26.6 / iPhoneOS 26.5 SDK headers and `objc2-contacts` 0.3.2 
 required add APIs from iOS 9.0; registered deployment floors remain iOS 10.0 device and iOS 14.0
 Simulator. Host tests and device/Simulator compile-link checks do not prove a live save, Limited
 create behavior, default-container selection, permission UI, or an identifier result.
+
+## Additive increment B471 — patch one existing contact
+
+B471 adds `ContactUpdate`, `ContactsUpdateBackend`, and `Contacts::update_contact(identifier,
+&ContactUpdate)` as a source-compatible patch extension. `None` preserves a field; an empty `Some`
+string or phone/email vector deliberately clears it; a nonempty phone/email vector replaces that
+full list. An all-`None` patch or an empty phone/email value is invalid. The iOS adapter validates
+before native work, rechecks status without prompting, accepts only `Authorized` or `Limited`,
+fetches one caller-selected identifier using the existing six common key descriptors, and creates
+a public `CNMutableContact` copy. It sets only explicitly supplied common fields, then executes one
+`CNSaveRequest.updateContact:` call. It does not create, delete, batch, or refetch a record.
+
+Apple's current Contacts access guide says Limited access permits edit/delete only for contacts
+currently granted to the app, while contacts created by the app are automatically accessible. The
+caller-supplied identifier still has to resolve within that scope; no picker or prompt is added.
+The public unified lookup may return a different unified identifier, so the API targets the single
+logical contact returned by the lookup rather than a chosen account-level constituent. Contacts
+error code 200 in `CNErrorDomain` maps to `NotFound`; a re-queried status that no longer permits
+access takes precedence over a save failure, and other native codes are preserved.
+
+The installed Xcode 26.6 / iPhoneOS 26.5 SDK headers mark the needed fetch, `mutableCopy`, mutable
+field setters, and update-save APIs available from iOS 9.0. Pinned `objc2-contacts` 0.3.2 already
+exposes `NSMutableCopying` to `CNMutableContact` and `CNSaveRequest::updateContact`; no dependency
+or feature change is needed. Registered deployment floors remain iOS 10.0 device and iOS 14.0
+Simulator. Host validation covers patch/error semantics and public facade dispatch; target compile
+and link checks do not prove a live Contacts edit, Limited selection, or concurrent-store behavior.

@@ -19,6 +19,9 @@ mod search;
 mod create;
 
 #[cfg(target_os = "ios")]
+mod update;
+
+#[cfg(target_os = "ios")]
 mod snapshot;
 
 #[cfg(target_os = "ios")]

@@ -54,6 +54,8 @@ pub enum ContactsError {
     InvalidSearchQuery,
     /// The supplied contact draft has no useful data or contains an empty phone/email value.
     InvalidContactDraft,
+    /// The supplied contact update changes no fields or contains an empty phone/email value.
+    InvalidContactUpdate,
     /// The current authorization state does not permit this Contacts operation.
     AuthorizationRequired(ContactsAuthorization),
     /// No accessible contact matches the supplied local identifier.
@@ -66,9 +68,10 @@ impl ContactsError {
     /// Returns the stable portable error category.
     pub const fn kind(self) -> ErrorKind {
         match self {
-            Self::InvalidIdentifier | Self::InvalidSearchQuery | Self::InvalidContactDraft => {
-                ErrorKind::InvalidInput
-            }
+            Self::InvalidIdentifier
+            | Self::InvalidSearchQuery
+            | Self::InvalidContactDraft
+            | Self::InvalidContactUpdate => ErrorKind::InvalidInput,
             Self::AuthorizationRequired(
                 ContactsAuthorization::Denied | ContactsAuthorization::Restricted,
             ) => ErrorKind::PermissionDenied,
@@ -85,6 +88,7 @@ impl ContactsError {
             Self::InvalidIdentifier
             | Self::InvalidSearchQuery
             | Self::InvalidContactDraft
+            | Self::InvalidContactUpdate
             | Self::AuthorizationRequired(_)
             | Self::NotFound => None,
         }
@@ -137,6 +141,25 @@ pub struct ContactDraft {
     pub phone_numbers: Vec<ContactLabeledValue>,
     /// Labeled email values in caller order.
     pub email_addresses: Vec<ContactLabeledValue>,
+}
+
+/// Rust-owned changes for selected fields of one existing contact.
+///
+/// `None` preserves that property. An empty string clears a selected string property, and an
+/// empty vector clears the selected phone or email property. A nonempty phone/email vector
+/// replaces that property's full value list in caller order.
+#[derive(Clone, Debug, Default, Eq, PartialEq)]
+pub struct ContactUpdate {
+    /// The replacement given name, or `None` to preserve it.
+    pub given_name: Option<String>,
+    /// The replacement family name, or `None` to preserve it.
+    pub family_name: Option<String>,
+    /// The replacement organization name, or `None` to preserve it.
+    pub organization_name: Option<String>,
+    /// Replacement labeled phone numbers, or `None` to preserve them.
+    pub phone_numbers: Option<Vec<ContactLabeledValue>>,
+    /// Replacement labeled email addresses, or `None` to preserve them.
+    pub email_addresses: Option<Vec<ContactLabeledValue>>,
 }
 
 /// A statically selected backend for Contacts authorization status and request operations.
@@ -209,6 +232,18 @@ pub trait ContactsCreateBackend: ContactsBackend {
     fn create_contact(&self, draft: &ContactDraft) -> Result<(), ContactsError>;
 }
 
+/// An update extension for backends that can modify one existing contact by local identifier.
+///
+/// Implementations must reject invalid identifiers and no-op patches, re-check authorization
+/// without prompting, permit only `Authorized` or `Limited`, and update no fields absent from the
+/// patch. A `Some` empty string or vector clears that selected property. This separate trait
+/// keeps existing [`ContactsBackend`] implementors source-compatible.
+pub trait ContactsUpdateBackend: ContactsBackend {
+    /// Updates selected common fields on one accessible contact without prompting.
+    fn update_contact(&self, identifier: &str, update: &ContactUpdate)
+    -> Result<(), ContactsError>;
+}
+
 /// A thin facade over caller-owned, statically selected Contacts backend state.
 pub struct Contacts<B> {
     backend: B,
@@ -258,6 +293,17 @@ impl<B: ContactsCreateBackend> Contacts<B> {
     /// Adds one new contact without prompting or changing an existing record.
     pub fn create_contact(&self, draft: &ContactDraft) -> Result<(), ContactsError> {
         self.backend.create_contact(draft)
+    }
+}
+
+impl<B: ContactsUpdateBackend> Contacts<B> {
+    /// Updates selected fields of one contact without prompting or changing other fields.
+    pub fn update_contact(
+        &self,
+        identifier: &str,
+        update: &ContactUpdate,
+    ) -> Result<(), ContactsError> {
+        self.backend.update_contact(identifier, update)
     }
 }
 
@@ -412,6 +458,11 @@ mod tests {
             ErrorKind::InvalidInput
         );
         assert_eq!(ContactsError::InvalidContactDraft.platform_code(), None);
+        assert_eq!(
+            ContactsError::InvalidContactUpdate.kind(),
+            ErrorKind::InvalidInput
+        );
+        assert_eq!(ContactsError::InvalidContactUpdate.platform_code(), None);
     }
 
     #[test]

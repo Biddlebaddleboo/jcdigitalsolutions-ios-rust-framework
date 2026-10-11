@@ -55,3 +55,20 @@ void contacts_create_api_floor(CNContactStore *store) {
     (void)succeeded;
     (void)error;
 }
+
+void contacts_update_api_floor(CNContactStore *store, NSString *identifier) {
+    NSError *error = nil;
+    CNContact *contact = [store unifiedContactWithIdentifier:identifier
+                                                keysToFetch:@[
+                                                    CNContactIdentifierKey,
+                                                    CNContactGivenNameKey,
+                                                ]
+                                                       error:&error];
+    CNMutableContact *mutableContact = [contact mutableCopy];
+    mutableContact.givenName = @"";
+    CNSaveRequest *request = [CNSaveRequest new];
+    [request updateContact:mutableContact];
+    BOOL succeeded = [store executeSaveRequest:request error:&error];
+    (void)succeeded;
+    (void)error;
+}

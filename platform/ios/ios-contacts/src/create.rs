@@ -58,7 +58,7 @@ impl ContactsCreateBackend for IosContactsBackend {
     }
 }
 
-fn native_phone_values(
+pub(super) fn native_phone_values(
     values: &[ContactLabeledValue],
 ) -> Result<Vec<Retained<CNLabeledValue<CNPhoneNumber>>>, ContactsError> {
     values
@@ -81,7 +81,9 @@ fn native_phone_values(
         .collect()
 }
 
-fn native_email_values(values: &[ContactLabeledValue]) -> Vec<Retained<CNLabeledValue<NSString>>> {
+pub(super) fn native_email_values(
+    values: &[ContactLabeledValue],
+) -> Vec<Retained<CNLabeledValue<NSString>>> {
     values
         .iter()
         .map(|value| {

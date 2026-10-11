@@ -2165,17 +2165,17 @@
       "crate_module_status": "portable_contract_and_ios_backend_partial",
       "portability_class": "portable_with_platform_extensions",
       "portable_contract_status": "implemented",
-      "portable_contract_note": "framework-contacts defines authorization status/request values, optional single-record fetch and caller-limited name-search extensions, and a separate add-only create extension using Rust-owned common fields; existing-record mutation is excluded.",
+      "portable_contract_note": "framework-contacts defines authorization status/request values, optional single-record fetch and caller-limited name-search extensions, a separate add-only create extension, and a separate selected-record update patch over Rust-owned common fields.",
       "ios_implementation_class": "B",
       "implementation_status": "partial",
-      "status_reason": "B29 implements Contacts authorization status/request; B462 adds read-only fetch of one caller-selected local identifier; B468 adds bounded public name-predicate search returning owned common fields; B469 adds one synchronous add-only CNMutableContact save for current Authorized or Limited access, never prompts, and does not return an identifier. Full-store enumeration, editing/deleting existing records, picker UI, native search behavior, and live consent/data/create behavior remain incomplete or unverified.",
+      "status_reason": "B29 implements Contacts authorization; B462 adds read-only fetch of one caller-selected local identifier; B468 adds bounded public name-predicate search; B469 adds one synchronous add-only CNMutableContact save; B471 adds one synchronous selected-record patch update through CNMutableContact mutableCopy and CNSaveRequest update. Fetch, search, create, and update recheck current Authorized or Limited access and never prompt. Full-store enumeration, deleting records, picker UI, native search semantics, and live consent/data/fetch/search/create/update behavior remain incomplete or unverified.",
       "minimum_ios_version": "9.0",
       "required_frameworks": [
         "Contacts",
         "Foundation"
       ],
       "required_permissions": [
-        "Contacts access request is explicit and opt-in; fetch, search, and create never prompt; create requires current Authorized or Limited status"
+        "Contacts authorization request is explicit and opt-in; fetch, search, create, and update never prompt; create and update require current Authorized or Limited status, and Limited edits remain within the contacts currently granted to the app or created by it"
       ],
       "required_info_plist_keys": [
         "NSContactsUsageDescription"
@@ -2183,7 +2183,7 @@
       "entitlements": null,
       "device_only_restrictions": null,
       "swift_abi_requirement": false,
-      "metadata_verification": "PLAN_IOS_CONTACTS.md verifies authorization APIs; public single-record fetch, name predicate, fetch request, and synchronous enumeration; and add-only CNMutableContact/CNSaveRequest construction and execution from iOS 9.0 in installed Xcode 26.6 / iPhoneOS 26.5 SDK headers and objc2-contacts 0.3.2. Apple documents that a Limited app may create and access its created contacts; CNAuthorizationStatusLimited is available from iOS 18.0. Host NSContactsUsageDescription is required for Contacts access. Rust 1.94.1 sets the iOS device deployment minimum to 10.0. Registered host tests and device/Simulator compile-link checks do not prove live search behavior, Limited visibility or create behavior, save outcome, permission UI, or contact data behavior.",
+      "metadata_verification": "PLAN_IOS_CONTACTS.md verifies public Contacts authorization, single-record fetch, name search, add-only create, and selected-record update APIs in Xcode 26.6 / iPhoneOS 26.5 SDK headers and objc2-contacts 0.3.2. Apple documents that Limited access can create and access app-created contacts, but can fetch, edit, or delete only contacts granted to the app; CNAuthorizationStatusLimited is available from iOS 18.0. CNContact mutableCopy and CNSaveRequest updateContact are available from iOS 9.0. Host NSContactsUsageDescription is required for Contacts access. Rust 1.94.1 sets iOS device deployment minimum to 10.0. Registered host tests and device/Simulator compile-link checks do not prove live authorization UI, Limited visibility, fetch/search/create/update behavior, save outcome, or contact data changes.",
       "parity_status": "not_tested_live_behavior_or_Apple_parity",
       "performance_status": "not_measured",
       "native_escape_handle_available": false,

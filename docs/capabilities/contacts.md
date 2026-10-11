@@ -1,10 +1,11 @@
-# Portable Contacts authorization, read, and add-only create
+# Portable Contacts authorization, read, create, and update
 
 `framework-contacts` defines a portable authorization contract and separate optional extensions
-for one-record fetch, bounded name search, and add-only creation. It exposes no ContactsUI type or
-picker, does not enumerate all contacts, and never edits or deletes an existing record. Existing
-`ContactsBackend` implementors need not implement these operations; a backend opts in through
-`ContactsFetchBackend`, `ContactsSearchBackend`, or `ContactsCreateBackend`.
+for one-record fetch, bounded name search, add-only creation, and one-record updates. It exposes no
+ContactsUI type or picker, does not enumerate the full store, and does not delete contacts.
+Existing `ContactsBackend` implementors need not implement these operations; a backend opts in
+through `ContactsFetchBackend`, `ContactsSearchBackend`, `ContactsCreateBackend`, or
+`ContactsUpdateBackend`.
 
 ## Authorization states
 
@@ -125,3 +126,30 @@ Contacts writes are synchronous; avoid latency-sensitive UI contexts. The host a
 UI, entitlement, or app metadata. Static host tests and device/Simulator compile/link checks do not
 prove an actual save, Limited-access behavior, default-container selection, or a returned local
 identifier.
+
+## Update one existing record
+
+`Contacts<B>::update_contact(identifier, &ContactUpdate)` delegates to the separate
+`ContactsUpdateBackend` extension. Its owned optional fields select given name, family name,
+organization, phone numbers, and email addresses. `None` preserves a property. `Some(String::new())`
+clears a selected string; `Some(Vec::new())` clears the full phone or email list. A nonempty list
+replaces only that list in caller order rather than appending. Empty phone/email values and a patch
+with every field `None` return `InvalidContactUpdate`; empty names and an explicitly empty list are
+valid clears.
+
+The synchronous iOS operation validates before native work, rechecks current status, accepts only
+`Authorized` or `Limited`, and never prompts. It fetches one contact by the caller's local
+identifier, makes a public `CNMutableContact` copy, sets only `Some` fields, and executes one
+`CNSaveRequest.updateContact:`. It returns unit and does not refetch a snapshot. Under Limited,
+Apple permits edits only to contacts currently granted to the app (and automatically grants access
+to contacts the app created); an identifier outside that scope must fail without prompting. A
+stale-record Contacts error maps to `NotFound`; other native error codes are preserved unless a
+fresh status query shows that access no longer permits the operation.
+
+Apple may return a unified contact whose identifier differs from the supplied identifier. The
+operation updates that one logical record returned for the supplied identifier, not a caller-chosen
+account-level constituent. Contacts reads and saves are synchronous and may block. Host tests and
+target compile/link checks do not prove a live edit, Limited visibility, concurrent change
+behavior, Simulator execution, or physical-device behavior. See Apple's [Contacts access guide](https://developer.apple.com/documentation/contacts/accessing-the-contact-store),
+[CNMutableContact](https://developer.apple.com/documentation/contacts/cnmutablecontact), and
+[CNSaveRequest](https://developer.apple.com/documentation/contacts/cnsaverequest).

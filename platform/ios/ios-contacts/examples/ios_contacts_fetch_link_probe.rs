@@ -2,7 +2,7 @@
 
 #[cfg(target_os = "ios")]
 fn main() {
-    use framework_contacts::{ContactDraft, Contacts};
+    use framework_contacts::{ContactDraft, ContactUpdate, Contacts};
     use ios_contacts::IosContactsBackend;
 
     let contacts = Contacts::new(IosContactsBackend::new());
@@ -13,6 +13,11 @@ fn main() {
         ..ContactDraft::default()
     };
     let _ = core::hint::black_box(contacts.create_contact(&draft));
+    let update = ContactUpdate {
+        given_name: Some(String::new()),
+        ..ContactUpdate::default()
+    };
+    let _ = core::hint::black_box(contacts.update_contact("selected-local-identifier", &update));
 }
 
 #[cfg(not(target_os = "ios"))]

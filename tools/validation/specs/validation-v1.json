@@ -2592,7 +2592,7 @@
           "text": "ContactsUI"
         },
         {
-          "message": "the Contacts binding must enable only the required add-only mutable-contact APIs",
+          "message": "the Contacts binding must enable only the required create and update mutable-contact APIs",
           "must_exist": true,
           "path": "platform/ios/ios-contacts/Cargo.toml",
           "text": "\"CNMutableContact\", \"CNSaveRequest\""
@@ -2836,6 +2836,192 @@
           "must_exist": false,
           "path": "platform/ios/ios-contacts/src/search.rs",
           "text": "Vec::with_capacity"
+        },
+        {
+          "message": "the update extension must preserve existing backend implementors",
+          "must_exist": true,
+          "path": "crates/framework-contacts/src/lib.rs",
+          "text": "pub trait ContactsUpdateBackend: ContactsBackend"
+        },
+        {
+          "message": "the portable update patch must use optional owned common fields",
+          "must_exist": true,
+          "path": "crates/framework-contacts/src/lib.rs",
+          "text": "pub struct ContactUpdate"
+        },
+        {
+          "message": "the public facade must expose one-record updates",
+          "must_exist": true,
+          "path": "crates/framework-contacts/src/lib.rs",
+          "text": "pub fn update_contact("
+        },
+        {
+          "message": "invalid patches must have a stable invalid-input category",
+          "must_exist": true,
+          "path": "crates/framework-contacts/src/lib.rs",
+          "text": "InvalidContactUpdate"
+        },
+        {
+          "message": "update must validate the caller identifier before native work",
+          "must_exist": true,
+          "path": "platform/ios/ios-contacts/src/update.rs",
+          "text": "validate_identifier(identifier)?;"
+        },
+        {
+          "message": "update must reject no-op and empty-value patches before native work",
+          "must_exist": true,
+          "path": "platform/ios/ios-contacts/src/update.rs",
+          "text": "validate_contact_update(update)?;"
+        },
+        {
+          "message": "update must recheck current authorization without prompting",
+          "must_exist": true,
+          "path": "platform/ios/ios-contacts/src/update.rs",
+          "text": "native_authorization_status()"
+        },
+        {
+          "message": "update must permit only Authorized or Limited access",
+          "must_exist": true,
+          "path": "platform/ios/ios-contacts/src/update.rs",
+          "text": "fetch_authorization_error(status)"
+        },
+        {
+          "message": "update must fetch exactly the caller-selected unified contact",
+          "must_exist": true,
+          "path": "platform/ios/ios-contacts/src/update.rs",
+          "text": "unifiedContactWithIdentifier_keysToFetch_error"
+        },
+        {
+          "message": "update must request the existing fetched common key descriptors",
+          "must_exist": true,
+          "path": "platform/ios/ios-contacts/src/update.rs",
+          "text": "contact_key_descriptors()"
+        },
+        {
+          "message": "update must obtain its mutable contact through the public copy protocol",
+          "must_exist": true,
+          "path": "platform/ios/ios-contacts/src/update.rs",
+          "text": "contact.mutableCopy()"
+        },
+        {
+          "message": "given name changes must be conditional on Some",
+          "must_exist": true,
+          "path": "platform/ios/ios-contacts/src/update.rs",
+          "text": "if let Some(given_name) = &update.given_name"
+        },
+        {
+          "message": "family name changes must be conditional on Some",
+          "must_exist": true,
+          "path": "platform/ios/ios-contacts/src/update.rs",
+          "text": "if let Some(family_name) = &update.family_name"
+        },
+        {
+          "message": "organization changes must be conditional on Some",
+          "must_exist": true,
+          "path": "platform/ios/ios-contacts/src/update.rs",
+          "text": "if let Some(organization_name) = &update.organization_name"
+        },
+        {
+          "message": "phone replacement and clear must be conditional on Some",
+          "must_exist": true,
+          "path": "platform/ios/ios-contacts/src/update.rs",
+          "text": "if let Some(phone_numbers) = &update.phone_numbers"
+        },
+        {
+          "message": "email replacement and clear must be conditional on Some",
+          "must_exist": true,
+          "path": "platform/ios/ios-contacts/src/update.rs",
+          "text": "if let Some(email_addresses) = &update.email_addresses"
+        },
+        {
+          "message": "given-name patch must call its public mutable setter",
+          "must_exist": true,
+          "path": "platform/ios/ios-contacts/src/update.rs",
+          "text": "mutable_contact.setGivenName(&value)"
+        },
+        {
+          "message": "family-name patch must call its public mutable setter",
+          "must_exist": true,
+          "path": "platform/ios/ios-contacts/src/update.rs",
+          "text": "mutable_contact.setFamilyName(&value)"
+        },
+        {
+          "message": "organization patch must call its public mutable setter",
+          "must_exist": true,
+          "path": "platform/ios/ios-contacts/src/update.rs",
+          "text": "mutable_contact.setOrganizationName(&value)"
+        },
+        {
+          "message": "phone patch must replace only the phone array",
+          "must_exist": true,
+          "path": "platform/ios/ios-contacts/src/update.rs",
+          "text": "mutable_contact.setPhoneNumbers(&values)"
+        },
+        {
+          "message": "email patch must replace only the email array",
+          "must_exist": true,
+          "path": "platform/ios/ios-contacts/src/update.rs",
+          "text": "mutable_contact.setEmailAddresses(&values)"
+        },
+        {
+          "message": "update must save exactly one selected contact update",
+          "must_exist": true,
+          "path": "platform/ios/ios-contacts/src/update.rs",
+          "text": "request.updateContact(&mutable_contact)"
+        },
+        {
+          "message": "update must execute one public save request",
+          "must_exist": true,
+          "path": "platform/ios/ios-contacts/src/update.rs",
+          "text": "executeSaveRequest_error(&request)"
+        },
+        {
+          "message": "failed update must recheck authorization and map missing records",
+          "must_exist": true,
+          "path": "platform/ios/ios-contacts/src/update.rs",
+          "text": "update_error_from_native(current_status, contacts_domain, error.code())"
+        },
+        {
+          "message": "update must not prompt for authorization",
+          "must_exist": false,
+          "path": "platform/ios/ios-contacts/src/update.rs",
+          "text": "requestAccessForEntityType_completionHandler"
+        },
+        {
+          "message": "update must never add a contact",
+          "must_exist": false,
+          "path": "platform/ios/ios-contacts/src/update.rs",
+          "text": "addContact"
+        },
+        {
+          "message": "update must never delete a contact",
+          "must_exist": false,
+          "path": "platform/ios/ios-contacts/src/update.rs",
+          "text": "deleteContact"
+        },
+        {
+          "message": "update must not mutate groups",
+          "must_exist": false,
+          "path": "platform/ios/ios-contacts/src/update.rs",
+          "text": "Group"
+        },
+        {
+          "message": "update must not enumerate or search contacts",
+          "must_exist": false,
+          "path": "platform/ios/ios-contacts/src/update.rs",
+          "text": "enumerateContactsWithFetchRequest_error_usingBlock"
+        },
+        {
+          "message": "update must not invoke a name predicate",
+          "must_exist": false,
+          "path": "platform/ios/ios-contacts/src/update.rs",
+          "text": "predicateForContactsMatchingName"
+        },
+        {
+          "message": "update must not present ContactsUI",
+          "must_exist": false,
+          "path": "platform/ios/ios-contacts/src/update.rs",
+          "text": "ContactsUI"
         }
       ],
       "id": "ios-contacts-fetch",
@@ -2864,7 +3050,9 @@
         "docs/ios/contacts.md",
         "PLAN_IOS_CONTACTS.md",
         "PLAN.md",
-        "tools/validation/specs/validation-v1.json"
+        "tools/validation/specs/validation-v1.json",
+        "platform/ios/ios-contacts/src/update.rs",
+        "platform/ios/ios-contacts/tests/update_contract.rs"
       ],
       "shell_scripts": [
         "platform/ios/ios-contacts/scripts/check-link-imports.sh"

@@ -1,4 +1,6 @@
-use framework_contacts::{ContactDraft, ContactLabeledValue, ContactsAuthorization, ContactsError};
+use framework_contacts::{
+    ContactDraft, ContactLabeledValue, ContactUpdate, ContactsAuthorization, ContactsError,
+};
 use framework_core::{Error, ErrorKind, PlatformErrorCode};
 
 /// Maps native Contacts authorization raw values to the portable status without merging limited access.
@@ -138,6 +140,28 @@ pub(crate) fn validate_contact_draft(draft: &ContactDraft) -> Result<(), Contact
     }
 }
 
+/// Rejects no-op patches and empty phone/email values before native work.
+pub(crate) fn validate_contact_update(update: &ContactUpdate) -> Result<(), ContactsError> {
+    if (update.given_name.is_none()
+        && update.family_name.is_none()
+        && update.organization_name.is_none()
+        && update.phone_numbers.is_none()
+        && update.email_addresses.is_none())
+        || update
+            .phone_numbers
+            .as_ref()
+            .is_some_and(|values| values.iter().any(|value| value.value.is_empty()))
+        || update
+            .email_addresses
+            .as_ref()
+            .is_some_and(|values| values.iter().any(|value| value.value.is_empty()))
+    {
+        Err(ContactsError::InvalidContactUpdate)
+    } else {
+        Ok(())
+    }
+}
+
 /// Returns the exact optional label and value sent to `CNLabeledValue`.
 pub(crate) fn contact_value_parts(value: &ContactLabeledValue) -> (Option<&str>, &str) {
     (value.label.as_deref(), value.value.as_str())
@@ -165,10 +189,26 @@ pub(crate) fn create_error_from_native(
     }
 }
 
+/// Maps a save failure after re-checking authorization and preserving Contacts not-found errors.
+pub(crate) fn update_error_from_native(
+    status: ContactsAuthorization,
+    contacts_error_domain: bool,
+    native_error_code: isize,
+) -> ContactsError {
+    if let Some(error) = fetch_authorization_error(status) {
+        return error;
+    }
+    if contacts_error_domain && native_error_code == 200 {
+        ContactsError::NotFound
+    } else {
+        error_from_native(native_error_code)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
-    use framework_contacts::{Contact, ContactLabeledValue};
+    use framework_contacts::{Contact, ContactLabeledValue, ContactUpdate};
     use framework_core::ErrorKind;
 
     #[test]
@@ -427,6 +467,75 @@ mod tests {
     }
 
     #[test]
+    fn contact_update_validation_preserves_none_and_explicit_clear_semantics() {
+        assert_eq!(
+            validate_contact_update(&ContactUpdate::default()),
+            Err(ContactsError::InvalidContactUpdate)
+        );
+
+        let clear_name = ContactUpdate {
+            given_name: Some(String::new()),
+            ..ContactUpdate::default()
+        };
+        assert_eq!(validate_contact_update(&clear_name), Ok(()));
+
+        let clear_phones = ContactUpdate {
+            phone_numbers: Some(Vec::new()),
+            ..ContactUpdate::default()
+        };
+        assert_eq!(validate_contact_update(&clear_phones), Ok(()));
+
+        let clear_emails = ContactUpdate {
+            email_addresses: Some(Vec::new()),
+            ..ContactUpdate::default()
+        };
+        assert_eq!(validate_contact_update(&clear_emails), Ok(()));
+
+        let replace_values = ContactUpdate {
+            family_name: Some(String::from("Lovelace")),
+            organization_name: Some(String::new()),
+            phone_numbers: Some(vec![ContactLabeledValue {
+                label: Some(String::from("mobile")),
+                value: String::from("+1 555 0100"),
+            }]),
+            email_addresses: Some(vec![ContactLabeledValue {
+                label: None,
+                value: String::from("ada@example.test"),
+            }]),
+            ..ContactUpdate::default()
+        };
+        assert_eq!(validate_contact_update(&replace_values), Ok(()));
+    }
+
+    #[test]
+    fn contact_update_validation_rejects_empty_phone_and_email_values() {
+        let empty_phone = ContactUpdate {
+            given_name: Some(String::from("Ada")),
+            phone_numbers: Some(vec![ContactLabeledValue {
+                label: None,
+                value: String::new(),
+            }]),
+            ..ContactUpdate::default()
+        };
+        assert_eq!(
+            validate_contact_update(&empty_phone),
+            Err(ContactsError::InvalidContactUpdate)
+        );
+
+        let empty_email = ContactUpdate {
+            email_addresses: Some(vec![ContactLabeledValue {
+                label: Some(String::from("work")),
+                value: String::new(),
+            }]),
+            ..ContactUpdate::default()
+        };
+        assert_eq!(
+            validate_contact_update(&empty_email),
+            Err(ContactsError::InvalidContactUpdate)
+        );
+    }
+
+    #[test]
     fn create_authorization_accepts_only_full_or_limited_access() {
         for status in [
             ContactsAuthorization::Unknown,
@@ -458,5 +567,23 @@ mod tests {
         let error = create_error_from_native(ContactsAuthorization::Authorized, -42);
         assert_eq!(error.kind(), ErrorKind::Platform);
         assert_eq!(error.platform_code().unwrap().get(), -42);
+    }
+
+    #[test]
+    fn update_error_maps_missing_contact_and_preserves_authorization_and_native_code() {
+        assert_eq!(
+            update_error_from_native(ContactsAuthorization::Limited, true, 200),
+            ContactsError::NotFound
+        );
+        assert_eq!(
+            update_error_from_native(ContactsAuthorization::Denied, true, 200),
+            ContactsError::AuthorizationRequired(ContactsAuthorization::Denied)
+        );
+        let unrelated = update_error_from_native(ContactsAuthorization::Authorized, false, 200);
+        assert_eq!(unrelated.kind(), ErrorKind::Platform);
+        assert_eq!(unrelated.platform_code().unwrap().get(), 200);
+        let native = update_error_from_native(ContactsAuthorization::Limited, true, -42);
+        assert_eq!(native.kind(), ErrorKind::Platform);
+        assert_eq!(native.platform_code().unwrap().get(), -42);
     }
 }

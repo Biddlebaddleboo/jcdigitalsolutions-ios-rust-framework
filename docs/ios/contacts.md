@@ -1,10 +1,11 @@
-# iOS Contacts authorization
+# iOS Contacts authorization, reads, create, and update
 
 `ios-contacts` implements the portable [`framework-contacts`](../capabilities/contacts.md)
-authorization, read, and add-only create contract through public Contacts APIs. It can query status,
-explicitly request access, fetch one caller-selected record, search names with a caller-supplied
-result cap, and create exactly one new contact. It does not fetch the whole store, edit or delete an
-existing contact, present ContactsUI, or provide a picker or button.
+authorization, read, create, and selected-record update contract through public Contacts APIs. It
+can query status, explicitly request access, fetch one caller-selected record, search names with a
+caller-supplied result cap, create exactly one new contact, and update selected common fields on one
+caller-selected record. It does not fetch the whole store, delete contacts, present ContactsUI, or
+provide a picker or button.
 
 ```rust,ignore
 use framework_contacts::{Contacts, ContactsAuthorization};
@@ -163,11 +164,56 @@ Apple references: [`Accessing the contact store`](https://developer.apple.com/do
 [`add(_:toContainerWithIdentifier:)`](https://developer.apple.com/documentation/contacts/cnsaverequest/add%28_%3Atocontainerwithidentifier%3A%29-7eut4),
 and [`NSContactsUsageDescription`](https://developer.apple.com/documentation/bundleresources/information-property-list/nscontactsusagedescription?changes=_1&language=objc).
 
+## Update one selected contact
+
+After access already exists, pass the local identifier from the host and only the fields to change:
+
+```rust,ignore
+use framework_contacts::{ContactUpdate, Contacts};
+use ios_contacts::IosContactsBackend;
+
+fn update_selected_contact(identifier: &str) -> Result<(), framework_contacts::ContactsError> {
+    let update = ContactUpdate {
+        given_name: Some(String::from("Ada")),
+        phone_numbers: Some(Vec::new()),
+        ..ContactUpdate::default()
+    };
+    Contacts::new(IosContactsBackend::new()).update_contact(identifier, &update)
+}
+```
+
+`None` preserves a native property. An empty `Some` string or phone/email vector clears that
+property; a nonempty phone/email vector replaces the full list. Empty/NUL identifiers, all-`None`
+patches, and empty phone/email values fail before Contacts I/O. A valid call rechecks current
+authorization, accepts only `Authorized` or `Limited`, and never prompts. The adapter fetches one
+contact with the existing six common key descriptors, calls the public `CNContact::mutableCopy`,
+sets only explicitly supplied fields, and executes one `CNSaveRequest.updateContact:`. It does not
+create, delete, batch, or refetch a record. The API returns `Result<(), ContactsError>`.
+
+Apple documents that Limited access permits edit/delete only for contacts currently granted to the
+app, while contacts created by the app are automatically accessible. If status is Limited, the
+caller-supplied identifier still must resolve under the current selection. Apple may return a
+unified contact whose identifier differs from the supplied local identifier. A stale/missing
+Contacts-domain code 200 maps to `NotFound`; a fresh denied/restricted/unknown status takes
+precedence over a native save error, and other native codes remain `Backend`. The API changes one
+logical contact returned by the public identifier lookup; it does not target a specific linked
+account constituent or promise conflict isolation.
+
+The APIs used for mutable copy, selected-field setters, and update save are available from iOS 9.0
+in the installed Xcode 26.6 / iPhoneOS 26.5 SDK and pinned `objc2-contacts` 0.3.2 bindings. The
+registered device and Simulator floors remain iOS 10.0 and iOS 14.0. Host patch/error tests and
+device/Simulator compile-link checks do not prove that a live record changes, Limited selection or
+save behavior, or external-edit conflict behavior. See Apple's [Contacts access guide](https://developer.apple.com/documentation/contacts/accessing-the-contact-store),
+[`CNMutableContact`](https://developer.apple.com/documentation/contacts/cnmutablecontact),
+[`CNContact`](https://developer.apple.com/documentation/contacts/cncontact?language=objc), and
+[`CNSaveRequest`](https://developer.apple.com/documentation/contacts/cnsaverequest?language=objc).
+
 `fetch_contact` is synchronous, and a Contacts store read can block. Avoid calling it from a
 latency-sensitive UI context when the read may take time. The crate does not add a hidden executor;
 the application decides where to perform the read.
 
-Creating this backend or observing Authorized/Limited status does not prove a contact can be read.
+Creating this backend or observing Authorized/Limited status does not prove a contact can be read
+or updated.
 Automated checks compile and link the adapter and test host status/error/value mappings; they do not
 show permission UI, exercise consent or Limited selection, verify Settings changes, or prove a
 live contact-data fetch.
@@ -178,12 +224,12 @@ The iOS-only adapter uses `objc2-contacts` 0.3.2 with default features disabled 
 `CNContact`, `CNContactStore`, `CNContact_Predicates`, `CNContactFetchRequest`, `CNFetchRequest`,
 `CNMutableContact`, `CNSaveRequest`, `CNLabeledValue`, `CNPhoneNumber`, `CNError`, and `block2`
 features, plus `objc2`, Foundation `NSArray`, `NSError`, and `NSString`, and `block2`. The mutable
-binding features are used only for the explicit add-only API; update and delete selectors are not
-called. The portable crate exposes no binding types. Fetch, search, and create APIs are available
+binding features are used for explicit create and update APIs; the delete selector is not called.
+The portable crate exposes no binding types. Fetch, search, create, and update APIs are available
 from iOS 9.0; Limited authorization itself was introduced in iOS 18.0.
 Rust 1.94.1 sets iOS 10.0 as its minimum supported device deployment target, so the registered
 device and Simulator link checks use floors iOS 10.0 and iOS 14.0, respectively. They verify public
-Contacts/Foundation imports, create/fetch/search selectors, and deployment metadata, but do not
+Contacts/Foundation imports, create/fetch/search/update selectors, and deployment metadata, but do not
 execute the probe. No Swift source, UI framework, or private API is added.
 
 References: [Apple CNContactStore](https://developer.apple.com/documentation/contacts/cncontactstore),

@@ -68,6 +68,8 @@ for target in aarch64-apple-ios aarch64-apple-ios-sim; do
         'predicateForContactsMatchingName:' \
         'enumerateContactsWithFetchRequest:error:usingBlock:' \
         'addContact:toContainerWithIdentifier:' \
+        'mutableCopy' \
+        'updateContact:' \
         'executeSaveRequest:error:' \
         'phoneNumberWithStringValue:' \
         'labeledValueWithLabel:value:' \
