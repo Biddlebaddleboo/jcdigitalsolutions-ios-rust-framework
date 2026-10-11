@@ -208,7 +208,7 @@
       "entitlements": [],
       "device_only_restrictions": [],
       "swift_abi_requirement": false,
-      "metadata_verification": "Xcode_26.6_iOS_26.5_headers_verify_UIPasteboard_iOS_3.0_and_hasStrings_hasImages_iOS_10.0_floor; B6 device/simulator compile and import checks; B84 device/simulator compile, strict Clippy, rustdoc, and Release link/import checks pass with UIKit/Foundation/libobjc/libSystem and minos 10.0/14.0; B491 host validation only, registered device/simulator profile pending; no live pasteboard query/write; Xcode_27_baseline_not_met",
+      "metadata_verification": "Xcode_26.6_iOS_26.5_headers_verify_UIPasteboard_iOS_3.0_and_hasStrings_hasImages_iOS_10.0_floor; B6 device/simulator compile and import checks; B84 device/simulator compile, strict Clippy, rustdoc, and Release link/import checks pass with UIKit/Foundation/libobjc/libSystem and minos 10.0/14.0; B491 final ios-sharing profile: 46 PASS, 0 FAIL, 0 BLOCKED, 2 SKIPPED of 48; snapshot=5ae3ac70aff3ba7cd8a68a66e840a1a1207c3104b109e6bdf148dc234c23f4f6; validator source_sha=350971094cc3b77191cd6b3d07e01af04d71943d SHA-256=77f9c7aa941ba1335827ffc6ce274898987ce1d5f408d91d1a7c1daf34527944; host tests, device/Simulator compilation and Clippy, device Rustdoc, source guards, docs, and UIKit link/import pass; SKIPPED: Simulator execution and physical-device proof; no live pasteboard behavior; Xcode_27_baseline_not_met",
       "parity_status": "not_tested_live_behavior_or_Apple_parity",
       "performance_status": "not_measured",
       "native_escape_handle_available": false,
