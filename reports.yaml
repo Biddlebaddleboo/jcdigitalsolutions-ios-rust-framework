@@ -1,0 +1,57 @@
+schema_version: 1
+reports:
+  - id: capability-status
+    output: docs/generated/CAPABILITY_STATUS.md
+    sources:
+      status:
+        type: json
+        path: docs/capabilities/capability-status.json
+    template: |
+      # Framework capability status
+      
+      > Generated from `docs/capabilities/capability-status.json` by `ios-rust-validate generate-reports`. Do not edit manually.
+      
+      ## Coverage summary
+      
+      | Metric | Count |
+      | --- | ---: |
+      | Capability families | {{ status.summary.capability_family_count }} |
+      | Tracked capabilities | {{ status.summary.capability_count }} |
+      | Implemented portable contracts | {{ status.summary.portable_contract_implemented_count }} |
+      | Partial portable contracts | {{ status.summary.portable_contract_partial_count }} |
+      | Partial iOS implementations | {{ status.summary.partial_implementation_count }} |
+      
+      ## Capability inventory
+      
+      | ID | Family | Capability | Portable contract | iOS state | Parity |
+      | --- | --- | --- | --- | --- | --- |
+      {% for c in status.capabilities %}| {{ c.id | md_table_cell }} | {{ c.family | md_table_cell }} | {{ c.capability | md_table_cell }} | {{ c.portable_contract_status | md_table_cell }} | {{ c.implementation_status | md_table_cell }} | {{ c.parity_status | md_table_cell }} |
+      {% endfor %}
+      
+      > Compilation, linkage and declarations are not evidence of live iPhone behavior.
+  - id: validation-profiles
+    output: docs/generated/VALIDATION_PROFILES.md
+    sources:
+      spec:
+        type: json
+        path: tools/validation/specs/validation-v1.json
+    template: |
+      # Registered validation profiles
+      
+      > Generated from `tools/validation/specs/validation-v1.json`. Do not edit manually.
+      
+      The following are configured validation profiles, not claims that every gate passed.
+      
+      | Profile | Package | iOS targets | ABI scripts | Adapters | Offline |
+      | --- | --- | ---: | ---: | ---: | --- |
+      {% for p in spec.pilots %}| {{ p.id | md_table_cell }} | {{ p.package | md_table_cell }} | {{ p.targets | length }} | {{ p.abi_scripts | length }} | {{ p.adapters | length }} | {{ p.offline }} |
+      {% endfor %}
+      
+      ## Inspect actual gates
+      
+      ```sh
+      ios-rust-validate --workspace-root "$PWD" --spec "$PWD/tools/validation/specs/validation-v1.json" --list
+      ios-rust-validate --workspace-root "$PWD" --spec "$PWD/tools/validation/specs/validation-v1.json" --explain ios-app-lifecycle
+      ```
+      
+      A verified newer validator runs host package tests as registered gates; this inventory does not certify test completion.

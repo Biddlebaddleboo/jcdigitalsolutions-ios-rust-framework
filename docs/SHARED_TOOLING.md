@@ -11,9 +11,24 @@
 
 The maintained implementation of `ios-rust-build` and `ios-rust-validate` now lives in the private `Biddlebaddleboo/jcdigitalsolutions-rust-tooling` repository. Normal framework sessions consume **version-pinned, checksummed binaries** and must not clone, inspect, or modify engine source. API-specific checks, specs, fixtures and adapters remain framework-owned.
 
-**Installed release is not the same as current tooling source.** At this documentation update, `tools/releases/manifest-v1.tsv` still pins version 0.1.0 from historical framework source `2289e6a73257b696f6ae5ecd61ee20fd16ab8b37`. The private tooling source has advanced to `a85a820bfc9e46c3a8a94917a450c98c7a1efbfb`. This does not prove that new binaries have been released, qualified or promoted here. Verify `command -v`, `--version --format json`, `--help` and the manifest before relying on an option.
+**Locally installed vs repository-pinned identity:** `tools/releases/manifest-v1.tsv` still pins `0.1.0` from historical framework source `2289e6a73257b696f6ae5ecd61ee20fd16ab8b37`; the maintained private validator source has reached `350971094cc3b77191cd6b3d07e01af04d71943d`, and a newly installed binary can **also** report `0.1.0`. A matching version number proves neither matching source nor matching behavior. Record `command -v`, `--version --format json`, `--help`, and `shasum -a 256 "$(command -v ios-rust-validate)"`; compare full source/release metadata and the manifest before relying on advanced features. Locally replacing an executable does not promote the checked-in archives or clean CI runners.
 
-The private implementation adds resource-aware DAG parallelism, source snapshots including relevant uncommitted edits, incremental/watch validation, compilation caching, streaming diagnostics, owned-storage cleanup and cancellation recovery. Treat these as **features of the new source implementation, not of the older installed pin**, until the binaries are verified and promoted in a separately authorized release change. The newer design requires no Git commit or hosted runner for local snapshot validation. Hosted CI remains independent proof for a committed revision.
+The newer implementation adds resource-aware DAG parallelism, source snapshots including relevant uncommitted edits, incremental/watch validation, compilation caching, streaming diagnostics, owned-storage cleanup and cancellation recovery. At source `3509710`, it additionally defaults to compiler-rendered standard diagnostics, retains `short` and `detailed` options, runs host Cargo unit-test gates for registered Rust packages, and supports explicit deterministic Markdown report generation. These are **verified source capabilities, not claims about the historical pinned archive**; a selected newer local binary must still be identified and exercised. The newer design requires no Git commit or hosted runner for local snapshot validation. Hosted CI remains independent proof for a committed revision.
+
+### Newer installed validator: diagnostics, unit tests and deterministic reports
+
+If the selected executable's `--help` advertises `--diagnostics standard|short|detailed`, its human diagnostics default to the compiler's rendered source-highlighted errors. Use `--diagnostics short` for Cargo-short-equivalent output and `--diagnostics detailed` for the custom expanded context. Structured compiler evidence is still captured separately; JSON result mode is not a substitute for readable compiler output. Ordinary test assertion/panic failures remain native bounded Cargo test output, not compiler diagnostics.
+
+At newer source `3509710`, selected registered Rust packages receive a distinct `host unit tests` gate that executes `cargo +1.94.1 test --locked -p PACKAGE` (`--offline` for an offline profile); this gate is **not** equivalent to host Cargo check or Clippy. When the gate passed on the current immutable snapshot, avoid repeating the same package test command directly unless inspecting a failure, adding uncovered tests or validating newer edits. `--explain ID` and the actual result report are authoritative for which gates executed. The legacy pinned archive may not have this gate.
+
+New root `reports.yaml` declares deterministic reference pages under `docs/generated/` from the existing capability-status registry and validation spec. The report generator uses strict bounded templates and works **only** when explicitly invoked, not as part of the normal validation/watch command:
+
+```sh
+ios-rust-validate generate-reports --workspace-root "$PWD"
+ios-rust-validate generate-reports --workspace-root "$PWD" --check
+```
+
+These generated pages summarize declarations, **not** observed runtime PASS or iPhone behavior; keep authored narrative, architecture and historical investigations unchanged. `--check` is an output-staleness check, not evidence of compiler or device correctness. Unsupported command on a historic binary means the installation has not been upgraded, not that the YAML is invalid.
 
 ### Validator-first Codex acceptance
 
