@@ -562,10 +562,8 @@ impl<B: CalendarEventDeleteBackend> Calendar<B> {
     /// again, verify the selected occurrence and current calendar writability, and fail without
     /// mutation if the snapshot no longer matches. The operation is synchronous and may block.
     pub fn delete_event(&self, event: &CalendarEvent) -> Result<(), CalendarEventDeleteError> {
-        if !event
-            .event_identifier()
-            .is_some_and(|identifier| !identifier.is_empty())
-        {
+        let identifier = event.event_identifier();
+        if identifier.is_none_or(|identifier| identifier.is_empty()) {
             return Err(CalendarEventDeleteError::InvalidEventIdentifier);
         }
         self.backend.delete_event(event)

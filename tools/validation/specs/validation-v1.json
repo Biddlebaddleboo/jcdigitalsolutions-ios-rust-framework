@@ -4356,10 +4356,16 @@
           "text": "pub trait CalendarEventDeleteBackend"
         },
         {
+          "message": "the facade must inspect the selected event identifier before backend dispatch",
+          "must_exist": true,
+          "path": "crates/framework-calendar/src/lib.rs",
+          "text": "event.event_identifier()"
+        },
+        {
           "message": "the facade must reject missing or empty identifiers before backend dispatch",
           "must_exist": true,
           "path": "crates/framework-calendar/src/lib.rs",
-          "text": "!event.event_identifier().is_some_and(|identifier| !identifier.is_empty())"
+          "text": ".is_none_or(|identifier| identifier.is_empty())"
         },
         {
           "message": "EventKit deletion must reject missing or empty identifiers before native lookup",
@@ -4395,7 +4401,7 @@
           "message": "exact event snapshot validation must reject a different recurring occurrence start",
           "must_exist": true,
           "path": "platform/ios/ios-calendar/src/conversion.rs",
-          "text": "start != event.start().unix_seconds()"
+          "text": "start_seconds != event.start().unix_seconds()"
         },
         {
           "message": "exact event snapshot validation must reject a changed selected-event end",
