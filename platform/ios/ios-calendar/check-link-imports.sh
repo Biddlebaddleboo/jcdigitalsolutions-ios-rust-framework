@@ -25,7 +25,10 @@ cat >"$scratch/src/lib.rs" <<'EOF'
 use core::future::Future;
 use core::pin::pin;
 use core::task::{Context, Poll, Waker};
-use framework_calendar::{Calendar, CalendarAuthorizationBackend, CalendarAuthorizationStatus};
+use framework_calendar::{
+    Calendar, CalendarAuthorizationBackend, CalendarAuthorizationStatus, CalendarEventRange,
+    CalendarEventTime,
+};
 use ios_calendar::IosCalendarBackend;
 use std::sync::Arc;
 use std::task::Wake;
@@ -59,10 +62,27 @@ pub extern "C" fn calendar_request_link_probe() -> bool {
     let mut context = Context::from_waker(&waker);
     matches!(future.as_mut().poll(&mut context), Poll::Ready(_))
 }
+
+#[unsafe(no_mangle)]
+pub extern "C" fn calendar_event_range_link_probe(start: f64, end: f64) -> u8 {
+    let Ok(start) = CalendarEventTime::from_unix_seconds(start) else {
+        return 0;
+    };
+    let Ok(end) = CalendarEventTime::from_unix_seconds(end) else {
+        return 0;
+    };
+    let Ok(range) = CalendarEventRange::new(start, end) else {
+        return 0;
+    };
+    match Calendar::new(IosCalendarBackend::new()).events_in_range(range) {
+        Ok(events) => events.len().min(u8::MAX as usize) as u8,
+        Err(error) => error.kind() as u8,
+    }
+}
 EOF
 
 for target in aarch64-apple-ios aarch64-apple-ios-sim; do
-    CARGO_TARGET_DIR="$scratch/target" cargo build \
+    IPHONEOS_DEPLOYMENT_TARGET=17.0 CARGO_TARGET_DIR="$scratch/target" cargo build \
         --manifest-path "$scratch/Cargo.toml" \
         --release \
         --target "$target"
@@ -78,5 +98,20 @@ for target in aarch64-apple-ios aarch64-apple-ios-sim; do
     done <<EOF_IMPORTS
 $imports
 EOF_IMPORTS
+    symbols="$scratch/$target-undefined.txt"
+    nm -u "$artifact" >"$symbols"
+    grep -q 'objc_getClass' "$symbols"
+    grep -q 'objc_msgSend' "$symbols"
+    if grep -Eqi 'swift_|EKReminder|requestFullAccessToReminders|saveReminder|removeReminder' "$symbols"; then
+        printf 'unexpected Swift runtime or reminder symbol in %s\n' "$symbols" >&2
+        exit 1
+    fi
+    build_info="$scratch/$target-build.txt"
+    vtool -show-build "$artifact" >"$build_info"
+    actual_deployment_target=$(awk '$1 == "minos" { print $2; exit }' "$build_info")
+    if [ "$actual_deployment_target" != "17.0" ]; then
+        printf '%s has deployment target %s; expected 17.0\n' "$target" "${actual_deployment_target:-unknown}" >&2
+        exit 1
+    fi
     printf '%s\n' "$target imports:" "$imports"
 done

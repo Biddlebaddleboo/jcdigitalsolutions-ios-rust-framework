@@ -5,7 +5,7 @@ edition.workspace = true
 rust-version.workspace = true
 license.workspace = true
 repository.workspace = true
-description = "Portable Calendar authorization status and full-access request contract"
+description = "Portable Calendar authorization and event-range contracts"
 
 [dependencies]
 framework-core.workspace = true

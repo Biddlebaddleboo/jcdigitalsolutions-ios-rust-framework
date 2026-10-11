@@ -2,7 +2,7 @@
 
 ## Installed shared-tooling boundary
 
-The R1/R2 build and validation engines are already installed, pinned PATH tools; use `docs/SHARED_TOOLING.md` rather than reimplementing their internals. This workstream is **not a registered pilot** in the current `tools/validation/specs/validation-v1.json`, so do not claim a passing `ios-rust-validate --capability` command for it. The existing focused package scripts, CI checks and command/evidence records below remain required until a schema-v1 declarative profile demonstrably reproduces all applicable checks, including EventKit authorization and release import probes. Only remove duplicate commands after proving positive, deliberately failing negative, dependency-selection and fail/skip parity. Optional Python adapters must be narrowly scoped and cannot substitute for a real compiler/link or device gate. Tool engine defects are reported in sanitized `BUG_REPORT_*.md`; ordinary API work never retrieves historical engine source.
+At G24, this workstream was not a registered pilot; the records below preserve its original package-local gate evidence. B465 adds the first `ios-calendar` schema-v1 profile in `tools/validation/specs/validation-v1.json` for authorization and event-range coverage. Keep `check.sh` and CI checks intact; the registered profile does not retire those historical gates or claim runtime behavior. Use `docs/SHARED_TOOLING.md` for the external validator contract and do not inspect its engine source.
 
 ## Objective
 

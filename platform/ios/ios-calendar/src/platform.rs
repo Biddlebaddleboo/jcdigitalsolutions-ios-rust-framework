@@ -142,7 +142,7 @@ impl CalendarAuthorizationBackend for IosCalendarBackend {
     }
 }
 
-fn native_authorization_status() -> CalendarAuthorizationStatus {
+pub(crate) fn native_authorization_status() -> CalendarAuthorizationStatus {
     // SAFETY: This static EventKit status query accepts the Event entity and has no prompt side
     // effect. The backend's documented API floor is iOS 17.0.
     let status = unsafe { EKEventStore::authorizationStatusForEntityType(EKEntityType::Event) };

@@ -5,7 +5,7 @@ edition.workspace = true
 rust-version.workspace = true
 license.workspace = true
 repository.workspace = true
-description = "Full Calendar event-authorization backend using public EventKit APIs"
+description = "Calendar authorization and event-range backend using public EventKit APIs"
 
 [dependencies]
 framework-core.workspace = true
@@ -14,8 +14,8 @@ framework-calendar = { path = "../../../crates/framework-calendar" }
 [target.'cfg(target_os = "ios")'.dependencies]
 block2 = { workspace = true, features = ["alloc"] }
 objc2 = { workspace = true, features = ["std"] }
-objc2-event-kit = { workspace = true, features = ["EKEventStore", "EKTypes", "block2"] }
-objc2-foundation = { workspace = true, features = ["NSError"] }
+objc2-event-kit = { workspace = true, features = ["EKCalendar", "EKCalendarItem", "EKEvent", "EKEventStore", "EKObject", "EKTypes", "block2"] }
+objc2-foundation = { workspace = true, features = ["NSError", "NSEnumerator"] }
 
 [lints]
 workspace = true

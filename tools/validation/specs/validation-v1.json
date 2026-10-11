@@ -79,6 +79,10 @@
     [
       "ios-contacts-fetch",
       "framework-contacts"
+    ],
+    [
+      "ios-calendar",
+      "framework-calendar"
     ]
   ],
   "pilots": [
@@ -2365,6 +2369,143 @@
         },
         {
           "minimum_os": "14.0",
+          "sdk": "iphonesimulator",
+          "triple": "aarch64-apple-ios-sim"
+        }
+      ]
+    },
+    {
+      "abi_scripts": [
+        "platform/ios/ios-calendar/check-link-imports.sh"
+      ],
+      "abi_targets": [
+        {
+          "minimum_os": "17.0",
+          "sdk": "iphoneos",
+          "triple": "aarch64-apple-ios"
+        },
+        {
+          "minimum_os": "17.0",
+          "sdk": "iphonesimulator",
+          "triple": "aarch64-apple-ios-sim"
+        }
+      ],
+      "adapters": [],
+      "cargo_tree": false,
+      "check_script": "platform/ios/ios-calendar/check-link-imports.sh",
+      "clippy_all_targets": true,
+      "clippy_lib": false,
+      "docs": [
+        "docs/capabilities/calendar.md",
+        "docs/capabilities/capability-status.json",
+        "docs/ios/calendar.md",
+        "PLAN.md",
+        "PLAN_IOS_CALENDAR.md",
+        "PLAN_VALIDATION_IOS_CALENDAR.md"
+      ],
+      "expected_imports": [
+        "EventKit.framework",
+        "Foundation.framework",
+        "objc_msgSend"
+      ],
+      "fmt_all": false,
+      "guards": [
+        {
+          "message": "event reads must reject ranges beyond EventKit's query horizon",
+          "must_exist": true,
+          "path": "platform/ios/ios-calendar/src/event_query.rs",
+          "text": "validate_eventkit_range(range)?"
+        },
+        {
+          "message": "event reads must recheck current full Calendar access",
+          "must_exist": true,
+          "path": "platform/ios/ios-calendar/src/event_query.rs",
+          "text": "require_full_access(native_authorization_status())?"
+        },
+        {
+          "message": "event reads must create an EventKit-owned date predicate",
+          "must_exist": true,
+          "path": "platform/ios/ios-calendar/src/event_query.rs",
+          "text": "predicateForEventsWithStartDate_endDate_calendars"
+        },
+        {
+          "message": "event reads must use the synchronous public EventKit query",
+          "must_exist": true,
+          "path": "platform/ios/ios-calendar/src/event_query.rs",
+          "text": "eventsMatchingPredicate(&predicate)"
+        },
+        {
+          "message": "event reads must not request Calendar permission",
+          "must_exist": false,
+          "path": "platform/ios/ios-calendar/src/event_query.rs",
+          "text": "requestFullAccessToEventsWithCompletion"
+        },
+        {
+          "message": "event reads must not request write-only Calendar permission",
+          "must_exist": false,
+          "path": "platform/ios/ios-calendar/src/event_query.rs",
+          "text": "requestWriteOnlyAccessToEventsWithCompletion"
+        },
+        {
+          "message": "event reads must not query reminders",
+          "must_exist": false,
+          "path": "platform/ios/ios-calendar/src/event_query.rs",
+          "text": "EKReminder"
+        },
+        {
+          "message": "event reads must not mutate or delete events",
+          "must_exist": false,
+          "path": "platform/ios/ios-calendar/src/event_query.rs",
+          "text": "saveEvent"
+        },
+        {
+          "message": "event reads must not delete events",
+          "must_exist": false,
+          "path": "platform/ios/ios-calendar/src/event_query.rs",
+          "text": "removeEvent"
+        }
+      ],
+      "id": "ios-calendar",
+      "manifest": "platform/ios/ios-calendar/Cargo.toml",
+      "offline": false,
+      "package": "ios-calendar",
+      "rustdoc_warnings": true,
+      "scoped_files": [
+        "Cargo.lock",
+        "crates/framework-calendar/Cargo.toml",
+        "crates/framework-calendar/src/lib.rs",
+        "platform/ios/ios-calendar/Cargo.toml",
+        "platform/ios/ios-calendar/check.sh",
+        "platform/ios/ios-calendar/check-link-imports.sh",
+        "platform/ios/ios-calendar/src/conversion.rs",
+        "platform/ios/ios-calendar/src/event_query.rs",
+        "platform/ios/ios-calendar/src/lib.rs",
+        "platform/ios/ios-calendar/src/platform.rs",
+        "docs/capabilities/capability-status.json",
+        "docs/capabilities/calendar.md",
+        "docs/generated/VALIDATION_PROFILES.md",
+        "docs/ios/calendar.md",
+        "PLAN.md",
+        "PLAN_IOS_CALENDAR.md",
+        "PLAN_VALIDATION_IOS_CALENDAR.md",
+        "tools/validation/specs/validation-v1.json"
+      ],
+      "shell_scripts": [
+        "platform/ios/ios-calendar/check.sh",
+        "platform/ios/ios-calendar/check-link-imports.sh"
+      ],
+      "source_dirs": [
+        "crates/framework-calendar",
+        "platform/ios/ios-calendar"
+      ],
+      "targets": [
+        {
+          "minimum_os": "17.0",
+          "sdk": "iphoneos",
+          "triple": "aarch64-apple-ios"
+        },
+        {
+          "minimum_os": "17.0",
           "sdk": "iphonesimulator",
           "triple": "aarch64-apple-ios-sim"
         }

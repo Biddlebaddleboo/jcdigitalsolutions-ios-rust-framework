@@ -1,8 +1,12 @@
 #![no_std]
 #![forbid(unsafe_code)]
 #![deny(missing_docs)]
-#![doc = "Portable Calendar event-authorization status and explicit full-access request contract."]
+#![doc = "Portable Calendar authorization and event-range contracts."]
 
+extern crate alloc;
+
+use alloc::string::String;
+use alloc::vec::Vec;
 use core::future::Future;
 use framework_core::{Error, ErrorKind, PlatformErrorCode};
 
@@ -29,6 +33,178 @@ pub enum CalendarAuthorizationStatus {
     WriteOnly,
     /// The platform grants full access to Calendar event data.
     FullAccess,
+}
+
+/// A finite Unix timestamp in seconds, preserving the native date's fractional precision.
+///
+/// iOS EventKit uses `NSTimeInterval` (`f64`) for `NSDate`; this type keeps that value without
+/// rounding it to a finer, unsupported precision.
+#[derive(Clone, Copy, Debug, PartialEq, PartialOrd)]
+pub struct CalendarEventTime(f64);
+
+impl CalendarEventTime {
+    /// Creates a timestamp from finite seconds since 1970-01-01T00:00:00Z.
+    pub fn from_unix_seconds(seconds: f64) -> Result<Self, CalendarEventError> {
+        if !seconds.is_finite() {
+            return Err(CalendarEventError::InvalidTime);
+        }
+        Ok(Self(seconds))
+    }
+
+    /// Returns seconds since the Unix epoch with the original floating-point precision.
+    pub const fn unix_seconds(self) -> f64 {
+        self.0
+    }
+}
+
+/// A finite caller-selected query range with an ordered start and end.
+///
+/// The backend applies its native event-range matching semantics; this value does not add a
+/// second filter over native results.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct CalendarEventRange {
+    start: CalendarEventTime,
+    end: CalendarEventTime,
+}
+
+impl CalendarEventRange {
+    /// Creates a non-empty range from `start` to `end` Unix seconds.
+    pub fn new(
+        start: CalendarEventTime,
+        end: CalendarEventTime,
+    ) -> Result<Self, CalendarEventError> {
+        if start >= end {
+            return Err(CalendarEventError::InvalidRange);
+        }
+        Ok(Self { start, end })
+    }
+
+    /// Returns the query start bound.
+    pub const fn start(self) -> CalendarEventTime {
+        self.start
+    }
+
+    /// Returns the query end bound.
+    pub const fn end(self) -> CalendarEventTime {
+        self.end
+    }
+}
+
+/// One Rust-owned summary for a Calendar event returned by the selected backend.
+#[derive(Clone, Debug, PartialEq)]
+pub struct CalendarEvent {
+    event_identifier: Option<String>,
+    title: String,
+    start: CalendarEventTime,
+    end: CalendarEventTime,
+    all_day: bool,
+    location: Option<String>,
+    notes: Option<String>,
+}
+
+impl CalendarEvent {
+    /// Creates a summary with owned text and an ordered event interval.
+    #[allow(clippy::too_many_arguments)]
+    pub fn new(
+        event_identifier: Option<String>,
+        title: String,
+        start: CalendarEventTime,
+        end: CalendarEventTime,
+        all_day: bool,
+        location: Option<String>,
+        notes: Option<String>,
+    ) -> Result<Self, CalendarEventError> {
+        if start > end {
+            return Err(CalendarEventError::InvalidEventInterval);
+        }
+        Ok(Self {
+            event_identifier,
+            title,
+            start,
+            end,
+            all_day,
+            location,
+            notes,
+        })
+    }
+
+    /// Borrows the optional native event identifier; it is not a durable global identity.
+    pub fn event_identifier(&self) -> Option<&str> {
+        self.event_identifier.as_deref()
+    }
+
+    /// Borrows the owned event title.
+    pub fn title(&self) -> &str {
+        &self.title
+    }
+
+    /// Returns the event's native start instant.
+    pub const fn start(&self) -> CalendarEventTime {
+        self.start
+    }
+
+    /// Returns the event's native end instant.
+    pub const fn end(&self) -> CalendarEventTime {
+        self.end
+    }
+
+    /// Returns whether the event is marked as all-day by the backend.
+    pub const fn is_all_day(&self) -> bool {
+        self.all_day
+    }
+
+    /// Borrows the optional event location.
+    pub fn location(&self) -> Option<&str> {
+        self.location.as_deref()
+    }
+
+    /// Borrows the optional event notes.
+    pub fn notes(&self) -> Option<&str> {
+        self.notes.as_deref()
+    }
+}
+
+/// An error returned by a Calendar event-range query.
+#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
+#[non_exhaustive]
+pub enum CalendarEventError {
+    /// A timestamp was not finite.
+    InvalidTime,
+    /// The caller supplied an empty or reversed query range.
+    InvalidRange,
+    /// The caller supplied an event interval whose end precedes its start.
+    InvalidEventInterval,
+    /// The caller's range exceeds the selected backend's documented query limit.
+    RangeTooWide,
+    /// The native event query cannot represent an event date or interval.
+    InvalidNativeEvent,
+    /// The current authorization is not full event-data access.
+    NotFullAccess(CalendarAuthorizationStatus),
+    /// The selected backend returned a framework error.
+    Backend(Error),
+}
+
+impl CalendarEventError {
+    /// Returns the stable portable error category.
+    pub const fn kind(self) -> ErrorKind {
+        match self {
+            Self::InvalidTime
+            | Self::InvalidRange
+            | Self::InvalidEventInterval
+            | Self::RangeTooWide => ErrorKind::InvalidInput,
+            Self::InvalidNativeEvent => ErrorKind::Platform,
+            Self::NotFullAccess(_) => ErrorKind::PermissionDenied,
+            Self::Backend(error) => error.kind(),
+        }
+    }
+
+    /// Returns the optional backend-native code.
+    pub const fn platform_code(self) -> Option<PlatformErrorCode> {
+        match self {
+            Self::Backend(error) => error.platform_code(),
+            _ => None,
+        }
+    }
 }
 
 /// An error returned by a Calendar authorization backend.
@@ -78,6 +254,19 @@ pub trait CalendarAuthorizationBackend {
     fn request_full_access<'a>(&'a mut self) -> Self::RequestFullAccessFuture<'a>;
 }
 
+/// A statically selected backend for synchronous Calendar event-range reads.
+///
+/// `events_in_range` must recheck current authorization at the native read boundary, require full
+/// event-data access, fail closed for every other status, and never prompt. It may block; the
+/// caller chooses the thread on which to invoke it. Returned events and text must be Rust-owned.
+pub trait CalendarEventBackend {
+    /// Reads native events matched by the caller's finite range.
+    fn events_in_range(
+        &self,
+        range: CalendarEventRange,
+    ) -> Result<Vec<CalendarEvent>, CalendarEventError>;
+}
+
 /// A small owner of a caller-selected Calendar authorization backend.
 pub struct Calendar<B> {
     backend: B,
@@ -115,6 +304,19 @@ impl<B: CalendarAuthorizationBackend> Calendar<B> {
         &mut self,
     ) -> Result<CalendarAuthorizationStatus, CalendarError> {
         self.backend.request_full_access().await
+    }
+}
+
+impl<B: CalendarEventBackend> Calendar<B> {
+    /// Reads events in the caller-selected range through the owned backend.
+    ///
+    /// This operation is synchronous and may block depending on the backend. It does not create a
+    /// worker thread or executor; callers may invoke it off-main when their backend permits it.
+    pub fn events_in_range(
+        &self,
+        range: CalendarEventRange,
+    ) -> Result<Vec<CalendarEvent>, CalendarEventError> {
+        self.backend.events_in_range(range)
     }
 }
 
