@@ -47,3 +47,17 @@ Do not edit the portable D24 crate, root workspace configuration or lockfile, ca
 - Run iOS device and simulator `cargo check`, strict Clippy, format/docs/diff checks, and a package feature/linkage audit where a final link artifact is available
 - Do not run a live permission prompt or claim simulator/device consent behavior
 - Report changed files, exact commands, API floor and Limited introduction separately, linkage/features, runtime limits, deviations, and unresolved assumptions
+
+## Additive increment B468 — bounded name search
+
+B29 remains authorization-only; B462 remains one-record fetch by local identifier. B468 adds a
+separate `ContactsSearchBackend` extension and `Contacts::search_contacts_by_name` over Apple's
+public name predicate and synchronous `CNContactFetchRequest` enumeration. It rejects empty/NUL
+queries, rechecks authorization for each valid call without prompting, accepts `Authorized` or
+`Limited`, and stops at a caller-supplied `u32` result cap. Zero returns an empty vector after the
+authorization check. The query passes unchanged; matching and result order stay native and have no
+stronger promise. Search returns the shared owned common-field `Contact` snapshot, never an
+unbounded all-contact array. The installed Xcode 26.6 / iPhoneOS 26.5 SDK and pinned
+`objc2-contacts` 0.3.2 expose the needed APIs from iOS 9.0; registered device and Simulator floors
+remain iOS 10.0 and iOS 14.0. Host tests and static compile/link gates do not prove live matching,
+Limited visibility, native stop delivery, permission UI, or device runtime behavior.

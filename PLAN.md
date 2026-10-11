@@ -204,6 +204,10 @@ B466 adds an exact-rational, asynchronous `IosFilePlayer::seek_to` operation to 
 
 B467 adds `IosCameraPosition::{Front, Back}` and `IosCameraCaptureSession::new_with_camera_position` for the system default built-in wide-angle video device at a requested front/back position. It uses the public iOS 10.0 `defaultDeviceWithDeviceType:mediaType:position:` selector, preserves `new()` and its existing default-device path, requires existing `Authorized` status, and never prompts or switches cameras after creation. A missing matching device returns `CameraCaptureError::NoCameraAtPosition`. Host mapping/error regressions and registered source plus selector link/import gates do not prove device availability, preview/media delivery, permission UI, Simulator execution, or physical-device runtime behavior; see [PLAN_IOS_CAMERA_CAPTURE_SESSION.md](PLAN_IOS_CAMERA_CAPTURE_SESSION.md).
 
+### B468 — caller-limited Contacts name search (row 069)
+
+B468 adds a separate `ContactsSearchBackend` extension and `Contacts::search_contacts_by_name(query, max_results)`, preserving existing backend implementors and B462's single-identifier fetch scope. iOS uses the public Contacts name predicate and synchronous fetch-request enumeration, rechecks current `Authorized`/`Limited` access without prompting, rejects empty/NUL queries, and stops at the caller's fixed-width `u32` cap. Results reuse B462's owned common-field snapshots; native match semantics and ordering are unspecified, and limited access sees only the selected subset. Registered host regressions and iOS device/Simulator compile-link checks do not establish live matching, stop delivery, permission UI, or runtime Contacts behavior; see [PLAN_IOS_CONTACTS.md](PLAN_IOS_CONTACTS.md).
+
 ## Active work selection and limits
 
 1. Inspect the canonical capability status/owner, the relevant family plan, then the named workstream plan and exact files/symbols. Do not scan the entire planning corpus or treat every existing plan as pending work.

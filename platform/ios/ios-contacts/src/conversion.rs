@@ -51,6 +51,34 @@ pub(crate) fn validate_identifier(identifier: &str) -> Result<(), ContactsError>
     }
 }
 
+/// Rejects a name query that cannot safely become a native Contacts string.
+pub(crate) fn validate_search_query(query: &str) -> Result<(), ContactsError> {
+    if query.is_empty() || query.as_bytes().contains(&0) {
+        Err(ContactsError::InvalidSearchQuery)
+    } else {
+        Ok(())
+    }
+}
+
+/// Reports whether a native callback has reached the caller's result cap.
+pub(crate) const fn search_limit_reached(result_count: usize, max_results: u32) -> bool {
+    result_count >= max_results as usize
+}
+
+/// Adds one snapshot only while the caller's search limit leaves room.
+pub(crate) fn append_search_result<T>(
+    results: &mut Vec<T>,
+    max_results: u32,
+    make_snapshot: impl FnOnce() -> T,
+) -> bool {
+    if search_limit_reached(results.len(), max_results) {
+        true
+    } else {
+        results.push(make_snapshot());
+        search_limit_reached(results.len(), max_results)
+    }
+}
+
 /// Returns a semantic access error unless Contacts data access is currently permitted.
 pub(crate) const fn fetch_authorization_error(
     status: ContactsAuthorization,
@@ -75,6 +103,17 @@ pub(crate) fn fetch_error_from_native(
     } else {
         error_from_native(code)
     }
+}
+
+/// Maps failed enumeration after re-checking authorization; an empty match set is not an error.
+pub(crate) fn search_error_from_native(
+    status: ContactsAuthorization,
+    native_error_code: Option<isize>,
+) -> ContactsError {
+    if let Some(error) = fetch_authorization_error(status) {
+        return error;
+    }
+    error_from_native(native_error_code.unwrap_or(0))
 }
 
 #[cfg(test)]
@@ -166,6 +205,71 @@ mod tests {
             Err(ContactsError::InvalidIdentifier)
         );
         assert_eq!(validate_identifier("local-id"), Ok(()));
+    }
+
+    #[test]
+    fn search_query_rejects_empty_and_nul_but_preserves_valid_input() {
+        assert_eq!(
+            validate_search_query(""),
+            Err(ContactsError::InvalidSearchQuery)
+        );
+        assert_eq!(
+            validate_search_query("Ada\0Lovelace"),
+            Err(ContactsError::InvalidSearchQuery)
+        );
+        assert_eq!(validate_search_query("  Ada Lovelace  "), Ok(()));
+        assert_eq!(validate_search_query("山田 太郎"), Ok(()));
+        assert_eq!(
+            ContactsError::InvalidSearchQuery.kind(),
+            ErrorKind::InvalidInput
+        );
+        assert_eq!(ContactsError::InvalidSearchQuery.platform_code(), None);
+    }
+
+    #[test]
+    fn search_limit_stops_at_and_after_the_exact_caller_cap() {
+        assert!(search_limit_reached(0, 0));
+        assert!(!search_limit_reached(0, 1));
+        assert!(!search_limit_reached(1, 2));
+        assert!(search_limit_reached(2, 2));
+        assert!(search_limit_reached(3, 2));
+    }
+
+    #[test]
+    fn search_result_cap_does_not_create_snapshots_past_limit() {
+        let mut results = Vec::new();
+        let mut snapshots_created = 0;
+        assert!(append_search_result(&mut results, 1, || {
+            snapshots_created += 1;
+            "contact"
+        }));
+        assert_eq!(snapshots_created, 1);
+        assert!(append_search_result(&mut results, 1, || {
+            snapshots_created += 1;
+            "extra contact"
+        }));
+        assert_eq!(snapshots_created, 1);
+        assert_eq!(results, ["contact"]);
+
+        let mut empty = Vec::new();
+        assert!(append_search_result(&mut empty, 0, || panic!(
+            "zero limit created a snapshot"
+        )));
+        assert!(empty.is_empty());
+    }
+
+    #[test]
+    fn search_native_failure_prefers_revoked_authorization() {
+        assert_eq!(
+            search_error_from_native(ContactsAuthorization::Denied, Some(-42)),
+            ContactsError::AuthorizationRequired(ContactsAuthorization::Denied)
+        );
+        let error = search_error_from_native(ContactsAuthorization::Limited, Some(-42));
+        assert_eq!(error.kind(), ErrorKind::Platform);
+        assert_eq!(error.platform_code().unwrap().get(), -42);
+        let no_code = search_error_from_native(ContactsAuthorization::Authorized, None);
+        assert_eq!(no_code.kind(), ErrorKind::Platform);
+        assert_eq!(no_code.platform_code(), None);
     }
 
     #[test]

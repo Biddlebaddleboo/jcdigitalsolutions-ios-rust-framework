@@ -50,6 +50,8 @@ impl ContactsAuthorization {
 pub enum ContactsError {
     /// The supplied local contact identifier is empty or contains a NUL character.
     InvalidIdentifier,
+    /// The supplied name search query is empty or contains a NUL character.
+    InvalidSearchQuery,
     /// The current authorization state does not permit contact-data access.
     AuthorizationRequired(ContactsAuthorization),
     /// No accessible contact matches the supplied local identifier.
@@ -62,7 +64,7 @@ impl ContactsError {
     /// Returns the stable portable error category.
     pub const fn kind(self) -> ErrorKind {
         match self {
-            Self::InvalidIdentifier => ErrorKind::InvalidInput,
+            Self::InvalidIdentifier | Self::InvalidSearchQuery => ErrorKind::InvalidInput,
             Self::AuthorizationRequired(
                 ContactsAuthorization::Denied | ContactsAuthorization::Restricted,
             ) => ErrorKind::PermissionDenied,
@@ -76,7 +78,10 @@ impl ContactsError {
     pub const fn platform_code(self) -> Option<PlatformErrorCode> {
         match self {
             Self::Backend(error) => error.platform_code(),
-            Self::InvalidIdentifier | Self::AuthorizationRequired(_) | Self::NotFound => None,
+            Self::InvalidIdentifier
+            | Self::InvalidSearchQuery
+            | Self::AuthorizationRequired(_)
+            | Self::NotFound => None,
         }
     }
 }
@@ -154,6 +159,23 @@ pub trait ContactsFetchBackend: ContactsBackend {
     fn fetch_contact(&self, identifier: &str) -> Result<Contact, ContactsError>;
 }
 
+/// A read-only extension for backends that search contacts by the platform's name predicate.
+///
+/// Implementations must re-check authorization for each valid query, permit only `Authorized` or
+/// `Limited`, reject empty/NUL queries, and return no more than `max_results` owned snapshots.
+/// A zero limit returns no results without native enumeration, after the authorization check.
+/// Query matching and result order follow the selected native backend and are not otherwise
+/// normalized by this contract. This separate trait keeps existing [`ContactsBackend`]
+/// implementors source-compatible.
+pub trait ContactsSearchBackend: ContactsBackend {
+    /// Searches contacts by name without prompting or mutating the store.
+    fn search_contacts_by_name(
+        &self,
+        query: &str,
+        max_results: u32,
+    ) -> Result<Vec<Contact>, ContactsError>;
+}
+
 /// A thin facade over caller-owned, statically selected Contacts backend state.
 pub struct Contacts<B> {
     backend: B,
@@ -185,6 +207,17 @@ impl<B: ContactsFetchBackend> Contacts<B> {
     /// Fetches one contact without prompting, enumerating, or mutating the contact store.
     pub fn fetch_contact(&self, identifier: &str) -> Result<Contact, ContactsError> {
         self.backend.fetch_contact(identifier)
+    }
+}
+
+impl<B: ContactsSearchBackend> Contacts<B> {
+    /// Searches contacts by the backend's native name-matching semantics, without prompting.
+    pub fn search_contacts_by_name(
+        &self,
+        query: &str,
+        max_results: u32,
+    ) -> Result<Vec<Contact>, ContactsError> {
+        self.backend.search_contacts_by_name(query, max_results)
     }
 }
 

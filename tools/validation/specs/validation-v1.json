@@ -2431,6 +2431,7 @@
         "docs/capabilities/contacts.md",
         "docs/capabilities/capability-status.json",
         "docs/ios/contacts.md",
+        "PLAN_IOS_CONTACTS.md",
         "PLAN.md"
       ],
       "expected_imports": [
@@ -2477,9 +2478,9 @@
           "text": "contacts_error_domain && code == 200"
         },
         {
-          "message": "fetch must request only the documented common contact keys",
+          "message": "fetch and search must share the documented common contact keys",
           "must_exist": true,
-          "path": "platform/ios/ios-contacts/src/fetch.rs",
+          "path": "platform/ios/ios-contacts/src/snapshot.rs",
           "text": "CNContactEmailAddressesKey"
         },
         {
@@ -2529,6 +2530,138 @@
           "must_exist": true,
           "path": "crates/framework-contacts/src/lib.rs",
           "text": "pub trait ContactsFetchBackend: ContactsBackend"
+        },
+        {
+          "message": "name search must remain a separate source-compatible extension",
+          "must_exist": true,
+          "path": "crates/framework-contacts/src/lib.rs",
+          "text": "pub trait ContactsSearchBackend: ContactsBackend"
+        },
+        {
+          "message": "the public facade must expose caller-limited name search",
+          "must_exist": true,
+          "path": "crates/framework-contacts/src/lib.rs",
+          "text": "pub fn search_contacts_by_name("
+        },
+        {
+          "message": "name search must reject empty and NUL queries",
+          "must_exist": true,
+          "path": "platform/ios/ios-contacts/src/conversion.rs",
+          "text": "query.is_empty() || query.as_bytes().contains(&0)"
+        },
+        {
+          "message": "search query validation must run before native work",
+          "must_exist": true,
+          "path": "platform/ios/ios-contacts/src/search.rs",
+          "text": "validate_search_query(query)?;"
+        },
+        {
+          "message": "each valid search must recheck current Contacts authorization",
+          "must_exist": true,
+          "path": "platform/ios/ios-contacts/src/search.rs",
+          "text": "fetch_authorization_error(status)"
+        },
+        {
+          "message": "search must pass the valid query to NSString without normalization",
+          "must_exist": true,
+          "path": "platform/ios/ios-contacts/src/search.rs",
+          "text": "NSString::from_str(query)"
+        },
+        {
+          "message": "search must check authorization before honoring a zero result cap",
+          "must_exist": true,
+          "path": "platform/ios/ios-contacts/src/search.rs",
+          "text": "native_authorization_status()"
+        },
+        {
+          "message": "zero-result search must branch before native enumeration",
+          "must_exist": true,
+          "path": "platform/ios/ios-contacts/src/search.rs",
+          "text": "if max_results == 0 {"
+        },
+        {
+          "message": "zero-result search must return an empty vector",
+          "must_exist": true,
+          "path": "platform/ios/ios-contacts/src/search.rs",
+          "text": "return Ok(Vec::new());"
+        },
+        {
+          "message": "search must use Apple's public name-matching predicate",
+          "must_exist": true,
+          "path": "platform/ios/ios-contacts/src/search.rs",
+          "text": "CNContact::predicateForContactsMatchingName(&query)"
+        },
+        {
+          "message": "search must enumerate the public fetch request synchronously",
+          "must_exist": true,
+          "path": "platform/ios/ios-contacts/src/search.rs",
+          "text": "enumerateContactsWithFetchRequest_error_usingBlock"
+        },
+        {
+          "message": "search must append snapshots only below the caller's cap",
+          "must_exist": true,
+          "path": "platform/ios/ios-contacts/src/search.rs",
+          "text": "append_search_result(&mut results, max_results, || {"
+        },
+        {
+          "message": "the result-cap helper must check the caller limit",
+          "must_exist": true,
+          "path": "platform/ios/ios-contacts/src/conversion.rs",
+          "text": "if search_limit_reached(results.len(), max_results) {"
+        },
+        {
+          "message": "the result-cap helper must lazily construct and append snapshots",
+          "must_exist": true,
+          "path": "platform/ios/ios-contacts/src/conversion.rs",
+          "text": "results.push(make_snapshot());"
+        },
+        {
+          "message": "search must signal native enumeration to stop at the result cap",
+          "must_exist": true,
+          "path": "platform/ios/ios-contacts/src/search.rs",
+          "text": "stop.as_ptr().write(Bool::YES)"
+        },
+        {
+          "message": "search must reuse the owned B462 common-field snapshot conversion",
+          "must_exist": true,
+          "path": "platform/ios/ios-contacts/src/search.rs",
+          "text": "contact_from_native(unsafe { contact.as_ref() })"
+        },
+        {
+          "message": "caught callback panics must publish through release/acquire ordering",
+          "must_exist": true,
+          "path": "platform/ios/ios-contacts/src/search.rs",
+          "text": "callback_panicked.store(true, Ordering::Release)"
+        },
+        {
+          "message": "search must acquire callback panic state before reporting results",
+          "must_exist": true,
+          "path": "platform/ios/ios-contacts/src/search.rs",
+          "text": "callback_panicked.load(Ordering::Acquire)"
+        },
+        {
+          "message": "failed search must recheck authorization before mapping native errors",
+          "must_exist": true,
+          "path": "platform/ios/ios-contacts/src/search.rs",
+          "text": "search_error_from_native(current_status, native_error_code)"
+        },
+        {
+          "message": "search must not prompt for authorization",
+          "must_exist": false,
+          "path": "platform/ios/ios-contacts/src/search.rs",
+          "text": "requestAccessForEntityType_completionHandler"
+        },
+        {
+          "message": "search must not buffer all contacts through the eager array API",
+          "must_exist": false,
+          "path": "platform/ios/ios-contacts/src/search.rs",
+          "text": "unifiedContactsMatchingPredicate"
+        },
+        {
+          "message": "search must not preallocate an unbounded result collection",
+          "must_exist": false,
+          "path": "platform/ios/ios-contacts/src/search.rs",
+          "text": "Vec::with_capacity"
         }
       ],
       "id": "ios-contacts-fetch",
@@ -2546,12 +2679,15 @@
         "platform/ios/ios-contacts/scripts/check-link-imports.sh",
         "platform/ios/ios-contacts/src/conversion.rs",
         "platform/ios/ios-contacts/src/fetch.rs",
+        "platform/ios/ios-contacts/src/search.rs",
+        "platform/ios/ios-contacts/src/snapshot.rs",
         "platform/ios/ios-contacts/src/lib.rs",
         "platform/ios/ios-contacts/src/platform.rs",
         "platform/ios/ios-contacts/src/operation.rs",
         "docs/capabilities/contacts.md",
         "docs/capabilities/capability-status.json",
         "docs/ios/contacts.md",
+        "PLAN_IOS_CONTACTS.md",
         "PLAN.md",
         "tools/validation/specs/validation-v1.json"
       ],

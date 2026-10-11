@@ -54,6 +54,12 @@ for target in aarch64-apple-ios aarch64-apple-ios-sim; do
         printf '%s probe does not link the public single-contact fetch selector\n' "$target" >&2
         exit 1
     }
+    for selector in 'predicateForContactsMatchingName:' 'enumerateContactsWithFetchRequest:error:usingBlock:'; do
+        printf '%s\n' "$binary_strings" | grep -F "$selector" >/dev/null || {
+            printf '%s probe does not link the public Contacts search selector %s\n' "$target" "$selector" >&2
+            exit 1
+        }
+    done
     if printf '%s\n%s\n' "$imports" "$symbols" | grep -E 'libswift|SwiftUI|PhotosUI|_swift_|_\$s[0-9]' >/dev/null; then
         printf '%s probe unexpectedly imports Swift or UI runtime dependencies\n' "$target" >&2
         exit 1

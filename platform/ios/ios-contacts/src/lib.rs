@@ -13,4 +13,10 @@ mod platform;
 mod fetch;
 
 #[cfg(target_os = "ios")]
+mod search;
+
+#[cfg(target_os = "ios")]
+mod snapshot;
+
+#[cfg(target_os = "ios")]
 pub use platform::{IosContactsBackend, IosRequestAuthorizationFuture};
