@@ -31,7 +31,8 @@ use objc2::runtime::ProtocolObject;
 use objc2::{AnyThread, DefinedClass, MainThreadMarker, define_class, msg_send};
 #[cfg(target_os = "ios")]
 use objc2_av_foundation::{
-    AVCaptureConnection, AVCaptureDevice, AVCaptureDeviceInput, AVCaptureFileOutput,
+    AVCaptureConnection, AVCaptureDevice, AVCaptureDeviceInput, AVCaptureDevicePosition,
+    AVCaptureDeviceTypeBuiltInWideAngleCamera, AVCaptureFileOutput,
     AVCaptureFileOutputRecordingDelegate, AVCaptureMovieFileOutput, AVCaptureOutput,
     AVCapturePhoto, AVCapturePhotoCaptureDelegate, AVCapturePhotoOutput, AVCapturePhotoSettings,
     AVCaptureSession, AVCaptureVideoDataOutput, AVCaptureVideoDataOutputSampleBufferDelegate,
@@ -826,8 +827,18 @@ const fn may_create_device_input(status: MediaAuthorizationStatus) -> bool {
     matches!(status, MediaAuthorizationStatus::Authorized)
 }
 
-/// Failure to create or configure a default-camera capture session
-#[cfg(target_os = "ios")]
+/// Front- or back-facing built-in wide-angle camera selection for session creation
+#[cfg(any(target_os = "ios", test))]
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum IosCameraPosition {
+    /// The user-facing built-in wide-angle camera
+    Front,
+    /// The subject-facing built-in wide-angle camera
+    Back,
+}
+
+/// Failure to create or configure a camera capture session
+#[cfg(any(target_os = "ios", test))]
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum CameraCaptureError {
     /// The app has not been granted camera access
@@ -836,16 +847,26 @@ pub enum CameraCaptureError {
     VideoMediaTypeUnavailable,
     /// The system has no default video capture device
     NoDefaultVideoDevice,
-    /// AVFoundation could not create an input for the default video device
+    /// The system has no built-in wide-angle video device at the requested position
+    NoCameraAtPosition(IosCameraPosition),
+    /// AVFoundation could not create an input for the selected video device
     DeviceInputCreationFailed,
-    /// AVFoundation rejected the default video input for the new session
+    /// AVFoundation rejected the selected video input for the new session
     SessionRejectedInput,
     /// AVFoundation rejected the still-photo output for the new session
     SessionRejectedPhotoOutput,
     /// AVFoundation rejected the movie-file output for the new session
     SessionRejectedMovieOutput,
-    /// The operating system predates the required AVFoundation authorization API
+    /// The operating system predates a required AVFoundation API
     UnsupportedOperatingSystem,
+}
+
+#[cfg(any(target_os = "ios", test))]
+fn require_camera_at_position<T>(
+    position: IosCameraPosition,
+    device: Option<T>,
+) -> Result<T, CameraCaptureError> {
+    device.ok_or(CameraCaptureError::NoCameraAtPosition(position))
 }
 
 #[cfg(target_os = "ios")]
@@ -906,6 +927,34 @@ impl IosCameraCaptureSession {
     /// This call does not show a permission prompt. Request camera authorization through the
     /// framework's media-authorization capability before calling this method.
     pub fn new(_main_thread: MainThreadMarker) -> Result<Self, CameraCaptureError> {
+        Self::new_for_camera_position(_main_thread, None)
+    }
+
+    /// Create a session for the already-authorized front or back built-in wide-angle camera
+    ///
+    /// This construction-time choice requires iOS 10.0 or later. It does not enumerate devices,
+    /// show a permission prompt, or support switching the camera after creation. Request camera
+    /// authorization through the framework's media-authorization capability before calling this
+    /// method.
+    ///
+    /// Returns `CameraCaptureError::NoCameraAtPosition` when no built-in wide-angle device is
+    /// available at the requested position, or `CameraCaptureError::UnsupportedOperatingSystem`
+    /// below iOS 10.0.
+    pub fn new_with_camera_position(
+        _main_thread: MainThreadMarker,
+        position: IosCameraPosition,
+    ) -> Result<Self, CameraCaptureError> {
+        if !objc2::available!(ios = 10.0, ..) {
+            return Err(CameraCaptureError::UnsupportedOperatingSystem);
+        }
+
+        Self::new_for_camera_position(_main_thread, Some(position))
+    }
+
+    fn new_for_camera_position(
+        _main_thread: MainThreadMarker,
+        camera_position: Option<IosCameraPosition>,
+    ) -> Result<Self, CameraCaptureError> {
         if !objc2::available!(ios = 7.0, ..) {
             return Err(CameraCaptureError::UnsupportedOperatingSystem);
         }
@@ -941,7 +990,7 @@ impl IosCameraCaptureSession {
             let mut graph = graph_for_configuration
                 .lock()
                 .unwrap_or_else(std::sync::PoisonError::into_inner);
-            configuration = configure_session(&mut graph);
+            configuration = configure_session(&mut graph, camera_position);
         });
         if let Err(error) = configuration {
             let graph_to_drop = Arc::clone(&graph);
@@ -1425,14 +1474,35 @@ fn stop_video_frame_stream_on_queue(
 }
 
 #[cfg(target_os = "ios")]
-fn configure_session(graph: &mut CaptureGraph) -> Result<(), CameraCaptureError> {
+fn configure_session(
+    graph: &mut CaptureGraph,
+    camera_position: Option<IosCameraPosition>,
+) -> Result<(), CameraCaptureError> {
     // SAFETY: This is AVFoundation's public video media-type constant. The constructor checks the
     // iOS 7.0 API floor before this function runs.
     let media_type =
         unsafe { AVMediaTypeVideo }.ok_or(CameraCaptureError::VideoMediaTypeUnavailable)?;
-    // SAFETY: The media type is exactly AVMediaTypeVideo, as required by this public API.
-    let device = unsafe { AVCaptureDevice::defaultDeviceWithMediaType(media_type) }
-        .ok_or(CameraCaptureError::NoDefaultVideoDevice)?;
+    let device = if let Some(position) = camera_position {
+        let native_position = match position {
+            IosCameraPosition::Front => AVCaptureDevicePosition::Front,
+            IosCameraPosition::Back => AVCaptureDevicePosition::Back,
+        };
+        // SAFETY: The new constructor checks the iOS 10.0 availability floor. The wide-angle
+        // type and requested front/back position are valid AVFoundation criteria, and the media
+        // type is exactly AVMediaTypeVideo.
+        let device = unsafe {
+            AVCaptureDevice::defaultDeviceWithDeviceType_mediaType_position(
+                AVCaptureDeviceTypeBuiltInWideAngleCamera,
+                Some(media_type),
+                native_position,
+            )
+        };
+        require_camera_at_position(position, device)?
+    } else {
+        // SAFETY: The media type is exactly AVMediaTypeVideo, as required by this public API.
+        unsafe { AVCaptureDevice::defaultDeviceWithMediaType(media_type) }
+            .ok_or(CameraCaptureError::NoDefaultVideoDevice)?
+    };
     // SAFETY: Authorization was checked before this queue was entered; AVFoundation returns an
     // error for a device that cannot be opened, including permission or device-state changes.
     let input = unsafe { AVCaptureDeviceInput::deviceInputWithDevice_error(&device) }
@@ -1534,11 +1604,12 @@ fn invoke_video_completion(completion: VideoRecordingCompletion, result: VideoRe
 #[cfg(test)]
 mod tests {
     use super::{
-        MediaAuthorizationStatus, MovieRecordingState, PhotoCaptureError, PhotoCaptureResult,
-        VideoFrameStreamError, VideoFrameStreamState, VideoRecordingError, VideoRecordingResult,
-        drop_video_frame_callback_safely, invoke_video_frame_callback, may_create_device_input,
-        photo_request_error, settle_movie_result, settle_photo_result, take_photo_completion,
-        take_video_completion, validate_movie_destination,
+        CameraCaptureError, IosCameraPosition, MediaAuthorizationStatus, MovieRecordingState,
+        PhotoCaptureError, PhotoCaptureResult, VideoFrameStreamError, VideoFrameStreamState,
+        VideoRecordingError, VideoRecordingResult, drop_video_frame_callback_safely,
+        invoke_video_frame_callback, may_create_device_input, photo_request_error,
+        require_camera_at_position, settle_movie_result, settle_photo_result,
+        take_photo_completion, take_video_completion, validate_movie_destination,
     };
     use std::path::PathBuf;
     use std::sync::Arc;
@@ -1566,6 +1637,17 @@ mod tests {
         ));
         assert!(!may_create_device_input(MediaAuthorizationStatus::Denied));
         assert!(!may_create_device_input(MediaAuthorizationStatus::Unknown));
+    }
+
+    #[test]
+    fn camera_position_selection_maps_front_and_back_or_reports_unavailable() {
+        for position in [IosCameraPosition::Front, IosCameraPosition::Back] {
+            assert_eq!(require_camera_at_position(position, Some(17_u8)), Ok(17));
+            assert_eq!(
+                require_camera_at_position::<u8>(position, None),
+                Err(CameraCaptureError::NoCameraAtPosition(position))
+            );
+        }
     }
 
     #[test]

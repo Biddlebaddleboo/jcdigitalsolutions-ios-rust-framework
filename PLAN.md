@@ -200,6 +200,10 @@ B465 adds finite, ordered `f64` Unix-second ranges and Rust-owned event summarie
 
 B466 adds an exact-rational, asynchronous `IosFilePlayer::seek_to` operation to row 048. Its future is main-thread-bound, borrows the player, and maps `MediaTime` directly to valid `CMTime`; `NotCompleted` intentionally conflates AVPlayer interruption/supersession with no current item. Host state tests and device/Simulator compile/link gates do not prove item readiness, decoded frames, displayed output, or runtime playback; see [PLAN_IOS_PLAYBACK.md](PLAN_IOS_PLAYBACK.md).
 
+### B467 — construction-time camera position (row 046)
+
+B467 adds `IosCameraPosition::{Front, Back}` and `IosCameraCaptureSession::new_with_camera_position` for the system default built-in wide-angle video device at a requested front/back position. It uses the public iOS 10.0 `defaultDeviceWithDeviceType:mediaType:position:` selector, preserves `new()` and its existing default-device path, requires existing `Authorized` status, and never prompts or switches cameras after creation. A missing matching device returns `CameraCaptureError::NoCameraAtPosition`. Host mapping/error regressions and registered source plus selector link/import gates do not prove device availability, preview/media delivery, permission UI, Simulator execution, or physical-device runtime behavior; see [PLAN_IOS_CAMERA_CAPTURE_SESSION.md](PLAN_IOS_CAMERA_CAPTURE_SESSION.md).
+
 ## Active work selection and limits
 
 1. Inspect the canonical capability status/owner, the relevant family plan, then the named workstream plan and exact files/symbols. Do not scan the entire planning corpus or treat every existing plan as pending work.

@@ -823,7 +823,61 @@
           "text": "objc2::available!(ios = 7.0, ..)"
         },
         {
-          "message": "the default video capture device is the supported device scope",
+          "message": "front/back selection must use the typed iOS camera position",
+          "must_exist": true,
+          "path": "platform/ios/ios-camera-capture-session/src/lib.rs",
+          "text": "pub enum IosCameraPosition"
+        },
+        {
+          "message": "front/back selection must be construction-time only",
+          "must_exist": true,
+          "path": "platform/ios/ios-camera-capture-session/src/lib.rs",
+          "text": "pub fn new_with_camera_position"
+        },
+        {
+          "message": "camera position selection must fail closed below its iOS 10.0 API floor",
+          "must_exist": true,
+          "path": "platform/ios/ios-camera-capture-session/src/lib.rs",
+          "text": "if !objc2::available!(ios = 10.0, ..)"
+        },
+        {
+          "message": "the new constructor must select only AVFoundation's built-in wide-angle type",
+          "must_exist": true,
+          "path": "platform/ios/ios-camera-capture-session/src/lib.rs",
+          "text": "AVCaptureDeviceTypeBuiltInWideAngleCamera"
+        },
+        {
+          "message": "the new constructor must use AVFoundation's typed front/back positions",
+          "must_exist": true,
+          "path": "platform/ios/ios-camera-capture-session/src/lib.rs",
+          "text": "AVCaptureDevicePosition::Front"
+        },
+        {
+          "message": "the new constructor must support the back position",
+          "must_exist": true,
+          "path": "platform/ios/ios-camera-capture-session/src/lib.rs",
+          "text": "AVCaptureDevicePosition::Back"
+        },
+        {
+          "message": "the new constructor must use AVFoundation's type/media/position default-device selector",
+          "must_exist": true,
+          "path": "platform/ios/ios-camera-capture-session/src/lib.rs",
+          "text": "defaultDeviceWithDeviceType_mediaType_position"
+        },
+        {
+          "message": "a missing selected camera must report its requested position",
+          "must_exist": true,
+          "path": "platform/ios/ios-camera-capture-session/src/lib.rs",
+          "text": "CameraCaptureError::NoCameraAtPosition(position)"
+        },
+        {
+          "message": "the legacy constructor must continue to request the system default device",
+          "must_exist": true,
+          "path": "platform/ios/ios-camera-capture-session/src/lib.rs",
+          "text": "Self::new_for_camera_position(_main_thread, None)"
+        },
+        {
+          "message": "the legacy constructor must preserve its default video device call",
           "must_exist": true,
           "path": "platform/ios/ios-camera-capture-session/src/lib.rs",
           "text": "AVCaptureDevice::defaultDeviceWithMediaType"
@@ -1015,28 +1069,64 @@
           "text": "AVAudioEngine"
         },
         {
-          "message": "camera enumeration and selection are outside the default-device capability",
+          "message": "legacy device enumeration must remain absent",
           "must_exist": false,
           "path": "platform/ios/ios-camera-capture-session/src/lib.rs",
           "text": "devicesWithMediaType"
         },
         {
-          "message": "device discovery and explicit device-type selection are outside the default-device capability",
+          "message": "camera position selection must not enumerate a discovery session",
           "must_exist": false,
           "path": "platform/ios/ios-camera-capture-session/src/lib.rs",
           "text": "AVCaptureDeviceDiscoverySession"
         },
         {
-          "message": "device discovery and explicit device-type selection are outside the default-device capability",
+          "message": "camera position selection must not use the built-in ultra-wide camera",
           "must_exist": false,
           "path": "platform/ios/ios-camera-capture-session/src/lib.rs",
-          "text": "AVCaptureDeviceType"
+          "text": "AVCaptureDeviceTypeBuiltInUltraWideCamera"
         },
         {
-          "message": "explicit device-type selection is outside the default-device capability",
+          "message": "camera position selection must not use a built-in telephoto camera",
           "must_exist": false,
           "path": "platform/ios/ios-camera-capture-session/src/lib.rs",
-          "text": "deviceWithType"
+          "text": "AVCaptureDeviceTypeBuiltInTelephotoCamera"
+        },
+        {
+          "message": "camera position selection must not use a multi-camera device type",
+          "must_exist": false,
+          "path": "platform/ios/ios-camera-capture-session/src/lib.rs",
+          "text": "AVCaptureDeviceTypeBuiltInDualCamera"
+        },
+        {
+          "message": "camera position selection must not use a dual-wide camera type",
+          "must_exist": false,
+          "path": "platform/ios/ios-camera-capture-session/src/lib.rs",
+          "text": "AVCaptureDeviceTypeBuiltInDualWideCamera"
+        },
+        {
+          "message": "camera position selection must not use a triple-camera type",
+          "must_exist": false,
+          "path": "platform/ios/ios-camera-capture-session/src/lib.rs",
+          "text": "AVCaptureDeviceTypeBuiltInTripleCamera"
+        },
+        {
+          "message": "camera position selection must not use an external camera type",
+          "must_exist": false,
+          "path": "platform/ios/ios-camera-capture-session/src/lib.rs",
+          "text": "AVCaptureDeviceTypeExternal"
+        },
+        {
+          "message": "camera position selection must not create a multi-camera session",
+          "must_exist": false,
+          "path": "platform/ios/ios-camera-capture-session/src/lib.rs",
+          "text": "AVCaptureMultiCamSession"
+        },
+        {
+          "message": "camera position selection must not recall a persisted device identifier",
+          "must_exist": false,
+          "path": "platform/ios/ios-camera-capture-session/src/lib.rs",
+          "text": "deviceWithUniqueID"
         },
         {
           "message": "video recording must configure one movie-file output",

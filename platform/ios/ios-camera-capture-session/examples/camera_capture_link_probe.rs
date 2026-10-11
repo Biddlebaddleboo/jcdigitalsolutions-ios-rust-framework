@@ -28,6 +28,15 @@ fn main() {
     });
     session.stop_video_frame_stream();
     session.stop();
+    let Some(main_thread) = objc2::MainThreadMarker::new() else {
+        return;
+    };
+    let _ = std::hint::black_box(
+        ios_camera_capture_session::IosCameraCaptureSession::new_with_camera_position(
+            main_thread,
+            ios_camera_capture_session::IosCameraPosition::Front,
+        ),
+    );
 }
 
 #[cfg(not(target_os = "ios"))]

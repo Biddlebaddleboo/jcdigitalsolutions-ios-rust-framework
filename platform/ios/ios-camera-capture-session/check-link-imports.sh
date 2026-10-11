@@ -54,6 +54,10 @@ for target in aarch64-apple-ios aarch64-apple-ios-sim; do
         printf '%s probe does not import objc_msgSend\n' "$target" >&2
         exit 1
     }
+    printf '%s\n' "$symbols" | grep -F 'AVCaptureDeviceTypeBuiltInWideAngleCamera' >/dev/null || {
+        printf '%s probe does not import the built-in wide-angle device type\n' "$target" >&2
+        exit 1
+    }
     binary_strings=$(strings "$probe")
     for symbol in \
         AVCaptureSession \
@@ -65,6 +69,7 @@ for target in aarch64-apple-ios aarch64-apple-ios-sim; do
         CMSampleBuffer \
         authorizationStatusForMediaType: \
         defaultDeviceWithMediaType: \
+        defaultDeviceWithDeviceType:mediaType:position: \
         deviceInputWithDevice:error: \
         canAddInput: \
         addInput: \
