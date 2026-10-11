@@ -1061,8 +1061,10 @@ dependencies = [
 name = "ios-presentation"
 version = "0.1.0"
 dependencies = [
+ "block2",
  "ios-runtime",
  "objc2",
+ "objc2-core-foundation",
  "objc2-foundation",
  "objc2-ui-kit",
 ]
