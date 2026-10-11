@@ -354,6 +354,10 @@ B508 adds explicit alert/badge/sound authorization choices for the Rideshare not
 
 B509 adds an opt-in portable `NotificationContent::with_system_default_sound`; existing `NotificationContent::new` values remain no-sound. The iOS backend maps opt-in requests to public `UNNotificationSound::defaultSound`. The registered `ios-notifications` profile reports 31 PASS, 0 FAIL, 0 BLOCKED, and 2 SKIPPED; simulator execution and physical-device notification behavior remain unverified
 
+### B510 — open the app Settings page (row 001)
+
+B510 adds iOS-only `ios_app_lifecycle::open_application_settings(MainThread)` through UIKit's public app-settings URL and open selector, matching the existing Rideshare settings action. The registered `ios-app-lifecycle` profile reports 32 PASS, 0 FAIL, 0 BLOCKED, and 2 SKIPPED; Simulator execution and physical-device behavior remain unverified
+
 ## Active work selection and limits
 
 1. Inspect the canonical capability status/owner, the relevant family plan, then the named workstream plan and exact files/symbols. Do not scan the entire planning corpus or treat every existing plan as pending work.
