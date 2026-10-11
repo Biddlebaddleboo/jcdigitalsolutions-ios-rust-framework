@@ -197,7 +197,7 @@
       "portable_contract_note": "framework-sharing implements plain-text read, write, and clear only; rich representations and share UI are outside the contract.",
       "ios_implementation_class": "B",
       "implementation_status": "partial",
-      "status_reason": "ios-sharing implements plain-text read, write, and clear through UIKit UIPasteboard; B84 adds a presence-only hasStrings snapshot without loading or copying content. The snapshot can become stale and does not prove permission or read success; iOS 14+ may notify on cross-app reads and iOS 16+ programmatic reads may prompt. Write and clear replace all pasteboard items; rich representations, share UI, and live privacy/paste behavior are not claimed.",
+      "status_reason": "ios-sharing implements plain-text read, write, and clear through UIKit UIPasteboard; B84 adds a presence-only hasStrings snapshot and B491 adds an iOS-only single-image extension using hasImages, image, and setImage without changing the portable ClipboardBackend contract. Presence checks do not fetch content or prove permission/read success; image content reads may trigger system pasteboard privacy UI. Image and text writes replace all current pasteboard items; multiple-image APIs, decoding, share UI, and live privacy/paste behavior are not claimed.",
       "minimum_ios_version": "10.0",
       "required_frameworks": [
         "UIKit",
@@ -208,7 +208,7 @@
       "entitlements": [],
       "device_only_restrictions": [],
       "swift_abi_requirement": false,
-      "metadata_verification": "Xcode_26.6_iOS_26.5_headers_verify_UIPasteboard_iOS_3.0_and_hasStrings_iOS_10.0_floor; B6 device/simulator compile and import checks; B84 device/simulator compile, strict Clippy, rustdoc, and Release link/import checks pass with UIKit/Foundation/libobjc/libSystem and minos 10.0/14.0; no tests, consumers, probes, or live pasteboard query; Xcode_27_baseline_not_met",
+      "metadata_verification": "Xcode_26.6_iOS_26.5_headers_verify_UIPasteboard_iOS_3.0_and_hasStrings_hasImages_iOS_10.0_floor; B6 device/simulator compile and import checks; B84 device/simulator compile, strict Clippy, rustdoc, and Release link/import checks pass with UIKit/Foundation/libobjc/libSystem and minos 10.0/14.0; B491 host validation only, registered device/simulator profile pending; no live pasteboard query/write; Xcode_27_baseline_not_met",
       "parity_status": "not_tested_live_behavior_or_Apple_parity",
       "performance_status": "not_measured",
       "native_escape_handle_available": false,

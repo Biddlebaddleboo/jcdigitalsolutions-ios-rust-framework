@@ -26,6 +26,7 @@ clipboard = [
     "objc2-foundation/NSString",
     "dep:objc2-ui-kit",
     "objc2-ui-kit/UIPasteboard",
+    "objc2-ui-kit/UIImage",
 ]
 share = [
     "dep:framework-core",

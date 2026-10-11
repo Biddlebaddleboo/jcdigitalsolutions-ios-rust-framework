@@ -31,6 +31,11 @@ fn main() {
         poll_linked_operation(clipboard.read());
         poll_linked_operation(clipboard.write("link probe"));
         poll_linked_operation(clipboard.clear());
+        let backend = clipboard.backend_mut();
+        let _ = backend.has_image();
+        if let Some(image) = backend.read_image() {
+            backend.write_image(&image);
+        }
     }
 }
 

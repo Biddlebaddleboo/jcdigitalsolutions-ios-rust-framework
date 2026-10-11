@@ -1,8 +1,8 @@
 # iOS sharing
 
-This guide covers the `ios-sharing` crate's plain-text clipboard backend and outgoing system-share
-backend. The clipboard section below retains its existing behavior and privacy notes; the share
-backend is a separate UIKit presentation path.
+This guide covers the `ios-sharing` crate's clipboard extensions and outgoing system-share backend.
+The portable clipboard contract remains plain text; the single-image surface is an iOS-only UIKit
+extension. The share backend is a separate UIKit presentation path.
 
 The crate has `clipboard` and `share` Cargo features, both enabled by default to preserve existing
 Rust consumers. A consumer may disable default features and select one backend. The F6 C clipboard
@@ -170,9 +170,9 @@ share selectors, excludes the clipboard feature and Swift/Python runtime symbols
 device minos 10.0 and Simulator minos 14.0 with SDK 26.5. The gate is wired in macOS CI; no passing
 workflow run is recorded. No UI or recipient behavior is established.
 
-## Plain-text clipboard
+## Clipboard
 
-`ios-sharing` implements the `framework-sharing::ClipboardBackend` contract with UIKit's systemwide general `UIPasteboard`. It supports plain-text read, write, and clear only. It does not include a share sheet, `UIPasteControl`, named pasteboards, or rich representations.
+`ios-sharing` implements the `framework-sharing::ClipboardBackend` contract with UIKit's systemwide general `UIPasteboard` for plain-text read, write, and clear. The `IosClipboardBackend` also exposes an iOS-only single-image extension; it does not change the portable contract. Clipboard support does not include a share sheet, `UIPasteControl`, named pasteboards, or a general rich-representation API.
 
 Outgoing text and URL-text requests use the separate portable [share contract](../capabilities/share.md); UIKit presentation is a distinct backend workstream.
 
@@ -193,6 +193,10 @@ Construct, poll, and drop the backend and its futures on the main thread. The ba
 
 For B84, call `clipboard.backend().has_plain_text()` for a synchronous presence snapshot when a caller only needs to know whether string data is present. It maps to UIKit's `UIPasteboard.hasStrings`, returns a bool rather than a count, does not load or copy pasteboard contents, and is not a permission or read-success check. Call it on the backend's main thread. The shared pasteboard can change after the snapshot. Apple lists `hasStrings` among type-checking APIs that avoid user notifications and alerts when the system has not established user intent; a later call to `Clipboard::read()` still follows the programmatic-read privacy behavior below.
 
+For B491, the iOS-only `IosClipboardBackend::has_image()` maps to `UIPasteboard.hasImages` and checks image type presence without fetching image content. `read_image()` repeats that check before accessing `UIPasteboard.image`, returning the first pasteboard item's retained `UIImage` when present. Since `hasImages` covers image data across pasteboard items while `image` returns only the first item's value, `read_image()` can return `None` when a later item alone has an image. The presence check is not a permission or content-read-success check. Reading image content from the general pasteboard may trigger system privacy UI.
+
+`write_image(&UIImage)` assigns `UIPasteboard.image`; UIKit copies the image and replaces every current pasteboard item, including any text or URL item. Construct, call, and drop the backend on its typed main thread. This UIKit type remains outside `framework-sharing`'s portable API.
+
 ## Reads, writes, clear, and copies
 
 Read first checks `UIPasteboard.hasStrings` and only then loads `UIPasteboard.strings`. The backend copies the first string value in that array, including when an earlier pasteboard item has no string representation. No string type returns `Ok(None)`. If another app changes the shared pasteboard between the preflight and value read, or Foundation cannot encode the native string as UTF-8, the backend returns `ClipboardError::Backend` rather than reporting no value. Foundation creates an owned UTF-8 `NSData`; Rust copies its bytes and moves them into an owned `String`. Unlike `has_plain_text()`, this content read may trigger system privacy UI.
@@ -207,9 +211,9 @@ The backend reports `Availability::Unknown`: UIKit provides no query for current
 
 Starting in iOS 14, the system notifies the user when an app reads general-pasteboard content from another app without user intent. Starting in iOS 16, programmatic pasting can raise a system alert asking the user to approve access. This backend performs programmatic reads and does not avoid either system behavior. UIKit's `UIPasteControl` offers a user-initiated paste path without a prompt, but requires app UI integration and is out of scope.
 
-The installed Xcode 26.6 / iPhoneOS 26.5 SDK marks `UIPasteboard` as available from iOS 3.0 and `hasStrings` from iOS 10.0; the required `hasStrings` preflight sets the backend floor at iOS 10.0. The public SDK headers and Apple documentation reviewed do not specify an `Info.plist` usage-description key or entitlement for this general-pasteboard path. The backend adds neither; system privacy behavior is not an app permission grant.
+The installed Xcode 26.6 / iPhoneOS 26.5 SDK marks `UIPasteboard` as available from iOS 3.0 and `hasStrings` and `hasImages` from iOS 10.0; those required type preflights preserve the backend floor at iOS 10.0. The public SDK headers and Apple documentation reviewed do not specify an `Info.plist` usage-description key or entitlement for this general-pasteboard path. The backend adds neither; system privacy behavior is not an app permission grant.
 
-Apple references: [`UIPasteboard`](https://developer.apple.com/documentation/uikit/uipasteboard), [`UIPasteboard.hasStrings`](https://developer.apple.com/documentation/uikit/uipasteboard/hasstrings), [`UIPasteboard.strings`](https://developer.apple.com/documentation/uikit/uipasteboard/strings), [`UIPasteboard.string`](https://developer.apple.com/documentation/uikit/uipasteboard/string), [`UIPasteboard.items`](https://developer.apple.com/documentation/uikit/uipasteboard/items), [`UIPasteControl`](https://developer.apple.com/documentation/uikit/uipastecontrol).
+Apple references: [`UIPasteboard`](https://developer.apple.com/documentation/uikit/uipasteboard), [`UIPasteboard.hasStrings`](https://developer.apple.com/documentation/uikit/uipasteboard/hasstrings), [`UIPasteboard.hasImages`](https://developer.apple.com/documentation/uikit/uipasteboard/hasimages), [`UIPasteboard.image`](https://developer.apple.com/documentation/uikit/uipasteboard/image), [`UIPasteboard.strings`](https://developer.apple.com/documentation/uikit/uipasteboard/strings), [`UIPasteboard.string`](https://developer.apple.com/documentation/uikit/uipasteboard/string), [`UIPasteboard.items`](https://developer.apple.com/documentation/uikit/uipasteboard/items), [`UIPasteControl`](https://developer.apple.com/documentation/uikit/uipastecontrol).
 
 ## Validation evidence and limits
 

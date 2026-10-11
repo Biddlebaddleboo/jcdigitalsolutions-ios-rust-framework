@@ -12,6 +12,17 @@ for tool in awk cargo diff grep nm otool sort strings vtool; do
     fi
 done
 
+clipboard_source=platform/ios/ios-sharing/src/platform.rs
+if ! awk '
+    /pub fn read_image/ { reading = 1 }
+    reading && index($0, "if !unsafe { self.pasteboard.hasImages() }") { preflight = NR }
+    reading && index($0, "unsafe { self.pasteboard.image() }") { content_read = NR; exit }
+    END { exit !(preflight && content_read && preflight < content_read) }
+' "$clipboard_source"; then
+    echo "image content read must follow the hasImages type preflight" >&2
+    exit 1
+fi
+
 cat > target/ios-sharing-clipboard-link-imports-expected.txt <<'IMPORTS'
 Foundation
 UIKit
@@ -57,7 +68,7 @@ for target in aarch64-apple-ios aarch64-apple-ios-sim; do
     fi
 
     strings -a "$binary" > "$strings_file"
-    for marker in UIPasteboard generalPasteboard hasStrings strings firstObject dataUsingEncoding: setString: setItems:; do
+    for marker in UIPasteboard generalPasteboard hasStrings strings firstObject dataUsingEncoding: setString: setItems: hasImages image setImage:; do
         if ! grep -Fq "$marker" "$strings_file"; then
             echo "missing clipboard selector marker $marker in $strings_file" >&2
             exit 1

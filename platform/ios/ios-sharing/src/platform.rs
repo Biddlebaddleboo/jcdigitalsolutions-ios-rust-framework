@@ -9,7 +9,7 @@ use ios_runtime::main_thread::MainThread;
 use objc2::rc::{Retained, autoreleasepool};
 use objc2::runtime::AnyObject;
 use objc2_foundation::{NSArray, NSDictionary, NSString, NSUTF8StringEncoding};
-use objc2_ui_kit::UIPasteboard;
+use objc2_ui_kit::{UIImage, UIPasteboard};
 
 use crate::conversion::decode_utf8;
 use crate::operation::{Clear, ClipboardAccess, Deferred, Read, Write};
@@ -47,6 +47,49 @@ impl IosClipboardBackend {
         // SAFETY: The backend retains the main-thread proof and is !Send + !Sync, so safe Rust
         // cannot move this UIKit access to another thread.
         unsafe { self.pasteboard.hasStrings() }
+    }
+
+    /// Returns whether the general pasteboard currently contains image data.
+    ///
+    /// This type-presence query maps to `UIPasteboard.hasImages` and does not fetch image content.
+    /// The shared pasteboard may change immediately after this call; this result does not prove
+    /// permission or that a later content read will return an image. Call it on the backend's main
+    /// thread.
+    pub fn has_image(&self) -> bool {
+        // SAFETY: The backend retains the main-thread proof and is !Send + !Sync, so safe Rust
+        // cannot move this UIKit access to another thread.
+        unsafe { self.pasteboard.hasImages() }
+    }
+
+    /// Returns the first pasteboard item's image, if present.
+    ///
+    /// The method checks `UIPasteboard.hasImages` before reading `UIPasteboard.image`; the latter
+    /// property returns only the first item's image, so it may return `None` when a later item is
+    /// the only item with image data. Reading image content from the general pasteboard may trigger
+    /// system privacy UI. Call it on the backend's main thread.
+    pub fn read_image(&self) -> Option<Retained<UIImage>> {
+        autoreleasepool(|_| {
+            // SAFETY: The backend retains the main-thread proof and is !Send + !Sync. UIKit's
+            // type-presence query does not fetch image content.
+            if !unsafe { self.pasteboard.hasImages() } {
+                return None;
+            }
+            // SAFETY: The same main-thread invariant applies. The getter returns an owned image;
+            // the pasteboard can change between the presence query and this content read.
+            unsafe { self.pasteboard.image() }
+        })
+    }
+
+    /// Replaces all general-pasteboard items with the supplied image.
+    ///
+    /// UIKit copies the image when setting `UIPasteboard.image`. This replaces existing strings,
+    /// URLs, and other item representations. Call it on the backend's main thread.
+    pub fn write_image(&mut self, image: &UIImage) {
+        autoreleasepool(|_| {
+            // SAFETY: The backend retains the main-thread proof and is !Send + !Sync, so safe Rust
+            // cannot move this UIKit access to another thread. UIKit copies the assigned image.
+            unsafe { self.pasteboard.setImage(Some(image)) };
+        });
     }
 }
 
