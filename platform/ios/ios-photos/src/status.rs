@@ -1,4 +1,4 @@
-use framework_photos::PhotoLibraryAuthorizationStatus;
+use framework_photos::{PhotoLibraryAddOnlyAuthorizationStatus, PhotoLibraryAuthorizationStatus};
 
 /// Maps the generated PhotoKit `PHAuthorizationStatus` integer values to the portable status.
 ///
@@ -12,6 +12,19 @@ pub fn authorization_status_from_native(value: isize) -> PhotoLibraryAuthorizati
         3 => PhotoLibraryAuthorizationStatus::Authorized,
         4 => PhotoLibraryAuthorizationStatus::Limited,
         _ => PhotoLibraryAuthorizationStatus::Unknown,
+    }
+}
+
+/// Maps the generated PhotoKit status to an add-only status without treating `Limited` as access.
+pub fn add_only_authorization_status_from_native(
+    value: isize,
+) -> PhotoLibraryAddOnlyAuthorizationStatus {
+    match value {
+        0 => PhotoLibraryAddOnlyAuthorizationStatus::NotDetermined,
+        1 => PhotoLibraryAddOnlyAuthorizationStatus::Restricted,
+        2 => PhotoLibraryAddOnlyAuthorizationStatus::Denied,
+        3 => PhotoLibraryAddOnlyAuthorizationStatus::Authorized,
+        _ => PhotoLibraryAddOnlyAuthorizationStatus::Unknown,
     }
 }
 
@@ -52,6 +65,34 @@ mod tests {
         assert_ne!(
             authorization_status_from_native(4),
             authorization_status_from_native(3)
+        );
+    }
+
+    #[test]
+    fn maps_add_only_status_and_fails_closed_for_limited_or_unknown() {
+        assert_eq!(
+            add_only_authorization_status_from_native(0),
+            PhotoLibraryAddOnlyAuthorizationStatus::NotDetermined
+        );
+        assert_eq!(
+            add_only_authorization_status_from_native(1),
+            PhotoLibraryAddOnlyAuthorizationStatus::Restricted
+        );
+        assert_eq!(
+            add_only_authorization_status_from_native(2),
+            PhotoLibraryAddOnlyAuthorizationStatus::Denied
+        );
+        assert_eq!(
+            add_only_authorization_status_from_native(3),
+            PhotoLibraryAddOnlyAuthorizationStatus::Authorized
+        );
+        assert_eq!(
+            add_only_authorization_status_from_native(4),
+            PhotoLibraryAddOnlyAuthorizationStatus::Unknown
+        );
+        assert_eq!(
+            add_only_authorization_status_from_native(99),
+            PhotoLibraryAddOnlyAuthorizationStatus::Unknown
         );
     }
 }

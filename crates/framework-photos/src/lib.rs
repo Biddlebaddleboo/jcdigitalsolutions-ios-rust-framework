@@ -30,6 +30,25 @@ pub enum PhotoLibraryAuthorizationStatus {
     Unknown,
 }
 
+/// The native Photos authorization result for add-only access.
+///
+/// This status is separate from [`PhotoLibraryAuthorizationStatus`]: add-only access cannot read
+/// library assets, and read/write `Limited` status must not be interpreted as permission to save.
+#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
+#[non_exhaustive]
+pub enum PhotoLibraryAddOnlyAuthorizationStatus {
+    /// Authorization has not yet been determined for add-only access.
+    NotDetermined,
+    /// Access is restricted by system policy.
+    Restricted,
+    /// Access was denied.
+    Denied,
+    /// Add-only access is authorized.
+    Authorized,
+    /// The native framework returned a status value not represented by this version.
+    Unknown,
+}
+
 /// A static backend for Photos read/write authorization only.
 ///
 /// The synchronous status query must not prompt. A request starts no earlier than the first poll
@@ -47,6 +66,25 @@ pub trait PhotoLibraryAuthorizationBackend {
 
     /// Returns one request whose native work begins on first poll.
     fn request_authorization(&mut self) -> Self::RequestAuthorizationFuture<'_>;
+}
+
+/// A static backend for Photos add-only authorization.
+///
+/// The status query must not prompt. A request starts no earlier than the first poll of its
+/// returned future. Dropping that future abandons its Rust result but does not promise
+/// cancellation or dismissal of native authorization UI already requested.
+pub trait PhotoLibraryAddOnlyAuthorizationBackend {
+    /// The future returned by one explicit add-only authorization request.
+    type RequestAddOnlyAuthorizationFuture<'a>:
+        Future<Output = PhotoLibraryAddOnlyAuthorizationStatus> + 'a
+    where
+        Self: 'a;
+
+    /// Queries current add-only authorization status without requesting authorization.
+    fn add_only_authorization_status(&self) -> PhotoLibraryAddOnlyAuthorizationStatus;
+
+    /// Returns one request whose native work begins on first poll.
+    fn request_add_only_authorization(&mut self) -> Self::RequestAddOnlyAuthorizationFuture<'_>;
 }
 
 /// A thin facade over caller-owned, statically selected Photos authorization state.
@@ -89,6 +127,24 @@ impl<B: PhotoLibraryAuthorizationBackend> PhotoLibrary<B> {
     }
 }
 
+impl<B: PhotoLibraryAddOnlyAuthorizationBackend> PhotoLibrary<B> {
+    /// Queries add-only authorization status without requesting authorization.
+    pub fn add_only_authorization_status(&self) -> PhotoLibraryAddOnlyAuthorizationStatus {
+        self.backend.add_only_authorization_status()
+    }
+
+    /// Explicitly requests add-only authorization.
+    ///
+    /// The backend begins native work when the returned future is first polled. Dropping a
+    /// pending future abandons its Rust result but does not promise cancellation of native work
+    /// or dismissal of system UI.
+    pub fn request_add_only_authorization(
+        &mut self,
+    ) -> B::RequestAddOnlyAuthorizationFuture<'_> {
+        self.backend.request_add_only_authorization()
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -106,6 +162,7 @@ mod tests {
 
     struct FakeBackend {
         status: PhotoLibraryAuthorizationStatus,
+        add_only_status: PhotoLibraryAddOnlyAuthorizationStatus,
         request_count: Arc<AtomicUsize>,
     }
 
@@ -115,8 +172,26 @@ mod tests {
         started: bool,
     }
 
+    struct FakeAddOnlyRequest {
+        status: PhotoLibraryAddOnlyAuthorizationStatus,
+        request_count: Arc<AtomicUsize>,
+        started: bool,
+    }
+
     impl Future for FakeRequest {
         type Output = PhotoLibraryAuthorizationStatus;
+
+        fn poll(mut self: Pin<&mut Self>, _context: &mut Context<'_>) -> Poll<Self::Output> {
+            if !self.started {
+                self.started = true;
+                self.request_count.fetch_add(1, Ordering::SeqCst);
+            }
+            Poll::Ready(self.status)
+        }
+    }
+
+    impl Future for FakeAddOnlyRequest {
+        type Output = PhotoLibraryAddOnlyAuthorizationStatus;
 
         fn poll(mut self: Pin<&mut Self>, _context: &mut Context<'_>) -> Poll<Self::Output> {
             if !self.started {
@@ -143,6 +218,24 @@ mod tests {
         }
     }
 
+    impl PhotoLibraryAddOnlyAuthorizationBackend for FakeBackend {
+        type RequestAddOnlyAuthorizationFuture<'a> = FakeAddOnlyRequest;
+
+        fn add_only_authorization_status(&self) -> PhotoLibraryAddOnlyAuthorizationStatus {
+            self.add_only_status
+        }
+
+        fn request_add_only_authorization(
+            &mut self,
+        ) -> Self::RequestAddOnlyAuthorizationFuture<'_> {
+            FakeAddOnlyRequest {
+                status: self.add_only_status,
+                request_count: Arc::clone(&self.request_count),
+                started: false,
+            }
+        }
+    }
+
     fn library(
         status: PhotoLibraryAuthorizationStatus,
     ) -> (PhotoLibrary<FakeBackend>, Arc<AtomicUsize>) {
@@ -150,6 +243,7 @@ mod tests {
         (
             PhotoLibrary::new(FakeBackend {
                 status,
+                add_only_status: PhotoLibraryAddOnlyAuthorizationStatus::Authorized,
                 request_count: Arc::clone(&request_count),
             }),
             request_count,
@@ -188,5 +282,32 @@ mod tests {
         let (mut library, request_count) = library(PhotoLibraryAuthorizationStatus::NotDetermined);
         drop(library.request_authorization());
         assert_eq!(request_count.load(Ordering::SeqCst), 0);
+    }
+
+    #[test]
+    fn add_only_authorization_is_separate_from_read_write_status() {
+        let (library, _) = library(PhotoLibraryAuthorizationStatus::Limited);
+        assert_eq!(
+            library.authorization_status(),
+            PhotoLibraryAuthorizationStatus::Limited
+        );
+        assert_eq!(
+            library.add_only_authorization_status(),
+            PhotoLibraryAddOnlyAuthorizationStatus::Authorized
+        );
+    }
+
+    #[test]
+    fn add_only_request_is_explicit() {
+        let (mut library, request_count) = library(PhotoLibraryAuthorizationStatus::NotDetermined);
+        let mut request = library.request_add_only_authorization();
+        assert_eq!(request_count.load(Ordering::SeqCst), 0);
+        let waker = Waker::from(Arc::new(NoopWake));
+        let mut context = Context::from_waker(&waker);
+        assert_eq!(
+            Pin::new(&mut request).poll(&mut context),
+            Poll::Ready(PhotoLibraryAddOnlyAuthorizationStatus::Authorized)
+        );
+        assert_eq!(request_count.load(Ordering::SeqCst), 1);
     }
 }

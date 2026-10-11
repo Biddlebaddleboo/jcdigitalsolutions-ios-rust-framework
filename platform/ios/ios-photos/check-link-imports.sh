@@ -51,7 +51,7 @@ for target in aarch64-apple-ios aarch64-apple-ios-sim; do
         echo "$target probe does not import Objective-C class and message lookup symbols" >&2
         exit 1
     fi
-    if grep -Eqi 'swift_|PHAsset|PHImageManager|PHAssetChangeRequest|PHImageRequest|PhotosUI|UIImage|CGImage' "$symbols"; then
+    if grep -Eqi 'swift_|PHAssetChangeRequest|PHImageManager|PHFetch|PHImageRequest|PhotosUI|UIImage|CGImage' "$symbols"; then
         echo "unexpected Swift runtime or out-of-scope Photos symbol import in $symbols" >&2
         exit 1
     fi

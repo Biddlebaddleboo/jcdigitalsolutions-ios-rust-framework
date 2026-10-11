@@ -59,6 +59,10 @@
     [
       "ios-homekit-identify-status",
       "objc2-home-kit"
+    ],
+    [
+      "ios-photos",
+      "framework-photos"
     ]
   ],
   "pilots": [
@@ -1357,6 +1361,203 @@
         }
       ],
       "adapters": []
+    },
+    {
+      "abi_scripts": [
+        "platform/ios/ios-photos/check-link-imports.sh"
+      ],
+      "abi_targets": [
+        {
+          "minimum_os": "14.0",
+          "sdk": "iphoneos",
+          "triple": "aarch64-apple-ios"
+        },
+        {
+          "minimum_os": "14.0",
+          "sdk": "iphonesimulator",
+          "triple": "aarch64-apple-ios-sim"
+        }
+      ],
+      "adapters": [],
+      "cargo_tree": false,
+      "check_script": "platform/ios/ios-photos/check-link-imports.sh",
+      "clippy_all_targets": true,
+      "clippy_lib": false,
+      "docs": [
+        "docs/ios/photos.md",
+        "docs/capabilities/capability-status.json",
+        "PLAN.md"
+      ],
+      "expected_imports": [
+        "Foundation.framework",
+        "Photos.framework",
+        "objc_msgSend"
+      ],
+      "fmt_all": false,
+      "guards": [
+        {
+          "message": "add-only status must use the public access-level API",
+          "must_exist": true,
+          "path": "platform/ios/ios-photos/src/platform.rs",
+          "text": "PHAccessLevel::AddOnly"
+        },
+        {
+          "message": "add-only requests remain explicit and separate from read/write requests",
+          "must_exist": true,
+          "path": "platform/ios/ios-photos/src/platform.rs",
+          "text": "request_add_only_authorization"
+        },
+        {
+          "message": "JPEG and movie saves are explicit operations",
+          "must_exist": true,
+          "path": "platform/ios/ios-photos/src/import.rs",
+          "text": "save_jpeg_from_file"
+        },
+        {
+          "message": "movie files use the public video resource type",
+          "must_exist": true,
+          "path": "platform/ios/ios-photos/src/import.rs",
+          "text": "PhotosAssetFileKind::Movie => PHAssetResourceType::Video"
+        },
+        {
+          "message": "JPEG files use the public photo resource type",
+          "must_exist": true,
+          "path": "platform/ios/ios-photos/src/import.rs",
+          "text": "PhotosAssetFileKind::Jpeg => PHAssetResourceType::Photo"
+        },
+        {
+          "message": "file paths must become file URLs",
+          "must_exist": true,
+          "path": "platform/ios/ios-photos/src/import.rs",
+          "text": "NSURL::fileURLWithPath(&path)"
+        },
+        {
+          "message": "Photos saves use asynchronous performChanges",
+          "must_exist": true,
+          "path": "platform/ios/ios-photos/src/import.rs",
+          "text": "performChanges_completionHandler"
+        },
+        {
+          "message": "Photos saves must preserve caller-owned source files",
+          "must_exist": true,
+          "path": "platform/ios/ios-photos/src/import.rs",
+          "text": "setShouldMoveFile(false)"
+        },
+        {
+          "message": "Photos saves must never request a source-file move",
+          "must_exist": false,
+          "path": "platform/ios/ios-photos/src/import.rs",
+          "text": "setShouldMoveFile(true)"
+        },
+        {
+          "message": "save must recheck add-only authorization",
+          "must_exist": true,
+          "path": "platform/ios/ios-photos/src/import.rs",
+          "text": "authorizationStatusForAccessLevel(PHAccessLevel::AddOnly)"
+        },
+        {
+          "message": "save must fail closed unless AddOnly is Authorized",
+          "must_exist": true,
+          "path": "platform/ios/ios-photos/src/import.rs",
+          "text": "require_add_only_authorized(status)"
+        },
+        {
+          "message": "save must not prompt for Photos authorization",
+          "must_exist": false,
+          "path": "platform/ios/ios-photos/src/import.rs",
+          "text": "requestAuthorizationForAccessLevel_handler"
+        },
+        {
+          "message": "save must not use read/write authorization",
+          "must_exist": false,
+          "path": "platform/ios/ios-photos/src/import.rs",
+          "text": "PHAccessLevel::ReadWrite"
+        },
+        {
+          "message": "save must not request or enumerate Photos assets",
+          "must_exist": false,
+          "path": "platform/ios/ios-photos/src/import.rs",
+          "text": "PHImageManager"
+        },
+        {
+          "message": "save must not expose PhotosUI picker flows",
+          "must_exist": false,
+          "path": "platform/ios/ios-photos/src/import.rs",
+          "text": "PhotosUI"
+        },
+        {
+          "message": "path conversion must reject invalid UTF-8 rather than replace bytes",
+          "must_exist": true,
+          "path": "platform/ios/ios-photos/src/save.rs",
+          "text": "path.to_str().ok_or(PhotosSourcePathError::NonUtf8)"
+        },
+        {
+          "message": "paths must be absolute",
+          "must_exist": true,
+          "path": "platform/ios/ios-photos/src/save.rs",
+          "text": "if !path.is_absolute()"
+        },
+        {
+          "message": "source files must be opened and verified as regular files",
+          "must_exist": true,
+          "path": "platform/ios/ios-photos/src/save.rs",
+          "text": "metadata.is_file()"
+        },
+        {
+          "message": "no lossy path conversion is allowed",
+          "must_exist": false,
+          "path": "platform/ios/ios-photos/src/save.rs",
+          "text": "to_string_lossy"
+        },
+        {
+          "message": "no lossy path conversion is allowed",
+          "must_exist": false,
+          "path": "platform/ios/ios-photos/src/import.rs",
+          "text": "to_string_lossy"
+        }
+      ],
+      "id": "ios-photos",
+      "manifest": "platform/ios/ios-photos/Cargo.toml",
+      "offline": false,
+      "package": "ios-photos",
+      "rustdoc_warnings": false,
+      "scoped_files": [
+        "Cargo.lock",
+        "crates/framework-photos/Cargo.toml",
+        "crates/framework-photos/src/lib.rs",
+        "platform/ios/ios-photos/Cargo.toml",
+        "platform/ios/ios-photos/check-link-imports.sh",
+        "platform/ios/ios-photos/examples/ios_photos_link_import_probe.rs",
+        "platform/ios/ios-photos/examples/photos_api_floor.m",
+        "platform/ios/ios-photos/src/import.rs",
+        "platform/ios/ios-photos/src/lib.rs",
+        "platform/ios/ios-photos/src/operation.rs",
+        "platform/ios/ios-photos/src/platform.rs",
+        "platform/ios/ios-photos/src/save.rs",
+        "platform/ios/ios-photos/src/status.rs",
+        "docs/capabilities/capability-status.json",
+        "docs/ios/photos.md",
+        "PLAN.md",
+        "tools/validation/specs/validation-v1.json"
+      ],
+      "shell_scripts": [
+        "platform/ios/ios-photos/check-link-imports.sh"
+      ],
+      "source_dirs": [
+        "platform/ios/ios-photos"
+      ],
+      "targets": [
+        {
+          "minimum_os": "14.0",
+          "sdk": "iphoneos",
+          "triple": "aarch64-apple-ios"
+        },
+        {
+          "minimum_os": "14.0",
+          "sdk": "iphonesimulator",
+          "triple": "aarch64-apple-ios-sim"
+        }
+      ]
     }
   ],
   "schema_version": 1,
@@ -1463,6 +1664,16 @@
     {
       "path": "tools/native-build/",
       "node": "ios-native-build-support",
+      "global": false
+    },
+    {
+      "path": "crates/framework-photos/",
+      "node": "framework-photos",
+      "global": false
+    },
+    {
+      "path": "platform/ios/ios-photos/",
+      "node": "ios-photos",
       "global": false
     }
   ]

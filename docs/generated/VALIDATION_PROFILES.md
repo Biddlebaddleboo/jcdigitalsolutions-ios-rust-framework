@@ -15,6 +15,7 @@ The following are configured validation profiles, not claims that every gate pas
 | ios-photogrammetry-status | ios-photogrammetry-status | 3 | 2 | 0 | False |
 | ios-alarmkit-status | ios-alarmkit-status | 2 | 1 | 0 | True |
 | ios-activitykit-status | ios-activitykit-status | 2 | 2 | 0 | False |
+| ios-photos | ios-photos | 2 | 1 | 0 | False |
 
 
 ## Inspect actual gates

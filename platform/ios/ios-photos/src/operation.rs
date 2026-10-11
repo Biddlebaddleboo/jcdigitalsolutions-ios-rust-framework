@@ -1,34 +1,33 @@
 use core::task::{Context, Poll, Waker};
-use framework_photos::PhotoLibraryAuthorizationStatus;
 use std::sync::{Mutex, MutexGuard};
 
 /// One native status result and the future's current interest in it.
-pub(crate) struct CompletionCell {
-    state: Mutex<State>,
+pub(crate) struct CompletionCell<T> {
+    state: Mutex<State<T>>,
 }
 
-struct State {
+struct State<T> {
     completed: bool,
     detached: bool,
-    status: Option<PhotoLibraryAuthorizationStatus>,
+    value: Option<T>,
     waker: Option<Waker>,
 }
 
-impl CompletionCell {
+impl<T> CompletionCell<T> {
     /// Creates an incomplete cell with no future interest.
     pub(crate) const fn new() -> Self {
         Self {
             state: Mutex::new(State {
                 completed: false,
                 detached: false,
-                status: None,
+                value: None,
                 waker: None,
             }),
         }
     }
 
-    /// Publishes one status and wakes the future after releasing the lock.
-    pub(crate) fn complete(&self, status: PhotoLibraryAuthorizationStatus) -> bool {
+    /// Publishes one value and wakes the future after releasing the lock.
+    pub(crate) fn complete(&self, value: T) -> bool {
         let waker = {
             let mut state = self.lock();
             if state.completed {
@@ -38,7 +37,7 @@ impl CompletionCell {
             if state.detached {
                 None
             } else {
-                state.status = Some(status);
+                state.value = Some(value);
                 state.waker.take()
             }
         };
@@ -48,13 +47,13 @@ impl CompletionCell {
         true
     }
 
-    /// Returns one status or saves the current task's waker.
-    pub(crate) fn poll(&self, context: &mut Context<'_>) -> Poll<PhotoLibraryAuthorizationStatus> {
+    /// Returns one value or saves the current task's waker.
+    pub(crate) fn poll(&self, context: &mut Context<'_>) -> Poll<T> {
         let mut state = self.lock();
-        if let Some(status) = state.status.take() {
+        if let Some(value) = state.value.take() {
             state.detached = true;
             state.waker = None;
-            return Poll::Ready(status);
+            return Poll::Ready(value);
         }
         if !state.completed
             && !state.detached
@@ -72,11 +71,11 @@ impl CompletionCell {
     pub(crate) fn detach(&self) {
         let mut state = self.lock();
         state.detached = true;
-        state.status = None;
+        state.value = None;
         state.waker = None;
     }
 
-    fn lock(&self) -> MutexGuard<'_, State> {
+    fn lock(&self) -> MutexGuard<'_, State<T>> {
         self.state
             .lock()
             .unwrap_or_else(|poison| poison.into_inner())
@@ -86,6 +85,7 @@ impl CompletionCell {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use framework_photos::PhotoLibraryAuthorizationStatus;
     use std::sync::Arc;
     use std::sync::atomic::{AtomicUsize, Ordering};
     use std::task::{Wake, Waker};
@@ -104,7 +104,7 @@ mod tests {
 
     #[test]
     fn one_callback_status_wakes_and_wins() {
-        let cell = CompletionCell::new();
+        let cell = CompletionCell::<PhotoLibraryAuthorizationStatus>::new();
         let wake_count = Arc::new(WakeCount(AtomicUsize::new(0)));
         let waker = Waker::from(Arc::clone(&wake_count));
         let mut context = Context::from_waker(&waker);
@@ -120,7 +120,7 @@ mod tests {
 
     #[test]
     fn detached_future_discards_late_status_without_waking() {
-        let cell = CompletionCell::new();
+        let cell = CompletionCell::<PhotoLibraryAuthorizationStatus>::new();
         let wake_count = Arc::new(WakeCount(AtomicUsize::new(0)));
         let waker = Waker::from(Arc::clone(&wake_count));
         let mut context = Context::from_waker(&waker);

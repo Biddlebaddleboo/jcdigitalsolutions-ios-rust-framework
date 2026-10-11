@@ -12,9 +12,16 @@ framework-photos = { path = "../../../crates/framework-photos" }
 
 [target.'cfg(target_os = "ios")'.dependencies]
 block2 = { workspace = true, features = ["alloc"] }
+objc2.workspace = true
+objc2-foundation = { workspace = true, features = ["NSError", "NSString", "NSURL"] }
 objc2-photos = { version = "=0.3.2", default-features = false, features = [
+    "PHAssetCreationRequest",
+    "PHAssetChangeRequest",
+    "PHChangeRequest",
     "PHPhotoLibrary",
     "block2",
+    "dispatch2",
+    "PhotosTypes",
 ] }
 
 [lints]

@@ -38,6 +38,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "1e0e367e4e7da84520dedcac1901e4da967309406d1e51017ae1abfb97adbd38"
 dependencies = [
  "bitflags",
+ "block2",
  "objc2",
 ]
 
@@ -973,6 +974,8 @@ version = "0.1.0"
 dependencies = [
  "block2",
  "framework-photos",
+ "objc2",
+ "objc2-foundation",
  "objc2-photos",
 ]
 
@@ -1802,7 +1805,9 @@ version = "0.3.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d6ea9a706f18e32cf8a0723e99855af4f135282891e07259301bae9135ae3872"
 dependencies = [
+ "bitflags",
  "block2",
+ "dispatch2",
  "objc2",
  "objc2-foundation",
 ]

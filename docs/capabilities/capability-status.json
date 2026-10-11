@@ -2124,25 +2124,27 @@
       "crate_module_status": "portable_contract_and_ios_backend_partial",
       "portability_class": "portable_with_platform_extensions",
       "portable_contract_status": "implemented",
-      "portable_contract_note": "framework-photos defines explicit read/write authorization status and request values; asset access and picker UI are excluded.",
+      "portable_contract_note": "framework-photos defines separate read/write and add-only authorization status/request contracts; iOS file import is an iOS-specific extension, and asset enumeration and picker UI are excluded.",
       "ios_implementation_class": "B",
       "implementation_status": "partial",
-      "status_reason": "B27 implements PhotoKit read/write authorization status and explicit request only; asset enumeration, image data, edits, and picker UI are excluded.",
+      "status_reason": "B27 implements PhotoKit read/write authorization status and explicit request. B460 adds a separate PhotoKit add-only status/request and asynchronous save of caller-owned JPEG or finalized movie files from strict absolute UTF-8 Rust paths. Saves never prompt, require add-only Authorized status, use public PHAssetCreationRequest file resources with shouldMoveFile false, and preserve caller files. Asset enumeration, image data fetch, edits, album selection, and picker UI remain excluded; compile/link evidence does not prove an on-device Photos save.",
       "minimum_ios_version": "14.0",
       "required_frameworks": [
         "Photos",
         "Foundation"
       ],
       "required_permissions": [
-        "Photo Library read/write authorization is explicit and opt-in"
+        "Photo Library read/write authorization is explicit and opt-in",
+        "Photo Library add-only authorization is explicit and opt-in for asset saves"
       ],
       "required_info_plist_keys": [
-        "NSPhotoLibraryUsageDescription"
+        "NSPhotoLibraryUsageDescription",
+        "NSPhotoLibraryAddUsageDescription"
       ],
       "entitlements": null,
       "device_only_restrictions": null,
       "swift_abi_requirement": false,
-      "metadata_verification": "PLAN_IOS_PHOTOS.md verifies access-level status/request and Limited status from iOS 14.0 and requires host NSPhotoLibraryUsageDescription for read/write access; no asset query or live prompt is claimed.",
+      "metadata_verification": "B460 adds add-only authorization and caller-file JPEG/movie save. The ios-photos profile registers host tests, device/Simulator iOS 14.0 compile and link/import checks, strict Clippy, rustdoc, source guards, and docs checks; no live Photos prompt, authorization outcome, or runtime asset save is claimed.",
       "parity_status": "not_tested_live_behavior_or_Apple_parity",
       "performance_status": "not_measured",
       "native_escape_handle_available": false,
