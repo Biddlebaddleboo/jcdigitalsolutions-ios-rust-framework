@@ -134,3 +134,12 @@ B482 adds `IosCameraCaptureSession::set_movie_orientation(IosCameraVideoOrientat
 - Host tests cover exact enum mapping, unsupported-before-set, unchanged prior orientation on failure, absent output/connection, active/finalizing state, and pending shutdown. Registered device/Simulator link selectors cover connection lookup, support query, and setter; all existing camera profile gates and the iOS 10.0 / iOS 14.0 floors remain required.
 - Host tests and static compile/link checks do not prove the encoded movie's displayed orientation, playback, Simulator execution, or physical-device behavior.
 - The final registered `ios-camera-capture-session` profile passed on snapshot `383e75a03106b5667f61ff35858e8b406c4b76a3680510fd5f3349ffb2852e55`: 222 PASS, 0 FAIL, 0 BLOCKED, 2 SKIPPED. The skips were Simulator execution (`validation builds and inspects link probes only; no simulator execution is claimed`) and physical-device proof (`no attached-device runtime test is part of this validation pilot`).
+
+## B486: runtime camera position switch
+
+B486 adds `IosCameraCaptureSession::set_camera_position(IosCameraPosition)` to replace the existing session's selected video input with the public default built-in wide-angle front or back device. It preserves `new()` behavior and session outputs/settings; no enumeration, permission prompt, or app audio-session change is added.
+
+- The synchronous request runs on the existing serial capture queue, returns without mutation for the already selected position, and rejects missing camera state, active/finalizing movie recording, and deferred shutdown. Device and input creation precede session mutation.
+- One `beginConfiguration` / `commitConfiguration` transaction removes the old input and adds the accepted replacement. If AVFoundation rejects the candidate, the old input is restored in the same transaction; failure to restore returns a distinct error and clears stale retained graph state.
+- Host regressions cover no-op and busy preflight, missing requested device, queue dispatch/reentrancy, replacement order, rejected-input rollback, rollback failure, and graph-state commit. Registered link probes retain the public position selector and queue identity symbol for iOS device and Simulator targets.
+- Host tests and device/Simulator compile/link checks do not prove camera switching, preview continuity, Simulator execution, or physical-device behavior. The capability remains partial until runtime and other camera/media gaps close.

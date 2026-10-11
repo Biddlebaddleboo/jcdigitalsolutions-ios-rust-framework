@@ -2079,6 +2079,150 @@
           "must_exist": true,
           "path": "platform/ios/ios-camera-capture-session/check-link-imports.sh",
           "text": "setVideoOrientation:"
+        },
+        {
+          "message": "existing-session camera switching must expose the typed position setter",
+          "must_exist": true,
+          "path": "platform/ios/ios-camera-capture-session/src/lib.rs",
+          "text": "pub fn set_camera_position("
+        },
+        {
+          "message": "camera switching must fail closed below iOS 10.0",
+          "must_exist": true,
+          "path": "platform/ios/ios-camera-capture-session/src/lib.rs",
+          "text": "objc2::available!(ios = 10.0, ..)"
+        },
+        {
+          "message": "camera switching must use the public default type/media/position selector",
+          "must_exist": true,
+          "path": "platform/ios/ios-camera-capture-session/src/lib.rs",
+          "text": "AVCaptureDevice::defaultDeviceWithDeviceType_mediaType_position("
+        },
+        {
+          "message": "camera switching must resolve front/back positions without device enumeration",
+          "must_exist": true,
+          "path": "platform/ios/ios-camera-capture-session/src/lib.rs",
+          "text": "let native_position = match requested {"
+        },
+        {
+          "message": "the capture graph must retain the exact current video input",
+          "must_exist": true,
+          "path": "platform/ios/ios-camera-capture-session/src/lib.rs",
+          "text": "video_input: Option<Retained<AVCaptureDeviceInput>>"
+        },
+        {
+          "message": "the default constructor's actual camera position must support same-position no-op",
+          "must_exist": true,
+          "path": "platform/ios/ios-camera-capture-session/src/lib.rs",
+          "text": "camera_position_for_device(&device).or(camera_position)"
+        },
+        {
+          "message": "same-position requests must return before device lookup or session mutation",
+          "must_exist": true,
+          "path": "platform/ios/ios-camera-capture-session/src/lib.rs",
+          "text": "if !should_switch {"
+        },
+        {
+          "message": "camera switching must reject movie activity and finalization before device lookup",
+          "must_exist": true,
+          "path": "platform/ios/ios-camera-capture-session/src/lib.rs",
+          "text": "CameraPositionSwitchError::MovieRecordingActive"
+        },
+        {
+          "message": "camera switching must reject deferred session shutdown before device lookup",
+          "must_exist": true,
+          "path": "platform/ios/ios-camera-capture-session/src/lib.rs",
+          "text": "CameraPositionSwitchError::SessionStopping"
+        },
+        {
+          "message": "camera switching must detect this exact serial queue for callback reentrancy",
+          "must_exist": true,
+          "path": "platform/ios/ios-camera-capture-session/src/lib.rs",
+          "text": "dispatch2::dispatch_get_specific(capture_queue_specific_key(key).cast::<c_void>())"
+        },
+        {
+          "message": "capture queue identity must be session-specific and retained for the queue lifetime",
+          "must_exist": true,
+          "path": "platform/ios/ios-camera-capture-session/src/lib.rs",
+          "text": "queue.set_specific(capture_queue_specific_key(&queue_key), move ||"
+        },
+        {
+          "message": "camera switching must execute inline when invoked from its capture queue",
+          "must_exist": true,
+          "path": "platform/ios/ios-camera-capture-session/src/lib.rs",
+          "text": "run_on_capture_queue("
+        },
+        {
+          "message": "camera switching must use one session configuration transaction with rollback",
+          "must_exist": true,
+          "path": "platform/ios/ios-camera-capture-session/src/lib.rs",
+          "text": "replace_camera_session_input("
+        },
+        {
+          "message": "camera replacement must report rollback failure distinctly",
+          "must_exist": true,
+          "path": "platform/ios/ios-camera-capture-session/src/lib.rs",
+          "text": "InputRollbackFailed"
+        },
+        {
+          "message": "movie shutdown must remain pending through completion reentrancy",
+          "must_exist": true,
+          "path": "platform/ios/ios-camera-capture-session/src/lib.rs",
+          "text": "fn finish_session_stop(&mut self)"
+        },
+        {
+          "message": "camera switch no-op and busy-state regressions must remain registered",
+          "must_exist": true,
+          "path": "platform/ios/ios-camera-capture-session/src/lib.rs",
+          "text": "fn camera_switch_preflight_skips_same_position_and_rejects_busy_or_missing_graph()"
+        },
+        {
+          "message": "camera switch callback reentrancy regression must remain registered",
+          "must_exist": true,
+          "path": "platform/ios/ios-camera-capture-session/src/lib.rs",
+          "text": "fn camera_switch_queue_reentrancy_runs_inline_and_dispatches_other_calls_once()"
+        },
+        {
+          "message": "camera switch replacement and rollback regressions must remain registered",
+          "must_exist": true,
+          "path": "platform/ios/ios-camera-capture-session/src/lib.rs",
+          "text": "fn camera_switch_reports_failed_rollback_and_clears_stale_selected_state()"
+        },
+        {
+          "message": "camera switch must prove one accepted candidate add and transaction commit",
+          "must_exist": true,
+          "path": "platform/ios/ios-camera-capture-session/src/lib.rs",
+          "text": "fn camera_switch_adds_the_new_input_only_after_native_acceptance()"
+        },
+        {
+          "message": "camera switch must prove candidate rejection restores the original input",
+          "must_exist": true,
+          "path": "platform/ios/ios-camera-capture-session/src/lib.rs",
+          "text": "fn camera_switch_replaces_inside_one_transaction_and_restores_rejected_input()"
+        },
+        {
+          "message": "camera switch link probe must invoke both public front/back requests",
+          "must_exist": true,
+          "path": "platform/ios/ios-camera-capture-session/examples/camera_capture_link_probe.rs",
+          "text": "session.set_camera_position("
+        },
+        {
+          "message": "camera switch device and Simulator links must retain the public position selector",
+          "must_exist": true,
+          "path": "platform/ios/ios-camera-capture-session/check-link-imports.sh",
+          "text": "        position \\"
+        },
+        {
+          "message": "camera switch device and Simulator links must retain dispatch queue identity lookup",
+          "must_exist": true,
+          "path": "platform/ios/ios-camera-capture-session/check-link-imports.sh",
+          "text": "_dispatch_get_specific"
+        },
+        {
+          "message": "camera switch links must retain atomic session configuration selectors",
+          "must_exist": true,
+          "path": "platform/ios/ios-camera-capture-session/check-link-imports.sh",
+          "text": "        beginConfiguration \\"
         }
       ],
       "id": "ios-camera-capture-session",

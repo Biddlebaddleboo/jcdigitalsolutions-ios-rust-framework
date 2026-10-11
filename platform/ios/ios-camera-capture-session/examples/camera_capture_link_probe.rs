@@ -69,6 +69,12 @@ fn main() {
             ios_camera_capture_session::IosCameraPosition::Front,
         ),
     );
+    let _ = std::hint::black_box(
+        session.set_camera_position(ios_camera_capture_session::IosCameraPosition::Front),
+    );
+    let _ = std::hint::black_box(
+        session.set_camera_position(ios_camera_capture_session::IosCameraPosition::Back),
+    );
 }
 
 #[cfg(not(target_os = "ios"))]

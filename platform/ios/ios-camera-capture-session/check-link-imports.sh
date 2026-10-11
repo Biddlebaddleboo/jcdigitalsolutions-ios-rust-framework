@@ -54,6 +54,10 @@ for target in aarch64-apple-ios aarch64-apple-ios-sim; do
         printf '%s probe does not import objc_msgSend\n' "$target" >&2
         exit 1
     }
+    printf '%s\n' "$symbols" | grep -F '_dispatch_get_specific' >/dev/null || {
+        printf '%s probe does not import public dispatch_get_specific queue identity\n' "$target" >&2
+        exit 1
+    }
     printf '%s\n' "$symbols" | grep -F 'AVCaptureDeviceTypeBuiltInWideAngleCamera' >/dev/null || {
         printf '%s probe does not import the built-in wide-angle device type\n' "$target" >&2
         exit 1
@@ -70,6 +74,7 @@ for target in aarch64-apple-ios aarch64-apple-ios-sim; do
         AVCaptureMovieFileOutput \
         AVCaptureVideoDataOutput \
         AVCaptureVideoPreviewLayer \
+        position \
         CMSampleBuffer \
         authorizationStatusForMediaType: \
         defaultDeviceWithMediaType: \
@@ -102,6 +107,8 @@ for target in aarch64-apple-ios aarch64-apple-ios-sim; do
         canAddInput: \
         addInput: \
         removeInput: \
+        beginConfiguration \
+        commitConfiguration \
         layerWithSession: \
         startRunning \
         stopRunning \
