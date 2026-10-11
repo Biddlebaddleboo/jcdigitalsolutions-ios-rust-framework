@@ -21,6 +21,17 @@ if ! grep -Fq 'backend.request_authorization_with_options(' "$probe_source"; the
     echo "iOS notifications link probe must retain the explicit authorization-options API call" >&2
     exit 1
 fi
+authorization_source=platform/ios/ios-notifications/src/platform.rs
+for option in Alert Badge Sound; do
+    if ! grep -Fq "native_options |= UNAuthorizationOptions::$option;" "$authorization_source"; then
+        echo "iOS notification authorization must map the $option option" >&2
+        exit 1
+    fi
+done
+if ! grep -Fq 'requestAuthorizationWithOptions_completionHandler(native_options, &handler);' "$authorization_source"; then
+    echo "iOS notification authorization must pass selected options to UserNotifications" >&2
+    exit 1
+fi
 if ! grep -Fq 'backend.authorization_status_raw_value()' "$probe_source"; then
     echo "iOS notifications link probe must retain the raw authorization-status API call" >&2
     exit 1

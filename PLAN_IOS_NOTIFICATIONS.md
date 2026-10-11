@@ -59,6 +59,10 @@ A direct `cargo +1.94.1 rustc --locked -p ios-notifications --target aarch64-app
 
 No tests, live permission prompts, or notification delivery checks were run in this audit. The package gate provides link/import evidence only; its probe binaries were not executed and no runtime behavior is claimed
 
+### B508 — explicit local-notification authorization options
+
+B508 adds allocation-free `IosNotificationAuthorizationOptions` for alert, badge, and sound, plus an iOS-only `request_authorization_with_options` path. The portable `request_authorization` remains alert-only. The registered profile exercises all eight option combinations and checks the native flag mapping before device/Simulator linking. Live prompt behavior and notification delivery remain unverified
+
 ## Objective
 
 Implement the D3 local-notification contract with public iOS UserNotifications APIs reached from Rust, without a Swift application/source layer.

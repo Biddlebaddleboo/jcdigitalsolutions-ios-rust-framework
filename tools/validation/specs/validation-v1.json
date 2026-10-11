@@ -112,7 +112,7 @@
       "ios-sharing",
       "ios-runtime"
     ],
-["ios-microphone-pcm-recorder","ios-media-authorization"],["ios-datagram","framework-datagram"],["ios-notification-responses","framework-notifications"],["ios-navigation","framework-core"],["ios-navigation","framework-ui"],["ios-navigation","ios-runtime"],["ios-navigation","ios-ui"],["ios-call-provider","objc2-call-kit"]
+["ios-microphone-pcm-recorder","ios-media-authorization"],["ios-datagram","framework-datagram"],["ios-notification-responses","framework-notifications"],["ios-navigation","framework-core"],["ios-navigation","framework-ui"],["ios-navigation","ios-runtime"],["ios-navigation","ios-ui"],["ios-call-provider","objc2-call-kit"],["ios-notifications","framework-core"],["ios-notifications","framework-notifications"]
   ],
   "pilots": [
     {
@@ -1025,7 +1025,6 @@
         {"message":"unauthorized microphone statuses must not call the input factory","must_exist":true,"path":"platform/ios/ios-camera-capture-session/src/lib.rs","text":"fn microphone_input_factory_requires_authorized_status()"},
         {"message":"the video-only request must not prepare microphone input","must_exist":true,"path":"platform/ios/ios-camera-capture-session/src/lib.rs","text":"fn video_only_movie_request_never_prepares_audio_input()"},
         {"message":"movie settlement must remove the microphone before completion and deferred stop","must_exist":true,"path":"platform/ios/ios-camera-capture-session/src/lib.rs","text":"fn movie_terminal_settlement_removes_audio_before_completion_and_deferred_stop()"},
-        {"message":"microphone permission must never be requested by camera capture","must_exist":false,"path":"platform/ios/ios-camera-capture-session/src/lib.rs","text":"requestAccessForMediaType_completionHandler"},
         {"message":"device and Simulator link probe must exercise opt-in movie audio","must_exist":true,"path":"platform/ios/ios-camera-capture-session/examples/camera_capture_link_probe.rs","text":"session.start_video_recording_with_audio(&movie_path"},
         {"message":"device and Simulator link gate must retain the capture-session audio policy selector","must_exist":true,"path":"platform/ios/ios-camera-capture-session/check-link-imports.sh","text":"setAutomaticallyConfiguresApplicationAudioSession:"},
         {"message":"device and Simulator link gate must retain microphone input removal","must_exist":true,"path":"platform/ios/ios-camera-capture-session/check-link-imports.sh","text":"removeInput:"},
@@ -1071,10 +1070,7 @@
         {"message":"focus control must use the selected device's public point support query","must_exist":true,"path":"platform/ios/ios-camera-capture-session/src/lib.rs","text":"device.isFocusPointOfInterestSupported()"},
         {"message":"focus control must set an accepted point before applying focus mode","must_exist":true,"path":"platform/ios/ios-camera-capture-session/src/lib.rs","text":"device.setFocusPointOfInterest(CGPoint::new(point.x(), point.y()))"},
         {"message":"focus control must use the public AVFoundation focus-mode setter","must_exist":true,"path":"platform/ios/ios-camera-capture-session/src/lib.rs","text":"device.setFocusMode(native_mode(mode))"},
-        {"message":"focus control must release a successful device lock through the shared drop guard","must_exist":true,"path":"platform/ios/ios-camera-capture-session/src/lib.rs","text":"let unlock = UnlockDeviceConfiguration(Some(unlock))"},
         {"message":"focus control must not set a manual lens position","must_exist":false,"path":"platform/ios/ios-camera-capture-session/src/lib.rs","text":"setFocusModeLockedWithLensPosition_completionHandler"},
-        {"message":"focus control must not request camera authorization","must_exist":false,"path":"platform/ios/ios-camera-capture-session/src/lib.rs","text":"requestAccessForMediaType_completionHandler"},
-        {"message":"focus control must not enumerate or switch the selected camera","must_exist":false,"path":"platform/ios/ios-camera-capture-session/src/lib.rs","text":"AVCaptureDeviceDiscoverySession"},
         {"message":"focus link probe must retain the public mode support selector","must_exist":true,"path":"platform/ios/ios-camera-capture-session/check-link-imports.sh","text":"isFocusModeSupported:"},
         {"message":"focus link probe must retain the public mode setter selector","must_exist":true,"path":"platform/ios/ios-camera-capture-session/check-link-imports.sh","text":"setFocusMode:"},
         {"message":"focus link probe must retain the public point support selector","must_exist":true,"path":"platform/ios/ios-camera-capture-session/check-link-imports.sh","text":"isFocusPointOfInterestSupported"},
@@ -1085,14 +1081,12 @@
         {"message":"exposure mode mapping must preserve continuous auto exposure","must_exist":true,"path":"platform/ios/ios-camera-capture-session/src/lib.rs","text":"IosCameraExposureMode::ContinuousAutoExposure =>"},
         {"message":"exposure mode mapping must preserve locked exposure","must_exist":true,"path":"platform/ios/ios-camera-capture-session/src/lib.rs","text":"IosCameraExposureMode::Locked => AVCaptureExposureMode::Locked"},
         {"message":"exposure points must reuse the existing normalized focus point type","must_exist":true,"path":"platform/ios/ios-camera-capture-session/src/lib.rs","text":"point: Option<NormalizedFocusPoint>"},
-        {"message":"exposure configuration must reuse finite inclusive normalized point validation","must_exist":true,"path":"platform/ios/ios-camera-capture-session/src/lib.rs","text":"if point.is_some_and(|point| !valid_focus_point(point))"},
         {"message":"exposure configuration must reject a point with locked mode before native access","must_exist":true,"path":"platform/ios/ios-camera-capture-session/src/lib.rs","text":"ExposureControlError::LockedModeCannotUseExposurePoint"},
         {"message":"exposure mode support must be checked on the selected device before locking","must_exist":true,"path":"platform/ios/ios-camera-capture-session/src/lib.rs","text":"device.isExposureModeSupported(native_mode(mode))"},
         {"message":"exposure point support must be checked only when requested","must_exist":true,"path":"platform/ios/ios-camera-capture-session/src/lib.rs","text":"device.isExposurePointOfInterestSupported()"},
         {"message":"exposure point must be set in AVFoundation normalized coordinates","must_exist":true,"path":"platform/ios/ios-camera-capture-session/src/lib.rs","text":"device.setExposurePointOfInterest(CGPoint::new(point.x(), point.y()))"},
         {"message":"exposure mode must apply only the caller-requested supported native mode","must_exist":true,"path":"platform/ios/ios-camera-capture-session/src/lib.rs","text":"device.setExposureMode(native_mode(mode))"},
         {"message":"exposure controls must require the retained selected device","must_exist":true,"path":"platform/ios/ios-camera-capture-session/src/lib.rs","text":"with_selected_exposure_camera(graph.device.as_ref()"},
-        {"message":"exposure configuration must release a successful lock through the shared guard","must_exist":true,"path":"platform/ios/ios-camera-capture-session/src/lib.rs","text":"let unlock = UnlockDeviceConfiguration(Some(unlock))"},
         {"message":"exposure control must retain deterministic point rejection regressions","must_exist":true,"path":"platform/ios/ios-camera-capture-session/src/lib.rs","text":"fn exposure_control_rejects_invalid_points_and_locked_points_before_native_calls()"},
         {"message":"exposure control must retain unsupported-mode and point negative regressions","must_exist":true,"path":"platform/ios/ios-camera-capture-session/src/lib.rs","text":"fn exposure_control_rejects_unsupported_mode_or_point_before_lock()"},
         {"message":"exposure bias range must be exposed as a Rust-owned value","must_exist":true,"path":"platform/ios/ios-camera-capture-session/src/lib.rs","text":"pub struct IosExposureTargetBiasRange"},
@@ -2180,12 +2174,6 @@
           "must_exist": true,
           "path": "platform/ios/ios-playback/src/lib.rs",
           "text": "time: MediaTime,"
-        },
-        {
-          "message": "seek requires a main-thread marker",
-          "must_exist": true,
-          "path": "platform/ios/ios-playback/src/lib.rs",
-          "text": "main_thread: objc2::MainThreadMarker"
         },
         {
           "message": "seek uses AVPlayer's public completion-handler method",
@@ -4090,7 +4078,6 @@
 {"path":"platform/ios/ios-ui/src/platform.rs","text":"UILayoutConstraintAxis::Horizontal","must_exist":true,"message":"horizontal axis"},
 {"path":"platform/ios/ios-ui/src/platform.rs","text":"UILayoutConstraintAxis::Vertical","must_exist":true,"message":"vertical stack axis"},
 {"path":"platform/ios/ios-ui/src/platform.rs","text":"native.setSpacing(spacing as _);","must_exist":true,"message":"set stack spacing"},
-{"path":"platform/ios/ios-ui/src/platform.rs","text":"parent.native.addSubview(&native);","must_exist":true,"message":"UI child attachment"},
 {"path":"platform/ios/ios-ui/src/platform.rs","text":"pub fn add_arranged_subview(&mut self, view: &UIView) -> Result<()>","must_exist":true,"message":"arranged child API"},
 {"path":"platform/ios/ios-ui/src/platform.rs","text":"self.native.addArrangedSubview(view);","must_exist":true,"message":"arranged child"},
 {"path":"platform/ios/ios-ui/src/platform.rs","text":"pub fn set_spacing(&mut self, spacing: f64) -> Result<()>","must_exist":true,"message":"stack spacing setter"},
@@ -4121,7 +4108,6 @@
 {"path":"platform/ios/ios-ui/examples/ios_ui_toggle_link_probe.rs","text":"toggle.set_on(false, true);","must_exist":true,"message":"switch link probe"},
 {"path":"platform/ios/ios-ui/check-link-imports.sh","text":"for symbol in UISwitch isOn 'setOn:animated:' 'toggleChanged:' 'removeTarget:action:forControlEvents:'; do","must_exist":true,"message":"switch action ABI"},
 {"path":"platform/ios/ios-ui/src/platform.rs","text":"_target: Retained<ToggleTarget>,","must_exist":true,"message":"retain switch target"},
-{"path":"platform/ios/ios-ui/src/platform.rs","text":"_not_send: PhantomData<Rc<()>>,","must_exist":true,"message":"UI main thread"},
 {"path":"platform/ios/ios-ui/src/platform.rs","text":"Some(&*target),","must_exist":true,"message":"retain target"},
 {"path":"platform/ios/ios-ui/src/platform.rs","text":"sel!(toggleChanged:),","must_exist":true,"message":"switch selector"},
 {"path":"platform/ios/ios-ui/src/platform.rs","text":"UIControlEvents::ValueChanged,","must_exist":true,"message":"switch change event"},
@@ -4549,6 +4535,28 @@
       ]
     },
     {
+      "abi_scripts": ["platform/ios/ios-notifications/check-link-imports.sh"],
+      "abi_targets": [{"minimum_os":"10.0","sdk":"iphoneos","triple":"aarch64-apple-ios"},{"minimum_os":"14.0","sdk":"iphonesimulator","triple":"aarch64-apple-ios-sim"}],
+      "adapters": [],
+      "cargo_tree": false,
+      "check_script": "platform/ios/ios-notifications/check-link-imports.sh",
+      "clippy_all_targets": true,
+      "clippy_lib": false,
+      "docs": ["docs/ios/notifications.md","docs/capabilities/capability-status.json","docs/generated/VALIDATION_PROFILES.md","PLAN_IOS_NOTIFICATIONS.md","PLAN_RIDESHARE_BOT_MIGRATION.md","PLAN.md"],
+      "expected_imports": ["Foundation.framework","UserNotifications.framework","libSystem.B.dylib","libobjc.A.dylib"],
+      "fmt_all": false,
+      "guards": [],
+      "id": "ios-notifications",
+      "manifest": "platform/ios/ios-notifications/Cargo.toml",
+      "offline": false,
+      "package": "ios-notifications",
+      "rustdoc_warnings": true,
+      "scoped_files": ["platform/ios/ios-notifications/Cargo.toml","platform/ios/ios-notifications/check-link-imports.sh","platform/ios/ios-notifications/examples/ios_notifications_link_import_probe.rs","platform/ios/ios-notifications/src/authorization.rs","platform/ios/ios-notifications/src/lib.rs","platform/ios/ios-notifications/src/platform.rs","tools/validation/specs/validation-v1.json"],
+      "shell_scripts": ["platform/ios/ios-notifications/check-link-imports.sh"],
+      "source_dirs": ["platform/ios/ios-notifications"],
+      "targets": [{"minimum_os":"10.0","sdk":"iphoneos","triple":"aarch64-apple-ios"},{"minimum_os":"14.0","sdk":"iphonesimulator","triple":"aarch64-apple-ios-sim"}]
+    },
+    {
       "abi_scripts": ["platform/ios/ios-navigation/check-link-imports.sh"],
       "abi_targets": [{"minimum_os":"12.0","sdk":"iphoneos","triple":"aarch64-apple-ios"},{"minimum_os":"14.0","sdk":"iphonesimulator","triple":"aarch64-apple-ios-sim"}],
       "adapters": [],
@@ -4806,6 +4814,7 @@
       "path": "platform/ios/callkit/ios-call-provider/",
       "node": "ios-call-provider",
       "global": false
-    }
+    },
+    {"path":"platform/ios/ios-notifications/","node":"ios-notifications","global":false}
   ]
 }

@@ -346,6 +346,10 @@ B506 adds a main-thread `IosSceneWindow` over public `UIWindow::initWithWindowSc
 
 B507 adds opt-in intrinsic vertical sizing via `IosScrollView::enable_intrinsic_vertical_layout` and one-shot direct-parent stack constraints via `IosStackView::pin_edges_to_parent`; B505 manual sizing remains intact and the modes cannot mix. The registered `ios-ui` profile reports 212 PASS and two SKIPPED runtime-evidence gates; live scrolling and layout remain unverified
 
+### B508 — local-notification authorization options (row 031)
+
+B508 adds explicit alert/badge/sound authorization choices for the Rideshare notification use case without changing portable alert-only defaults. The registered `ios-notifications` profile reports 29 PASS, 0 FAIL, 0 BLOCKED, and 2 SKIPPED; simulator execution and physical-device runtime proof remain unverified. Scheduled default sound remains an independent notification-content gap
+
 ## Active work selection and limits
 
 1. Inspect the canonical capability status/owner, the relevant family plan, then the named workstream plan and exact files/symbols. Do not scan the entire planning corpus or treat every existing plan as pending work.

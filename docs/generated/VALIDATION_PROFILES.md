@@ -26,6 +26,7 @@ The following are configured validation profiles, not claims that every gate pas
 | ios-sharing | ios-sharing | 2 | 1 | 0 | False |
 | ios-notification-responses | ios-notification-responses | 2 | 1 | 1 | False |
 | ios-call-provider | ios-call-provider | 2 | 1 | 1 | True |
+| ios-notifications | ios-notifications | 2 | 1 | 0 | False |
 | ios-navigation | ios-navigation | 2 | 1 | 0 | False |
 
 
