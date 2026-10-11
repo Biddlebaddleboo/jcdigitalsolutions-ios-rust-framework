@@ -15,6 +15,18 @@ tests or live response checks were run in this follow-up.
 The recorded target-check host is Xcode 26.6 with iPhoneOS/iPhoneSimulator SDK 26.5, below the
 required Xcode 27.x baseline.
 
+## B535 follow-up: string user-info payload
+
+B535 implementation is integrated on `main` in commit `fd2acec`; see [the iOS guide](docs/ios/notification-responses.md).
+
+B535 adds owned `(String, String)` entries to `NotificationResponse`, with exact-key lookup and a
+complete parts-transfer method. The iOS delegate maps only `NSString` keys and values that decode
+as valid UTF-16; it omits unsupported entries independently and sorts native entries by exact key.
+This does not preserve arbitrary property-list values. Host regressions and the registered
+`ios-notification-responses` profile passed; device and Simulator link checks establish selected
+symbols and deployment floors only. Simulator execution and physical-device response behavior
+remain unverified.
+
 ## B499 follow-up: foreground presentation
 
 B499 adds opt-in banner, sound, and badge presentation through the same retained

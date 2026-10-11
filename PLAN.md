@@ -382,6 +382,10 @@ The registered `ios-sharing` profile covers default-feature checks plus opt-in d
 
 B533 adds `IosDocumentExportFile::from_bytes` and `IosDocumentExportSession::start_staged` to the existing opt-in document-export feature. Staging preserves arbitrary bytes and embedded NUL in a uniquely created app temporary directory, rejects unsafe leaf names, and can run before main-thread picker use. An accepted picker delegate owns the source through terminal success/cancel and attempts cleanup; ordinary staged-file drop also cleans up. Session cancel/drop before a terminal event preserves the file for OS temporary-file cleanup because UIKit may still read it. The `.txt`/`.xml` extension is the only type hint; this is a UIKit export capability, not a SwiftUI `FileDocument` or `.fileExporter` replacement. The registered validator release `ios-rust-tools-0.1.0+350971094cc3b77191cd6b3d07e01af04d71943d` reports 63 PASS, 0 FAIL, 0 BLOCKED, and 2 SKIPPED for `--capability ios-sharing`; only Simulator execution and physical-device proof are skipped. No provider durability, live picker, or save behavior is claimed.
 
+### B535 — local notification response user-info strings (row 032)
+
+B535 adds owned string-to-string user-info entries to `NotificationResponse`, exact-key lookup, and a complete parts-transfer method. The iOS bridge keeps only `NSString` key/value pairs with valid UTF-16, omits unsupported entries individually, and sorts native keys; arbitrary property-list values are not preserved. Host regressions and the integrated `ios-notification-responses` profile pass (34 PASS, 0 FAIL, 0 BLOCKED, 2 SKIPPED); Simulator execution and physical-device response behavior remain unverified.
+
 ## Active work selection and limits
 
 1. Inspect the canonical capability status/owner, the relevant family plan, then the named workstream plan and exact files/symbols. Do not scan the entire planning corpus or treat every existing plan as pending work.

@@ -1773,13 +1773,16 @@
       "docs": ["docs/ios/notification-responses.md","docs/capabilities/capability-status.json","PLAN_IOS_NOTIFICATION_RESPONSES.md"],
       "expected_imports": ["Foundation.framework","UserNotifications.framework","objc_msgSend"],
       "fmt_all": false,
-      "guards": [],
+      "guards": [
+        {"message":"unsupported native payload fields are omitted and native keys sorted","must_exist":true,"path":"platform/ios/ios-notification-responses/src/response_user_info.rs","text":"fn native_entry_adapter_omits_non_string_or_malformed_fields_and_sorts_keys()"},
+        {"message":"selected native user-info selectors are verified","must_exist":true,"path":"platform/ios/ios-notification-responses/check-link-imports.sh","text":"for selector in userInfo allKeys objectAtIndex: objectForKey:; do"}
+      ],
       "id": "ios-notification-responses",
       "manifest": "platform/ios/ios-notification-responses/Cargo.toml",
       "offline": false,
       "package": "ios-notification-responses",
       "rustdoc_warnings": true,
-      "scoped_files": ["platform/ios/ios-notification-responses/Cargo.toml","platform/ios/ios-notification-responses/check-link-imports.sh","platform/ios/ios-notification-responses/examples/foreground_presentation_link_probe.rs","platform/ios/ios-notification-responses/src/lib.rs","platform/ios/ios-notification-responses/src/platform.rs","platform/ios/ios-notification-responses/src/presentation.rs","tools/validation/adapters/check_ios_foreground_notification_presentation.py","tools/validation/specs/validation-v1.json"],
+      "scoped_files": ["crates/framework-notifications/src/response.rs","platform/ios/ios-notification-responses/Cargo.toml","platform/ios/ios-notification-responses/check-link-imports.sh","platform/ios/ios-notification-responses/examples/foreground_presentation_link_probe.rs","platform/ios/ios-notification-responses/src/lib.rs","platform/ios/ios-notification-responses/src/platform.rs","platform/ios/ios-notification-responses/src/presentation.rs","platform/ios/ios-notification-responses/src/response_user_info.rs","PLAN.md","tools/validation/adapters/check_ios_foreground_notification_presentation.py","tools/validation/specs/validation-v1.json"],
       "shell_scripts": ["platform/ios/ios-notification-responses/check-link-imports.sh"],
       "source_dirs": ["crates/framework-notifications","platform/ios/ios-notification-responses"],
       "targets": [{"minimum_os":"10.0","sdk":"iphoneos","triple":"aarch64-apple-ios"},{"minimum_os":"14.0","sdk":"iphonesimulator","triple":"aarch64-apple-ios-sim"}]

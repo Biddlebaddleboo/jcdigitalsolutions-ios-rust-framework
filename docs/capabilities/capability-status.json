@@ -1016,7 +1016,7 @@
       "portable_contract_note": "framework-notifications defines owned response values; it does not deliver native callbacks or set their queue/lifecycle.",
       "ios_implementation_class": "B",
       "implementation_status": "partial",
-      "status_reason": "B12 adds an opt-in local-notification response bridge; the app must retain its handle and serialize delegate access. B499 adds opt-in foreground banner, sound, and badge selection through the same delegate; existing install keeps empty presentation defaults. No live delivery or presentation is claimed.",
+      "status_reason": "B12 adds an opt-in local-notification response bridge; the app must retain its handle and serialize delegate access. B499 adds opt-in foreground banner, sound, and badge selection through the same delegate; existing install keeps empty presentation defaults. B535 adds owned string-to-string user-info response entries and exact-key lookup; only NSString pairs with valid UTF-16 are retained, and arbitrary property-list values are not preserved. No live delivery or presentation is claimed.",
       "minimum_ios_version": "10.0",
       "required_frameworks": [
         "UserNotifications",
@@ -1027,7 +1027,7 @@
       "entitlements": null,
       "device_only_restrictions": null,
       "swift_abi_requirement": false,
-      "metadata_verification": "PLAN_IOS_NOTIFICATION_RESPONSES.md verifies UNUserNotificationCenterDelegate response APIs from iOS 10.0. B499 selects Banner on iOS 14+ and legacy Alert on iOS 10–13. Host tests, negative source mutations, and device/Simulator compile-link-import checks are static evidence only; they do not establish live notification presentation, authorization, callback-queue behavior, or delivery.",
+      "metadata_verification": "PLAN_IOS_NOTIFICATION_RESPONSES.md verifies UNUserNotificationCenterDelegate response APIs from iOS 10.0. B499 selects Banner on iOS 14+ and legacy Alert on iOS 10–13. B535 host regressions verify owned exact strings, duplicate handling, invalid UTF-16 rejection, and per-entry omission; device/Simulator compile-link checks verify userInfo/allKeys/objectAtIndex:/objectForKey: selectors at iOS 10.0/14.0. Static checks do not establish live presentation, authorization, callback-queue behavior, delivery, or physical-device response payloads.",
       "parity_status": "not_tested_live_behavior_or_Apple_parity",
       "performance_status": "not_measured",
       "native_escape_handle_available": false,

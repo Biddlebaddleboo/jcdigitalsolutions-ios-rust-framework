@@ -49,9 +49,20 @@ The bridge maps Apple's default and dismiss IDs first; all other action IDs map 
 
 The bridge copies UTF-16 code units into owned Rust UTF-8 without normalization; an unpaired surrogate cannot form a Rust `String`, so that response is dropped; D9 rejects empty notification IDs or action IDs and IDs with NUL, so a response with one of those values is dropped; empty text is kept, as D9 permits it
 
+## String user-info entries
+
+The owned response also exposes `user_info_entries()`, exact-key `user_info_value(key)`, and
+`into_parts_with_user_info()`. These cover string key/value payloads created with
+`NotificationContent::with_user_info_entry`; the value is not a general property-list copy.
+Native conversion keeps an entry only when its key and value are both `NSString` values that decode
+from UTF-16 to valid Rust strings. Non-string keys or values and malformed UTF-16 fields are
+omitted individually without dropping an otherwise valid response. Empty strings are retained;
+native entries are sorted by exact key for deterministic iteration. The portable builder replaces
+duplicate keys in place, retaining the first insertion position.
+
 `UNPushNotificationTrigger` responses are ignored, so this crate does not route remote-push responses into D9 local values. It does not register APNs, call a permission API, schedule notifications, or define categories/actions. A custom or text-input action needs app-owned category setup outside this crate
 
-The crate uses `objc2-user-notifications` 0.3.2 with default features off and only `block2`, `UNNotification`, `UNNotificationRequest`, `UNNotificationResponse`, `UNNotificationTrigger`, and `UNUserNotificationCenter`. `UNNotificationTrigger` permits the `UNPushNotificationTrigger` check
+The crate uses `objc2-user-notifications` 0.3.2 with default features off and only `block2`, `UNNotification`, `UNNotificationContent`, `UNNotificationRequest`, `UNNotificationResponse`, `UNNotificationTrigger`, and `UNUserNotificationCenter`. `UNNotificationTrigger` permits the `UNPushNotificationTrigger` check
 
 ## Completion, queue, and limits
 
