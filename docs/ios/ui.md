@@ -33,6 +33,21 @@ system; its logical units are UIKit points
 integration escape hatches. Any direct native mutation remains subject to UIKit's main-thread and
 ownership rules
 
+## Image display
+
+`IosUiBackend::add_image_view` adds a native `UIImageView` child for a `framework_ui::Frame` and an
+optional `&UIImage` from the app. `IosImageView::set_image` sets the image; `clear_image` sets `nil`.
+The image reference lasts only for the call; UIKit owns each non-null value of `UIImageView.image`, and
+the Rust handle holds no second image retain. The handle owns its `UIImageView`, is `!Send`/`!Sync`,
+and exposes `native_image_view()` for UIKit use. Create, set, and clear calls need the current UIKit
+main thread. This slice has no image decode, image file I/O, or runtime visual proof
+
+```rust
+let mut image_view = backend.add_image_view(&mut parent, frame, Some(&image))?;
+image_view.set_image(Some(&replacement))?;
+image_view.clear_image()?;
+```
+
 ## CoreGraphics frame intersection
 
 `ios_ui::geometry::intersection(first, second)` calls the public CoreGraphics C functions
@@ -48,6 +63,10 @@ source or Swift runtime dependency. The functions have an SDK availability floor
 this repository does not set the package's effective minimum iOS version. The link probe builds at
 iOS 12.0 device and iOS 14.0 Simulator deployment targets; those are probe settings, not a product
 minimum
+
+The B489 image-view link fixture checks the public UIKit framework, `UIImageView` class,
+`setImage:` selector, and iOS 12.0 device / iOS 14.0 Simulator deployment targets. A link pass is
+not runtime image display or visual proof
 
 ## Scope and evidence
 

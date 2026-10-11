@@ -11,7 +11,9 @@ use objc2::runtime::NSObject;
 use objc2::{DefinedClass, MainThreadMarker, MainThreadOnly, Message, define_class, msg_send, sel};
 use objc2_core_foundation::{CGPoint, CGRect, CGSize};
 use objc2_foundation::{NSObjectProtocol, NSString};
-use objc2_ui_kit::{UIButton, UIControlEvents, UIControlState, UILabel, UIView};
+use objc2_ui_kit::{
+    UIButton, UIControlEvents, UIControlState, UIImage, UIImageView, UILabel, UIView,
+};
 
 /// A UIKit backend for caller-owned native controls.
 ///
@@ -33,6 +35,12 @@ pub struct IosView {
 /// A retained UIKit text label.
 pub struct IosLabel {
     native: Retained<UILabel>,
+    _not_send: PhantomData<Rc<()>>,
+}
+
+/// A UIKit image-view handle with one native `UIImageView`.
+pub struct IosImageView {
+    native: Retained<UIImageView>,
     _not_send: PhantomData<Rc<()>>,
 }
 
@@ -95,6 +103,27 @@ impl IosUiBackend {
             _not_send: PhantomData,
         }
     }
+
+    /// Adds a native image view to `parent` with an optional app `UIImage`.
+    ///
+    /// The image reference lasts only for this call. `UIImageView.image` owns its non-null value.
+    /// The return handle owns the `UIImageView` and has main-thread affinity.
+    pub fn add_image_view(
+        &mut self,
+        parent: &mut IosView,
+        frame: Frame,
+        image: Option<&UIImage>,
+    ) -> Result<IosImageView> {
+        let marker = main_thread_marker()?;
+        let native = UIImageView::new(marker);
+        native.setFrame(native_frame(frame));
+        native.setImage(image);
+        parent.native.addSubview(&native);
+        Ok(IosImageView {
+            native,
+            _not_send: PhantomData,
+        })
+    }
 }
 
 impl IosView {
@@ -107,6 +136,27 @@ impl IosView {
 impl IosLabel {
     /// Borrows the native label for UIKit integration.
     pub fn native_label(&self) -> &UILabel {
+        &self.native
+    }
+}
+
+impl IosImageView {
+    /// Sets or clears the image on this view.
+    ///
+    /// `UIImageView.image` owns each non-null image value.
+    pub fn set_image(&mut self, image: Option<&UIImage>) -> Result<()> {
+        let _marker = main_thread_marker()?;
+        self.native.setImage(image);
+        Ok(())
+    }
+
+    /// Clears the image.
+    pub fn clear_image(&mut self) -> Result<()> {
+        self.set_image(None)
+    }
+
+    /// Borrows the native image view for UIKit use.
+    pub fn native_image_view(&self) -> &UIImageView {
         &self.native
     }
 }

@@ -13,6 +13,12 @@ check` and strict Clippy for `ios-ui`, docs-check, and format checks. The target
 compile/lint only, not UIKit link or runtime. The API exposes a callback, but no live callback
 execution, visual behavior, scene lifecycle, navigation, or general layout system is claimed
 
+B489 adds `IosImageView` to `ios-ui`: `add_image_view` takes an app `UIImage` ref; `set_image` and
+`clear_image` update `UIImageView.image`; `native_image_view` gives the typed UIKit escape. UIKit
+owns each non-null image. No decode or file I/O is in scope. The registered profile has device and
+Simulator link gates at iOS 12.0 / 14.0; Apple-target gates wait for the reserved lane. No runtime
+image proof is claimed
+
 ## Objective
 
 Provide a small reusable Rust API for native container views, text labels, and buttons with a Rust

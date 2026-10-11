@@ -90,8 +90,10 @@
       "family": "Core app/UI",
       "capability": "basic native views/controllers/controls",
       "crate_module": [
+        "framework-ui",
         "examples/ios-minimal",
-        "ios-runtime"
+        "ios-runtime",
+        "platform/ios/ios-ui"
       ],
       "crate_module_status": "portable_contract_and_ios_backend_partial",
       "portability_class": "portable_with_platform_extensions",
@@ -99,23 +101,25 @@
       "portable_contract_note": "framework-ui defines owned portable label/button values and a static backend contract; only a bounded native control subset is covered.",
       "ios_implementation_class": "B",
       "implementation_status": "partial",
-      "status_reason": "The B example uses UIView, UIViewController, UILabel, and UIButton for one sample view; no reusable UI capability crate exists.",
+      "status_reason": "D14 provides a portable frame contract plus native UIView, UILabel, and UIButton controls. B489 adds IosImageView; it takes an app UIImage ref, sets or clears UIImageView.image, and exposes native_image_view. UIKit owns each non-null value. General controllers, navigation, layout, accessibility, image decode, and runtime visual proof remain outside this slice",
       "minimum_ios_version": null,
       "required_frameworks": [
         "UIKit",
         "Foundation",
-        "CoreFoundation"
+        "CoreFoundation",
+        "CoreGraphics",
+        "CoreText"
       ],
       "required_permissions": [],
       "required_info_plist_keys": [],
       "entitlements": [],
       "device_only_restrictions": [],
       "swift_abi_requirement": false,
-      "metadata_verification": "partial_verified_from_docs/ios/runtime.md_and_examples/ios-minimal; minimum_iOS_version_not_stated",
+      "metadata_verification": "objc2-ui-kit 0.3.2 has public UIImageView and setImage: bindings; registered device and Simulator link gates await Apple-target validation",
       "parity_status": "not_tested_live_behavior_or_Apple_parity",
       "performance_status": "not_measured",
       "native_escape_handle_available": true,
-      "native_escape_handle_note": "Direct UIKit handles occur in examples/ios-minimal only; no reusable capability-level ios escape facade exists."
+      "native_escape_handle_note": "ios-ui exposes typed UIKit view, label, button, and image-view handles for native app integration."
     },
     {
       "id": "004-core-app-ui-events-target-action-delegates",
@@ -286,7 +290,7 @@
       "portable_contract_note": "No portable facade for this capability is included in D1.",
       "ios_implementation_class": "B",
       "implementation_status": "partial",
-      "status_reason": "ios-ui exposes borrowed UIKit handles for its caller-owned view, label, and button wrappers; it is a narrow escape surface, not a general UIKit binding.",
+      "status_reason": "ios-ui has UIKit handles for its native view, label, button, and image-view types; this narrow escape facade is not a general UIKit binding",
       "minimum_ios_version": null,
       "required_frameworks": [
         "UIKit"
@@ -300,7 +304,7 @@
       "parity_status": "not_tested_live_behavior_or_Apple_parity",
       "performance_status": "not_measured",
       "native_escape_handle_available": true,
-      "native_escape_handle_note": "ios-ui exposes borrowed UIKit view, label, and button handles for caller-owned native integration."
+      "native_escape_handle_note": "ios-ui has typed handles to UIKit view, label, button, and image-view objects for native app use"
     },
     {
       "id": "010-files-data-preferences-sandbox-files-directories",

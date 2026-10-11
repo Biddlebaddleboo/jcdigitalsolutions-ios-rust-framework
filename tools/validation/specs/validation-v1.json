@@ -91,6 +91,14 @@
     [
       "ios-location-updates",
       "framework-location"
+    ],
+    [
+      "ios-ui",
+      "framework-ui"
+    ],
+    [
+      "ios-ui",
+      "ios-runtime"
     ]
   ],
   "pilots": [
@@ -5217,6 +5225,228 @@
           "triple": "aarch64-apple-ios-sim"
         }
       ]
+    },
+    {
+      "abi_scripts": [
+        "platform/ios/ios-ui/check-link-imports.sh",
+        "platform/ios/ios-ui/check-text-metrics-link-imports.sh"
+      ],
+      "abi_targets": [
+        {
+          "triple": "aarch64-apple-ios",
+          "sdk": "iphoneos",
+          "minimum_os": "12.0"
+        },
+        {
+          "triple": "aarch64-apple-ios-sim",
+          "sdk": "iphonesimulator",
+          "minimum_os": "14.0"
+        }
+      ],
+      "adapters": [],
+      "cargo_tree": false,
+      "check_script": "platform/ios/ios-ui/check-image-view-link-imports.sh",
+      "clippy_all_targets": true,
+      "clippy_lib": false,
+      "docs": [
+        "docs/ios/ui.md"
+      ],
+      "expected_imports": [
+        "CoreFoundation.framework",
+        "CoreGraphics.framework",
+        "CoreText.framework",
+        "UIKit.framework",
+        "objc_msgSend"
+      ],
+      "fmt_all": false,
+      "guards": [
+        {
+          "path": "platform/ios/ios-ui/src/platform.rs",
+          "text": "pub struct IosImageView",
+          "must_exist": true,
+          "message": "the image handle must retain UIImageView and remain !Send/!Sync"
+        },
+        {
+          "path": "platform/ios/ios-ui/src/platform.rs",
+          "text": "native: Retained<UIImageView>,",
+          "must_exist": true,
+          "message": "the image handle must retain UIImageView and remain !Send/!Sync"
+        },
+        {
+          "path": "platform/ios/ios-ui/src/platform.rs",
+          "text": "_not_send: PhantomData<Rc<()>>,",
+          "must_exist": true,
+          "message": "the image handle must retain UIImageView and remain !Send/!Sync"
+        },
+        {
+          "path": "platform/ios/ios-ui/src/platform.rs",
+          "text": "pub fn add_image_view(",
+          "must_exist": true,
+          "message": "ios-ui must construct an image view under its main-thread proof"
+        },
+        {
+          "path": "platform/ios/ios-ui/src/platform.rs",
+          "text": "image: Option<&UIImage>,",
+          "must_exist": true,
+          "message": "image input must remain a borrowed UIKit UIImage"
+        },
+        {
+          "path": "platform/ios/ios-ui/src/platform.rs",
+          "text": "UIImageView::new(marker)",
+          "must_exist": true,
+          "message": "UIImageView creation must require a current UIKit main-thread marker"
+        },
+        {
+          "path": "platform/ios/ios-ui/src/platform.rs",
+          "text": "pub fn set_image(&mut self, image: Option<&UIImage>) -> Result<()>",
+          "must_exist": true,
+          "message": "image set and clear must use UIKit setImage: under main-thread proof"
+        },
+        {
+          "path": "platform/ios/ios-ui/src/platform.rs",
+          "text": "self.native.setImage(image);",
+          "must_exist": true,
+          "message": "image set and clear must use UIKit setImage: under main-thread proof"
+        },
+        {
+          "path": "platform/ios/ios-ui/src/platform.rs",
+          "text": "pub fn clear_image(&mut self) -> Result<()>",
+          "must_exist": true,
+          "message": "the image handle must expose an explicit clear operation"
+        },
+        {
+          "path": "platform/ios/ios-ui/src/platform.rs",
+          "text": "self.set_image(None)",
+          "must_exist": true,
+          "message": "the image handle must expose an explicit clear operation"
+        },
+        {
+          "path": "platform/ios/ios-ui/src/platform.rs",
+          "text": "pub fn native_image_view(&self) -> &UIImageView",
+          "must_exist": true,
+          "message": "the image handle must expose its typed UIKit escape"
+        },
+        {
+          "path": "platform/ios/ios-ui/src/lib.rs",
+          "text": "IosImageView",
+          "must_exist": true,
+          "message": "IosImageView must be part of the public ios-ui surface"
+        },
+        {
+          "path": "platform/ios/ios-ui/Cargo.toml",
+          "text": "\"UIImage\", \"UIImageView\"",
+          "must_exist": true,
+          "message": "only the needed UIImage and UIImageView UIKit bindings are required"
+        },
+        {
+          "path": "platform/ios/ios-ui/examples/ios_ui_image_view_link_probe.rs",
+          "text": "view.set_image(Some(image));",
+          "must_exist": true,
+          "message": "the link probe must compile the non-null UIImage set path"
+        },
+        {
+          "path": "crates/framework-ui/src/lib.rs",
+          "text": "UIImage",
+          "must_exist": false,
+          "message": "UIKit UIImage types must not leak into portable framework-ui"
+        },
+        {
+          "path": "crates/framework-ui/src/lib.rs",
+          "text": "UIImageView",
+          "must_exist": false,
+          "message": "UIKit UIImageView types must not leak into portable framework-ui"
+        },
+        {
+          "path": "platform/ios/ios-ui/src/platform.rs",
+          "text": "UIImage::imageWithData(",
+          "must_exist": false,
+          "message": "this increment must not add image decoding"
+        },
+        {
+          "path": "platform/ios/ios-ui/src/platform.rs",
+          "text": "UIImage::initWithData(",
+          "must_exist": false,
+          "message": "this increment must not add image decoding"
+        },
+        {
+          "path": "platform/ios/ios-ui/src/platform.rs",
+          "text": "UIImage::imageWithContentsOfFile(",
+          "must_exist": false,
+          "message": "this increment must not add image file I/O"
+        },
+        {
+          "path": "platform/ios/ios-ui/src/platform.rs",
+          "text": "UIImage::initWithContentsOfFile(",
+          "must_exist": false,
+          "message": "this increment must not add image file I/O"
+        },
+        {
+          "path": "platform/ios/ios-ui/src/platform.rs",
+          "text": "UIImage::imageNamed(",
+          "must_exist": false,
+          "message": "this increment must not add asset lookup or image I/O"
+        },
+        {
+          "path": "platform/ios/ios-ui/src/platform.rs",
+          "text": "let marker = main_thread_marker()?;",
+          "must_exist": true,
+          "message": "UIKit image-view creation must require a current main-thread proof"
+        },
+        {
+          "path": "platform/ios/ios-ui/src/platform.rs",
+          "text": "let _marker = main_thread_marker()?;",
+          "must_exist": true,
+          "message": "UIKit image replacement must require a current main-thread proof"
+        }
+      ],
+      "id": "ios-ui",
+      "manifest": "platform/ios/ios-ui/Cargo.toml",
+      "offline": false,
+      "package": "ios-ui",
+      "rustdoc_warnings": true,
+      "scoped_files": [
+        "crates/framework-ui/src/lib.rs",
+        "platform/ios/ios-ui/Cargo.toml",
+        "platform/ios/ios-ui/src/lib.rs",
+        "platform/ios/ios-ui/src/platform.rs",
+        "platform/ios/ios-ui/src/geometry.rs",
+        "platform/ios/ios-ui/src/text_metrics.rs",
+        "platform/ios/ios-ui/check-link-imports.sh",
+        "platform/ios/ios-ui/check-text-metrics-link-imports.sh",
+        "platform/ios/ios-ui/check-image-view-link-imports.sh",
+        "platform/ios/ios-ui/examples/ios_ui_geometry_link_import_probe.rs",
+        "platform/ios/ios-ui/examples/ios_ui_text_metrics_link_import_probe.rs",
+        "platform/ios/ios-ui/examples/ios_ui_image_view_link_probe.rs",
+        "platform/ios/ios-ui/probes/geometry-layout.c",
+        "platform/ios/ios-ui/probes/text-metrics-layout.c",
+        "docs/ios/ui.md",
+        "docs/capabilities/capability-status.json",
+        "docs/generated/CAPABILITY_STATUS.md",
+        "docs/generated/VALIDATION_PROFILES.md",
+        "PLAN_IOS_UI.md",
+        "tools/validation/specs/validation-v1.json"
+      ],
+      "shell_scripts": [
+        "platform/ios/ios-ui/check-link-imports.sh",
+        "platform/ios/ios-ui/check-text-metrics-link-imports.sh",
+        "platform/ios/ios-ui/check-image-view-link-imports.sh"
+      ],
+      "source_dirs": [
+        "crates/framework-ui",
+        "platform/ios/ios-ui"
+      ],
+      "targets": [
+        {
+          "triple": "aarch64-apple-ios",
+          "sdk": "iphoneos",
+          "minimum_os": "12.0"
+        },
+        {
+          "triple": "aarch64-apple-ios-sim",
+          "sdk": "iphonesimulator",
+          "minimum_os": "14.0"
+        }
+      ]
     }
   ],
   "schema_version": 1,
@@ -5373,6 +5603,16 @@
     {
       "path": "platform/ios/ios-location/",
       "node": "ios-location-updates",
+      "global": false
+    },
+    {
+      "path": "crates/framework-ui/",
+      "node": "framework-ui",
+      "global": false
+    },
+    {
+      "path": "platform/ios/ios-ui/",
+      "node": "ios-ui",
       "global": false
     }
   ]

@@ -9,4 +9,4 @@ mod platform;
 /// System UI font vertical metrics from CoreText.
 pub mod text_metrics;
 
-pub use platform::{IosButton, IosLabel, IosUiBackend, IosView};
+pub use platform::{IosButton, IosImageView, IosLabel, IosUiBackend, IosView};
