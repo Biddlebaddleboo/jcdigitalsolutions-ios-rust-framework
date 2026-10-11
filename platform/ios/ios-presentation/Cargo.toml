@@ -5,13 +5,18 @@ edition.workspace = true
 rust-version.workspace = true
 license.workspace = true
 repository.workspace = true
-description = "Bounded UIKit acknowledgement alert presentation for iOS"
+description = "Bounded UIKit acknowledgement and destructive confirmation presentation for iOS"
 
 [target.'cfg(target_os = "ios")'.dependencies]
+block2 = { workspace = true, features = ["alloc"] }
 ios-runtime = { path = "../ios-runtime" }
 objc2 = { workspace = true, features = ["std"] }
+objc2-core-foundation = { workspace = true, features = ["CFCGTypes", "objc2"] }
 objc2-foundation = { workspace = true, features = ["NSString"] }
-objc2-ui-kit = { workspace = true, features = ["UIAlertController", "UIResponder", "UIView", "UIViewController", "UIWindow", "block2"] }
+objc2-ui-kit = { workspace = true, features = ["UIAlertController", "UIDevice", "UIPopoverPresentationController", "UIPresentationController", "UIResponder", "UIView", "UIViewController", "UIWindow", "block2", "objc2-core-foundation"] }
+
+[[example]]
+name = "destructive_confirmation_link_probe"
 
 [lints]
 workspace = true
