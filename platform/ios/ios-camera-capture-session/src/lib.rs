@@ -6,12 +6,14 @@
 use framework_media_authorization::MediaAuthorizationStatus;
 #[cfg(target_os = "ios")]
 use std::marker::PhantomData;
-#[cfg(target_os = "ios")]
+#[cfg(any(target_os = "ios", test))]
 use std::panic::{AssertUnwindSafe, catch_unwind};
 #[cfg(any(target_os = "ios", test))]
 use std::path::{Path, PathBuf};
 #[cfg(target_os = "ios")]
 use std::rc::Rc;
+#[cfg(any(target_os = "ios", test))]
+use std::sync::atomic::{AtomicBool, Ordering};
 #[cfg(target_os = "ios")]
 use std::sync::{Arc, Mutex};
 
@@ -30,10 +32,13 @@ use objc2::{AnyThread, DefinedClass, MainThreadMarker, define_class, msg_send};
 #[cfg(target_os = "ios")]
 use objc2_av_foundation::{
     AVCaptureConnection, AVCaptureDevice, AVCaptureDeviceInput, AVCaptureFileOutput,
-    AVCaptureFileOutputRecordingDelegate, AVCaptureMovieFileOutput, AVCapturePhoto,
-    AVCapturePhotoCaptureDelegate, AVCapturePhotoOutput, AVCapturePhotoSettings, AVCaptureSession,
+    AVCaptureFileOutputRecordingDelegate, AVCaptureMovieFileOutput, AVCaptureOutput,
+    AVCapturePhoto, AVCapturePhotoCaptureDelegate, AVCapturePhotoOutput, AVCapturePhotoSettings,
+    AVCaptureSession, AVCaptureVideoDataOutput, AVCaptureVideoDataOutputSampleBufferDelegate,
     AVCaptureVideoPreviewLayer, AVMediaTypeVideo,
 };
+#[cfg(target_os = "ios")]
+use objc2_core_media::CMSampleBuffer;
 #[cfg(target_os = "ios")]
 use objc2_foundation::{NSArray, NSError, NSObject, NSObjectProtocol, NSString, NSURL};
 
@@ -92,6 +97,92 @@ type VideoRecordingResult = Result<PathBuf, VideoRecordingError>;
 
 #[cfg(any(target_os = "ios", test))]
 type VideoRecordingCompletion = Box<dyn FnOnce(VideoRecordingResult) + Send + 'static>;
+
+/// Failure to start a default-camera video sample stream
+#[cfg(any(target_os = "ios", test))]
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum VideoFrameStreamError {
+    /// The capture session has not completed startup or is no longer running
+    SessionNotRunning,
+    /// The session is stopping after a movie-file recording
+    SessionStopping,
+    /// AVFoundation rejected the video-data output for the running session
+    OutputRejected,
+    /// A video sample stream is already active
+    AlreadyActive,
+    /// The video sample stream has stopped and cannot restart on this session
+    AlreadyStopped,
+}
+
+#[cfg(target_os = "ios")]
+type VideoFrameCallback = Box<dyn FnMut(&CMSampleBuffer) + Send + 'static>;
+
+#[cfg(any(target_os = "ios", test))]
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
+enum VideoFrameStreamState {
+    #[default]
+    NotStarted,
+    Active,
+    StopRequested,
+    Stopped,
+}
+
+#[cfg(any(target_os = "ios", test))]
+impl VideoFrameStreamState {
+    fn begin(&mut self) -> Result<(), VideoFrameStreamError> {
+        match self {
+            Self::NotStarted => {
+                *self = Self::Active;
+                Ok(())
+            }
+            Self::Active => Err(VideoFrameStreamError::AlreadyActive),
+            Self::StopRequested | Self::Stopped => Err(VideoFrameStreamError::AlreadyStopped),
+        }
+    }
+
+    fn request_stop(&mut self) -> bool {
+        if *self == Self::Active {
+            *self = Self::StopRequested;
+            true
+        } else {
+            false
+        }
+    }
+
+    fn close_unstarted(&mut self) -> bool {
+        if *self == Self::NotStarted {
+            *self = Self::Stopped;
+            true
+        } else {
+            false
+        }
+    }
+
+    fn finish_stop(&mut self) -> bool {
+        if *self == Self::StopRequested {
+            *self = Self::Stopped;
+            true
+        } else {
+            false
+        }
+    }
+}
+
+#[cfg(any(target_os = "ios", test))]
+fn invoke_video_frame_callback<T, F: FnMut(&T)>(
+    active: &AtomicBool,
+    callback: &mut F,
+    sample: &T,
+) -> bool {
+    if !active.load(Ordering::Acquire) {
+        return false;
+    }
+    if catch_unwind(AssertUnwindSafe(|| callback(sample))).is_err() {
+        active.store(false, Ordering::Release);
+        return false;
+    }
+    true
+}
 
 #[cfg(any(target_os = "ios", test))]
 #[derive(Default)]
@@ -382,6 +473,124 @@ fn copy_processed_photo(photo: &AVCapturePhoto) -> PhotoCaptureResult {
 }
 
 #[cfg(target_os = "ios")]
+struct VideoFrameDelegateState {
+    callback: Option<VideoFrameCallback>,
+    active: Arc<AtomicBool>,
+    graph: std::sync::Weak<Mutex<CaptureGraph>>,
+    session_queue: dispatch2::DispatchRetained<DispatchQueue>,
+}
+
+#[cfg(target_os = "ios")]
+impl Drop for VideoFrameDelegateState {
+    fn drop(&mut self) {
+        drop_video_frame_callback_safely(self.callback.take());
+    }
+}
+
+#[cfg(target_os = "ios")]
+struct VideoFrameDelegateIvars {
+    state: Mutex<VideoFrameDelegateState>,
+}
+
+#[cfg(target_os = "ios")]
+define_class!(
+    #[unsafe(super(NSObject))]
+    #[thread_kind = AnyThread]
+    #[ivars = VideoFrameDelegateIvars]
+    struct VideoFrameDelegateObject;
+
+    // SAFETY: NSObjectProtocol adds no methods; callback state is protected by its mutex.
+    unsafe impl NSObjectProtocol for VideoFrameDelegateObject {}
+
+    // SAFETY: AVFoundation calls this delegate only on its configured serial callback queue.
+    // The sample buffer is borrowed only for the callback and callback panics never cross ObjC.
+    unsafe impl AVCaptureVideoDataOutputSampleBufferDelegate for VideoFrameDelegateObject {
+        #[unsafe(method(captureOutput:didOutputSampleBuffer:fromConnection:))]
+        #[allow(non_snake_case)]
+        unsafe fn captureOutput_didOutputSampleBuffer_fromConnection(
+            &self,
+            _output: &AVCaptureOutput,
+            sample_buffer: &CMSampleBuffer,
+            _connection: &AVCaptureConnection,
+        ) {
+            let _receiver = unsafe { retain_video_frame_callback_receiver(self) };
+            let mut state = self
+                .ivars()
+                .state
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner);
+            let active = Arc::clone(&state.active);
+            let stop_after_callback = state.callback.as_mut().is_some_and(|callback| {
+                !invoke_video_frame_callback(&active, callback, sample_buffer)
+            });
+            let callback_to_drop = if stop_after_callback {
+                state.callback.take()
+            } else {
+                None
+            };
+            if stop_after_callback {
+                let graph = state.graph.clone();
+                let session_queue = state.session_queue.clone();
+                drop(state);
+                enqueue_video_frame_stream_stop_after_callback(&session_queue, graph);
+            }
+            drop_video_frame_callback_safely(callback_to_drop);
+        }
+    }
+);
+
+#[cfg(target_os = "ios")]
+impl VideoFrameDelegateObject {
+    fn new(
+        callback: VideoFrameCallback,
+        active: Arc<AtomicBool>,
+        graph: std::sync::Weak<Mutex<CaptureGraph>>,
+        session_queue: dispatch2::DispatchRetained<DispatchQueue>,
+    ) -> Retained<Self> {
+        let ivars = VideoFrameDelegateIvars {
+            state: Mutex::new(VideoFrameDelegateState {
+                callback: Some(callback),
+                active,
+                graph,
+                session_queue,
+            }),
+        };
+        let allocated = Self::alloc().set_ivars(ivars);
+        // SAFETY: The delegate ivars are initialized before NSObject's initializer runs.
+        unsafe { msg_send![super(allocated), init] }
+    }
+
+    fn take_and_drop_callback(&self) {
+        let callback = self
+            .ivars()
+            .state
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .callback
+            .take();
+        drop_video_frame_callback_safely(callback);
+    }
+}
+
+#[cfg(any(target_os = "ios", test))]
+fn drop_video_frame_callback_safely<T>(callback: Option<T>) {
+    let _ = catch_unwind(AssertUnwindSafe(|| drop(callback)));
+}
+
+#[cfg(target_os = "ios")]
+unsafe fn retain_video_frame_callback_receiver(
+    receiver: &VideoFrameDelegateObject,
+) -> Option<Retained<VideoFrameDelegateObject>> {
+    // SAFETY: objc2 supplies a live callback receiver; this retain keeps its ivars valid through
+    // callback completion and any deferred graph cleanup.
+    unsafe {
+        Retained::retain(
+            receiver as *const VideoFrameDelegateObject as *mut VideoFrameDelegateObject,
+        )
+    }
+}
+
+#[cfg(target_os = "ios")]
 struct MovieRecordingDelegateState {
     graph: Option<Arc<Mutex<CaptureGraph>>>,
     queue: Option<dispatch2::DispatchRetained<DispatchQueue>>,
@@ -644,23 +853,28 @@ struct CaptureGraph {
     session: Retained<AVCaptureSession>,
     photo_output: Option<Retained<AVCapturePhotoOutput>>,
     movie_output: Option<Retained<AVCaptureMovieFileOutput>>,
+    video_output: Option<Retained<AVCaptureVideoDataOutput>>,
+    video_delegate: Option<Retained<VideoFrameDelegateObject>>,
+    video_callback_queue: Option<dispatch2::DispatchRetained<DispatchQueue>>,
+    video_callback_active: Arc<AtomicBool>,
+    video_stream_state: VideoFrameStreamState,
     movie_recording: MovieRecordingState,
 }
 
-// SAFETY: The graph is private and every session, photo-output, movie-output, and recording-state
-// operation is protected by its mutex. Setup and all later capture/lifecycle calls use one private
-// serial DispatchQueue. The only main-thread session access is the synchronous preview-layer
-// initializer after queue setup and before publication. Published graph destruction occurs on the
-// serial queue after stop or the movie terminal callback. The preview layer is created/exposed only
-// on main; the recording delegate retains the graph without the graph retaining the delegate.
+// SAFETY: The graph is private and every session, output, delegate, and state transition is
+// protected by its mutex or the dedicated serial queue for that operation. Sample callbacks use
+// their own serial queue and only access delegate-local state plus the atomic active flag. The only
+// main-thread session access is the synchronous preview-layer initializer after queue setup and
+// before publication. Published graph destruction occurs on the session queue after stop, callback
+// queue drain, or the movie terminal callback. The preview layer is created/exposed only on main.
 #[cfg(target_os = "ios")]
 unsafe impl Send for CaptureGraph {}
 
 /// An iOS default-camera session with a live preview-layer escape hatch
 ///
 /// Creation requires camera authorization to be granted already and the host app to provide
-/// `NSCameraUsageDescription`. This type does not request permission, record audio, or expose media
-/// samples. Create and use it on the main thread. Creation synchronously opens and
+/// `NSCameraUsageDescription`. This type does not request permission, record audio, or mutate
+/// shared audio-session state. Create and use it on the main thread. Creation synchronously opens and
 /// configures the default video input before returning, so it may block while AVFoundation prepares
 /// the device. Its preview layer can be added to a UIKit view's layer hierarchy. Start and stop
 /// requests run asynchronously on a private serial queue; returning from either method does not
@@ -669,6 +883,10 @@ unsafe impl Send for CaptureGraph {}
 /// to a caller-owned `.mov` path and invokes its completion after AVFoundation finalizes the file.
 /// Stopping the session during recording defers `stopRunning` until that terminal callback. The
 /// host owns audio-session configuration and may import completed files into Photos separately.
+/// An optional video sample stream invokes a Rust callback on a dedicated serial queue with a
+/// callback-scoped borrowed `CMSampleBuffer`; callback work should be short because AVFoundation
+/// drops late frames. Stop is nonblocking, an active callback may finish after the request, and a
+/// stopped stream cannot restart on the same session.
 ///
 /// Compilation and linking validate the native API boundary only; they do not prove camera access
 /// or preview behavior on a simulator or physical device.
@@ -676,6 +894,7 @@ unsafe impl Send for CaptureGraph {}
 pub struct IosCameraCaptureSession {
     graph: Arc<Mutex<CaptureGraph>>,
     queue: dispatch2::DispatchRetained<DispatchQueue>,
+    video_callback_active: Arc<AtomicBool>,
     preview_layer: Retained<AVCaptureVideoPreviewLayer>,
     _main_thread_only: PhantomData<Rc<()>>,
 }
@@ -703,10 +922,16 @@ impl IosCameraCaptureSession {
             "com.jcdigitalsolutions.ios-camera-capture-session",
             DispatchQueueAttr::SERIAL,
         );
+        let video_callback_active = Arc::new(AtomicBool::new(false));
         let graph = Arc::new(Mutex::new(CaptureGraph {
             session,
             photo_output: None,
             movie_output: None,
+            video_output: None,
+            video_delegate: None,
+            video_callback_queue: None,
+            video_callback_active: Arc::clone(&video_callback_active),
+            video_stream_state: VideoFrameStreamState::default(),
             movie_recording: MovieRecordingState::default(),
         }));
 
@@ -737,6 +962,7 @@ impl IosCameraCaptureSession {
         Ok(Self {
             graph,
             queue,
+            video_callback_active,
             preview_layer,
             _main_thread_only: PhantomData,
         })
@@ -882,6 +1108,55 @@ impl IosCameraCaptureSession {
         enqueue_movie_stop(&self.queue, &self.graph);
     }
 
+    /// Start one borrowed video sample callback stream from the default camera
+    ///
+    /// Call [`Self::start`] first. Session-queue ordering runs its start request first; this call
+    /// returns `SessionNotRunning` if AVFoundation is not running when checked. It may wait for
+    /// earlier session-queue work while it adds the output. The callback runs on a dedicated serial
+    /// queue, not main, and receives a `CMSampleBuffer` borrowed only until that callback returns.
+    /// Keep callback work short: AVFoundation discards late frames, and this API does not impose a
+    /// runtime limit on user callback time. The framework does not retain or copy samples. A callback
+    /// that retains a sample is responsible for its memory pressure. Only one stream may start per
+    /// session; explicit stop is nonblocking and terminal, including when called before stream
+    /// start. A callback already claimed may finish after stop. Session stop/drop also disables
+    /// active delivery. A successful return means the output and delegate were installed, not that
+    /// AVFoundation delivers frames. This operation does not configure audio or write Photos.
+    /// Compilation and linking do not prove that a device delivers frames.
+    pub fn start_video_frame_stream<F>(&self, callback: F) -> Result<(), VideoFrameStreamError>
+    where
+        F: FnMut(&CMSampleBuffer) + Send + 'static,
+    {
+        let graph = Arc::clone(&self.graph);
+        let active = Arc::clone(&self.video_callback_active);
+        let queue = self.queue.clone();
+        let outcome = Arc::new(Mutex::new(None));
+        let outcome_for_queue = Arc::clone(&outcome);
+        self.queue.exec_sync(move || {
+            let mut callback = Some(Box::new(callback) as VideoFrameCallback);
+            let result = start_video_frame_stream_on_queue(&queue, &graph, &active, &mut callback);
+            drop_video_frame_callback_safely(callback.take());
+            *outcome_for_queue
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner) = Some(result);
+        });
+        outcome
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .take()
+            .expect("session queue returns a video stream start result")
+    }
+
+    /// Request nonblocking, terminal shutdown of the video sample callback stream
+    ///
+    /// This method returns before AVFoundation detaches the delegate. A callback already claimed may
+    /// finish; queued frames observed after deactivation are discarded. The framework drains the
+    /// dedicated serial queue before it releases the delegate and output. A stopped stream cannot
+    /// restart on this session. Calling stop before start also closes the stream to future starts.
+    pub fn stop_video_frame_stream(&self) {
+        self.video_callback_active.store(false, Ordering::Release);
+        enqueue_video_frame_stream_stop(&self.queue, &self.graph);
+    }
+
     /// Capture one processed JPEG from the default camera without blocking the caller
     ///
     /// Call [`Self::start`] first and wait until the session is running before requesting a photo.
@@ -946,6 +1221,210 @@ impl Drop for IosCameraCaptureSession {
 }
 
 #[cfg(target_os = "ios")]
+fn start_video_frame_stream_on_queue(
+    queue: &dispatch2::DispatchRetained<DispatchQueue>,
+    graph: &Arc<Mutex<CaptureGraph>>,
+    active: &Arc<AtomicBool>,
+    callback: &mut Option<VideoFrameCallback>,
+) -> Result<(), VideoFrameStreamError> {
+    let mut graph_state = graph
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
+    if graph_state.movie_recording.pending_session_stop {
+        return Err(VideoFrameStreamError::SessionStopping);
+    }
+    match graph_state.video_stream_state {
+        VideoFrameStreamState::NotStarted => {}
+        VideoFrameStreamState::Active => return Err(VideoFrameStreamError::AlreadyActive),
+        VideoFrameStreamState::StopRequested | VideoFrameStreamState::Stopped => {
+            return Err(VideoFrameStreamError::AlreadyStopped);
+        }
+    }
+    // SAFETY: `isRunning` is a thread-safe AVFoundation session status query; this helper runs on
+    // the session's serial queue after all earlier start/stop requests.
+    if !unsafe { graph_state.session.isRunning() } {
+        return Err(VideoFrameStreamError::SessionNotRunning);
+    }
+
+    if graph_state.video_output.is_none() {
+        // SAFETY: AVCaptureVideoDataOutput is public AVFoundation API and the package's lowest
+        // linked target is newer than the output's iOS 4 availability floor.
+        let output = unsafe { AVCaptureVideoDataOutput::new() };
+        // SAFETY: This boolean property has no ownership or thread-affinity requirements.
+        unsafe { output.setAlwaysDiscardsLateVideoFrames(true) };
+        // SAFETY: Session configuration begins and commits on the private serial session queue.
+        unsafe { graph_state.session.beginConfiguration() };
+        let accepted = unsafe { graph_state.session.canAddOutput(&output) };
+        if accepted {
+            // SAFETY: The immediately preceding canAddOutput accepted this output.
+            unsafe { graph_state.session.addOutput(&output) };
+        }
+        // SAFETY: Every beginConfiguration call is paired with this commit, including rejection.
+        unsafe { graph_state.session.commitConfiguration() };
+        if !accepted {
+            return Err(VideoFrameStreamError::OutputRejected);
+        }
+        graph_state.video_output = Some(output);
+    }
+
+    let callback_queue = graph_state
+        .video_callback_queue
+        .get_or_insert_with(|| {
+            DispatchQueue::new(
+                "com.jcdigitalsolutions.ios-camera-video-samples",
+                DispatchQueueAttr::SERIAL,
+            )
+        })
+        .clone();
+    let output = graph_state
+        .video_output
+        .as_ref()
+        .expect("accepted video output remains in the capture graph")
+        .clone();
+    graph_state.video_stream_state.begin()?;
+    let callback = callback
+        .take()
+        .expect("a new video stream owns its callback before delegate setup");
+    let delegate = VideoFrameDelegateObject::new(
+        callback,
+        Arc::clone(active),
+        Arc::downgrade(graph),
+        queue.clone(),
+    );
+    let protocol_delegate = ProtocolObject::from_ref(&*delegate);
+    graph_state.video_delegate = Some(delegate.clone());
+    graph_state
+        .video_callback_active
+        .store(true, Ordering::Release);
+    // SAFETY: The output is part of this session, the delegate is retained by the graph before
+    // registration allows callbacks, and the dedicated queue is serial and lives in this graph.
+    unsafe {
+        output.setSampleBufferDelegate_queue(Some(protocol_delegate), Some(&callback_queue));
+    }
+    Ok(())
+}
+
+#[cfg(target_os = "ios")]
+fn enqueue_video_frame_stream_stop(
+    queue: &dispatch2::DispatchRetained<DispatchQueue>,
+    graph: &Arc<Mutex<CaptureGraph>>,
+) {
+    let graph = Arc::clone(graph);
+    let queue_for_task = queue.clone();
+    queue.exec_async(move || {
+        let mut graph_state = graph
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        graph_state
+            .video_callback_active
+            .store(false, Ordering::Release);
+        if graph_state.video_stream_state.close_unstarted() {
+            return;
+        }
+        stop_video_frame_stream_on_queue(&queue_for_task, &graph, &mut graph_state);
+    });
+}
+
+#[cfg(target_os = "ios")]
+fn enqueue_video_frame_stream_stop_after_callback(
+    queue: &dispatch2::DispatchRetained<DispatchQueue>,
+    graph: std::sync::Weak<Mutex<CaptureGraph>>,
+) {
+    let queue_for_task = queue.clone();
+    queue.exec_async(move || {
+        let Some(graph) = graph.upgrade() else {
+            return;
+        };
+        let mut graph_state = graph
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        graph_state
+            .video_callback_active
+            .store(false, Ordering::Release);
+        stop_video_frame_stream_on_queue(&queue_for_task, &graph, &mut graph_state);
+    });
+}
+
+#[cfg(target_os = "ios")]
+fn stop_video_frame_stream_on_queue(
+    queue: &dispatch2::DispatchRetained<DispatchQueue>,
+    graph: &Arc<Mutex<CaptureGraph>>,
+    graph_state: &mut CaptureGraph,
+) {
+    if !graph_state.video_stream_state.request_stop() {
+        return;
+    }
+    if let Some(output) = graph_state.video_output.as_ref() {
+        // SAFETY: Delegate detachment is serialized with session configuration and does not wait
+        // for user callback work. The callback queue remains retained through its barrier below.
+        unsafe { output.setSampleBufferDelegate_queue(None, None) };
+    }
+    let callback_queue = graph_state
+        .video_callback_queue
+        .clone()
+        .expect("an active video stream retains its callback queue");
+    let callback_queue_for_barrier = callback_queue.clone();
+    let callback_queue_for_release = callback_queue.clone();
+    let graph = Arc::clone(graph);
+    let session_queue = queue.clone();
+    let session_queue_for_callback_drop = session_queue.clone();
+    callback_queue.exec_async(move || {
+        let _callback_queue = callback_queue_for_barrier;
+        session_queue.exec_async(move || {
+            let stopped = {
+                let mut graph = graph
+                    .lock()
+                    .unwrap_or_else(std::sync::PoisonError::into_inner);
+                if graph.video_stream_state.finish_stop() {
+                    if let Some(output) = graph.video_output.as_ref() {
+                        // SAFETY: Session mutations use this serial queue, and the callback-queue
+                        // barrier proves no delegate callback remains active.
+                        unsafe { graph.session.beginConfiguration() };
+                        // SAFETY: This output was previously accepted by `canAddOutput`.
+                        unsafe { graph.session.removeOutput(output) };
+                        // SAFETY: Every beginConfiguration call is paired with this commit.
+                        unsafe { graph.session.commitConfiguration() };
+                    }
+                    true
+                } else {
+                    false
+                }
+            };
+            if !stopped {
+                return;
+            }
+            let graph_for_callback_drop = Arc::clone(&graph);
+            let session_queue_for_release = session_queue_for_callback_drop;
+            callback_queue_for_release.exec_async(move || {
+                let delegate = {
+                    graph_for_callback_drop
+                        .lock()
+                        .unwrap_or_else(std::sync::PoisonError::into_inner)
+                        .video_delegate
+                        .clone()
+                };
+                if let Some(delegate) = delegate {
+                    delegate.take_and_drop_callback();
+                }
+                session_queue_for_release.exec_async(move || {
+                    let retired = {
+                        let mut graph = graph_for_callback_drop
+                            .lock()
+                            .unwrap_or_else(std::sync::PoisonError::into_inner);
+                        (
+                            graph.video_delegate.take(),
+                            graph.video_output.take(),
+                            graph.video_callback_queue.take(),
+                        )
+                    };
+                    drop(retired);
+                });
+            });
+        });
+    });
+}
+
+#[cfg(target_os = "ios")]
 fn configure_session(graph: &mut CaptureGraph) -> Result<(), CameraCaptureError> {
     // SAFETY: This is AVFoundation's public video media-type constant. The constructor checks the
     // iOS 7.0 API floor before this function runs.
@@ -996,11 +1475,14 @@ fn enqueue_stop(
     queue: &dispatch2::DispatchRetained<DispatchQueue>,
     graph: &Arc<Mutex<CaptureGraph>>,
 ) {
-    let graph = Arc::clone(graph);
+    let graph_for_task = Arc::clone(graph);
+    let queue_for_task = queue.clone();
     queue.exec_async(move || {
-        let mut graph = graph
+        let mut graph = graph_for_task
             .lock()
             .unwrap_or_else(std::sync::PoisonError::into_inner);
+        graph.video_callback_active.store(false, Ordering::Release);
+        stop_video_frame_stream_on_queue(&queue_for_task, &graph_for_task, &mut graph);
         let defer_session_stop = graph.movie_recording.request_session_stop();
         if defer_session_stop {
             let stop_recording = graph.movie_recording.request_recording_stop();
@@ -1053,13 +1535,14 @@ fn invoke_video_completion(completion: VideoRecordingCompletion, result: VideoRe
 mod tests {
     use super::{
         MediaAuthorizationStatus, MovieRecordingState, PhotoCaptureError, PhotoCaptureResult,
-        VideoRecordingError, VideoRecordingResult, may_create_device_input, photo_request_error,
-        settle_movie_result, settle_photo_result, take_photo_completion, take_video_completion,
-        validate_movie_destination,
+        VideoFrameStreamError, VideoFrameStreamState, VideoRecordingError, VideoRecordingResult,
+        drop_video_frame_callback_safely, invoke_video_frame_callback, may_create_device_input,
+        photo_request_error, settle_movie_result, settle_photo_result, take_photo_completion,
+        take_video_completion, validate_movie_destination,
     };
     use std::path::PathBuf;
     use std::sync::Arc;
-    use std::sync::atomic::{AtomicUsize, Ordering};
+    use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 
     fn unused_movie_path(label: &str) -> PathBuf {
         static NEXT: AtomicUsize = AtomicUsize::new(0);
@@ -1083,6 +1566,72 @@ mod tests {
         ));
         assert!(!may_create_device_input(MediaAuthorizationStatus::Denied));
         assert!(!may_create_device_input(MediaAuthorizationStatus::Unknown));
+    }
+
+    #[test]
+    fn video_frame_stream_allows_one_start_and_terminal_stop_only() {
+        let mut state = VideoFrameStreamState::default();
+        assert_eq!(state.begin(), Ok(()));
+        assert_eq!(state, VideoFrameStreamState::Active);
+        assert_eq!(state.begin(), Err(VideoFrameStreamError::AlreadyActive));
+        assert!(state.request_stop());
+        assert_eq!(state, VideoFrameStreamState::StopRequested);
+        assert_eq!(state.begin(), Err(VideoFrameStreamError::AlreadyStopped));
+        assert!(state.finish_stop());
+        assert!(!state.finish_stop());
+        assert_eq!(state.begin(), Err(VideoFrameStreamError::AlreadyStopped));
+
+        let mut unstarted = VideoFrameStreamState::default();
+        assert!(unstarted.close_unstarted());
+        assert_eq!(unstarted, VideoFrameStreamState::Stopped);
+        assert_eq!(
+            unstarted.begin(),
+            Err(VideoFrameStreamError::AlreadyStopped)
+        );
+    }
+
+    #[test]
+    fn video_frame_callback_skips_stopped_frames_and_contains_panics() {
+        let active = AtomicBool::new(true);
+        let mut seen = 0;
+        assert!(invoke_video_frame_callback(
+            &active,
+            &mut |sample: &u8| seen += usize::from(*sample),
+            &7,
+        ));
+        assert_eq!(seen, 7);
+        active.store(false, Ordering::Release);
+        assert!(!invoke_video_frame_callback(
+            &active,
+            &mut |_| panic!("inactive"),
+            &0
+        ));
+        assert_eq!(seen, 7);
+
+        active.store(true, Ordering::Release);
+        assert!(!invoke_video_frame_callback(
+            &active,
+            &mut |_| panic!("callback"),
+            &0
+        ));
+        assert!(!active.load(Ordering::Acquire));
+    }
+
+    #[test]
+    fn video_frame_callback_capture_drop_panic_is_contained() {
+        struct PanicOnDrop;
+
+        impl Drop for PanicOnDrop {
+            fn drop(&mut self) {
+                panic!("callback capture drop");
+            }
+        }
+
+        let capture = PanicOnDrop;
+        let callback = move |_: &u8| {
+            std::hint::black_box(&capture);
+        };
+        drop_video_frame_callback_safely(Some(callback));
     }
 
     #[test]

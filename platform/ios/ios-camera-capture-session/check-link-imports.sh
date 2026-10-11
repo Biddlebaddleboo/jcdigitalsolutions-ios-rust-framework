@@ -43,7 +43,7 @@ for target in aarch64-apple-ios aarch64-apple-ios-sim; do
     probe="target/$target/release/examples/camera_capture_link_probe"
     imports=$(otool -L "$probe")
     actual_libraries=$(printf '%s\n' "$imports" | awk 'NR > 1 { path = $1; sub(/^.*\//, "", path); print path }' | LC_ALL=C sort)
-    expected_libraries=$(printf '%s\n' AVFoundation Foundation QuartzCore libSystem.B.dylib libobjc.A.dylib | LC_ALL=C sort)
+    expected_libraries=$(printf '%s\n' AVFoundation CoreFoundation CoreMedia Foundation QuartzCore libSystem.B.dylib libobjc.A.dylib | LC_ALL=C sort)
     if [ "$actual_libraries" != "$expected_libraries" ]; then
         printf '%s probe imports unexpected libraries:\n%s\n' "$target" "$actual_libraries" >&2
         exit 1
@@ -60,7 +60,9 @@ for target in aarch64-apple-ios aarch64-apple-ios-sim; do
         AVCaptureDeviceInput \
         AVCapturePhotoOutput \
         AVCaptureMovieFileOutput \
+        AVCaptureVideoDataOutput \
         AVCaptureVideoPreviewLayer \
+        CMSampleBuffer \
         authorizationStatusForMediaType: \
         defaultDeviceWithMediaType: \
         deviceInputWithDevice:error: \
@@ -76,7 +78,11 @@ for target in aarch64-apple-ios aarch64-apple-ios-sim; do
         fileDataRepresentation \
         startRecordingToOutputFileURL:recordingDelegate: \
         stopRecording \
-        captureOutput:didFinishRecordingToOutputFileAtURL:fromConnections:error:
+        captureOutput:didFinishRecordingToOutputFileAtURL:fromConnections:error: \
+        setAlwaysDiscardsLateVideoFrames: \
+        setSampleBufferDelegate:queue: \
+        captureOutput:didOutputSampleBuffer:fromConnection: \
+        removeOutput:
     do
         printf '%s\n' "$binary_strings" | grep -F "$symbol" >/dev/null || {
             printf '%s probe does not retain the %s API reference\n' "$target" "$symbol" >&2
@@ -95,6 +101,6 @@ for target in aarch64-apple-ios aarch64-apple-ios-sim; do
             "$target" "$actual_minimum" "$minimum" >&2
         exit 1
     fi
-    printf '%s AVFoundation/QuartzCore/Objective-C imports and iOS %s deployment minimum verified; link probe not executed\n' \
+    printf '%s AVFoundation/CoreMedia/QuartzCore/Objective-C imports and iOS %s deployment minimum verified; link probe not executed\n' \
         "$target" "$minimum"
 done

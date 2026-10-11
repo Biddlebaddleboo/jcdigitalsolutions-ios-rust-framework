@@ -780,6 +780,8 @@
       ],
       "expected_imports": [
         "AVFoundation.framework",
+        "CoreFoundation.framework",
+        "CoreMedia.framework",
         "Foundation.framework",
         "QuartzCore.framework",
         "objc_msgSend"
@@ -877,16 +879,118 @@
           "text": "AVCaptureMovieFileOutput"
         },
         {
-          "message": "video sample output is outside the camera-session capability",
-          "must_exist": false,
+          "message": "video sample delivery must use AVFoundation's video-data output",
+          "must_exist": true,
           "path": "platform/ios/ios-camera-capture-session/src/lib.rs",
           "text": "AVCaptureVideoDataOutput"
         },
         {
-          "message": "sample-buffer access is outside the camera-session capability",
+          "message": "video sample delivery must expose a callback-scoped borrowed sample",
+          "must_exist": true,
+          "path": "platform/ios/ios-camera-capture-session/src/lib.rs",
+          "text": "FnMut(&CMSampleBuffer)"
+        },
+        {
+          "message": "video callbacks must use a dedicated serial dispatch queue",
+          "must_exist": true,
+          "path": "platform/ios/ios-camera-capture-session/src/lib.rs",
+          "text": "com.jcdigitalsolutions.ios-camera-video-samples"
+        },
+        {
+          "message": "video callbacks must use a serial queue and discard late frames to bound queued work",
+          "must_exist": true,
+          "path": "platform/ios/ios-camera-capture-session/src/lib.rs",
+          "text": "DispatchQueueAttr::SERIAL"
+        },
+        {
+          "message": "video sample output must discard late frames instead of accumulating an unbounded backlog",
+          "must_exist": true,
+          "path": "platform/ios/ios-camera-capture-session/src/lib.rs",
+          "text": "setAlwaysDiscardsLateVideoFrames(true)"
+        },
+        {
+          "message": "the video sample stream must expose explicit start and stop operations",
+          "must_exist": true,
+          "path": "platform/ios/ios-camera-capture-session/src/lib.rs",
+          "text": "pub fn start_video_frame_stream"
+        },
+        {
+          "message": "the video sample stream must expose explicit stop and drop-safe deactivation",
+          "must_exist": true,
+          "path": "platform/ios/ios-camera-capture-session/src/lib.rs",
+          "text": "pub fn stop_video_frame_stream"
+        },
+        {
+          "message": "video stream start must fail closed when the capture session is not running",
+          "must_exist": true,
+          "path": "platform/ios/ios-camera-capture-session/src/lib.rs",
+          "text": "VideoFrameStreamError::SessionNotRunning"
+        },
+        {
+          "message": "video stream start must reject a pending session shutdown",
+          "must_exist": true,
+          "path": "platform/ios/ios-camera-capture-session/src/lib.rs",
+          "text": "VideoFrameStreamError::SessionStopping"
+        },
+        {
+          "message": "video stream start must report AVFoundation output rejection",
+          "must_exist": true,
+          "path": "platform/ios/ios-camera-capture-session/src/lib.rs",
+          "text": "VideoFrameStreamError::OutputRejected"
+        },
+        {
+          "message": "stopping video delivery must immediately deactivate callbacks",
+          "must_exist": true,
+          "path": "platform/ios/ios-camera-capture-session/src/lib.rs",
+          "text": "self.video_callback_active.store(false, Ordering::Release)"
+        },
+        {
+          "message": "stopping video delivery must detach the delegate without waiting for user callback work",
+          "must_exist": true,
+          "path": "platform/ios/ios-camera-capture-session/src/lib.rs",
+          "text": "setSampleBufferDelegate_queue(None, None)"
+        },
+        {
+          "message": "video output and delegate release must follow an asynchronous callback-queue barrier",
+          "must_exist": true,
+          "path": "platform/ios/ios-camera-capture-session/src/lib.rs",
+          "text": "callback_queue.exec_async(move ||"
+        },
+        {
+          "message": "video output removal must follow callback-queue drainage",
+          "must_exist": true,
+          "path": "platform/ios/ios-camera-capture-session/src/lib.rs",
+          "text": "graph.session.removeOutput(output)"
+        },
+        {
+          "message": "stored user callbacks must be taken and safely dropped after queue drainage before Objective-C delegate release",
+          "must_exist": true,
+          "path": "platform/ios/ios-camera-capture-session/src/lib.rs",
+          "text": "delegate.take_and_drop_callback()"
+        },
+        {
+          "message": "callback invocation and callback-capture destruction panics must not cross Objective-C or dispatch boundaries",
+          "must_exist": true,
+          "path": "platform/ios/ios-camera-capture-session/src/lib.rs",
+          "text": "catch_unwind(AssertUnwindSafe(|| drop(callback)))"
+        },
+        {
+          "message": "video sample callback panics must be caught at the Objective-C boundary",
+          "must_exist": true,
+          "path": "platform/ios/ios-camera-capture-session/src/lib.rs",
+          "text": "catch_unwind(AssertUnwindSafe(|| callback(sample)))"
+        },
+        {
+          "message": "session stop and drop must use the same nonblocking video-stream teardown",
+          "must_exist": true,
+          "path": "platform/ios/ios-camera-capture-session/src/lib.rs",
+          "text": "stop_video_frame_stream_on_queue(&queue_for_task, &graph_for_task, &mut graph)"
+        },
+        {
+          "message": "the video stream must not retain or copy a sample buffer on behalf of the caller",
           "must_exist": false,
           "path": "platform/ios/ios-camera-capture-session/src/lib.rs",
-          "text": "CMSampleBuffer"
+          "text": "Retained<CMSampleBuffer>"
         },
         {
           "message": "audio capture is outside the camera-session capability",

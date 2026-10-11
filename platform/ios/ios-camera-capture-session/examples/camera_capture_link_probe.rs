@@ -23,6 +23,10 @@ fn main() {
         let _ = std::hint::black_box(result);
     }));
     session.stop_video_recording();
+    let _ = session.start_video_frame_stream(|sample| {
+        let _ = std::hint::black_box(sample);
+    });
+    session.stop_video_frame_stream();
     session.stop();
 }
 

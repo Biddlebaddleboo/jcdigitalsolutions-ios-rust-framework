@@ -182,6 +182,8 @@ Add a separate public PhotoKit add-only path for caller-owned local JPEG and fin
 
 B459 adds one-shot live Float32 microphone polling through a separate AVAudioEngine tap crate, preserving native rate/channel format in a bounded SPSC ring and dropping whole blocks with saturating accounting on overflow. The host still owns permission and AVAudioSession policy; device/Simulator compile/link and host ring regressions are not live microphone/runtime proof. Device enumeration, route/interruption recovery, and acoustic behavior remain incomplete or unverified.
 
+B461 independently adds opt-in video-only `AVCaptureVideoDataOutput` samples to row 046 through a borrowed callback-scoped `&CMSampleBuffer`. A dedicated serial queue, `alwaysDiscardsLateVideoFrames=true`, immediate callback deactivation, and asynchronous callback-queue drainage bound framework-owned queued work without claiming a bound on user callback duration. Static host/device/Simulator checks do not prove sample delivery, camera authorization UI, or runtime behavior. Microphone sample callbacks, device/Simulator runtime capture, and camera/movie/photo live behavior remain incomplete or unverified. See the B461 section in [PLAN_IOS_CAMERA_CAPTURE_SESSION.md](PLAN_IOS_CAMERA_CAPTURE_SESSION.md).
+
 ## Active work selection and limits
 
 1. Inspect the canonical capability status/owner, the relevant family plan, then the named workstream plan and exact files/symbols. Do not scan the entire planning corpus or treat every existing plan as pending work.
