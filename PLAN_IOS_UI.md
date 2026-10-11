@@ -68,6 +68,15 @@ B530 adds `IosUiBackend::add_system_symbol_image_view` over public UIKit `UIImag
 Unknown symbols map to `Unavailable`; empty names map to `InvalidInput`. Device / Simulator link
 probes check imports, selector, and deployment floor, not system-symbol rendering at runtime
 
+B534 adds `IosListView` over public `UITableView`, with owned title/detail row snapshots, unique
+`u64` identities, explicit full-snapshot replacement, and stable-ID selection callbacks. UIKit
+reuses subtitle cells; rejected duplicate-ID or unrepresentable-count updates preserve the prior
+snapshot. The handle and retained delegate/data-source target remain main-thread-bound. Host tests
+cover replacement policy, panic containment, and callback reentry. The registered profile includes
+host regressions and Device/Simulator link probes; those do not establish live row rendering, selection,
+scrolling, or accessibility behavior. This is a reusable native list primitive, not a declarative
+SwiftUI `List` or state-observation system
+
 ## Objective
 
 Provide a small reusable Rust API for native container views, labels, buttons, image views, and

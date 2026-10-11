@@ -1,9 +1,9 @@
 # iOS Native UI Controls
 
 `ios-ui` implements the portable `framework-ui` contract with public UIKit bindings. It creates a
-native `UIView`, adds native `UILabel`, `UIButton`, `UIImageView`, `UIScrollView`, `UIStackView`, and
-single-line `UITextField` children, and supports synchronous label, button, image, scroll-host,
-field, and disclosure-group operations. `Frame` maps to
+native `UIView`, adds native `UILabel`, `UIButton`, `UIImageView`, `UIScrollView`, `UIStackView`,
+`UITableView`, and single-line `UITextField` children, and supports synchronous label, button,
+image, scroll-host, field, disclosure-group, and reusable-list operations. `Frame` maps to
 `CGRect` in the parent view's local coordinate system; its logical units are UIKit points
 
 ## Main-thread and ownership rules
@@ -11,7 +11,8 @@ field, and disclosure-group operations. `Frame` maps to
 - Construct `IosUiBackend` with `ios_runtime::main_thread::MainThread`; all UIKit creation and
   updates require the main thread. A failed runtime main-thread proof returns
   `framework_core::ErrorKind::Unavailable`. Backend and handle values are `!Send`/`!Sync`
-- `IosView`, `IosLabel`, `IosButton`, `IosImageView`, `IosScrollView`, and `IosTextField` retain
+- `IosView`, `IosLabel`, `IosButton`, `IosImageView`, `IosScrollView`, `IosTextField`, and
+  `IosListView` retain
   their native UIKit objects. The caller owns hierarchy placement and must attach
   `IosView::native_view()` to a caller-owned controller or parent view
 - UIKit retains added child views in its native hierarchy. The Rust `IosButton` handle also owns
@@ -29,6 +30,9 @@ field, and disclosure-group operations. `Frame` maps to
   same button handle, which would form an ownership cycle
 - Rust callback panics are caught before return through Objective-C. The panic hook still runs;
   with `panic=abort`, the process aborts. No callback result is returned to UIKit or the caller
+- `IosListView` also retains its Rust data-source/delegate target because UIKit holds those
+  references weakly. Keep the list handle alive while its table should provide rows and selection;
+  dropping it releases callback ownership and UIKit clears the weak target references
 
 `native_view`, `native_label`, `native_button`, `native_image_view`, and `native_text_field` expose
 borrowed typed UIKit references as
@@ -73,6 +77,33 @@ This is a lower-level UIKit layout helper, not a SwiftUI-style declarative UI. I
 state diffing, bindings, `ForEach`, lazy creation, or cell reuse. App composition and state updates
 remain caller-owned. Host tests reject zero columns and negative or non-finite spacing; device and
 Simulator checks establish compilation and linkage, not runtime layout or accessibility behavior
+
+## Reusable UIKit list
+
+`IosUiBackend::add_list_view` adds a native `UITableView` with an owned row snapshot. Each
+`IosListRow` has a unique `u64` identity, a title, and optional detail text. UIKit dequeues and
+reuses subtitle cells; the detail label is reset on each bind. A synchronous selection callback
+receives the current row's stable identity, not its temporary index. Call `replace_rows` to validate
+and replace the full snapshot; duplicate identities or a count UIKit cannot represent fail without
+changing the existing rows. `native_table_view` exposes the UIKit table for additional configuration.
+
+```rust,ignore
+let mut list = backend.add_list_view(
+    &mut parent,
+    list_frame,
+    vec![IosListRow::new(7, "Peer").with_detail("Connected")],
+    |row_id| { /* handle selection */ },
+)?;
+list.replace_rows(updated_rows)?;
+```
+
+This adds native cell reuse, which `IosGridView` does not provide, but it is still not SwiftUI's
+declarative `List`: callers own state, update timing, row meaning, and selection policy, and
+`replace_rows` reloads a complete snapshot rather than diffing observed state. There are no
+bindings, automatic observation, or declarative view tree. Host regressions cover identity,
+transactional replacement, panic containment, and callback reentry. Device/Simulator compile-link
+checks verify UIKit symbols and deployment floors only; they do not establish live row rendering,
+selection, scrolling, or accessibility behavior
 
 ## Native scrolling
 
