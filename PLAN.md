@@ -362,6 +362,10 @@ B510 adds iOS-only `ios_app_lifecycle::open_application_settings(MainThread)` th
 
 B511 adds `ios_runtime::dispatch::run_on_main` behind the `ios-runtime/dispatch` feature. It runs inline on main or enqueues one `Send + 'static` callback on `DispatchQueue::main`, with a typed `MainThread` proof; queued work has no cancellation handle. The repository-pinned `ios-rust-validate` release `ios-rust-tools-0.1.0+2289e6a73257b696f6ae5ecd61ee20fd16ab8b37` passed 31 gates with 0 FAIL, 0 BLOCKED, and 2 SKIPPED; simulator execution and physical-device behavior remain unverified
 
+### B512 — generic application URI open (row 001)
+
+B512 adds `ios_app_lifecycle::open_application_uri(MainThread, &str, completion)` for Foundation-accepted absolute URIs with any nonempty scheme, using public `UIApplication.openURL:options:completionHandler:` and empty options. `OpenApplicationUriError` distinguishes Foundation rejection from a missing scheme; either error issues no request or callback. The `FnOnce(bool)` result is invoked at most once with panic containment. Host foreground and scheme policy remain app-owned; a true result is not proof of launch, content load, or user view. Repository-pinned `ios-rust-tools-0.1.0+2289e6a73257b696f6ae5ecd61ee20fd16ab8b37` reports 38 PASS, 0 FAIL, 0 BLOCKED, and 2 SKIPPED; Simulator execution and physical-device proof remain unverified
+
 ## Active work selection and limits
 
 1. Inspect the canonical capability status/owner, the relevant family plan, then the named workstream plan and exact files/symbols. Do not scan the entire planning corpus or treat every existing plan as pending work.

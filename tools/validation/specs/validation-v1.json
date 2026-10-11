@@ -239,16 +239,8 @@
       "check_script": "platform/ios/ios-app-lifecycle/check.sh",
       "clippy_all_targets": true,
       "clippy_lib": false,
-      "docs": [
-        "docs/ios/app-lifecycle.md",
-        "docs/ios/runtime.md",
-        "docs/capabilities/capability-status.json"
-      ],
-      "expected_imports": [
-        "Foundation.framework",
-        "UIKit.framework",
-        "objc_msgSend"
-      ],
+      "docs": ["docs/ios/app-lifecycle.md","docs/ios/runtime.md","docs/capabilities/capability-status.json"],
+      "expected_imports": ["Foundation.framework","UIKit.framework","objc_msgSend"],
       "fmt_all": false,
       "guards": [],
       "id": "ios-app-lifecycle",
@@ -256,16 +248,9 @@
       "offline": false,
       "package": "ios-app-lifecycle",
       "rustdoc_warnings": false,
-      "scoped_files": ["docs/ios/runtime.md","platform/ios/ios-app-lifecycle/Cargo.toml","platform/ios/ios-app-lifecycle/check-link-imports.sh","platform/ios/ios-app-lifecycle/examples/link_probe.rs","platform/ios/ios-runtime/Cargo.toml","platform/ios/ios-runtime/src/dispatch.rs","platform/ios/ios-runtime/src/lib.rs","platform/ios/ios-runtime/src/main_thread.rs","tools/validation/adapters/check_ios_app_lifecycle.py"],
-      "shell_scripts": [
-        "platform/ios/ios-app-lifecycle/check.sh",
-        "platform/ios/ios-app-lifecycle/check-surface.sh",
-        "platform/ios/ios-app-lifecycle/check-link-imports.sh"
-      ],
-      "source_dirs": [
-        "platform/ios/ios-app-lifecycle",
-        "platform/ios/ios-runtime"
-      ],
+      "scoped_files": ["docs/ios/runtime.md","platform/ios/ios-app-lifecycle/Cargo.toml","platform/ios/ios-app-lifecycle/check-link-imports.sh","platform/ios/ios-app-lifecycle/examples/link_probe.rs","platform/ios/ios-runtime/Cargo.toml","platform/ios/ios-runtime/src/dispatch.rs","platform/ios/ios-runtime/src/lib.rs","platform/ios/ios-runtime/src/main_thread.rs","tools/validation/adapters/check_ios_app_lifecycle.py","PLAN.md","PLAN_RIDESHARE_BOT_MIGRATION.md","docs/capabilities/capability-status.json","docs/ios/app-lifecycle.md","platform/ios/ios-app-lifecycle/src/lib.rs","platform/ios/ios-app-lifecycle/src/platform.rs","tools/validation/specs/validation-v1.json"],
+      "shell_scripts": ["platform/ios/ios-app-lifecycle/check.sh","platform/ios/ios-app-lifecycle/check-surface.sh","platform/ios/ios-app-lifecycle/check-link-imports.sh"],
+      "source_dirs": ["platform/ios/ios-app-lifecycle","platform/ios/ios-runtime"],
       "targets": [{"minimum_os":"10.0","sdk":"iphoneos","triple":"aarch64-apple-ios"},{"minimum_os":"14.0","sdk":"iphonesimulator","triple":"aarch64-apple-ios-sim"}]
     },
     {

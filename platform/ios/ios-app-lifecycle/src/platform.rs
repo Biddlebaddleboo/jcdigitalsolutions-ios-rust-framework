@@ -2,15 +2,17 @@ use crate::mapping::application_state;
 use crate::observers::{ObserverOwner, ObserverRemover, make_observer_callback};
 use crate::queue::{EventQueue, LifecycleNotification};
 use block2::RcBlock;
+use core::cell::RefCell;
 use framework_app::{ApplicationBackend, ApplicationState, LifecycleEvent};
 use framework_core::{Availability, Result};
 use ios_runtime::main_thread::MainThread;
 use objc2::MainThreadMarker;
 use objc2::rc::Retained;
 use objc2::rc::autoreleasepool;
-use objc2::runtime::{AnyObject, ProtocolObject};
+use objc2::runtime::{AnyObject, Bool, ProtocolObject};
 use objc2_foundation::{
-    NSDictionary, NSNotification, NSNotificationCenter, NSObjectProtocol, NSOperationQueue, NSURL,
+    NSDictionary, NSNotification, NSNotificationCenter, NSObjectProtocol, NSOperationQueue,
+    NSString, NSURL,
 };
 use objc2_ui_kit::{
     UIApplication, UIApplicationDidBecomeActiveNotification,
@@ -19,11 +21,21 @@ use objc2_ui_kit::{
     UIApplicationWillResignActiveNotification, UIApplicationWillTerminateNotification,
 };
 use std::ptr::NonNull;
+use std::rc::Rc;
 use std::sync::{Arc, Mutex, PoisonError};
 
 type ObserverToken = Retained<ProtocolObject<dyn NSObjectProtocol>>;
 type ObserverSet = ObserverOwner<Retained<NSNotificationCenter>, ObserverToken, 5>;
 type ObserverBlock = dyn Fn(NonNull<NSNotification>);
+
+/// A bounded reason UIKit cannot receive a caller-supplied application URI.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum OpenApplicationUriError {
+    /// Foundation rejected the caller's URI text.
+    FoundationRejectedUri,
+    /// The constructed URL has no absolute URI scheme.
+    MissingScheme,
+}
 
 /// Requests that UIKit open the current application's Settings page.
 ///
@@ -48,6 +60,50 @@ pub fn open_application_settings(main_thread: MainThread) {
             application.openURL_options_completionHandler(&url, &options, None);
         }
     });
+}
+
+/// Requests that UIKit open an absolute URI with its system handler.
+///
+/// `uri` is passed unchanged to Foundation. The constructed URL must have a scheme, but no host,
+/// HTTPS-only rule, or scheme allowlist is imposed. On success, `completion` receives UIKit's
+/// Boolean open result at most once; a `true` result does not prove that another app launched,
+/// content loaded, or a user saw it. An error means that Foundation rejected the URI or it had no
+/// scheme; in either case no UIKit request is issued and the completion is not called. Foreground
+/// checks and any application-specific scheme policy remain the caller's responsibility. This API
+/// uses `UIApplication` and is not available to app extensions.
+pub fn open_application_uri(
+    main_thread: MainThread,
+    uri: &str,
+    completion: impl FnOnce(bool) + 'static,
+) -> core::result::Result<(), OpenApplicationUriError> {
+    autoreleasepool(|_| {
+        let text = NSString::from_str(uri);
+        let Some(url) = NSURL::URLWithString(&text) else {
+            return Err(OpenApplicationUriError::FoundationRejectedUri);
+        };
+        if url.scheme().is_none_or(|scheme| scheme.length() == 0) {
+            return Err(OpenApplicationUriError::MissingScheme);
+        }
+
+        let callback = Rc::new(RefCell::new(Some(completion)));
+        let handler = RcBlock::new(move |opened: Bool| {
+            let _ = ios_runtime::ffi::catch_unwind(|| {
+                let callback = callback.borrow_mut().take();
+                if let Some(callback) = callback {
+                    callback(opened.as_bool());
+                }
+            });
+        });
+        let application = UIApplication::sharedApplication(main_thread.into_objc2());
+        let options =
+            NSDictionary::<UIApplicationOpenExternalURLOptionsKey, AnyObject>::dictionary();
+        // SAFETY: `options` uses the public UIKit key/value types and is empty. UIKit copies and
+        // invokes the completion block for the asynchronous URL-open result.
+        unsafe {
+            application.openURL_options_completionHandler(&url, &options, Some(&handler));
+        }
+        Ok(())
+    })
 }
 
 /// iOS lifecycle state and nonblocking lifecycle events from public UIKit notifications.

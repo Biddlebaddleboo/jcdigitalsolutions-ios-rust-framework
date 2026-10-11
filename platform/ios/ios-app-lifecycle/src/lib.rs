@@ -14,4 +14,7 @@ mod observers;
 mod platform;
 
 #[cfg(target_os = "ios")]
-pub use platform::{IosApplicationLifecycle, open_application_settings};
+pub use platform::{
+    IosApplicationLifecycle, OpenApplicationUriError, open_application_settings,
+    open_application_uri,
+};

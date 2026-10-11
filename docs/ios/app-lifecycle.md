@@ -46,6 +46,21 @@ deployment minimum is iOS 10.0. Like the lifecycle backend, this UIApplication a
 applications and is not app-extension-safe. It does not read notification settings or request
 notification permission.
 
+## Open an application URI
+
+Use `open_application_uri(main_thread, uri, completion)` to ask UIKit to open an absolute URI with
+its system URL service. Foundation must create an `NSURL` and that URL must have a scheme. No host,
+HTTPS-only rule, scheme allowlist, or input rewrite is applied; the host app owns foreground checks
+and any allowed-scheme policy. For example, `sample+app://open?item=1` is accepted as a generic
+scheme URI when Foundation accepts it.
+
+The function returns `OpenApplicationUriError::FoundationRejectedUri` if Foundation rejects the
+text, or `OpenApplicationUriError::MissingScheme` if the constructed URL has no scheme. Either
+error sends no UIKit request and does not call the completion. On success, UIKit receives empty
+open options and the one-shot completion receives its Boolean open result at most once. A `true`
+result does not prove that the target app launched, content loaded, or a user saw it. Call
+`UIApplication` actions only from an app. This API is not available to app extensions.
+
 ## State and event mapping
 
 UIKit's active, inactive, and background application states map to the portable `Foreground`,

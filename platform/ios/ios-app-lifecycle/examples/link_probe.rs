@@ -7,6 +7,13 @@ fn main() {
         if let Some(main_thread) = ios_runtime::main_thread::MainThread::current() {
             ios_app_lifecycle::open_application_settings(main_thread);
         }
+        if let Some(main_thread) = ios_runtime::main_thread::MainThread::current() {
+            let _ = ios_app_lifecycle::open_application_uri(
+                main_thread,
+                "sample+app://open?item=1",
+                |_| {},
+            );
+        }
         #[cfg(feature = "main-thread-dispatch")]
         let _ = ios_runtime::dispatch::run_on_main(|main_thread| {
             let _ = main_thread.into_objc2();

@@ -127,6 +127,25 @@ def near(text, first, second, distance=500):
   start = index + len(first)
 
 
+def rust_function_body(source, name):
+ match = re.search(r"\bpub\s+fn\s+" + re.escape(name) + r"\s*\(", rust_without_comments(source))
+ if match is None:
+  return None
+ clean = rust_without_comments(source)
+ opening = clean.find("{", match.end())
+ if opening < 0:
+  return None
+ depth = 0
+ for index in range(opening, len(clean)):
+  if clean[index] == "{":
+   depth += 1
+  elif clean[index] == "}":
+   depth -= 1
+   if depth == 0:
+    return clean[match.start():index + 1]
+ return None
+
+
 def drop_removes_observer(source):
  match = re.search(r"\bimpl(?:<[^>]*>)?\s+Drop\s+for\s+\w+", source)
  if match is None:
@@ -252,6 +271,133 @@ def check_dispatch_negative_regressions(sources):
  return True
 
 
+def check_application_uri_contract(sources):
+ library = rust_without_comments(sources[LIB_PATH])
+ platform = rust_without_comments(sources[PLATFORM_PATH])
+ body = rust_function_body(sources[PLATFORM_PATH], "open_application_uri")
+ if body is None:
+  return False
+ compact_body = " ".join(body.split())
+ link_probe = sources[LINK_PROBE_PATH]
+ docs = " ".join(sources[DOC_PATH].split()).lower()
+ if not re.search(r"pub\s+use\s+platform::\s*\{[^}]*OpenApplicationUriError[^}]*open_application_uri", library, re.S):
+  return False
+ if not all(fragment in platform for fragment in (
+  "pub enum OpenApplicationUriError",
+  "FoundationRejectedUri",
+  "MissingScheme",
+ )):
+  return False
+ if not all(fragment in compact_body for fragment in (
+  "main_thread: MainThread",
+  "uri: &str",
+  "completion: impl FnOnce(bool) + 'static",
+  "core::result::Result<(), OpenApplicationUriError>",
+  "NSString::from_str(uri)",
+  "NSURL::URLWithString(&text)",
+  "return Err(OpenApplicationUriError::FoundationRejectedUri)",
+  "url.scheme().is_none_or(|scheme| scheme.length() == 0)",
+  "return Err(OpenApplicationUriError::MissingScheme)",
+  "Rc::new(RefCell::new(Some(completion)))",
+  "ios_runtime::ffi::catch_unwind(|| { let callback = callback.borrow_mut().take(); if let Some(callback) = callback { callback(opened.as_bool()); } })",
+  "NSDictionary::<UIApplicationOpenExternalURLOptionsKey, AnyObject>::dictionary()",
+  "UIApplication::sharedApplication(main_thread.into_objc2())",
+  "application.openURL_options_completionHandler(&url, &options, Some(&handler))",
+ )):
+  return False
+ if compact_body.find("return Err(OpenApplicationUriError::FoundationRejectedUri)") > compact_body.find("Rc::new(RefCell::new(Some(completion)))"):
+  return False
+ if compact_body.find("return Err(OpenApplicationUriError::MissingScheme)") > compact_body.find("Rc::new(RefCell::new(Some(completion)))"):
+  return False
+ if compact_body.find("return Err(OpenApplicationUriError::MissingScheme)") > compact_body.find("application.openURL_options_completionHandler"):
+  return False
+ if any(marker in compact_body for marker in (
+  "https",
+  "canOpenURL",
+  "applicationState",
+  ".host(",
+  "authority",
+  ".replace(",
+ )):
+  return False
+ if not all(fragment in link_probe for fragment in (
+  "open_application_uri(",
+  '"sample+app://open?item=1"',
+  "|_| {},",
+ )):
+  return False
+ if not all(phrase in docs for phrase in (
+  "foreground checks",
+  "scheme allowlist",
+  "sends no uikit request",
+  "does not call the completion",
+  "does not prove that the target app launched",
+  "not available to app extensions",
+ )):
+  return False
+ manifest = json.loads(sources[MANIFEST_PATH])
+ rows = {row.get("id"): row for row in manifest.get("capabilities", [])}
+ row = rows.get(CAPABILITY_ID, {})
+ status = row.get("status_reason", "")
+ metadata = row.get("metadata_verification", "")
+ if not all(fragment in status for fragment in ("B512", "open_application_uri", "scheme policy remain caller-owned")):
+  return False
+ if not all(fragment in metadata for fragment in ("B512", "NSURL URLWithString:/scheme", "UIApplication openURL:options:completionHandler:")):
+  return False
+ spec = json.loads(sources[SPEC_PATH])
+ pilot = next((item for item in spec.get("pilots", []) if item.get("id") == "ios-app-lifecycle"), None)
+ required_scope = {
+  "docs/ios/runtime.md",
+  CARGO_PATH,
+  LINK_CHECK_PATH,
+  RUNTIME_MANIFEST_PATH,
+  DISPATCH_PATH,
+  RUNTIME_LIB_PATH,
+  MAIN_THREAD_PATH,
+  "PLAN.md",
+  "PLAN_RIDESHARE_BOT_MIGRATION.md",
+  DOC_PATH,
+  MANIFEST_PATH,
+  LINK_PROBE_PATH,
+  LIB_PATH,
+  PLATFORM_PATH,
+  "tools/validation/adapters/check_ios_app_lifecycle.py",
+  SPEC_PATH,
+ }
+ if pilot is None or not required_scope.issubset(set(pilot.get("scoped_files", []))):
+  return False
+ return True
+
+
+def check_application_uri_negative_regressions(sources):
+ mutations = (
+  (LIB_PATH, "open_application_uri,", "missing_application_uri,"),
+  (PLATFORM_PATH, "url.scheme().is_none_or", "url.host().is_none_or"),
+  (PLATFORM_PATH, "FoundationRejectedUri);", "MissingScheme);"),
+  (PLATFORM_PATH, "callback.borrow_mut().take()", "callback.borrow_mut().as_ref()"),
+  (PLATFORM_PATH, "ios_runtime::ffi::catch_unwind", "ios_runtime::ffi::missing_unwind_guard"),
+  (PLATFORM_PATH, "let text = NSString::from_str(uri);", 'if !uri.starts_with("https:") { return Err(OpenApplicationUriError::MissingScheme); } let text = NSString::from_str(uri);'),
+  (PLATFORM_PATH, "url.scheme().is_none_or(|scheme| scheme.length() == 0)", "url.scheme().is_none_or(|scheme| scheme.length() == 0) || url.host().is_none_or(|host| host.length() == 0)"),
+  (LINK_PROBE_PATH, '"sample+app://open?item=1"', '"relative/path"'),
+  (MANIFEST_PATH, "B512 adds `open_application_uri", "B513 adds `open_application_uri"),
+ )
+ for path, before, after in mutations:
+  if before not in sources[path]:
+   return False
+  mutated = dict(sources)
+  mutated[path] = sources[path].replace(before, after, 1)
+  if check_application_uri_contract(mutated):
+   return False
+ mutated = dict(sources)
+ spec = json.loads(sources[SPEC_PATH])
+ pilot = next(item for item in spec["pilots"] if item.get("id") == "ios-app-lifecycle")
+ pilot["scoped_files"].remove(PLATFORM_PATH)
+ mutated[SPEC_PATH] = json.dumps(spec)
+ if check_application_uri_contract(mutated):
+  return False
+ return True
+
+
 def check_contract(root, sources):
  library = sources[LIB_PATH]
  platform = sources[PLATFORM_PATH]
@@ -283,6 +429,10 @@ def check_contract(root, sources):
   failures.append("opt-in main-thread dispatch API, ownership, panic, and compiled ABI contract is incomplete")
  elif not check_dispatch_negative_regressions(sources):
   failures.append("main-thread dispatch default, optional dependency, Send, or link-feature regressions must fail")
+ if not check_application_uri_contract(sources):
+  failures.append("generic absolute-URI open API, bounded errors, one-shot panic-contained completion, or caller-policy boundary is incomplete")
+ elif not check_application_uri_negative_regressions(sources):
+  failures.append("application URI scheme, Foundation, one-shot callback, panic, caller-policy, or generic link-probe regressions must fail")
  if not all(fragment in link_probe for fragment in (
   "MainThread::current()",
   "IosApplicationLifecycle::new(main_thread)",
@@ -390,7 +540,7 @@ def main():
   if failures:
    emit("FAIL", "; ".join(failures[:6]))
    return
-  emit("PASS", "iOS lifecycle and opt-in main-thread dispatch source contracts, negative regressions, API availability and deployment floors, registered link probe, and partial capability status are present; runtime behavior is not proven")
+  emit("PASS", "iOS lifecycle, opt-in main-thread dispatch, generic application URI, deterministic negative regressions, API availability and deployment floors, registered link probe, and partial capability status are present; URI-open and runtime behavior are not proven")
  except Exception as error:
   emit("ERROR-BLOCKED", str(error)[:256])
 
