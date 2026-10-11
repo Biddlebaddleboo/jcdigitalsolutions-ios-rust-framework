@@ -572,6 +572,7 @@ dependencies = [
  "ios-media-authorization",
  "objc2",
  "objc2-av-foundation",
+ "objc2-foundation",
 ]
 
 [[package]]

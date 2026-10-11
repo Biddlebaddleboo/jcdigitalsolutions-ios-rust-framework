@@ -1448,10 +1448,11 @@
       "portable_contract_note": "framework-media-authorization defines camera authorization status and explicit request operations; iOS requests do not create capture sessions or expose media.",
       "ios_implementation_class": "B",
       "implementation_status": "partial",
-      "status_reason": "B36 provides a non-prompting camera authorization query; an additive MediaAuthorizationRequester operation explicitly requests camera permission. The D57/B62 default-video-device query itself has an iOS 4.0 floor. B455 implements one authorized default-video input, an AVCaptureSession, and a native preview layer; its registered host, iOS 10.0 device, and iOS 14.0 Simulator gates pass with two checks skipped. Camera use, preview delivery, and runtime behavior remain unverified. Photo/movie/sample output remains out of scope, so the row stays partial.",
+      "status_reason": "B36 provides a non-prompting camera authorization query; an additive MediaAuthorizationRequester operation explicitly requests camera permission. The D57/B62 default-video-device query itself has an iOS 4.0 floor. B455 implements one authorized default-video input, an AVCaptureSession, a native preview layer, and nonblocking start/stop. B456 adds one asynchronous processed default-camera JPEG capture with owned bytes and an iOS 11 floor. Movie/sample output, microphone I/O, camera use, preview delivery, JPEG capture, and runtime behavior remain incomplete or unverified, so the row stays partial.",
       "minimum_ios_version": "10.0",
       "required_frameworks": [
         "AVFoundation",
+        "Foundation",
         "QuartzCore"
       ],
       "required_permissions": [],
@@ -1461,7 +1462,7 @@
       "entitlements": [],
       "device_only_restrictions": null,
       "swift_abi_requirement": false,
-      "metadata_verification": "PLAN_IOS_CAMERA_DEVICE_STATUS.md verifies the D57/B62 default-video-device query from iOS 4.0; Xcode 26.6 build 17F113 / iOS SDK 26.5 AVCaptureDevice.h declares authorizationStatusForMediaType: and requestAccessForMediaType:completionHandler: from iOS 7.0. `ios-rust-validate --workspace-root \"$PWD\" --spec \"$PWD/tools/validation/specs/validation-v1.json\" --capability ios-camera-capture-session` reports 51 PASS, 0 FAIL, 0 BLOCKED, 2 SKIPPED, including the host device_input_requires_granted_camera_authorization test, 17 source guards, and iOS 10.0 device / iOS 14.0 Simulator compile/link checks; no camera runtime, permission prompt, or preview ran. NSCameraUsageDescription is required for authorization/capture; no entitlement is required.",
+      "metadata_verification": "`/Users/john/.local/bin/ios-rust-validate` v0.1.0 source_sha 350971094cc3b77191cd6b3d07e01af04d71943d, sha256 77f9c7aa941ba1335827ffc6ce274898987ce1d5f408d91d1a7c1daf34527944: `ios-rust-validate --workspace-root \"$PWD\" --spec \"$PWD/tools/validation/specs/validation-v1.json\" --capability ios-camera-capture-session` reports 56 PASS, 0 FAIL, 0 BLOCKED, 2 SKIPPED on Xcode 26.6 / iOS SDK 26.5; host tests, strict Clippy, Rustfmt, Rustdoc, iOS 10.0 device and iOS 14.0 Simulator compile/link gates pass. SKIPPED: Simulator execution and physical-device proof. No camera prompt, capture, JPEG decode, or runtime behavior is verified. NSCameraUsageDescription is required; no entitlement is required.",
       "parity_status": "not_tested_live_behavior_or_Apple_parity",
       "performance_status": "not_measured",
       "native_escape_handle_available": true,

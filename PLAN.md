@@ -174,7 +174,7 @@ Subsequent user direction selected native implementation over further validation
 
 ### Post-B455 resume state
 
-B436 remains blocked, D97 records no successor, and the B453/B454/B455 bounded workstreams are integrated. No next ready B/D implementation workstream is recorded; photo/movie/sample capture or microphone I/O would require a newly authorized scope and must not be assigned an inferred ID. F37 has no selected successor. G31 remains a validation-only hosted Xcode 27 evidence task and does not displace the user's native-implementation priority. Select the next named workstream before new API work; do not infer B456 or reopen B436 without new supported ABI evidence.
+B436 remains blocked without new supported ABI evidence. B453/B454/B455 remain integrated with B455 limited to authorized default-video input, session, preview, and start/stop. B456 adds one asynchronous processed default-camera JPEG operation to row 046, with owned bytes, per-request delegate retention, an iOS 11 capture floor, and no Photos-library write. Its registered host and iOS device/Simulator compile/link gates do not prove camera authorization, capture, decode, or physical-device runtime. Movie/sample output and microphone I/O remain incomplete; do not extend B455's historical scope. F37 has no selected successor. G31 remains a validation-only hosted Xcode 27 evidence task and does not displace native implementation priority.
 
 ## Active work selection and limits
 

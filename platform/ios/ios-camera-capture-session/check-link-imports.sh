@@ -58,6 +58,7 @@ for target in aarch64-apple-ios aarch64-apple-ios-sim; do
     for symbol in \
         AVCaptureSession \
         AVCaptureDeviceInput \
+        AVCapturePhotoOutput \
         AVCaptureVideoPreviewLayer \
         authorizationStatusForMediaType: \
         defaultDeviceWithMediaType: \
@@ -66,7 +67,12 @@ for target in aarch64-apple-ios aarch64-apple-ios-sim; do
         addInput: \
         layerWithSession: \
         startRunning \
-        stopRunning
+        stopRunning \
+        photoSettings \
+        capturePhotoWithSettings:delegate: \
+        captureOutput:didFinishProcessingPhoto:error: \
+        captureOutput:didFinishCaptureForResolvedSettings:error: \
+        fileDataRepresentation
     do
         printf '%s\n' "$binary_strings" | grep -F "$symbol" >/dev/null || {
             printf '%s probe does not retain the %s API reference\n' "$target" "$symbol" >&2

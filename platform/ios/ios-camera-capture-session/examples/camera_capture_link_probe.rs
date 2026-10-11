@@ -15,6 +15,9 @@ fn main() {
     };
     std::hint::black_box(session.preview_layer(main_thread));
     session.start();
+    let _ = session.capture_photo(|result| {
+        let _ = std::hint::black_box(result);
+    });
     session.stop();
 }
 

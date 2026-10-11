@@ -457,10 +457,40 @@
           "text": "requestAccessForMediaType_completionHandler"
         },
         {
-          "message": "photo capture output is outside the camera-session capability",
-          "must_exist": false,
+          "message": "still-photo capture must configure the public AVFoundation photo output",
+          "must_exist": true,
           "path": "platform/ios/ios-camera-capture-session/src/lib.rs",
-          "text": "AVCapturePhotoOutput"
+          "text": "AVCapturePhotoOutput::new()"
+        },
+        {
+          "message": "still-photo requests require a fresh default JPEG settings object",
+          "must_exist": true,
+          "path": "platform/ios/ios-camera-capture-session/src/lib.rs",
+          "text": "AVCapturePhotoSettings::photoSettings()"
+        },
+        {
+          "message": "still-photo capture must reject systems below the iOS 11 processed-photo floor",
+          "must_exist": true,
+          "path": "platform/ios/ios-camera-capture-session/src/lib.rs",
+          "text": "objc2::available!(ios = 11.0, ..)"
+        },
+        {
+          "message": "still-photo bytes must come from AVFoundation's processed file representation",
+          "must_exist": true,
+          "path": "platform/ios/ios-camera-capture-session/src/lib.rs",
+          "text": "photo.fileDataRepresentation()"
+        },
+        {
+          "message": "still-photo requests must use the processed-photo delegate callback",
+          "must_exist": true,
+          "path": "platform/ios/ios-camera-capture-session/src/lib.rs",
+          "text": "captureOutput_didFinishProcessingPhoto_error"
+        },
+        {
+          "message": "still-photo delegates must release request state at the terminal callback",
+          "must_exist": true,
+          "path": "platform/ios/ios-camera-capture-session/src/lib.rs",
+          "text": "captureOutput_didFinishCaptureForResolvedSettings_error"
         },
         {
           "message": "movie recording output is outside the camera-session capability",
