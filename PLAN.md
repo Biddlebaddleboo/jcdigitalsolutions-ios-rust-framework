@@ -410,6 +410,17 @@ zero explicitly requests clear. Portable tests cover default, zero, and `u32::MA
 iOS profile checks the public API, host regression, native mapping, and link probe. Notification
 permission, delivery, and app-icon state remain unverified.
 
+### B540 — CallKit outgoing transactions (row 083)
+
+B540 adds `OutgoingCall`, `CallProvider::request_outgoing`, and ordered connecting/connected reports
+through public CallKit APIs. The app handles `StartRequested` and owns signaling; transaction
+acceptance is not a connected call. A per-request token prevents a late rejection from removing a
+new call that reuses its `CallId`. Host tests (32), strict Clippy, device/Simulator compile and
+Release link/import checks pass at iOS 10.0 / 14.0. The integrated profile reports 68 PASS,
+0 FAIL, 0 BLOCKED, and 2 runtime SKIPPED at snapshot
+`2dbb1b68803921183c0eb0ab3b72cd0432bc07cfa8466681409147e78037a852`; no CallKit runtime behavior
+is claimed.
+
 ## Active work selection and limits
 
 1. Inspect the canonical capability status/owner, the relevant family plan, then the named workstream plan and exact files/symbols. Do not scan the entire planning corpus or treat every existing plan as pending work.
