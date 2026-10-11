@@ -5363,7 +5363,8 @@
     {
       "abi_scripts": [
         "platform/ios/ios-ui/check-link-imports.sh",
-        "platform/ios/ios-ui/check-text-metrics-link-imports.sh"
+        "platform/ios/ios-ui/check-text-metrics-link-imports.sh",
+        "platform/ios/ios-ui/check-text-field-link-imports.sh"
       ],
       "abi_targets": [
         {
@@ -5383,7 +5384,9 @@
       "clippy_all_targets": true,
       "clippy_lib": false,
       "docs": [
-        "docs/ios/ui.md"
+        "docs/ios/ui.md",
+        "docs/capabilities/capability-status.json",
+        "PLAN_IOS_UI.md"
       ],
       "expected_imports": [
         "CoreFoundation.framework",
@@ -5531,6 +5534,312 @@
           "text": "let _image_thread = main_thread_marker()?;",
           "must_exist": true,
           "message": "UIKit image replacement must require a current main-thread proof"
+        },
+        {
+          "path": "platform/ios/ios-ui/src/platform.rs",
+          "text": "pub struct IosTextField",
+          "must_exist": true,
+          "message": "ios-ui must expose a retained native text-field handle"
+        },
+        {
+          "path": "platform/ios/ios-ui/src/platform.rs",
+          "text": "native: Retained<UITextField>,",
+          "must_exist": true,
+          "message": "the text-field handle must retain UITextField and remain !Send/!Sync"
+        },
+        {
+          "path": "platform/ios/ios-ui/src/platform.rs",
+          "text": "_text_field_not_send: PhantomData<Rc<()>>",
+          "must_exist": true,
+          "message": "the text-field handle must remain !Send/!Sync"
+        },
+        {
+          "path": "platform/ios/ios-ui/src/platform.rs",
+          "text": "pub fn add_text_field(",
+          "must_exist": true,
+          "message": "ios-ui must add a text field as a caller-owned child view"
+        },
+        {
+          "path": "platform/ios/ios-ui/src/platform.rs",
+          "text": "let field_marker = main_thread_marker()?;",
+          "must_exist": true,
+          "message": "text-field creation must require a current UIKit main-thread proof"
+        },
+        {
+          "path": "platform/ios/ios-ui/src/platform.rs",
+          "text": "let native = UITextField::new(field_marker);",
+          "must_exist": true,
+          "message": "UITextField creation must use the proven main-thread marker"
+        },
+        {
+          "path": "platform/ios/ios-ui/src/platform.rs",
+          "text": "parent.native.addSubview(&native);",
+          "must_exist": true,
+          "message": "the text field must be attached to the caller-owned parent view"
+        },
+        {
+          "path": "platform/ios/ios-ui/src/platform.rs",
+          "text": "native.setText(text.as_deref());",
+          "must_exist": true,
+          "message": "initial nullable text must map nil and empty values to UIKit"
+        },
+        {
+          "path": "platform/ios/ios-ui/src/platform.rs",
+          "text": "let text = text.map(NSString::from_str);",
+          "must_exist": true,
+          "message": "initial Rust text must be encoded with NSString's explicit-length constructor"
+        },
+        {
+          "path": "platform/ios/ios-ui/src/platform.rs",
+          "text": "native.setPlaceholder(placeholder.as_deref());",
+          "must_exist": true,
+          "message": "initial nullable placeholder must map nil and empty values to UIKit"
+        },
+        {
+          "path": "platform/ios/ios-ui/src/platform.rs",
+          "text": "let placeholder = placeholder.map(NSString::from_str);",
+          "must_exist": true,
+          "message": "initial placeholder must be encoded with NSString's explicit-length constructor"
+        },
+        {
+          "path": "platform/ios/ios-ui/src/platform.rs",
+          "text": "pub fn text(&self) -> Result<Option<String>>",
+          "must_exist": true,
+          "message": "field text reads must preserve nil and return Rust-owned strings"
+        },
+        {
+          "path": "platform/ios/ios-ui/src/platform.rs",
+          "text": ".text()",
+          "must_exist": true,
+          "message": "the text getter must read the native UITextField property"
+        },
+        {
+          "path": "platform/ios/ios-ui/src/platform.rs",
+          "text": ".placeholder()",
+          "must_exist": true,
+          "message": "the placeholder getter must read the native UITextField property"
+        },
+        {
+          "path": "platform/ios/ios-ui/src/platform.rs",
+          "text": "pub fn set_text(&mut self, text: Option<&str>) -> Result<()>",
+          "must_exist": true,
+          "message": "field text writes must preserve nullable length-aware input"
+        },
+        {
+          "path": "platform/ios/ios-ui/src/platform.rs",
+          "text": "self.native.setText(text.as_deref());",
+          "must_exist": true,
+          "message": "field text writes must set or clear the native text property"
+        },
+        {
+          "path": "platform/ios/ios-ui/src/platform.rs",
+          "text": "pub fn placeholder(&self) -> Result<Option<String>>",
+          "must_exist": true,
+          "message": "placeholder reads must preserve nil and return Rust-owned strings"
+        },
+        {
+          "path": "platform/ios/ios-ui/src/platform.rs",
+          "text": "pub fn set_placeholder(&mut self, placeholder: Option<&str>) -> Result<()>",
+          "must_exist": true,
+          "message": "placeholder writes must preserve nullable length-aware input"
+        },
+        {
+          "path": "platform/ios/ios-ui/src/platform.rs",
+          "text": "self.native.setPlaceholder(placeholder.as_deref());",
+          "must_exist": true,
+          "message": "placeholder writes must set or clear the native placeholder property"
+        },
+        {
+          "path": "platform/ios/ios-ui/src/platform.rs",
+          "text": "let _field_text_thread = main_thread_marker()?;",
+          "must_exist": true,
+          "message": "field text reads must require a current main-thread proof"
+        },
+        {
+          "path": "platform/ios/ios-ui/src/platform.rs",
+          "text": "let _field_text_write_thread = main_thread_marker()?;",
+          "must_exist": true,
+          "message": "field text writes must require a current main-thread proof"
+        },
+        {
+          "path": "platform/ios/ios-ui/src/platform.rs",
+          "text": "let _field_placeholder_read_thread = main_thread_marker()?;",
+          "must_exist": true,
+          "message": "placeholder reads must require a current main-thread proof"
+        },
+        {
+          "path": "platform/ios/ios-ui/src/platform.rs",
+          "text": "let _field_placeholder_write_thread = main_thread_marker()?;",
+          "must_exist": true,
+          "message": "placeholder writes must require a current main-thread proof"
+        },
+        {
+          "path": "platform/ios/ios-ui/src/platform.rs",
+          "text": "pub fn request_first_responder(&mut self) -> Result<bool>",
+          "must_exist": true,
+          "message": "first-responder requests must return UIKit's Bool result"
+        },
+        {
+          "path": "platform/ios/ios-ui/src/platform.rs",
+          "text": "self.native.becomeFirstResponder()",
+          "must_exist": true,
+          "message": "focus requests must call the public UIKit responder API"
+        },
+        {
+          "path": "platform/ios/ios-ui/src/platform.rs",
+          "text": "let _field_focus_thread = main_thread_marker()?;",
+          "must_exist": true,
+          "message": "first-responder requests must require a current main-thread proof"
+        },
+        {
+          "path": "platform/ios/ios-ui/src/platform.rs",
+          "text": "pub fn resign_first_responder(&mut self) -> Result<bool>",
+          "must_exist": true,
+          "message": "resign requests must return UIKit's Bool result"
+        },
+        {
+          "path": "platform/ios/ios-ui/src/platform.rs",
+          "text": "self.native.resignFirstResponder()",
+          "must_exist": true,
+          "message": "resign requests must call the public UIKit responder API"
+        },
+        {
+          "path": "platform/ios/ios-ui/src/platform.rs",
+          "text": "let _field_resign_thread = main_thread_marker()?;",
+          "must_exist": true,
+          "message": "resign requests must require a current main-thread proof"
+        },
+        {
+          "path": "platform/ios/ios-ui/src/platform.rs",
+          "text": "pub fn native_text_field(&self) -> &UITextField",
+          "must_exist": true,
+          "message": "the text-field handle must expose its typed UIKit escape"
+        },
+        {
+          "path": "platform/ios/ios-ui/src/platform.rs",
+          "text": "let length = value.len_utf16();",
+          "must_exist": true,
+          "message": "NSString reads must use its UTF-16 length"
+        },
+        {
+          "path": "platform/ios/ios-ui/src/platform.rs",
+          "text": "value.getCharacters_range(buffer, NSRange::new(0, length))",
+          "must_exist": true,
+          "message": "NSString reads must copy an explicit UTF-16 range"
+        },
+        {
+          "path": "platform/ios/ios-ui/src/platform.rs",
+          "text": "map(native_string_to_rust)",
+          "must_exist": true,
+          "message": "native field strings must pass through the strict Rust UTF-16 conversion"
+        },
+        {
+          "path": "platform/ios/ios-ui/src/platform.rs",
+          "text": "Utf16Error::Invalid => Error::new(ErrorKind::InvalidInput)",
+          "must_exist": true,
+          "message": "malformed UTF-16 must fail instead of becoming lossy text"
+        },
+        {
+          "path": "platform/ios/ios-ui/src/platform.rs",
+          "text": "NSString::from_str",
+          "must_exist": true,
+          "message": "Rust strings must use the length-aware NSString constructor"
+        },
+        {
+          "path": "platform/ios/ios-ui/src/platform.rs",
+          "text": "UTF8String",
+          "must_exist": false,
+          "message": "the text-field bridge must not use NSString C-string conversion"
+        },
+        {
+          "path": "platform/ios/ios-ui/src/platform.rs",
+          "text": "CString",
+          "must_exist": false,
+          "message": "the text-field bridge must not convert through C strings"
+        },
+        {
+          "path": "platform/ios/ios-ui/src/platform.rs",
+          "text": "CStr",
+          "must_exist": false,
+          "message": "the text-field bridge must not read through C strings"
+        },
+        {
+          "path": "platform/ios/ios-ui/src/platform.rs",
+          "text": "initWithCString",
+          "must_exist": false,
+          "message": "the text-field bridge must not initialize NSString through C strings"
+        },
+        {
+          "path": "platform/ios/ios-ui/src/text_conversion.rs",
+          "text": "from_utf16_lossy",
+          "must_exist": false,
+          "message": "malformed UTF-16 must not be silently replaced"
+        },
+        {
+          "path": "platform/ios/ios-ui/src/text_conversion.rs",
+          "text": "decodes_empty_and_embedded_nul",
+          "must_exist": true,
+          "message": "host regressions must preserve embedded NUL and empty strings"
+        },
+        {
+          "path": "platform/ios/ios-ui/src/text_conversion.rs",
+          "text": "decodes_supplementary_scalar",
+          "must_exist": true,
+          "message": "host regressions must preserve supplementary Unicode scalars"
+        },
+        {
+          "path": "platform/ios/ios-ui/src/text_conversion.rs",
+          "text": "rejects_unpaired_surrogates_without_replacement",
+          "must_exist": true,
+          "message": "host regressions must reject malformed UTF-16"
+        },
+        {
+          "path": "platform/ios/ios-ui/src/lib.rs",
+          "text": "IosTextField",
+          "must_exist": true,
+          "message": "IosTextField must be part of the public ios-ui surface"
+        },
+        {
+          "path": "platform/ios/ios-ui/Cargo.toml",
+          "text": "\"UITextField\", \"UIResponder\"",
+          "must_exist": true,
+          "message": "objc2-ui-kit must enable UITextField and its responder binding"
+        },
+        {
+          "path": "platform/ios/ios-ui/Cargo.toml",
+          "text": "features = [\"NSRange\", \"NSString\"]",
+          "must_exist": true,
+          "message": "objc2-foundation must enable length-aware UTF-16 range access"
+        },
+        {
+          "path": "platform/ios/ios-ui/examples/ios_ui_text_field_link_probe.rs",
+          "text": "field.request_first_responder()",
+          "must_exist": true,
+          "message": "the registered link probe must retain the responder selector"
+        },
+        {
+          "path": "platform/ios/ios-ui/examples/ios_ui_text_field_link_probe.rs",
+          "text": "field.native_text_field()",
+          "must_exist": true,
+          "message": "the registered link probe must compile the typed UIKit escape"
+        },
+        {
+          "path": "platform/ios/ios-ui/check-text-field-link-imports.sh",
+          "text": "grep -F 'objc_getClass'",
+          "must_exist": true,
+          "message": "the link check must verify the objc2 runtime class-lookup mechanism"
+        },
+        {
+          "path": "platform/ios/ios-ui/check-text-field-link-imports.sh",
+          "text": "grep -Fx 'UITextField'",
+          "must_exist": true,
+          "message": "the link check must verify the public UITextField runtime class name"
+        },
+        {
+          "path": "crates/framework-ui/src/lib.rs",
+          "text": "UITextField",
+          "must_exist": false,
+          "message": "UIKit text-field types must not leak into portable framework-ui"
         }
       ],
       "id": "ios-ui",
@@ -5544,13 +5853,16 @@
         "platform/ios/ios-ui/src/lib.rs",
         "platform/ios/ios-ui/src/platform.rs",
         "platform/ios/ios-ui/src/geometry.rs",
+        "platform/ios/ios-ui/src/text_conversion.rs",
         "platform/ios/ios-ui/src/text_metrics.rs",
         "platform/ios/ios-ui/check-link-imports.sh",
         "platform/ios/ios-ui/check-text-metrics-link-imports.sh",
         "platform/ios/ios-ui/check-image-view-link-imports.sh",
+        "platform/ios/ios-ui/check-text-field-link-imports.sh",
         "platform/ios/ios-ui/examples/ios_ui_geometry_link_import_probe.rs",
         "platform/ios/ios-ui/examples/ios_ui_text_metrics_link_import_probe.rs",
         "platform/ios/ios-ui/examples/ios_ui_image_view_link_probe.rs",
+        "platform/ios/ios-ui/examples/ios_ui_text_field_link_probe.rs",
         "platform/ios/ios-ui/probes/geometry-layout.c",
         "platform/ios/ios-ui/probes/text-metrics-layout.c",
         "docs/ios/ui.md",
@@ -5563,7 +5875,8 @@
       "shell_scripts": [
         "platform/ios/ios-ui/check-link-imports.sh",
         "platform/ios/ios-ui/check-text-metrics-link-imports.sh",
-        "platform/ios/ios-ui/check-image-view-link-imports.sh"
+        "platform/ios/ios-ui/check-image-view-link-imports.sh",
+        "platform/ios/ios-ui/check-text-field-link-imports.sh"
       ],
       "source_dirs": [
         "crates/framework-ui",

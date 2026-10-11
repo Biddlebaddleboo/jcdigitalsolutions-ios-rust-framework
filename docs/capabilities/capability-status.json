@@ -101,7 +101,7 @@
       "portable_contract_note": "framework-ui defines owned portable label/button values and a static backend contract; only a bounded native control subset is covered.",
       "ios_implementation_class": "B",
       "implementation_status": "partial",
-      "status_reason": "D14 provides a portable frame contract plus native UIView, UILabel, and UIButton controls. B489 adds IosImageView; it takes an app UIImage ref, sets or clears UIImageView.image, and exposes native_image_view. UIKit owns each non-null value. General controllers, navigation, layout, accessibility, image decode, and runtime visual proof remain outside this slice",
+      "status_reason": "D14 provides a portable frame contract plus native UIView, UILabel, and UIButton controls. B489 adds IosImageView; it takes an app UIImage ref, sets or clears UIImageView.image, and exposes native_image_view. UIKit owns each non-null value. B493 adds caller-owned IosTextField with nullable, lossless text and placeholder access, first-responder requests that return UIKit Bool values, and native_text_field. UTF-16 reads reject malformed sequences; handles are main-thread-bound and !Send/!Sync. General controllers, navigation, layout, accessibility, image decode, delegates, keyboard management, and runtime visual or text-input proof remain outside this slice",
       "minimum_ios_version": null,
       "required_frameworks": [
         "UIKit",
@@ -115,11 +115,11 @@
       "entitlements": [],
       "device_only_restrictions": [],
       "swift_abi_requirement": false,
-      "metadata_verification": "objc2-ui-kit 0.3.2 has public UIImageView and setImage: bindings; registered device and Simulator link probes pass at iOS 12.0 and iOS 14.0 deployment targets",
+      "metadata_verification": "objc2-ui-kit 0.3.2 exposes public UIImageView, UITextField, nullable text/placeholder, and responder bindings; the registered ios-ui profile targets device iOS 12.0 and Simulator iOS 14.0; B493 static checks do not prove runtime text input",
       "parity_status": "not_tested_live_behavior_or_Apple_parity",
       "performance_status": "not_measured",
       "native_escape_handle_available": true,
-      "native_escape_handle_note": "ios-ui exposes typed UIKit view, label, button, and image-view handles for native app integration."
+      "native_escape_handle_note": "ios-ui exposes typed UIKit view, label, button, image-view, and text-field handles for native app integration."
     },
     {
       "id": "004-core-app-ui-events-target-action-delegates",
@@ -290,7 +290,7 @@
       "portable_contract_note": "No portable facade for this capability is included in D1.",
       "ios_implementation_class": "B",
       "implementation_status": "partial",
-      "status_reason": "ios-ui has UIKit handles for its native view, label, button, and image-view types; this narrow escape facade is not a general UIKit binding",
+      "status_reason": "ios-ui has UIKit handles for its native view, label, button, image-view, and text-field types; this narrow escape facade is not a general UIKit binding",
       "minimum_ios_version": null,
       "required_frameworks": [
         "UIKit"
@@ -304,7 +304,7 @@
       "parity_status": "not_tested_live_behavior_or_Apple_parity",
       "performance_status": "not_measured",
       "native_escape_handle_available": true,
-      "native_escape_handle_note": "ios-ui has typed handles to UIKit view, label, button, and image-view objects for native app use"
+      "native_escape_handle_note": "ios-ui has typed handles to UIKit view, label, button, image-view, and text-field objects for native app use"
     },
     {
       "id": "010-files-data-preferences-sandbox-files-directories",

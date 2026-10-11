@@ -1,18 +1,18 @@
 # iOS Native UI Controls
 
 `ios-ui` implements the portable `framework-ui` contract with public UIKit bindings. It creates a
-native `UIView`, adds native `UILabel` and `UIButton` children, and supports synchronous label-text
-and button-title replacement. `Frame` maps to `CGRect` in the parent view's local coordinate
-system; its logical units are UIKit points
+native `UIView`, adds native `UILabel`, `UIButton`, `UIImageView`, and single-line `UITextField`
+children, and supports synchronous label, button, image, and field operations. `Frame` maps to
+`CGRect` in the parent view's local coordinate system; its logical units are UIKit points
 
 ## Main-thread and ownership rules
 
 - Construct `IosUiBackend` with `ios_runtime::main_thread::MainThread`; all UIKit creation and
   updates require the main thread. A failed runtime main-thread proof returns
   `framework_core::ErrorKind::Unavailable`. Backend and handle values are `!Send`/`!Sync`
-- `IosView`, `IosLabel`, and `IosButton` retain their native UIKit objects. The caller owns
-  hierarchy placement and must attach `IosView::native_view()` to a caller-owned controller or
-  parent view
+- `IosView`, `IosLabel`, `IosButton`, `IosImageView`, and `IosTextField` retain their native UIKit
+  objects. The caller owns hierarchy placement and must attach `IosView::native_view()` to a
+  caller-owned controller or parent view
 - UIKit retains added child views in its native hierarchy. The Rust `IosButton` handle also owns
   the Rust `NSObject` target and action callback. Keep that handle alive while the button action
   should remain active; dropping it unregisters its target/action and releases Rust callback
@@ -29,9 +29,31 @@ system; its logical units are UIKit points
 - Rust callback panics are caught before return through Objective-C. The panic hook still runs;
   with `panic=abort`, the process aborts. No callback result is returned to UIKit or the caller
 
-`native_view`, `native_label`, and `native_button` expose borrowed typed UIKit references as
+`native_view`, `native_label`, `native_button`, `native_image_view`, and `native_text_field` expose
+borrowed typed UIKit references as
 integration escape hatches. Any direct native mutation remains subject to UIKit's main-thread and
 ownership rules
+
+## Single-line text input
+
+`IosUiBackend::add_text_field` adds a caller-owned `UITextField` child with optional initial text and
+placeholder. `IosTextField::text` and `placeholder` return owned Rust strings; their setters accept
+`Option<&str>`. `None` maps to native `nil`, while `Some("")` maps to a present empty NSString.
+Encoding uses the explicit-length NSString initializer. Reads copy the exact UTF-16 range and reject
+malformed surrogate sequences as `InvalidInput`; embedded NUL and supplementary Unicode scalars
+are preserved. No UTF-8 C-string conversion is used
+
+`request_first_responder` and `resign_first_responder` return UIKit's `Bool` result. These values do
+not prove keyboard visibility or text-input runtime behavior. The handle is retained and
+`!Send`/`!Sync`; all operations require the current main thread. This slice adds no delegate,
+callback, keyboard management, controller/window ownership, or runtime UI proof
+
+```rust
+let mut field = backend.add_text_field(&mut parent, frame, None, Some("Name"))?;
+field.set_text(Some("Ada"))?;
+let text: Option<String> = field.text()?;
+let accepted = field.request_first_responder()?;
+```
 
 ## Image display
 
@@ -65,15 +87,17 @@ iOS 12.0 device and iOS 14.0 Simulator deployment targets; those are probe setti
 minimum
 
 The B489 image-view link fixture checks the public UIKit framework, `UIImageView` class,
-`setImage:` selector, and iOS 12.0 device / iOS 14.0 Simulator deployment targets. A link pass is
-not runtime image display or visual proof
+`setImage:` selector, and iOS 12.0 device / iOS 14.0 Simulator deployment targets. The B493
+text-field fixture checks `UITextField`, nullable text/placeholder selectors, both responder
+selectors, and the same target floors. Link passes are not runtime image display, visual proof,
+keyboard behavior, or text-input proof
 
 ## Scope and evidence
 
 This crate is a partial native-control backend, not a view hierarchy runtime. It does not own an
 application, window, controller, scene, navigation stack, modal presenter, or layout engine. It
-does not implement accessibility metadata, animations, gestures, tables, collections, text input,
-or SwiftUI. The existing `ios-minimal` example demonstrates a separate app-entry vertical slice;
+does not implement accessibility metadata, animations, gestures, tables, collections, multi-line
+editing, delegates, keyboard management, or SwiftUI. The existing `ios-minimal` example demonstrates a separate app-entry vertical slice;
 this crate does not alter that example
 
 Portable no-std compilation passed in the recorded validation. That record reports seven portable

@@ -20,10 +20,19 @@ owns each non-null image. No decode or file I/O is in scope. The registered `ios
 proof. Device and Simulator link probes use iOS 12.0 / 14.0 floors. A negative mutation that removes
 the image-specific main-thread proof fails its source guard. No runtime image proof is claimed
 
+B493 adds a caller-owned `UITextField` child. `IosTextField` reads and writes nullable text and
+placeholder values without C-string conversion, copies NSString's explicit UTF-16 range, preserves
+embedded NUL and supplementary Unicode values, and rejects malformed surrogate data. Its typed
+native escape and UIKit first-responder requests remain main-thread-bound; responder methods return
+UIKit's `Bool` only. Host tests and the registered profile cover conversion, API guards, target
+compilation, and selector linkage. No delegate, callback, keyboard, simulator execution, or physical
+device text-input behavior is claimed
+
 ## Objective
 
-Provide a small reusable Rust API for native container views, text labels, and buttons with a Rust
-target-action callback. Keep portable semantics in `framework-ui` and iOS objects in `ios-ui`
+Provide a small reusable Rust API for native container views, labels, buttons, image views, and
+single-line text fields, with a Rust target-action callback for buttons. Keep portable semantics in
+`framework-ui` and iOS objects in `ios-ui`
 
 ## Dependencies
 
@@ -66,6 +75,9 @@ Root owns workspace, lockfile, docs-index, capability-matrix, and CI integration
   backend and handles remain `!Send`/`!Sync`
 - Map `Frame` to `CGRect` in the parent view's local coordinate system using UIKit points
 - Create a native `UIView`; add native `UILabel` and `UIButton` children; support text/title updates
+- Add `IosTextField` over public `UITextField` with nullable text/placeholder, explicit-length
+  NSString encoding, strict UTF-16 decoding, and main-thread first-responder requests returning
+  UIKit's Boolean result
 - Implement button actions with a Rust-defined `NSObject` target and `UIControl` target/action. The
   returned `IosButton` strongly retains both the native button and its Rust target; the target
   catches callback panics before return through Objective-C. The panic hook still runs, and
@@ -86,8 +98,9 @@ Root owns workspace, lockfile, docs-index, capability-matrix, and CI integration
   ownership, callback thread/reentrancy/panic behavior, and native escape hatches
 - Add portable tests for valid and invalid frame values and a fake static backend path. Do not
   simulate UIKit action delivery or claim live UI behavior
-- Mark this as a minimal native-control slice. It does not claim navigation, scene lifecycle,
-  general presentation, layout, accessibility, or parity with a complete UI framework
+- Mark this as a minimal native-control slice. Text fields add no delegate, callback, keyboard, or
+  runtime text-input contract. The crate does not claim navigation, scene lifecycle, general
+  presentation, layout, accessibility, or parity with a complete UI framework
 
 ## Validation and handoff
 

@@ -1,5 +1,6 @@
 use core::cell::RefCell;
 use core::marker::PhantomData;
+use core::ptr::NonNull;
 use std::rc::Rc;
 
 use framework_core::{Error, ErrorKind, Result};
@@ -10,10 +11,12 @@ use objc2::rc::{Retained, autoreleasepool};
 use objc2::runtime::NSObject;
 use objc2::{DefinedClass, MainThreadMarker, MainThreadOnly, Message, define_class, msg_send, sel};
 use objc2_core_foundation::{CGPoint, CGRect, CGSize};
-use objc2_foundation::{NSObjectProtocol, NSString};
+use objc2_foundation::{NSObjectProtocol, NSRange, NSString};
 use objc2_ui_kit::{
-    UIButton, UIControlEvents, UIControlState, UIImage, UIImageView, UILabel, UIView,
+    UIButton, UIControlEvents, UIControlState, UIImage, UIImageView, UILabel, UITextField, UIView,
 };
+
+use crate::text_conversion::{Utf16Error, decode_utf16};
 
 /// A UIKit backend for caller-owned native controls.
 ///
@@ -42,6 +45,12 @@ pub struct IosLabel {
 pub struct IosImageView {
     native: Retained<UIImageView>,
     _not_send: PhantomData<Rc<()>>,
+}
+
+/// A retained UIKit single-line text field.
+pub struct IosTextField {
+    native: Retained<UITextField>,
+    _text_field_not_send: PhantomData<Rc<()>>,
 }
 
 /// A retained UIKit button and its Rust target/action callback owner.
@@ -124,6 +133,33 @@ impl IosUiBackend {
             _not_send: PhantomData,
         })
     }
+
+    /// Adds a native text field to `parent` with optional text and placeholder values.
+    ///
+    /// `None` clears a native value; `Some("")` sets an empty string. Text values use explicit
+    /// lengths and preserve embedded NUL characters.
+    pub fn add_text_field(
+        &mut self,
+        parent: &mut IosView,
+        frame: Frame,
+        text: Option<&str>,
+        placeholder: Option<&str>,
+    ) -> Result<IosTextField> {
+        let field_marker = main_thread_marker()?;
+        let native = UITextField::new(field_marker);
+        native.setFrame(native_frame(frame));
+        autoreleasepool(|_| {
+            let text = text.map(NSString::from_str);
+            native.setText(text.as_deref());
+            let placeholder = placeholder.map(NSString::from_str);
+            native.setPlaceholder(placeholder.as_deref());
+        });
+        parent.native.addSubview(&native);
+        Ok(IosTextField {
+            native,
+            _text_field_not_send: PhantomData,
+        })
+    }
 }
 
 impl IosView {
@@ -157,6 +193,67 @@ impl IosImageView {
 
     /// Borrows the native image view for UIKit use.
     pub fn native_image_view(&self) -> &UIImageView {
+        &self.native
+    }
+}
+
+impl IosTextField {
+    /// Returns the current field text, preserving `nil`, empty strings, and embedded NUL values.
+    pub fn text(&self) -> Result<Option<String>> {
+        let _field_text_thread = main_thread_marker()?;
+        self.native
+            .text()
+            .as_deref()
+            .map(native_string_to_rust)
+            .transpose()
+    }
+
+    /// Replaces or clears the field text. `None` sets native `nil`; `Some("")` sets empty text.
+    pub fn set_text(&mut self, text: Option<&str>) -> Result<()> {
+        let _field_text_write_thread = main_thread_marker()?;
+        autoreleasepool(|_| {
+            let text = text.map(NSString::from_str);
+            self.native.setText(text.as_deref());
+        });
+        Ok(())
+    }
+
+    /// Returns the current placeholder, preserving `nil`, empty strings, and embedded NUL values.
+    pub fn placeholder(&self) -> Result<Option<String>> {
+        let _field_placeholder_read_thread = main_thread_marker()?;
+        self.native
+            .placeholder()
+            .as_deref()
+            .map(native_string_to_rust)
+            .transpose()
+    }
+
+    /// Replaces or clears the placeholder. `None` sets native `nil`; `Some("")` sets empty text.
+    pub fn set_placeholder(&mut self, placeholder: Option<&str>) -> Result<()> {
+        let _field_placeholder_write_thread = main_thread_marker()?;
+        autoreleasepool(|_| {
+            let placeholder = placeholder.map(NSString::from_str);
+            self.native.setPlaceholder(placeholder.as_deref());
+        });
+        Ok(())
+    }
+
+    /// Requests first-responder status and returns UIKit's result.
+    ///
+    /// The returned value does not establish that a keyboard became visible.
+    pub fn request_first_responder(&mut self) -> Result<bool> {
+        let _field_focus_thread = main_thread_marker()?;
+        Ok(self.native.becomeFirstResponder())
+    }
+
+    /// Requests that the field resign first-responder status and returns UIKit's result.
+    pub fn resign_first_responder(&mut self) -> Result<bool> {
+        let _field_resign_thread = main_thread_marker()?;
+        Ok(self.native.resignFirstResponder())
+    }
+
+    /// Borrows the native text field for UIKit integration.
+    pub fn native_text_field(&self) -> &UITextField {
         &self.native
     }
 }
@@ -287,4 +384,24 @@ fn native_frame(frame: Frame) -> CGRect {
         CGPoint::new(frame.x(), frame.y()),
         CGSize::new(frame.width(), frame.height()),
     )
+}
+
+fn native_string_to_rust(value: &NSString) -> Result<String> {
+    let length = value.len_utf16();
+    let mut units = Vec::new();
+    units
+        .try_reserve_exact(length)
+        .map_err(|_| Error::new(ErrorKind::ResourceExhausted))?;
+    units.resize(length, 0);
+    if length != 0 {
+        let buffer = NonNull::new(units.as_mut_ptr())
+            .ok_or_else(|| Error::new(ErrorKind::ResourceExhausted))?;
+        // SAFETY: `buffer` points to `length` initialized writable UTF-16 units, and the requested
+        // range is exactly the live NSString's full `length_utf16()` range.
+        unsafe { value.getCharacters_range(buffer, NSRange::new(0, length)) };
+    }
+    decode_utf16(&units).map_err(|error| match error {
+        Utf16Error::Invalid => Error::new(ErrorKind::InvalidInput),
+        Utf16Error::ResourceExhausted => Error::new(ErrorKind::ResourceExhausted),
+    })
 }
