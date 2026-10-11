@@ -5394,7 +5394,7 @@
         },
         {
           "path": "platform/ios/ios-ui/src/platform.rs",
-          "text": "let _marker = main_thread_marker()?;",
+          "text": "let _image_thread = main_thread_marker()?;",
           "must_exist": true,
           "message": "UIKit image replacement must require a current main-thread proof"
         }

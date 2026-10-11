@@ -145,7 +145,7 @@ impl IosImageView {
     ///
     /// `UIImageView.image` owns each non-null image value.
     pub fn set_image(&mut self, image: Option<&UIImage>) -> Result<()> {
-        let _marker = main_thread_marker()?;
+        let _image_thread = main_thread_marker()?;
         self.native.setImage(image);
         Ok(())
     }

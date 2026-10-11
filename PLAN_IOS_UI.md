@@ -15,9 +15,10 @@ execution, visual behavior, scene lifecycle, navigation, or general layout syste
 
 B489 adds `IosImageView` to `ios-ui`: `add_image_view` takes an app `UIImage` ref; `set_image` and
 `clear_image` update `UIImageView.image`; `native_image_view` gives the typed UIKit escape. UIKit
-owns each non-null image. No decode or file I/O is in scope. The registered profile has device and
-Simulator link gates at iOS 12.0 / 14.0; Apple-target gates wait for the reserved lane. No runtime
-image proof is claimed
+owns each non-null image. No decode or file I/O is in scope. The registered `ios-ui` profile passes
+64 checks with zero failures or blocks and two skips for simulator execution and physical-device
+proof. Device and Simulator link probes use iOS 12.0 / 14.0 floors. A negative mutation that removes
+the image-specific main-thread proof fails its source guard. No runtime image proof is claimed
 
 ## Objective
 

@@ -115,7 +115,7 @@
       "entitlements": [],
       "device_only_restrictions": [],
       "swift_abi_requirement": false,
-      "metadata_verification": "objc2-ui-kit 0.3.2 has public UIImageView and setImage: bindings; registered device and Simulator link gates await Apple-target validation",
+      "metadata_verification": "objc2-ui-kit 0.3.2 has public UIImageView and setImage: bindings; registered device and Simulator link probes pass at iOS 12.0 and iOS 14.0 deployment targets",
       "parity_status": "not_tested_live_behavior_or_Apple_parity",
       "performance_status": "not_measured",
       "native_escape_handle_available": true,

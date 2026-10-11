@@ -1,5 +1,5 @@
 #[cfg(target_os = "ios")]
-use framework_ui::Frame;
+use framework_ui::{Frame, UiBackend};
 #[cfg(target_os = "ios")]
 use ios_runtime::main_thread::MainThread;
 #[cfg(target_os = "ios")]
