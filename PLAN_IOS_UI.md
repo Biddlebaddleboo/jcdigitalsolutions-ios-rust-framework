@@ -53,6 +53,21 @@ are silent; callbacks reuse the existing panic/reentrancy containment. Host poli
 header-height rejection and idempotent state updates. Device / Simulator link checks are the only
 native evidence; they do not prove VoiceOver, visual reflow, or live callback behavior
 
+B527 adds a typed responder-chain keyboard action. It sends UIKit's public `resignFirstResponder`
+action through `UIApplication` only after a valid main-thread proof; a host regression confirms a
+missing proof does not send the action. Target link checks establish the selector only, not keyboard
+dismissal at runtime
+
+B528 adds `IosGridView`, an eager equal-column layout over native vertical and horizontal
+`UIStackView` values. The caller supplies columns, spacing, frame, and child views; incomplete rows
+use inert placeholders. It is a lower-level UIKit helper, not SwiftUI: no declarative tree, bindings,
+state diffing, lazy creation, or cell reuse is provided. Host tests reject zero columns and invalid
+spacing; native checks do not establish layout or accessibility behavior
+
+B530 adds `IosUiBackend::add_system_symbol_image_view` over public UIKit `UIImage.systemImageNamed:`.
+Unknown symbols map to `Unavailable`; empty names map to `InvalidInput`. Device / Simulator link
+probes check imports, selector, and deployment floor, not system-symbol rendering at runtime
+
 ## Objective
 
 Provide a small reusable Rust API for native container views, labels, buttons, image views, and

@@ -1,9 +1,10 @@
-# Secure TCP connections
+# TCP connections and listeners
 
-`framework-connection` provides a `no_std` facade for one caller-selected outbound secure TCP
-backend. It is intentionally separate from `framework-network` foreground HTTP and
-`framework-connectivity` path snapshots. The facade does not resolve names, parse URLs, create a
-listener, or decide whether a path can reach an endpoint
+`framework-connection` provides a `no_std` facade for caller-selected TCP connection and listener
+backends. Outbound `Connection` semantics are secure TCP by contract; the listener contract leaves
+accepted-stream security backend-specific. It is intentionally separate from `framework-network`
+foreground HTTP and `framework-connectivity` path snapshots. The facade does not resolve names,
+parse URLs, or decide whether a path can reach an endpoint
 
 ## Endpoint and stream model
 
@@ -35,6 +36,16 @@ and neither cancellation nor drop recalls bytes already sent
 
 Native error domains and codes are preserved as raw signed values. Their interpretation is
 backend-specific
+
+## Listener and accepted streams
+
+`TcpListener` binds lazily when its bind future is first polled. Port zero requests an OS-selected
+port, returned after the backend is ready. `accept` yields an owned `AcceptedConnection` with the
+same bounded byte-stream operations; it does not call outbound `connect`. A backend may queue at
+most `MAX_QUEUED_ACCEPTS` accepted streams and must reject extras rather than grow without bound.
+Dropping an accept future detaches only that accept operation. `close` waits for the backend's
+native cancellation boundary and leaves streams already returned to the caller open; `cancel` and
+drop request nonblocking cancellation. No global executor or implicit timeout is required
 
 This guide describes API semantics only. The iOS backend's local-network privacy, TLS defaults,
 callback queue, API floor, compile/link evidence, and runtime limits are documented separately in

@@ -113,7 +113,9 @@
       "ios-runtime"
     ],
 ["ios-microphone-pcm-recorder","ios-media-authorization"],["ios-datagram","framework-datagram"],["ios-notification-responses","framework-notifications"],["ios-navigation","framework-core"],["ios-navigation","framework-ui"],["ios-navigation","ios-runtime"],["ios-navigation","ios-ui"],["ios-call-provider","objc2-call-kit"],["ios-notifications","framework-core"],["ios-notifications","framework-notifications"],["ios-preferences","framework-core"],["ios-preferences","framework-preferences"],
-    ["ios-presentation","ios-runtime"], ["ios-background-execution","framework-background-execution"], ["ios-background-execution","ios-runtime"]
+    ["ios-presentation","ios-runtime"], ["ios-background-execution","framework-background-execution"], ["ios-background-execution","ios-runtime"],
+    ["ios-files","framework-files"],
+    ["ios-connection", "framework-connection"]
   ],
   "pilots": [
     {
@@ -137,60 +139,15 @@
       ],
       "fmt_all": false,
       "guards": [
-        {
-          "message": "socket reuse must be configured before bind",
-          "must_exist": true,
-          "path": "platform/ios/ios-datagram/src/socket.rs",
-          "text": "set_socket_option(&socket, libc::SO_REUSEADDR"
-        },
-        {
-          "message": "broadcast stays an explicit socket option",
-          "must_exist": true,
-          "path": "platform/ios/ios-datagram/src/socket.rs",
-          "text": "set_socket_option(&socket, libc::SO_BROADCAST"
-        },
-        {
-          "message": "receive cancellation uses a pollable wake descriptor",
-          "must_exist": true,
-          "path": "platform/ios/ios-datagram/src/socket.rs",
-          "text": "libc::poll"
-        },
-        {
-          "message": "native failures preserve errno",
-          "must_exist": true,
-          "path": "platform/ios/ios-datagram/src/socket.rs",
-          "text": "DatagramError::NativeErrno"
-        },
-        {
-          "message": "oversized receives reject rather than truncate",
-          "must_exist": true,
-          "path": "platform/ios/ios-datagram/src/socket.rs",
-          "text": "receive_bound_detects_truncation_instead_of_returning_partial_data"
-        },
-        {
-          "message": "timeout, nonblocking, and errno regression stays registered",
-          "must_exist": true,
-          "path": "platform/ios/ios-datagram/src/socket.rs",
-          "text": "nonblocking_timeout_and_native_errno_are_distinct"
-        },
-        {
-          "message": "cancel leaves the socket usable",
-          "must_exist": true,
-          "path": "platform/ios/ios-datagram/src/socket.rs",
-          "text": "cancel_wakes_only_the_current_receive_and_socket_remains_usable"
-        },
-        {
-          "message": "close wakes waiters and rejects later calls",
-          "must_exist": true,
-          "path": "platform/ios/ios-datagram/src/socket.rs",
-          "text": "close_wakes_waiter_is_idempotent_and_rejects_later_calls"
-        },
-        {
-          "message": "portable core remains no_std",
-          "must_exist": true,
-          "path": "crates/framework-datagram/src/lib.rs",
-          "text": "#![no_std]"
-        }
+        {"message":"socket reuse must be configured before bind","must_exist":true,"path":"platform/ios/ios-datagram/src/socket.rs","text":"set_socket_option(&socket, libc::SO_REUSEADDR"},
+        {"message":"broadcast stays an explicit socket option","must_exist":true,"path":"platform/ios/ios-datagram/src/socket.rs","text":"set_socket_option(&socket, libc::SO_BROADCAST"},
+        {"message":"receive cancellation uses a pollable wake descriptor","must_exist":true,"path":"platform/ios/ios-datagram/src/socket.rs","text":"libc::poll"},
+        {"message":"native failures preserve errno","must_exist":true,"path":"platform/ios/ios-datagram/src/socket.rs","text":"DatagramError::NativeErrno"},
+        {"message":"oversized receives reject rather than truncate","must_exist":true,"path":"platform/ios/ios-datagram/src/socket.rs","text":"receive_bound_detects_truncation_instead_of_returning_partial_data"},
+        {"message":"timeout, nonblocking, and errno regression stays registered","must_exist":true,"path":"platform/ios/ios-datagram/src/socket.rs","text":"nonblocking_timeout_and_native_errno_are_distinct"},
+        {"message":"cancel leaves the socket usable","must_exist":true,"path":"platform/ios/ios-datagram/src/socket.rs","text":"cancel_wakes_only_the_current_receive_and_socket_remains_usable"},
+        {"message":"close wakes waiters and rejects later calls","must_exist":true,"path":"platform/ios/ios-datagram/src/socket.rs","text":"close_wakes_waiter_is_idempotent_and_rejects_later_calls"},
+        {"message":"portable core remains no_std","must_exist":true,"path":"crates/framework-datagram/src/lib.rs","text":"#![no_std]"}
       ],
       "id": "ios-datagram",
       "manifest": "platform/ios/ios-datagram/Cargo.toml",
@@ -276,84 +233,19 @@
       ],
       "fmt_all": false,
       "guards": [
-        {
-          "message": "recorder creation must read existing microphone authorization without prompting",
-          "must_exist": true,
-          "path": "platform/ios/ios-microphone-recorder/src/lib.rs",
-          "text": "IosMediaAuthorization::authorization_status("
-        },
-        {
-          "message": "recording must fail closed unless microphone authorization is Authorized",
-          "must_exist": true,
-          "path": "platform/ios/ios-microphone-recorder/src/lib.rs",
-          "text": "matches!(status, MediaAuthorizationStatus::Authorized)"
-        },
-        {
-          "message": "AVAudioFormat creation must enforce the iOS 10 deployment floor",
-          "must_exist": true,
-          "path": "platform/ios/ios-microphone-recorder/src/lib.rs",
-          "text": "objc2::available!(ios = 10.0, ..)"
-        },
-        {
-          "message": "PCM must use the public AVAudioFormat common-format initializer",
-          "must_exist": true,
-          "path": "platform/ios/ios-microphone-recorder/src/lib.rs",
-          "text": "AVAudioFormat::initWithCommonFormat_sampleRate_channels_interleaved"
-        },
-        {
-          "message": "file recording must use the public AVAudioRecorder format initializer",
-          "must_exist": true,
-          "path": "platform/ios/ios-microphone-recorder/src/lib.rs",
-          "text": "AVAudioRecorder::initWithURL_format_error"
-        },
-        {
-          "message": "recorder start must recheck microphone authorization",
-          "must_exist": true,
-          "path": "platform/ios/ios-microphone-recorder/src/lib.rs",
-          "text": "pub fn start(&mut self) -> Result<(), MicrophoneRecorderError>"
-        },
-        {
-          "message": "recording must not request microphone permission",
-          "must_exist": false,
-          "path": "platform/ios/ios-microphone-recorder/src/lib.rs",
-          "text": "IosMediaAuthorization::request"
-        },
-        {
-          "message": "recording must not invoke the AVFoundation permission prompt",
-          "must_exist": false,
-          "path": "platform/ios/ios-microphone-recorder/src/lib.rs",
-          "text": "requestAccessForMediaType_completionHandler"
-        },
-        {
-          "message": "the recorder must not configure or activate shared AVAudioSession state",
-          "must_exist": false,
-          "path": "platform/ios/ios-microphone-recorder/src/lib.rs",
-          "text": "AVAudioSession::sharedInstance"
-        },
-        {
-          "message": "the recorder must not change the shared audio-session category",
-          "must_exist": false,
-          "path": "platform/ios/ios-microphone-recorder/src/lib.rs",
-          "text": "setCategory_mode_options_error"
-        },
-        {
-          "message": "the recorder must not activate or deactivate the shared audio session",
-          "must_exist": false,
-          "path": "platform/ios/ios-microphone-recorder/src/lib.rs",
-          "text": "setActive_error"
-        },
-        {
-          "message": "the output file must close when the recorder is dropped",
-          "must_exist": true,
-          "path": "platform/ios/ios-microphone-recorder/src/lib.rs",
-          "text": "impl Drop for IosMicrophoneRecorder"
-        },
-        {
-          "message": "the recorder dependency must not enable AVAudioSession",
-          "must_exist": false,
-          "path": "platform/ios/ios-microphone-recorder/Cargo.toml",
-          "text": "\"AVAudioSession\""
-        }
+        {"message":"recorder creation must read existing microphone authorization without prompting","must_exist":true,"path":"platform/ios/ios-microphone-recorder/src/lib.rs","text":"IosMediaAuthorization::authorization_status("},
+        {"message":"recording must fail closed unless microphone authorization is Authorized","must_exist":true,"path":"platform/ios/ios-microphone-recorder/src/lib.rs","text":"matches!(status, MediaAuthorizationStatus::Authorized)"},
+        {"message":"AVAudioFormat creation must enforce the iOS 10 deployment floor","must_exist":true,"path":"platform/ios/ios-microphone-recorder/src/lib.rs","text":"objc2::available!(ios = 10.0, ..)"},
+        {"message":"PCM must use the public AVAudioFormat common-format initializer","must_exist":true,"path":"platform/ios/ios-microphone-recorder/src/lib.rs","text":"AVAudioFormat::initWithCommonFormat_sampleRate_channels_interleaved"},
+        {"message":"file recording must use the public AVAudioRecorder format initializer","must_exist":true,"path":"platform/ios/ios-microphone-recorder/src/lib.rs","text":"AVAudioRecorder::initWithURL_format_error"},
+        {"message":"recorder start must recheck microphone authorization","must_exist":true,"path":"platform/ios/ios-microphone-recorder/src/lib.rs","text":"pub fn start(&mut self) -> Result<(), MicrophoneRecorderError>"},
+        {"message":"recording must not request microphone permission","must_exist":false,"path":"platform/ios/ios-microphone-recorder/src/lib.rs","text":"IosMediaAuthorization::request"},
+        {"message":"recording must not invoke the AVFoundation permission prompt","must_exist":false,"path":"platform/ios/ios-microphone-recorder/src/lib.rs","text":"requestAccessForMediaType_completionHandler"},
+        {"message":"the recorder must not configure or activate shared AVAudioSession state","must_exist":false,"path":"platform/ios/ios-microphone-recorder/src/lib.rs","text":"AVAudioSession::sharedInstance"},
+        {"message":"the recorder must not change the shared audio-session category","must_exist":false,"path":"platform/ios/ios-microphone-recorder/src/lib.rs","text":"setCategory_mode_options_error"},
+        {"message":"the recorder must not activate or deactivate the shared audio session","must_exist":false,"path":"platform/ios/ios-microphone-recorder/src/lib.rs","text":"setActive_error"},
+        {"message":"the output file must close when the recorder is dropped","must_exist":true,"path":"platform/ios/ios-microphone-recorder/src/lib.rs","text":"impl Drop for IosMicrophoneRecorder"},
+        {"message":"the recorder dependency must not enable AVAudioSession","must_exist":false,"path":"platform/ios/ios-microphone-recorder/Cargo.toml","text":"\"AVAudioSession\""}
       ],
       "id": "ios-microphone-pcm-recorder",
       "manifest": "platform/ios/ios-microphone-recorder/Cargo.toml",
@@ -397,342 +289,62 @@
       ],
       "fmt_all": false,
       "guards": [
-        {
-          "message": "stream creation must read existing microphone authorization",
-          "must_exist": true,
-          "path": "platform/ios/ios-microphone-pcm-stream/src/lib.rs",
-          "text": "IosMediaAuthorization::authorization_status("
-        },
-        {
-          "message": "capture must fail closed unless microphone authorization is Authorized",
-          "must_exist": true,
-          "path": "platform/ios/ios-microphone-pcm-stream/src/lib.rs",
-          "text": "matches!(status, MediaAuthorizationStatus::Authorized)"
-        },
-        {
-          "message": "stream start must recheck microphone authorization",
-          "must_exist": true,
-          "path": "platform/ios/ios-microphone-pcm-stream/src/lib.rs",
-          "text": "pub fn start(&mut self) -> Result<PcmInputFormat, MicrophoneStreamError>"
-        },
-        {
-          "message": "the engine path must enforce its iOS 8 public API floor",
-          "must_exist": true,
-          "path": "platform/ios/ios-microphone-pcm-stream/src/lib.rs",
-          "text": "objc2::available!(ios = 8.0, ..)"
-        },
-        {
-          "message": "the stream must read the input node native output format",
-          "must_exist": true,
-          "path": "platform/ios/ios-microphone-pcm-stream/src/lib.rs",
-          "text": "input.outputFormatForBus(0)"
-        },
-        {
-          "message": "the stream must fail closed for non-Float32 native input",
-          "must_exist": true,
-          "path": "platform/ios/ios-microphone-pcm-stream/src/lib.rs",
-          "text": "native_format.commonFormat() == AVAudioCommonFormat::PCMFormatFloat32"
-        },
-        {
-          "message": "tap format must be the unconverted native input format",
-          "must_exist": true,
-          "path": "platform/ios/ios-microphone-pcm-stream/src/lib.rs",
-          "text": "Some(&native_format)"
-        },
-        {
-          "message": "the engine must install a public input-node tap",
-          "must_exist": true,
-          "path": "platform/ios/ios-microphone-pcm-stream/src/lib.rs",
-          "text": "input.installTapOnBus_bufferSize_format_block("
-        },
-        {
-          "message": "the tap callback must inspect the live buffer format and stride",
-          "must_exist": true,
-          "path": "platform/ios/ios-microphone-pcm-stream/src/lib.rs",
-          "text": "native_buffer.stride()"
-        },
-        {
-          "message": "the tap callback must latch a changed format for the consumer",
-          "must_exist": true,
-          "path": "platform/ios/ios-microphone-pcm-stream/src/lib.rs",
-          "text": "self.callback_error.store(true, Ordering::Relaxed)"
-        },
-        {
-          "message": "ring overflow must drop a whole tap block and count its frames",
-          "must_exist": true,
-          "path": "platform/ios/ios-microphone-pcm-stream/src/lib.rs",
-          "text": "if frames > self.capacity_frames - queued"
-        },
-        {
-          "message": "dropped-frame count must saturate without a lock",
-          "must_exist": true,
-          "path": "platform/ios/ios-microphone-pcm-stream/src/lib.rs",
-          "text": "current.saturating_add(u64::from(frames))"
-        },
-        {
-          "message": "panic must not unwind across the Objective-C tap callback",
-          "must_exist": true,
-          "path": "platform/ios/ios-microphone-pcm-stream/src/lib.rs",
-          "text": "catch_unwind(AssertUnwindSafe("
-        },
-        {
-          "message": "stop and drop must remove the engine tap",
-          "must_exist": true,
-          "path": "platform/ios/ios-microphone-pcm-stream/src/lib.rs",
-          "text": "input.removeTapOnBus(0)"
-        },
-        {
-          "message": "the stream must explicitly remain local-thread-only",
-          "must_exist": true,
-          "path": "platform/ios/ios-microphone-pcm-stream/src/lib.rs",
-          "text": "_not_send_or_sync: PhantomData<Rc<()>>"
-        },
-        {
-          "message": "stream drop must stop and release native capture",
-          "must_exist": true,
-          "path": "platform/ios/ios-microphone-pcm-stream/src/lib.rs",
-          "text": "impl Drop for IosMicrophonePcmStream"
-        },
-        {
-          "message": "input-port snapshots must expose the owned Rust API",
-          "must_exist": true,
-          "path": "platform/ios/ios-microphone-pcm-stream/src/lib.rs",
-          "text": "pub fn available_input_ports() -> Result<Vec<IosAudioInputPort>, MicrophoneInputQueryError>"
-        },
-        {
-          "message": "input-port query must enforce the public iOS 7.0 API floor",
-          "must_exist": true,
-          "path": "platform/ios/ios-microphone-pcm-stream/src/lib.rs",
-          "text": "objc2::available!(ios = 7.0, ..)"
-        },
-        {
-          "message": "preferred-input selection must expose the UID-based Rust API",
-          "must_exist": true,
-          "path": "platform/ios/ios-microphone-pcm-stream/src/lib.rs",
-          "text": "pub fn select_input_port(uid: &str) -> Result<(), MicrophoneInputSelectionError>"
-        },
-        {
-          "message": "preferred-input selection must resolve UIDs against the current available-input list",
-          "must_exist": true,
-          "path": "platform/ios/ios-microphone-pcm-stream/src/lib.rs",
-          "text": "select_available_input("
-        },
-        {
-          "message": "input-port query must read only the host session availableInputs property",
-          "must_exist": true,
-          "path": "platform/ios/ios-microphone-pcm-stream/src/lib.rs",
-          "text": "session.availableInputs()"
-        },
-        {
-          "message": "input-port snapshots must copy the system port type, name, and UID",
-          "must_exist": true,
-          "path": "platform/ios/ios-microphone-pcm-stream/src/lib.rs",
-          "text": "port.portType()"
-        },
-        {
-          "message": "input-port snapshots must copy the descriptive port name",
-          "must_exist": true,
-          "path": "platform/ios/ios-microphone-pcm-stream/src/lib.rs",
-          "text": "port.portName()"
-        },
-        {
-          "message": "input-port snapshots must copy the port UID",
-          "must_exist": true,
-          "path": "platform/ios/ios-microphone-pcm-stream/src/lib.rs",
-          "text": "port.UID()"
-        },
-        {
-          "message": "input-port snapshots must own their copied Rust strings",
-          "must_exist": true,
-          "path": "platform/ios/ios-microphone-pcm-stream/src/lib.rs",
-          "text": "(port_type.to_string(), name.to_string(), uid.to_string())"
-        },
-        {
-          "message": "live capture must not request microphone permission",
-          "must_exist": false,
-          "path": "platform/ios/ios-microphone-pcm-stream/src/lib.rs",
-          "text": "IosMediaAuthorization::request"
-        },
-        {
-          "message": "live capture must not invoke the microphone permission prompt",
-          "must_exist": false,
-          "path": "platform/ios/ios-microphone-pcm-stream/src/lib.rs",
-          "text": "requestAccessForMediaType_completionHandler"
-        },
-        {
-          "message": "the input-port snapshot and stream must not invoke a permission prompt",
-          "must_exist": false,
-          "path": "platform/ios/ios-microphone-pcm-stream/src/lib.rs",
-          "text": "requestRecordPermission"
-        },
-        {
-          "message": "audio queries, selection, capture, and observation must not set the host session category",
-          "must_exist": false,
-          "path": "platform/ios/ios-microphone-pcm-stream/src/lib.rs",
-          "text": "setCategory"
-        },
-        {
-          "message": "audio queries, selection, capture, and observation must not set the host session mode",
-          "must_exist": false,
-          "path": "platform/ios/ios-microphone-pcm-stream/src/lib.rs",
-          "text": "setMode"
-        },
-        {
-          "message": "audio queries, selection, capture, and observation must not activate or deactivate the host session",
-          "must_exist": false,
-          "path": "platform/ios/ios-microphone-pcm-stream/src/lib.rs",
-          "text": "setActive"
-        },
-        {
-          "message": "preferred-input selection must request the exact currently available port",
-          "must_exist": true,
-          "path": "platform/ios/ios-microphone-pcm-stream/src/lib.rs",
-          "text": "session.setPreferredInput_error(Some(&port))"
-        },
-        {
-          "message": "preferred-input selection must not clear the host's preferred route",
-          "must_exist": false,
-          "path": "platform/ios/ios-microphone-pcm-stream/src/lib.rs",
-          "text": "setPreferredInput_error(None)"
-        },
-        {
-          "message": "preferred-input selection must not change preferred channel count or orientation",
-          "must_exist": false,
-          "path": "platform/ios/ios-microphone-pcm-stream/src/lib.rs",
-          "text": "setPreferredInputNumberOfChannels"
-        },
-        {
-          "message": "preferred-input selection must not change preferred channel count or orientation",
-          "must_exist": false,
-          "path": "platform/ios/ios-microphone-pcm-stream/src/lib.rs",
-          "text": "setPreferredInputOrientation"
-        },
-        {
-          "message": "the input-port query must not override audio routing",
-          "must_exist": false,
-          "path": "platform/ios/ios-microphone-pcm-stream/src/lib.rs",
-          "text": "overrideOutputAudioPort"
-        },
-        {
-          "message": "the audio event monitor must observe route-change notifications",
-          "must_exist": true,
-          "path": "platform/ios/ios-microphone-pcm-stream/src/lib.rs",
-          "text": "AVAudioSessionRouteChangeNotification"
-        },
-        {
-          "message": "the audio event monitor must observe interruption notifications",
-          "must_exist": true,
-          "path": "platform/ios/ios-microphone-pcm-stream/src/lib.rs",
-          "text": "AVAudioSessionInterruptionNotification"
-        },
-        {
-          "message": "interruption type must be read from the documented public notification key",
-          "must_exist": true,
-          "path": "platform/ios/ios-microphone-pcm-stream/src/lib.rs",
-          "text": "AVAudioSessionInterruptionTypeKey"
-        },
-        {
-          "message": "interruption type must be parsed from userInfo as an NSNumber",
-          "must_exist": true,
-          "path": "platform/ios/ios-microphone-pcm-stream/src/lib.rs",
-          "text": ".downcast::<NSNumber>()"
-        },
-        {
-          "message": "interruption payload must map the public began and ended values",
-          "must_exist": true,
-          "path": "platform/ios/ios-microphone-pcm-stream/src/lib.rs",
-          "text": "Some(1) => INTERRUPTION_BEGAN_EVENT"
-        },
-        {
-          "message": "the public interruption-ended value must remain distinct from began",
-          "must_exist": true,
-          "path": "platform/ios/ios-microphone-pcm-stream/src/lib.rs",
-          "text": "Some(0) => INTERRUPTION_ENDED_EVENT"
-        },
-        {
-          "message": "interruption payload parsing must read NSNumber's integer value",
-          "must_exist": true,
-          "path": "platform/ios/ios-microphone-pcm-stream/src/lib.rs",
-          "text": "number.integerValue()"
-        },
-        {
-          "message": "missing or unknown interruption types must remain observable",
-          "must_exist": true,
-          "path": "platform/ios/ios-microphone-pcm-stream/src/lib.rs",
-          "text": "_ => INTERRUPTION_UNCLASSIFIED_EVENT"
-        },
-        {
-          "message": "interruption notification objects must not be retained by monitor state",
-          "must_exist": true,
-          "path": "platform/ios/ios-microphone-pcm-stream/src/lib.rs",
-          "text": "the borrowed payload is parsed immediately and is never retained"
-        },
-        {
-          "message": "the monitor must expose an owned, nonblocking drain API",
-          "must_exist": true,
-          "path": "platform/ios/ios-microphone-pcm-stream/src/lib.rs",
-          "text": "pub fn drain(&self) -> IosAudioSessionEventFlags"
-        },
-        {
-          "message": "event drain must atomically reset its bounded flag state",
-          "must_exist": true,
-          "path": "platform/ios/ios-microphone-pcm-stream/src/lib.rs",
-          "text": "self.0.swap(0, Ordering::Relaxed)"
-        },
-        {
-          "message": "notification callbacks must update flags without a mutex",
-          "must_exist": false,
-          "path": "platform/ios/ios-microphone-pcm-stream/src/lib.rs",
-          "text": "Mutex"
-        },
-        {
-          "message": "observer state must be weakly captured",
-          "must_exist": true,
-          "path": "platform/ios/ios-microphone-pcm-stream/src/lib.rs",
-          "text": "events: Weak<PendingAudioSessionEvents>"
-        },
-        {
-          "message": "observer tokens must be removed on drop",
-          "must_exist": true,
-          "path": "platform/ios/ios-microphone-pcm-stream/src/lib.rs",
-          "text": "impl<C, T, const N: usize> Drop for ObserverTokenOwner"
-        },
-        {
-          "message": "AVAudioSession notification observers must remove their Foundation tokens",
-          "must_exist": true,
-          "path": "platform/ios/ios-microphone-pcm-stream/src/lib.rs",
-          "text": "self.removeObserver(observer)"
-        },
-        {
-          "message": "the monitor must use no object filter or operation queue",
-          "must_exist": true,
-          "path": "platform/ios/ios-microphone-pcm-stream/src/lib.rs",
-          "text": "Some(name), None, None, &block"
-        },
-        {
-          "message": "the native binding must enable the AVAudioSession class",
-          "must_exist": true,
-          "path": "platform/ios/ios-microphone-pcm-stream/Cargo.toml",
-          "text": "\"AVAudioSession\""
-        },
-        {
-          "message": "the native binding must enable public AVAudioSession route descriptions",
-          "must_exist": true,
-          "path": "platform/ios/ios-microphone-pcm-stream/Cargo.toml",
-          "text": "\"AVAudioSessionRoute\""
-        },
-        {
-          "message": "the native binding must enable public AVAudioSession port types",
-          "must_exist": true,
-          "path": "platform/ios/ios-microphone-pcm-stream/Cargo.toml",
-          "text": "\"AVAudioSessionTypes\""
-        },
-        {
-          "message": "Foundation must enable notification payload parsing and NotificationCenter block registration",
-          "must_exist": true,
-          "path": "platform/ios/ios-microphone-pcm-stream/Cargo.toml",
-          "text": "features = [\"NSDictionary\", \"NSNotification\", \"NSObject\", \"NSOperation\", \"NSValue\", \"NSString\", \"block2\"]"
-        }
+        {"message":"stream creation must read existing microphone authorization","must_exist":true,"path":"platform/ios/ios-microphone-pcm-stream/src/lib.rs","text":"IosMediaAuthorization::authorization_status("},
+        {"message":"capture must fail closed unless microphone authorization is Authorized","must_exist":true,"path":"platform/ios/ios-microphone-pcm-stream/src/lib.rs","text":"matches!(status, MediaAuthorizationStatus::Authorized)"},
+        {"message":"stream start must recheck microphone authorization","must_exist":true,"path":"platform/ios/ios-microphone-pcm-stream/src/lib.rs","text":"pub fn start(&mut self) -> Result<PcmInputFormat, MicrophoneStreamError>"},
+        {"message":"the engine path must enforce its iOS 8 public API floor","must_exist":true,"path":"platform/ios/ios-microphone-pcm-stream/src/lib.rs","text":"objc2::available!(ios = 8.0, ..)"},
+        {"message":"the stream must read the input node native output format","must_exist":true,"path":"platform/ios/ios-microphone-pcm-stream/src/lib.rs","text":"input.outputFormatForBus(0)"},
+        {"message":"the stream must fail closed for non-Float32 native input","must_exist":true,"path":"platform/ios/ios-microphone-pcm-stream/src/lib.rs","text":"native_format.commonFormat() == AVAudioCommonFormat::PCMFormatFloat32"},
+        {"message":"tap format must be the unconverted native input format","must_exist":true,"path":"platform/ios/ios-microphone-pcm-stream/src/lib.rs","text":"Some(&native_format)"},
+        {"message":"the engine must install a public input-node tap","must_exist":true,"path":"platform/ios/ios-microphone-pcm-stream/src/lib.rs","text":"input.installTapOnBus_bufferSize_format_block("},
+        {"message":"the tap callback must inspect the live buffer format and stride","must_exist":true,"path":"platform/ios/ios-microphone-pcm-stream/src/lib.rs","text":"native_buffer.stride()"},
+        {"message":"the tap callback must latch a changed format for the consumer","must_exist":true,"path":"platform/ios/ios-microphone-pcm-stream/src/lib.rs","text":"self.callback_error.store(true, Ordering::Relaxed)"},
+        {"message":"ring overflow must drop a whole tap block and count its frames","must_exist":true,"path":"platform/ios/ios-microphone-pcm-stream/src/lib.rs","text":"if frames > self.capacity_frames - queued"},
+        {"message":"dropped-frame count must saturate without a lock","must_exist":true,"path":"platform/ios/ios-microphone-pcm-stream/src/lib.rs","text":"current.saturating_add(u64::from(frames))"},
+        {"message":"panic must not unwind across the Objective-C tap callback","must_exist":true,"path":"platform/ios/ios-microphone-pcm-stream/src/lib.rs","text":"catch_unwind(AssertUnwindSafe("},
+        {"message":"stop and drop must remove the engine tap","must_exist":true,"path":"platform/ios/ios-microphone-pcm-stream/src/lib.rs","text":"input.removeTapOnBus(0)"},
+        {"message":"the stream must explicitly remain local-thread-only","must_exist":true,"path":"platform/ios/ios-microphone-pcm-stream/src/lib.rs","text":"_not_send_or_sync: PhantomData<Rc<()>>"},
+        {"message":"stream drop must stop and release native capture","must_exist":true,"path":"platform/ios/ios-microphone-pcm-stream/src/lib.rs","text":"impl Drop for IosMicrophonePcmStream"},
+        {"message":"input-port snapshots must expose the owned Rust API","must_exist":true,"path":"platform/ios/ios-microphone-pcm-stream/src/lib.rs","text":"pub fn available_input_ports() -> Result<Vec<IosAudioInputPort>, MicrophoneInputQueryError>"},
+        {"message":"input-port query must enforce the public iOS 7.0 API floor","must_exist":true,"path":"platform/ios/ios-microphone-pcm-stream/src/lib.rs","text":"objc2::available!(ios = 7.0, ..)"},
+        {"message":"preferred-input selection must expose the UID-based Rust API","must_exist":true,"path":"platform/ios/ios-microphone-pcm-stream/src/lib.rs","text":"pub fn select_input_port(uid: &str) -> Result<(), MicrophoneInputSelectionError>"},
+        {"message":"preferred-input selection must resolve UIDs against the current available-input list","must_exist":true,"path":"platform/ios/ios-microphone-pcm-stream/src/lib.rs","text":"select_available_input("},
+        {"message":"input-port query must read only the host session availableInputs property","must_exist":true,"path":"platform/ios/ios-microphone-pcm-stream/src/lib.rs","text":"session.availableInputs()"},
+        {"message":"input-port snapshots must copy the system port type, name, and UID","must_exist":true,"path":"platform/ios/ios-microphone-pcm-stream/src/lib.rs","text":"port.portType()"},
+        {"message":"input-port snapshots must copy the descriptive port name","must_exist":true,"path":"platform/ios/ios-microphone-pcm-stream/src/lib.rs","text":"port.portName()"},
+        {"message":"input-port snapshots must copy the port UID","must_exist":true,"path":"platform/ios/ios-microphone-pcm-stream/src/lib.rs","text":"port.UID()"},
+        {"message":"input-port snapshots must own their copied Rust strings","must_exist":true,"path":"platform/ios/ios-microphone-pcm-stream/src/lib.rs","text":"(port_type.to_string(), name.to_string(), uid.to_string())"},
+        {"message":"live capture must not request microphone permission","must_exist":false,"path":"platform/ios/ios-microphone-pcm-stream/src/lib.rs","text":"IosMediaAuthorization::request"},
+        {"message":"live capture must not invoke the microphone permission prompt","must_exist":false,"path":"platform/ios/ios-microphone-pcm-stream/src/lib.rs","text":"requestAccessForMediaType_completionHandler"},
+        {"message":"the input-port snapshot and stream must not invoke a permission prompt","must_exist":false,"path":"platform/ios/ios-microphone-pcm-stream/src/lib.rs","text":"requestRecordPermission"},
+        {"message":"audio queries, selection, capture, and observation must not set the host session category","must_exist":false,"path":"platform/ios/ios-microphone-pcm-stream/src/lib.rs","text":"setCategory"},
+        {"message":"audio queries, selection, capture, and observation must not set the host session mode","must_exist":false,"path":"platform/ios/ios-microphone-pcm-stream/src/lib.rs","text":"setMode"},
+        {"message":"audio queries, selection, capture, and observation must not activate or deactivate the host session","must_exist":false,"path":"platform/ios/ios-microphone-pcm-stream/src/lib.rs","text":"setActive"},
+        {"message":"preferred-input selection must request the exact currently available port","must_exist":true,"path":"platform/ios/ios-microphone-pcm-stream/src/lib.rs","text":"session.setPreferredInput_error(Some(&port))"},
+        {"message":"preferred-input selection must not clear the host's preferred route","must_exist":false,"path":"platform/ios/ios-microphone-pcm-stream/src/lib.rs","text":"setPreferredInput_error(None)"},
+        {"message":"preferred-input selection must not change preferred channel count or orientation","must_exist":false,"path":"platform/ios/ios-microphone-pcm-stream/src/lib.rs","text":"setPreferredInputNumberOfChannels"},
+        {"message":"preferred-input selection must not change preferred channel count or orientation","must_exist":false,"path":"platform/ios/ios-microphone-pcm-stream/src/lib.rs","text":"setPreferredInputOrientation"},
+        {"message":"the input-port query must not override audio routing","must_exist":false,"path":"platform/ios/ios-microphone-pcm-stream/src/lib.rs","text":"overrideOutputAudioPort"},
+        {"message":"the audio event monitor must observe route-change notifications","must_exist":true,"path":"platform/ios/ios-microphone-pcm-stream/src/lib.rs","text":"AVAudioSessionRouteChangeNotification"},
+        {"message":"the audio event monitor must observe interruption notifications","must_exist":true,"path":"platform/ios/ios-microphone-pcm-stream/src/lib.rs","text":"AVAudioSessionInterruptionNotification"},
+        {"message":"interruption type must be read from the documented public notification key","must_exist":true,"path":"platform/ios/ios-microphone-pcm-stream/src/lib.rs","text":"AVAudioSessionInterruptionTypeKey"},
+        {"message":"interruption type must be parsed from userInfo as an NSNumber","must_exist":true,"path":"platform/ios/ios-microphone-pcm-stream/src/lib.rs","text":".downcast::<NSNumber>()"},
+        {"message":"interruption payload must map the public began and ended values","must_exist":true,"path":"platform/ios/ios-microphone-pcm-stream/src/lib.rs","text":"Some(1) => INTERRUPTION_BEGAN_EVENT"},
+        {"message":"the public interruption-ended value must remain distinct from began","must_exist":true,"path":"platform/ios/ios-microphone-pcm-stream/src/lib.rs","text":"Some(0) => INTERRUPTION_ENDED_EVENT"},
+        {"message":"interruption payload parsing must read NSNumber's integer value","must_exist":true,"path":"platform/ios/ios-microphone-pcm-stream/src/lib.rs","text":"number.integerValue()"},
+        {"message":"missing or unknown interruption types must remain observable","must_exist":true,"path":"platform/ios/ios-microphone-pcm-stream/src/lib.rs","text":"_ => INTERRUPTION_UNCLASSIFIED_EVENT"},
+        {"message":"interruption notification objects must not be retained by monitor state","must_exist":true,"path":"platform/ios/ios-microphone-pcm-stream/src/lib.rs","text":"the borrowed payload is parsed immediately and is never retained"},
+        {"message":"the monitor must expose an owned, nonblocking drain API","must_exist":true,"path":"platform/ios/ios-microphone-pcm-stream/src/lib.rs","text":"pub fn drain(&self) -> IosAudioSessionEventFlags"},
+        {"message":"event drain must atomically reset its bounded flag state","must_exist":true,"path":"platform/ios/ios-microphone-pcm-stream/src/lib.rs","text":"self.0.swap(0, Ordering::Relaxed)"},
+        {"message":"notification callbacks must update flags without a mutex","must_exist":false,"path":"platform/ios/ios-microphone-pcm-stream/src/lib.rs","text":"Mutex"},
+        {"message":"observer state must be weakly captured","must_exist":true,"path":"platform/ios/ios-microphone-pcm-stream/src/lib.rs","text":"events: Weak<PendingAudioSessionEvents>"},
+        {"message":"observer tokens must be removed on drop","must_exist":true,"path":"platform/ios/ios-microphone-pcm-stream/src/lib.rs","text":"impl<C, T, const N: usize> Drop for ObserverTokenOwner"},
+        {"message":"AVAudioSession notification observers must remove their Foundation tokens","must_exist":true,"path":"platform/ios/ios-microphone-pcm-stream/src/lib.rs","text":"self.removeObserver(observer)"},
+        {"message":"the monitor must use no object filter or operation queue","must_exist":true,"path":"platform/ios/ios-microphone-pcm-stream/src/lib.rs","text":"Some(name), None, None, &block"},
+        {"message":"the native binding must enable the AVAudioSession class","must_exist":true,"path":"platform/ios/ios-microphone-pcm-stream/Cargo.toml","text":"\"AVAudioSession\""},
+        {"message":"the native binding must enable public AVAudioSession route descriptions","must_exist":true,"path":"platform/ios/ios-microphone-pcm-stream/Cargo.toml","text":"\"AVAudioSessionRoute\""},
+        {"message":"the native binding must enable public AVAudioSession port types","must_exist":true,"path":"platform/ios/ios-microphone-pcm-stream/Cargo.toml","text":"\"AVAudioSessionTypes\""},
+        {"message":"Foundation must enable notification payload parsing and NotificationCenter block registration","must_exist":true,"path":"platform/ios/ios-microphone-pcm-stream/Cargo.toml","text":"features = [\"NSDictionary\", \"NSNotification\", \"NSObject\", \"NSOperation\", \"NSValue\", \"NSString\", \"block2\"]"}
       ],
       "id": "ios-microphone-pcm-stream",
       "manifest": "platform/ios/ios-microphone-pcm-stream/Cargo.toml",
@@ -812,30 +424,10 @@
       ],
       "fmt_all": false,
       "guards": [
-        {
-          "message": "explicit AVFoundation media authorization request is required",
-          "must_exist": true,
-          "path": "platform/ios/ios-media-authorization/src/request.rs",
-          "text": "requestAccessForMediaType_completionHandler"
-        },
-        {
-          "message": "capture sessions are outside this authorization capability",
-          "must_exist": false,
-          "path": "platform/ios/ios-media-authorization/src/request.rs",
-          "text": "AVCaptureSession"
-        },
-        {
-          "message": "audio engines are outside this authorization capability",
-          "must_exist": false,
-          "path": "platform/ios/ios-media-authorization/src/request.rs",
-          "text": "AVAudioEngine"
-        },
-        {
-          "message": "Objective-C block support is required for asynchronous authorization",
-          "must_exist": true,
-          "path": "platform/ios/ios-media-authorization/Cargo.toml",
-          "text": "features = [\"AVCaptureDevice\", \"AVMediaFormat\", \"block2\"]"
-        }
+        {"message":"explicit AVFoundation media authorization request is required","must_exist":true,"path":"platform/ios/ios-media-authorization/src/request.rs","text":"requestAccessForMediaType_completionHandler"},
+        {"message":"capture sessions are outside this authorization capability","must_exist":false,"path":"platform/ios/ios-media-authorization/src/request.rs","text":"AVCaptureSession"},
+        {"message":"audio engines are outside this authorization capability","must_exist":false,"path":"platform/ios/ios-media-authorization/src/request.rs","text":"AVAudioEngine"},
+        {"message":"Objective-C block support is required for asynchronous authorization","must_exist":true,"path":"platform/ios/ios-media-authorization/Cargo.toml","text":"features = [\"AVCaptureDevice\", \"AVMediaFormat\", \"block2\"]"}
       ],
       "id": "ios-media-authorization",
       "manifest": "platform/ios/ios-media-authorization/Cargo.toml",
@@ -1200,96 +792,21 @@
       ],
       "fmt_all": false,
       "guards": [
-        {
-          "message": "typed HomeKit supportsIdentify getter is required",
-          "must_exist": true,
-          "path": "platform/ios/ios-homekit-identify-status/src/lib.rs",
-          "text": "unsafe { accessory.supportsIdentify() }"
-        },
-        {
-          "message": "typed HomeKit identify operation is required",
-          "must_exist": true,
-          "path": "platform/ios/ios-homekit-identify-status/src/lib.rs",
-          "text": "unsafe { self.accessory.identifyWithCompletionHandler(&handler) }"
-        },
-        {
-          "message": "HomeKit identify callback must preserve NSError domain and code",
-          "must_exist": true,
-          "path": "platform/ios/ios-homekit-identify-status/src/lib.rs",
-          "text": "domain: error.domain().to_string(),"
-        },
-        {
-          "message": "HomeKit identify callback must preserve NSError code",
-          "must_exist": true,
-          "path": "platform/ios/ios-homekit-identify-status/src/lib.rs",
-          "text": "code: error.code() as i64,"
-        },
-        {
-          "message": "HomeKit identify operation must enforce the HMAccessory iOS 8 floor",
-          "must_exist": true,
-          "path": "platform/ios/ios-homekit-identify-status/src/lib.rs",
-          "text": "objc2::available!(ios = 8.0, ..)"
-        },
-        {
-          "message": "iOS 11.3 availability guard is required",
-          "must_exist": true,
-          "path": "platform/ios/ios-homekit-identify-status/src/lib.rs",
-          "text": "objc2::available!(ios = 11.3, ..)"
-        },
-        {
-          "message": "HomeKit manager lifecycle is outside this pilot",
-          "must_exist": false,
-          "path": "platform/ios/ios-homekit-identify-status/src/lib.rs",
-          "text": "HMHomeManager::"
-        },
-        {
-          "message": "HomeKit authorization is outside this pilot",
-          "must_exist": false,
-          "path": "platform/ios/ios-homekit-identify-status/src/lib.rs",
-          "text": "requestAuthorization("
-        },
-        {
-          "message": "Do not invoke an untyped HomeKit identify method",
-          "must_exist": false,
-          "path": "platform/ios/ios-homekit-identify-status/src/lib.rs",
-          "text": ".identify("
-        },
-        {
-          "message": "HomeKit operations must use the generated typed binding, not raw Objective-C messaging",
-          "must_exist": false,
-          "path": "platform/ios/ios-homekit-identify-status/src/lib.rs",
-          "text": "msg_send!("
-        },
-        {
-          "message": "HomeKit operations must not construct raw Objective-C selectors",
-          "must_exist": false,
-          "path": "platform/ios/ios-homekit-identify-status/src/lib.rs",
-          "text": "sel!("
-        },
-        {
-          "message": "HomeKit dependency and feature scope changed",
-          "must_exist": true,
-          "path": "platform/ios/ios-homekit-identify-status/Cargo.toml",
-          "text": "objc2-home-kit = { version = \"=0.3.2\", default-features = false, features = [\"HMAccessory\", \"block2\"] }"
-        },
-        {
-          "message": "HomeKit identify block dependency is required",
-          "must_exist": true,
-          "path": "platform/ios/ios-homekit-identify-status/Cargo.toml",
-          "text": "block2 = { workspace = true, features = [\"alloc\"] }"
-        },
-        {
-          "message": "HomeKit NSError callback types require direct Foundation bindings",
-          "must_exist": true,
-          "path": "platform/ios/ios-homekit-identify-status/Cargo.toml",
-          "text": "objc2-foundation = { workspace = true, features = [\"NSError\", \"NSString\"] }"
-        },
-        {
-          "message": "linked HomeKit probe must retain the typed identify selector",
-          "must_exist": true,
-          "path": "platform/ios/ios-homekit-identify-status/check-link-imports.sh",
-          "text": "grep -F 'identifyWithCompletionHandler:'"
-        }
+        {"message":"typed HomeKit supportsIdentify getter is required","must_exist":true,"path":"platform/ios/ios-homekit-identify-status/src/lib.rs","text":"unsafe { accessory.supportsIdentify() }"},
+        {"message":"typed HomeKit identify operation is required","must_exist":true,"path":"platform/ios/ios-homekit-identify-status/src/lib.rs","text":"unsafe { self.accessory.identifyWithCompletionHandler(&handler) }"},
+        {"message":"HomeKit identify callback must preserve NSError domain and code","must_exist":true,"path":"platform/ios/ios-homekit-identify-status/src/lib.rs","text":"domain: error.domain().to_string(),"},
+        {"message":"HomeKit identify callback must preserve NSError code","must_exist":true,"path":"platform/ios/ios-homekit-identify-status/src/lib.rs","text":"code: error.code() as i64,"},
+        {"message":"HomeKit identify operation must enforce the HMAccessory iOS 8 floor","must_exist":true,"path":"platform/ios/ios-homekit-identify-status/src/lib.rs","text":"objc2::available!(ios = 8.0, ..)"},
+        {"message":"iOS 11.3 availability guard is required","must_exist":true,"path":"platform/ios/ios-homekit-identify-status/src/lib.rs","text":"objc2::available!(ios = 11.3, ..)"},
+        {"message":"HomeKit manager lifecycle is outside this pilot","must_exist":false,"path":"platform/ios/ios-homekit-identify-status/src/lib.rs","text":"HMHomeManager::"},
+        {"message":"HomeKit authorization is outside this pilot","must_exist":false,"path":"platform/ios/ios-homekit-identify-status/src/lib.rs","text":"requestAuthorization("},
+        {"message":"Do not invoke an untyped HomeKit identify method","must_exist":false,"path":"platform/ios/ios-homekit-identify-status/src/lib.rs","text":".identify("},
+        {"message":"HomeKit operations must use the generated typed binding, not raw Objective-C messaging","must_exist":false,"path":"platform/ios/ios-homekit-identify-status/src/lib.rs","text":"msg_send!("},
+        {"message":"HomeKit operations must not construct raw Objective-C selectors","must_exist":false,"path":"platform/ios/ios-homekit-identify-status/src/lib.rs","text":"sel!("},
+        {"message":"HomeKit dependency and feature scope changed","must_exist":true,"path":"platform/ios/ios-homekit-identify-status/Cargo.toml","text":"objc2-home-kit = { version = \"=0.3.2\", default-features = false, features = [\"HMAccessory\", \"block2\"] }"},
+        {"message":"HomeKit identify block dependency is required","must_exist":true,"path":"platform/ios/ios-homekit-identify-status/Cargo.toml","text":"block2 = { workspace = true, features = [\"alloc\"] }"},
+        {"message":"HomeKit NSError callback types require direct Foundation bindings","must_exist":true,"path":"platform/ios/ios-homekit-identify-status/Cargo.toml","text":"objc2-foundation = { workspace = true, features = [\"NSError\", \"NSString\"] }"},
+        {"message":"linked HomeKit probe must retain the typed identify selector","must_exist":true,"path":"platform/ios/ios-homekit-identify-status/check-link-imports.sh","text":"grep -F 'identifyWithCompletionHandler:'"}
       ],
       "id": "ios-homekit-identify-status",
       "manifest": "platform/ios/ios-homekit-identify-status/Cargo.toml",
@@ -1397,12 +914,7 @@
       ],
       "fmt_all": false,
       "guards": [
-        {
-          "message": "AlarmKit must remain the only public native framework link for this pilot",
-          "must_exist": true,
-          "path": "platform/ios/ios-alarmkit-status/build-spec.json",
-          "text": "\"frameworks\": [\"AlarmKit\"]"
-        }
+        {"message":"AlarmKit must remain the only public native framework link for this pilot","must_exist":true,"path":"platform/ios/ios-alarmkit-status/build-spec.json","text":"\"frameworks\": [\"AlarmKit\"]"}
       ],
       "id": "ios-alarmkit-status",
       "manifest": "platform/ios/ios-alarmkit-status/Cargo.toml",
@@ -1439,192 +951,37 @@
       ],
       "fmt_all": false,
       "guards": [
-        {
-          "message": "swift-abi-core apple-runtime feature is required",
-          "must_exist": true,
-          "path": "platform/ios/ios-activitykit-status/Cargo.toml",
-          "text": "features = [\"apple-runtime\"]"
-        },
-        {
-          "message": "ActivityKit compiler oracle must retain the selected getter",
-          "must_exist": true,
-          "path": "platform/ios/ios-activitykit-status/scripts/check-swiftcall.sh",
-          "text": "ActivityAuthorizationInfo().areActivitiesEnabled"
-        },
-        {
-          "message": "ActivityKit native thunk must retain the compiler-derived getter symbol",
-          "must_exist": true,
-          "path": "platform/ios/ios-activitykit-status/native/activitykit_status.c",
-          "text": "0A17AuthorizationInfoC20areActivitiesEnabledSbvg"
-        },
-        {
-          "message": "ActivityKit lifecycle APIs are outside this pilot",
-          "must_exist": false,
-          "path": "platform/ios/ios-activitykit-status/src/lib.rs",
-          "text": "Activity.request"
-        },
-        {
-          "message": "ActivityKit update streams are outside this pilot",
-          "must_exist": false,
-          "path": "platform/ios/ios-activitykit-status/src/lib.rs",
-          "text": "activityEnablementUpdates"
-        },
-        {
-          "message": "ActivityKit push settings are outside this pilot",
-          "must_exist": false,
-          "path": "platform/ios/ios-activitykit-status/src/lib.rs",
-          "text": "frequentPushesEnabled"
-        },
-        {
-          "message": "ActivityKit lifecycle APIs are outside this pilot",
-          "must_exist": false,
-          "path": "platform/ios/ios-activitykit-status/src/lib.rs",
-          "text": ".update("
-        },
-        {
-          "message": "ActivityKit lifecycle APIs are outside this pilot",
-          "must_exist": false,
-          "path": "platform/ios/ios-activitykit-status/src/lib.rs",
-          "text": ".end("
-        },
-        {
-          "message": "ActivityKit lifecycle APIs are outside this pilot",
-          "must_exist": false,
-          "path": "platform/ios/ios-activitykit-status/src/lib.rs",
-          "text": "ActivityAttributes"
-        },
-        {
-          "message": "WidgetKit APIs are outside this pilot",
-          "must_exist": false,
-          "path": "platform/ios/ios-activitykit-status/src/lib.rs",
-          "text": "WidgetCenter"
-        },
-        {
-          "message": "ActivityKit lifecycle APIs are outside this pilot",
-          "must_exist": false,
-          "path": "platform/ios/ios-activitykit-status/native/activitykit_status.c",
-          "text": "Activity.request"
-        },
-        {
-          "message": "ActivityKit lifecycle APIs are outside this pilot",
-          "must_exist": false,
-          "path": "platform/ios/ios-activitykit-status/native/activitykit_status.c",
-          "text": ".update("
-        },
-        {
-          "message": "ActivityKit lifecycle APIs are outside this pilot",
-          "must_exist": false,
-          "path": "platform/ios/ios-activitykit-status/native/activitykit_status.c",
-          "text": ".end("
-        },
-        {
-          "message": "ActivityKit lifecycle APIs are outside this pilot",
-          "must_exist": false,
-          "path": "platform/ios/ios-activitykit-status/native/activitykit_status.c",
-          "text": "ActivityAttributes"
-        },
-        {
-          "message": "ActivityKit lifecycle APIs are outside this pilot",
-          "must_exist": false,
-          "path": "platform/ios/ios-activitykit-status/examples/activitykit_status_link_probe.rs",
-          "text": "Activity.request"
-        },
-        {
-          "message": "ActivityKit update streams are outside this pilot",
-          "must_exist": false,
-          "path": "platform/ios/ios-activitykit-status/examples/activitykit_status_link_probe.rs",
-          "text": "activityEnablementUpdates"
-        },
-        {
-          "message": "ActivityKit push settings are outside this pilot",
-          "must_exist": false,
-          "path": "platform/ios/ios-activitykit-status/examples/activitykit_status_link_probe.rs",
-          "text": "frequentPushesEnabled"
-        },
-        {
-          "message": "ActivityKit lifecycle APIs are outside this pilot",
-          "must_exist": false,
-          "path": "platform/ios/ios-activitykit-status/examples/activitykit_status_link_probe.rs",
-          "text": ".update("
-        },
-        {
-          "message": "ActivityKit lifecycle APIs are outside this pilot",
-          "must_exist": false,
-          "path": "platform/ios/ios-activitykit-status/examples/activitykit_status_link_probe.rs",
-          "text": ".end("
-        },
-        {
-          "message": "ActivityKit lifecycle APIs are outside this pilot",
-          "must_exist": false,
-          "path": "platform/ios/ios-activitykit-status/examples/activitykit_status_link_probe.rs",
-          "text": "ActivityAttributes"
-        },
-        {
-          "message": "WidgetKit APIs are outside this pilot",
-          "must_exist": false,
-          "path": "platform/ios/ios-activitykit-status/examples/activitykit_status_link_probe.rs",
-          "text": "WidgetCenter"
-        },
-        {
-          "message": "ActivityKit update streams are outside this pilot",
-          "must_exist": false,
-          "path": "platform/ios/ios-activitykit-status/native/activitykit_status.c",
-          "text": "activityEnablementUpdates"
-        },
-        {
-          "message": "ActivityKit push settings are outside this pilot",
-          "must_exist": false,
-          "path": "platform/ios/ios-activitykit-status/native/activitykit_status.c",
-          "text": "frequentPushesEnabled"
-        },
-        {
-          "message": "WidgetKit APIs are outside this pilot",
-          "must_exist": false,
-          "path": "platform/ios/ios-activitykit-status/native/activitykit_status.c",
-          "text": "WidgetCenter"
-        },
-        {
-          "message": "ActivityKit update streams are outside this pilot",
-          "must_exist": false,
-          "path": "platform/ios/ios-activitykit-status/build.rs",
-          "text": "activityEnablementUpdates"
-        },
-        {
-          "message": "ActivityKit push settings are outside this pilot",
-          "must_exist": false,
-          "path": "platform/ios/ios-activitykit-status/build.rs",
-          "text": "frequentPushesEnabled"
-        },
-        {
-          "message": "ActivityKit lifecycle APIs are outside this pilot",
-          "must_exist": false,
-          "path": "platform/ios/ios-activitykit-status/build.rs",
-          "text": "Activity.request"
-        },
-        {
-          "message": "ActivityKit lifecycle APIs are outside this pilot",
-          "must_exist": false,
-          "path": "platform/ios/ios-activitykit-status/build.rs",
-          "text": ".update("
-        },
-        {
-          "message": "ActivityKit lifecycle APIs are outside this pilot",
-          "must_exist": false,
-          "path": "platform/ios/ios-activitykit-status/build.rs",
-          "text": ".end("
-        },
-        {
-          "message": "ActivityKit lifecycle APIs are outside this pilot",
-          "must_exist": false,
-          "path": "platform/ios/ios-activitykit-status/build.rs",
-          "text": "ActivityAttributes"
-        },
-        {
-          "message": "WidgetKit APIs are outside this pilot",
-          "must_exist": false,
-          "path": "platform/ios/ios-activitykit-status/build.rs",
-          "text": "WidgetCenter"
-        }
+        {"message":"swift-abi-core apple-runtime feature is required","must_exist":true,"path":"platform/ios/ios-activitykit-status/Cargo.toml","text":"features = [\"apple-runtime\"]"},
+        {"message":"ActivityKit compiler oracle must retain the selected getter","must_exist":true,"path":"platform/ios/ios-activitykit-status/scripts/check-swiftcall.sh","text":"ActivityAuthorizationInfo().areActivitiesEnabled"},
+        {"message":"ActivityKit native thunk must retain the compiler-derived getter symbol","must_exist":true,"path":"platform/ios/ios-activitykit-status/native/activitykit_status.c","text":"0A17AuthorizationInfoC20areActivitiesEnabledSbvg"},
+        {"message":"ActivityKit lifecycle APIs are outside this pilot","must_exist":false,"path":"platform/ios/ios-activitykit-status/src/lib.rs","text":"Activity.request"},
+        {"message":"ActivityKit update streams are outside this pilot","must_exist":false,"path":"platform/ios/ios-activitykit-status/src/lib.rs","text":"activityEnablementUpdates"},
+        {"message":"ActivityKit push settings are outside this pilot","must_exist":false,"path":"platform/ios/ios-activitykit-status/src/lib.rs","text":"frequentPushesEnabled"},
+        {"message":"ActivityKit lifecycle APIs are outside this pilot","must_exist":false,"path":"platform/ios/ios-activitykit-status/src/lib.rs","text":".update("},
+        {"message":"ActivityKit lifecycle APIs are outside this pilot","must_exist":false,"path":"platform/ios/ios-activitykit-status/src/lib.rs","text":".end("},
+        {"message":"ActivityKit lifecycle APIs are outside this pilot","must_exist":false,"path":"platform/ios/ios-activitykit-status/src/lib.rs","text":"ActivityAttributes"},
+        {"message":"WidgetKit APIs are outside this pilot","must_exist":false,"path":"platform/ios/ios-activitykit-status/src/lib.rs","text":"WidgetCenter"},
+        {"message":"ActivityKit lifecycle APIs are outside this pilot","must_exist":false,"path":"platform/ios/ios-activitykit-status/native/activitykit_status.c","text":"Activity.request"},
+        {"message":"ActivityKit lifecycle APIs are outside this pilot","must_exist":false,"path":"platform/ios/ios-activitykit-status/native/activitykit_status.c","text":".update("},
+        {"message":"ActivityKit lifecycle APIs are outside this pilot","must_exist":false,"path":"platform/ios/ios-activitykit-status/native/activitykit_status.c","text":".end("},
+        {"message":"ActivityKit lifecycle APIs are outside this pilot","must_exist":false,"path":"platform/ios/ios-activitykit-status/native/activitykit_status.c","text":"ActivityAttributes"},
+        {"message":"ActivityKit lifecycle APIs are outside this pilot","must_exist":false,"path":"platform/ios/ios-activitykit-status/examples/activitykit_status_link_probe.rs","text":"Activity.request"},
+        {"message":"ActivityKit update streams are outside this pilot","must_exist":false,"path":"platform/ios/ios-activitykit-status/examples/activitykit_status_link_probe.rs","text":"activityEnablementUpdates"},
+        {"message":"ActivityKit push settings are outside this pilot","must_exist":false,"path":"platform/ios/ios-activitykit-status/examples/activitykit_status_link_probe.rs","text":"frequentPushesEnabled"},
+        {"message":"ActivityKit lifecycle APIs are outside this pilot","must_exist":false,"path":"platform/ios/ios-activitykit-status/examples/activitykit_status_link_probe.rs","text":".update("},
+        {"message":"ActivityKit lifecycle APIs are outside this pilot","must_exist":false,"path":"platform/ios/ios-activitykit-status/examples/activitykit_status_link_probe.rs","text":".end("},
+        {"message":"ActivityKit lifecycle APIs are outside this pilot","must_exist":false,"path":"platform/ios/ios-activitykit-status/examples/activitykit_status_link_probe.rs","text":"ActivityAttributes"},
+        {"message":"WidgetKit APIs are outside this pilot","must_exist":false,"path":"platform/ios/ios-activitykit-status/examples/activitykit_status_link_probe.rs","text":"WidgetCenter"},
+        {"message":"ActivityKit update streams are outside this pilot","must_exist":false,"path":"platform/ios/ios-activitykit-status/native/activitykit_status.c","text":"activityEnablementUpdates"},
+        {"message":"ActivityKit push settings are outside this pilot","must_exist":false,"path":"platform/ios/ios-activitykit-status/native/activitykit_status.c","text":"frequentPushesEnabled"},
+        {"message":"WidgetKit APIs are outside this pilot","must_exist":false,"path":"platform/ios/ios-activitykit-status/native/activitykit_status.c","text":"WidgetCenter"},
+        {"message":"ActivityKit update streams are outside this pilot","must_exist":false,"path":"platform/ios/ios-activitykit-status/build.rs","text":"activityEnablementUpdates"},
+        {"message":"ActivityKit push settings are outside this pilot","must_exist":false,"path":"platform/ios/ios-activitykit-status/build.rs","text":"frequentPushesEnabled"},
+        {"message":"ActivityKit lifecycle APIs are outside this pilot","must_exist":false,"path":"platform/ios/ios-activitykit-status/build.rs","text":"Activity.request"},
+        {"message":"ActivityKit lifecycle APIs are outside this pilot","must_exist":false,"path":"platform/ios/ios-activitykit-status/build.rs","text":".update("},
+        {"message":"ActivityKit lifecycle APIs are outside this pilot","must_exist":false,"path":"platform/ios/ios-activitykit-status/build.rs","text":".end("},
+        {"message":"ActivityKit lifecycle APIs are outside this pilot","must_exist":false,"path":"platform/ios/ios-activitykit-status/build.rs","text":"ActivityAttributes"},
+        {"message":"WidgetKit APIs are outside this pilot","must_exist":false,"path":"platform/ios/ios-activitykit-status/build.rs","text":"WidgetCenter"}
       ],
       "id": "ios-activitykit-status",
       "manifest": "platform/ios/ios-activitykit-status/Cargo.toml",
@@ -1665,288 +1022,53 @@
       ],
       "fmt_all": false,
       "guards": [
-        {
-          "message": "add-only status must use the public access-level API",
-          "must_exist": true,
-          "path": "platform/ios/ios-photos/src/platform.rs",
-          "text": "PHAccessLevel::AddOnly"
-        },
-        {
-          "message": "add-only requests remain explicit and separate from read/write requests",
-          "must_exist": true,
-          "path": "platform/ios/ios-photos/src/platform.rs",
-          "text": "request_add_only_authorization"
-        },
-        {
-          "message": "JPEG and movie saves are explicit operations",
-          "must_exist": true,
-          "path": "platform/ios/ios-photos/src/import.rs",
-          "text": "save_jpeg_from_file"
-        },
-        {
-          "message": "movie files use the public video resource type",
-          "must_exist": true,
-          "path": "platform/ios/ios-photos/src/import.rs",
-          "text": "PhotosAssetFileKind::Movie => PHAssetResourceType::Video"
-        },
-        {
-          "message": "JPEG files use the public photo resource type",
-          "must_exist": true,
-          "path": "platform/ios/ios-photos/src/import.rs",
-          "text": "PhotosAssetFileKind::Jpeg => PHAssetResourceType::Photo"
-        },
-        {
-          "message": "file paths must become file URLs",
-          "must_exist": true,
-          "path": "platform/ios/ios-photos/src/import.rs",
-          "text": "NSURL::fileURLWithPath(&path)"
-        },
-        {
-          "message": "Photos saves use asynchronous performChanges",
-          "must_exist": true,
-          "path": "platform/ios/ios-photos/src/import.rs",
-          "text": "performChanges_completionHandler"
-        },
-        {
-          "message": "Photos saves must preserve caller-owned source files",
-          "must_exist": true,
-          "path": "platform/ios/ios-photos/src/import.rs",
-          "text": "setShouldMoveFile(false)"
-        },
-        {
-          "message": "Photos saves must never request a source-file move",
-          "must_exist": false,
-          "path": "platform/ios/ios-photos/src/import.rs",
-          "text": "setShouldMoveFile(true)"
-        },
-        {
-          "message": "save must recheck add-only authorization",
-          "must_exist": true,
-          "path": "platform/ios/ios-photos/src/import.rs",
-          "text": "authorizationStatusForAccessLevel(PHAccessLevel::AddOnly)"
-        },
-        {
-          "message": "save must fail closed unless AddOnly is Authorized",
-          "must_exist": true,
-          "path": "platform/ios/ios-photos/src/import.rs",
-          "text": "require_add_only_authorized(status)"
-        },
-        {
-          "message": "save must not prompt for Photos authorization",
-          "must_exist": false,
-          "path": "platform/ios/ios-photos/src/import.rs",
-          "text": "requestAuthorizationForAccessLevel_handler"
-        },
-        {
-          "message": "save must not use read/write authorization",
-          "must_exist": false,
-          "path": "platform/ios/ios-photos/src/import.rs",
-          "text": "PHAccessLevel::ReadWrite"
-        },
-        {
-          "message": "save must not request or enumerate Photos assets",
-          "must_exist": false,
-          "path": "platform/ios/ios-photos/src/import.rs",
-          "text": "PHImageManager"
-        },
-        {
-          "message": "save must not expose PhotosUI picker flows",
-          "must_exist": false,
-          "path": "platform/ios/ios-photos/src/import.rs",
-          "text": "PhotosUI"
-        },
-        {
-          "message": "path conversion must reject invalid UTF-8 rather than replace bytes",
-          "must_exist": true,
-          "path": "platform/ios/ios-photos/src/save.rs",
-          "text": "path.to_str().ok_or(PhotosSourcePathError::NonUtf8)"
-        },
-        {
-          "message": "paths must be absolute",
-          "must_exist": true,
-          "path": "platform/ios/ios-photos/src/save.rs",
-          "text": "if !path.is_absolute()"
-        },
-        {
-          "message": "source files must be opened and verified as regular files",
-          "must_exist": true,
-          "path": "platform/ios/ios-photos/src/save.rs",
-          "text": "metadata.is_file()"
-        },
-        {
-          "message": "no lossy path conversion is allowed",
-          "must_exist": false,
-          "path": "platform/ios/ios-photos/src/save.rs",
-          "text": "to_string_lossy"
-        },
-        {
-          "message": "no lossy path conversion is allowed",
-          "must_exist": false,
-          "path": "platform/ios/ios-photos/src/import.rs",
-          "text": "to_string_lossy"
-        },
-        {
-          "message": "original-photo fetch accepts one explicit local identifier",
-          "must_exist": true,
-          "path": "platform/ios/ios-photos/src/fetch.rs",
-          "text": "PHAsset::fetchAssetsWithLocalIdentifiers_options(&identifiers, None)"
-        },
-        {
-          "message": "PhotoKit fetch array must contain exactly the caller's one identifier",
-          "must_exist": true,
-          "path": "platform/ios/ios-photos/src/fetch.rs",
-          "text": "NSArray::from_retained_slice(core::slice::from_ref(&identifier))"
-        },
-        {
-          "message": "empty identifiers must fail before native work",
-          "must_exist": true,
-          "path": "platform/ios/ios-photos/src/fetch.rs",
-          "text": "if identifier.is_empty()"
-        },
-        {
-          "message": "NUL identifiers must fail before native work",
-          "must_exist": true,
-          "path": "platform/ios/ios-photos/src/fetch.rs",
-          "text": "identifier.contains('\\0')"
-        },
-        {
-          "message": "zero byte caps must fail before native work",
-          "must_exist": true,
-          "path": "platform/ios/ios-photos/src/fetch.rs",
-          "text": "maximum_byte_count == 0"
-        },
-        {
-          "message": "original-photo fetch requires existing read/write authorization without prompting",
-          "must_exist": true,
-          "path": "platform/ios/ios-photos/src/fetch.rs",
-          "text": "require_read_write_authorized(status)"
-        },
-        {
-          "message": "original-photo fetch accepts only Authorized or Limited",
-          "must_exist": true,
-          "path": "platform/ios/ios-photos/src/fetch.rs",
-          "text": "PhotoLibraryAuthorizationStatus::Authorized | PhotoLibraryAuthorizationStatus::Limited"
-        },
-        {
-          "message": "original-photo fetch rejects non-image assets",
-          "must_exist": true,
-          "path": "platform/ios/ios-photos/src/fetch.rs",
-          "text": "PHAssetMediaType::Image"
-        },
-        {
-          "message": "original-photo fetch selects only the original Photo resource type",
-          "must_exist": true,
-          "path": "platform/ios/ios-photos/src/fetch.rs",
-          "text": "PHAssetResourceType::Photo.0"
-        },
-        {
-          "message": "network access choice must be applied to the PhotoKit resource request",
-          "must_exist": true,
-          "path": "platform/ios/ios-photos/src/fetch.rs",
-          "text": "options.setNetworkAccessAllowed(self.allow_network_access)"
-        },
-        {
-          "message": "resource chunks must use checked byte-cap arithmetic",
-          "must_exist": true,
-          "path": "platform/ios/ios-photos/src/fetch.rs",
-          "text": "checked_add(chunk_length)"
-        },
-        {
-          "message": "resource chunks must allocate fallibly before copying callback-scoped data",
-          "must_exist": true,
-          "path": "platform/ios/ios-photos/src/fetch.rs",
-          "text": ".try_reserve_exact(additional)"
-        },
-        {
-          "message": "callback-scoped NSData bytes must be copied before the callback returns",
-          "must_exist": true,
-          "path": "platform/ios/ios-photos/src/fetch.rs",
-          "text": "data.getBytes_length(destination, length)"
-        },
-        {
-          "message": "late chunks must be ignored after any terminal request state",
-          "must_exist": true,
-          "path": "platform/ios/ios-photos/src/fetch.rs",
-          "text": "state.phase != RequestPhase::Active"
-        },
-        {
-          "message": "Objective-C resource callbacks must contain panics",
-          "must_exist": true,
-          "path": "platform/ios/ios-photos/src/fetch.rs",
-          "text": "catch_unwind(AssertUnwindSafe"
-        },
-        {
-          "message": "dropping an active fetch must cancel the PhotoKit data request",
-          "must_exist": true,
-          "path": "platform/ios/ios-photos/src/fetch.rs",
-          "text": "manager.cancelDataRequest(request_id)"
-        },
-        {
-          "message": "native PhotoKit errors must preserve NSError domain and code",
-          "must_exist": true,
-          "path": "platform/ios/ios-photos/src/fetch.rs",
-          "text": "error.domain().to_string()"
-        },
-        {
-          "message": "native PhotoKit errors must preserve NSError code",
-          "must_exist": true,
-          "path": "platform/ios/ios-photos/src/fetch.rs",
-          "text": "code: error.code()"
-        },
-        {
-          "message": "fetch must not enumerate all Photos assets",
-          "must_exist": false,
-          "path": "platform/ios/ios-photos/src/fetch.rs",
-          "text": "fetchAssetsWithOptions"
-        },
-        {
-          "message": "fetch must not use image-manager edited or paired resource loading",
-          "must_exist": false,
-          "path": "platform/ios/ios-photos/src/fetch.rs",
-          "text": "PHImageManager"
-        },
-        {
-          "message": "fetch must not select edited or paired resources",
-          "must_exist": false,
-          "path": "platform/ios/ios-photos/src/fetch.rs",
-          "text": "PHAssetResourceType::AlternatePhoto"
-        },
-        {
-          "message": "fetch must not select full-size or paired resources",
-          "must_exist": false,
-          "path": "platform/ios/ios-photos/src/fetch.rs",
-          "text": "PHAssetResourceType::FullSizePhoto"
-        },
-        {
-          "message": "fetch must not select Live Photo paired video resources",
-          "must_exist": false,
-          "path": "platform/ios/ios-photos/src/fetch.rs",
-          "text": "PHAssetResourceType::PairedVideo"
-        },
-        {
-          "message": "fetch must not request authorization or mutate Photos",
-          "must_exist": false,
-          "path": "platform/ios/ios-photos/src/fetch.rs",
-          "text": "requestAuthorizationForAccessLevel_handler"
-        },
-        {
-          "message": "fetch must not create or mutate Photos assets",
-          "must_exist": false,
-          "path": "platform/ios/ios-photos/src/fetch.rs",
-          "text": "PHAssetCreationRequest"
-        },
-        {
-          "message": "fetch must not start a Photos change transaction",
-          "must_exist": false,
-          "path": "platform/ios/ios-photos/src/fetch.rs",
-          "text": "performChanges_completionHandler"
-        },
-        {
-          "message": "fetch must not use PhotosUI picker flows",
-          "must_exist": false,
-          "path": "platform/ios/ios-photos/src/fetch.rs",
-          "text": "PhotosUI"
-        }
+        {"message":"add-only status must use the public access-level API","must_exist":true,"path":"platform/ios/ios-photos/src/platform.rs","text":"PHAccessLevel::AddOnly"},
+        {"message":"add-only requests remain explicit and separate from read/write requests","must_exist":true,"path":"platform/ios/ios-photos/src/platform.rs","text":"request_add_only_authorization"},
+        {"message":"JPEG and movie saves are explicit operations","must_exist":true,"path":"platform/ios/ios-photos/src/import.rs","text":"save_jpeg_from_file"},
+        {"message":"movie files use the public video resource type","must_exist":true,"path":"platform/ios/ios-photos/src/import.rs","text":"PhotosAssetFileKind::Movie => PHAssetResourceType::Video"},
+        {"message":"JPEG files use the public photo resource type","must_exist":true,"path":"platform/ios/ios-photos/src/import.rs","text":"PhotosAssetFileKind::Jpeg => PHAssetResourceType::Photo"},
+        {"message":"file paths must become file URLs","must_exist":true,"path":"platform/ios/ios-photos/src/import.rs","text":"NSURL::fileURLWithPath(&path)"},
+        {"message":"Photos saves use asynchronous performChanges","must_exist":true,"path":"platform/ios/ios-photos/src/import.rs","text":"performChanges_completionHandler"},
+        {"message":"Photos saves must preserve caller-owned source files","must_exist":true,"path":"platform/ios/ios-photos/src/import.rs","text":"setShouldMoveFile(false)"},
+        {"message":"Photos saves must never request a source-file move","must_exist":false,"path":"platform/ios/ios-photos/src/import.rs","text":"setShouldMoveFile(true)"},
+        {"message":"save must recheck add-only authorization","must_exist":true,"path":"platform/ios/ios-photos/src/import.rs","text":"authorizationStatusForAccessLevel(PHAccessLevel::AddOnly)"},
+        {"message":"save must fail closed unless AddOnly is Authorized","must_exist":true,"path":"platform/ios/ios-photos/src/import.rs","text":"require_add_only_authorized(status)"},
+        {"message":"save must not prompt for Photos authorization","must_exist":false,"path":"platform/ios/ios-photos/src/import.rs","text":"requestAuthorizationForAccessLevel_handler"},
+        {"message":"save must not use read/write authorization","must_exist":false,"path":"platform/ios/ios-photos/src/import.rs","text":"PHAccessLevel::ReadWrite"},
+        {"message":"save must not request or enumerate Photos assets","must_exist":false,"path":"platform/ios/ios-photos/src/import.rs","text":"PHImageManager"},
+        {"message":"save must not expose PhotosUI picker flows","must_exist":false,"path":"platform/ios/ios-photos/src/import.rs","text":"PhotosUI"},
+        {"message":"path conversion must reject invalid UTF-8 rather than replace bytes","must_exist":true,"path":"platform/ios/ios-photos/src/save.rs","text":"path.to_str().ok_or(PhotosSourcePathError::NonUtf8)"},
+        {"message":"paths must be absolute","must_exist":true,"path":"platform/ios/ios-photos/src/save.rs","text":"if !path.is_absolute()"},
+        {"message":"source files must be opened and verified as regular files","must_exist":true,"path":"platform/ios/ios-photos/src/save.rs","text":"metadata.is_file()"},
+        {"message":"no lossy path conversion is allowed","must_exist":false,"path":"platform/ios/ios-photos/src/save.rs","text":"to_string_lossy"},
+        {"message":"no lossy path conversion is allowed","must_exist":false,"path":"platform/ios/ios-photos/src/import.rs","text":"to_string_lossy"},
+        {"message":"original-photo fetch accepts one explicit local identifier","must_exist":true,"path":"platform/ios/ios-photos/src/fetch.rs","text":"PHAsset::fetchAssetsWithLocalIdentifiers_options(&identifiers, None)"},
+        {"message":"PhotoKit fetch array must contain exactly the caller's one identifier","must_exist":true,"path":"platform/ios/ios-photos/src/fetch.rs","text":"NSArray::from_retained_slice(core::slice::from_ref(&identifier))"},
+        {"message":"empty identifiers must fail before native work","must_exist":true,"path":"platform/ios/ios-photos/src/fetch.rs","text":"if identifier.is_empty()"},
+        {"message":"NUL identifiers must fail before native work","must_exist":true,"path":"platform/ios/ios-photos/src/fetch.rs","text":"identifier.contains('\\0')"},
+        {"message":"zero byte caps must fail before native work","must_exist":true,"path":"platform/ios/ios-photos/src/fetch.rs","text":"maximum_byte_count == 0"},
+        {"message":"original-photo fetch requires existing read/write authorization without prompting","must_exist":true,"path":"platform/ios/ios-photos/src/fetch.rs","text":"require_read_write_authorized(status)"},
+        {"message":"original-photo fetch accepts only Authorized or Limited","must_exist":true,"path":"platform/ios/ios-photos/src/fetch.rs","text":"PhotoLibraryAuthorizationStatus::Authorized | PhotoLibraryAuthorizationStatus::Limited"},
+        {"message":"original-photo fetch rejects non-image assets","must_exist":true,"path":"platform/ios/ios-photos/src/fetch.rs","text":"PHAssetMediaType::Image"},
+        {"message":"original-photo fetch selects only the original Photo resource type","must_exist":true,"path":"platform/ios/ios-photos/src/fetch.rs","text":"PHAssetResourceType::Photo.0"},
+        {"message":"network access choice must be applied to the PhotoKit resource request","must_exist":true,"path":"platform/ios/ios-photos/src/fetch.rs","text":"options.setNetworkAccessAllowed(self.allow_network_access)"},
+        {"message":"resource chunks must use checked byte-cap arithmetic","must_exist":true,"path":"platform/ios/ios-photos/src/fetch.rs","text":"checked_add(chunk_length)"},
+        {"message":"resource chunks must allocate fallibly before copying callback-scoped data","must_exist":true,"path":"platform/ios/ios-photos/src/fetch.rs","text":".try_reserve_exact(additional)"},
+        {"message":"callback-scoped NSData bytes must be copied before the callback returns","must_exist":true,"path":"platform/ios/ios-photos/src/fetch.rs","text":"data.getBytes_length(destination, length)"},
+        {"message":"late chunks must be ignored after any terminal request state","must_exist":true,"path":"platform/ios/ios-photos/src/fetch.rs","text":"state.phase != RequestPhase::Active"},
+        {"message":"Objective-C resource callbacks must contain panics","must_exist":true,"path":"platform/ios/ios-photos/src/fetch.rs","text":"catch_unwind(AssertUnwindSafe"},
+        {"message":"dropping an active fetch must cancel the PhotoKit data request","must_exist":true,"path":"platform/ios/ios-photos/src/fetch.rs","text":"manager.cancelDataRequest(request_id)"},
+        {"message":"native PhotoKit errors must preserve NSError domain and code","must_exist":true,"path":"platform/ios/ios-photos/src/fetch.rs","text":"error.domain().to_string()"},
+        {"message":"native PhotoKit errors must preserve NSError code","must_exist":true,"path":"platform/ios/ios-photos/src/fetch.rs","text":"code: error.code()"},
+        {"message":"fetch must not enumerate all Photos assets","must_exist":false,"path":"platform/ios/ios-photos/src/fetch.rs","text":"fetchAssetsWithOptions"},
+        {"message":"fetch must not use image-manager edited or paired resource loading","must_exist":false,"path":"platform/ios/ios-photos/src/fetch.rs","text":"PHImageManager"},
+        {"message":"fetch must not select edited or paired resources","must_exist":false,"path":"platform/ios/ios-photos/src/fetch.rs","text":"PHAssetResourceType::AlternatePhoto"},
+        {"message":"fetch must not select full-size or paired resources","must_exist":false,"path":"platform/ios/ios-photos/src/fetch.rs","text":"PHAssetResourceType::FullSizePhoto"},
+        {"message":"fetch must not select Live Photo paired video resources","must_exist":false,"path":"platform/ios/ios-photos/src/fetch.rs","text":"PHAssetResourceType::PairedVideo"},
+        {"message":"fetch must not request authorization or mutate Photos","must_exist":false,"path":"platform/ios/ios-photos/src/fetch.rs","text":"requestAuthorizationForAccessLevel_handler"},
+        {"message":"fetch must not create or mutate Photos assets","must_exist":false,"path":"platform/ios/ios-photos/src/fetch.rs","text":"PHAssetCreationRequest"},
+        {"message":"fetch must not start a Photos change transaction","must_exist":false,"path":"platform/ios/ios-photos/src/fetch.rs","text":"performChanges_completionHandler"},
+        {"message":"fetch must not use PhotosUI picker flows","must_exist":false,"path":"platform/ios/ios-photos/src/fetch.rs","text":"PhotosUI"}
       ],
       "id": "ios-photos",
       "manifest": "platform/ios/ios-photos/Cargo.toml",
@@ -1982,300 +1104,55 @@
       ],
       "fmt_all": false,
       "guards": [
-        {
-          "message": "local playback rejects relative paths",
-          "must_exist": true,
-          "path": "platform/ios/ios-playback/src/lib.rs",
-          "text": "Path::new(path).is_absolute()"
-        },
-        {
-          "message": "local playback rejects embedded NUL",
-          "must_exist": true,
-          "path": "platform/ios/ios-playback/src/lib.rs",
-          "text": "path.contains('\\0')"
-        },
-        {
-          "message": "local playback opens its path before AVPlayer construction",
-          "must_exist": true,
-          "path": "platform/ios/ios-playback/src/lib.rs",
-          "text": "File::open(path)"
-        },
-        {
-          "message": "local playback rejects non-regular files",
-          "must_exist": true,
-          "path": "platform/ios/ios-playback/src/lib.rs",
-          "text": "metadata.is_file()"
-        },
-        {
-          "message": "local playback preserves the validated UTF-8 path for Foundation conversion",
-          "must_exist": true,
-          "path": "platform/ios/ios-playback/src/lib.rs",
-          "text": "NSString::from_str(path)"
-        },
-        {
-          "message": "local playback uses public AVPlayer URL construction",
-          "must_exist": true,
-          "path": "platform/ios/ios-playback/src/lib.rs",
-          "text": "AVPlayer::playerWithURL(&url, main_thread)"
-        },
-        {
-          "message": "player creation requires a main-thread marker",
-          "must_exist": true,
-          "path": "platform/ios/ios-playback/src/lib.rs",
-          "text": "main_thread: objc2::MainThreadMarker"
-        },
-        {
-          "message": "play control requires a main-thread marker",
-          "must_exist": true,
-          "path": "platform/ios/ios-playback/src/lib.rs",
-          "text": "pub fn play(&self, _main_thread: objc2::MainThreadMarker)"
-        },
-        {
-          "message": "pause control requires a main-thread marker",
-          "must_exist": true,
-          "path": "platform/ios/ios-playback/src/lib.rs",
-          "text": "pub fn pause(&self, _main_thread: objc2::MainThreadMarker)"
-        },
-        {
-          "message": "player exposes its volume read operation",
-          "must_exist": true,
-          "path": "platform/ios/ios-playback/src/lib.rs",
-          "text": "pub fn volume("
-        },
-        {
-          "message": "player exposes its volume setter operation",
-          "must_exist": true,
-          "path": "platform/ios/ios-playback/src/lib.rs",
-          "text": "pub fn set_volume("
-        },
-        {
-          "message": "player exposes its mute read operation",
-          "must_exist": true,
-          "path": "platform/ios/ios-playback/src/lib.rs",
-          "text": "pub fn is_muted("
-        },
-        {
-          "message": "player exposes its mute setter operation",
-          "must_exist": true,
-          "path": "platform/ios/ios-playback/src/lib.rs",
-          "text": "pub fn set_muted("
-        },
-        {
-          "message": "AVPlayer output controls are unavailable below iOS 7",
-          "must_exist": true,
-          "path": "platform/ios/ios-playback/src/lib.rs",
-          "text": "objc2::available!(ios = 7.0, ..)"
-        },
-        {
-          "message": "player volume read must use the typed AVPlayer getter",
-          "must_exist": true,
-          "path": "platform/ios/ios-playback/src/lib.rs",
-          "text": "self.player.volume()"
-        },
-        {
-          "message": "player volume write must use the typed AVPlayer setter",
-          "must_exist": true,
-          "path": "platform/ios/ios-playback/src/lib.rs",
-          "text": "self.player.setVolume(volume)"
-        },
-        {
-          "message": "player mute read must use the typed AVPlayer getter",
-          "must_exist": true,
-          "path": "platform/ios/ios-playback/src/lib.rs",
-          "text": "self.player.isMuted()"
-        },
-        {
-          "message": "player mute write must use the typed AVPlayer setter",
-          "must_exist": true,
-          "path": "platform/ios/ios-playback/src/lib.rs",
-          "text": "self.player.setMuted(muted)"
-        },
-        {
-          "message": "player volume setters must reject non-finite input",
-          "must_exist": true,
-          "path": "platform/ios/ios-playback/src/lib.rs",
-          "text": "if !volume.is_finite()"
-        },
-        {
-          "message": "player volume setters must enforce the closed 0.0 through 1.0 range",
-          "must_exist": true,
-          "path": "platform/ios/ios-playback/src/lib.rs",
-          "text": "!(0.0..=1.0).contains(&volume)"
-        },
-        {
-          "message": "player volume getter must validate native output",
-          "must_exist": true,
-          "path": "platform/ios/ios-playback/src/lib.rs",
-          "text": "validate_native_player_volume(unsafe { self.player.volume() })"
-        },
-        {
-          "message": "host tests must reject non-finite player volume inputs",
-          "must_exist": true,
-          "path": "platform/ios/ios-playback/src/lib.rs",
-          "text": "fn player_volume_rejects_non_finite_inputs()"
-        },
-        {
-          "message": "host tests must reject out-of-range player volume without clamping",
-          "must_exist": true,
-          "path": "platform/ios/ios-playback/src/lib.rs",
-          "text": "fn player_volume_rejects_out_of_range_inputs_without_clamping()"
-        },
-        {
-          "message": "native AVPlayer access is borrowed",
-          "must_exist": true,
-          "path": "platform/ios/ios-playback/src/lib.rs",
-          "text": ") -> &objc2_av_foundation::AVPlayer"
-        },
-        {
-          "message": "play invokes the AVPlayer play control",
-          "must_exist": true,
-          "path": "platform/ios/ios-playback/src/lib.rs",
-          "text": "self.player.play()"
-        },
-        {
-          "message": "pause invokes the AVPlayer pause control",
-          "must_exist": true,
-          "path": "platform/ios/ios-playback/src/lib.rs",
-          "text": "self.player.pause()"
-        },
-        {
-          "message": "seek is exposed as a public IosFilePlayer method",
-          "must_exist": true,
-          "path": "platform/ios/ios-playback/src/lib.rs",
-          "text": "pub fn seek_to("
-        },
-        {
-          "message": "seek accepts finite portable media time on the main thread",
-          "must_exist": true,
-          "path": "platform/ios/ios-playback/src/lib.rs",
-          "text": "time: MediaTime,"
-        },
-        {
-          "message": "seek uses AVPlayer's public completion-handler method",
-          "must_exist": true,
-          "path": "platform/ios/ios-playback/src/lib.rs",
-          "text": "seekToTime_completionHandler"
-        },
-        {
-          "message": "seek maps MediaTime to a valid epoch-zero CMTime",
-          "must_exist": true,
-          "path": "platform/ios/ios-playback/src/lib.rs",
-          "text": "flags: objc2_core_media::CMTimeFlags::Valid"
-        },
-        {
-          "message": "seek CMTime uses epoch zero",
-          "must_exist": true,
-          "path": "platform/ios/ios-playback/src/lib.rs",
-          "text": "epoch: 0"
-        },
-        {
-          "message": "seek preserves the exact rational numerator and timescale",
-          "must_exist": true,
-          "path": "platform/ios/ios-playback/src/lib.rs",
-          "text": "let (value, timescale) = media_time_parts(time)"
-        },
-        {
-          "message": "seek completion capture is compile-time Send and Sync",
-          "must_exist": true,
-          "path": "platform/ios/ios-playback/src/lib.rs",
-          "text": "assert_seek_handler_send_sync(&callback)"
-        },
-        {
-          "message": "seek callback contains panics",
-          "must_exist": true,
-          "path": "platform/ios/ios-playback/src/lib.rs",
-          "text": "catch_unwind(AssertUnwindSafe(|| cell.complete(seek_outcome(finished))))"
-        },
-        {
-          "message": "seek completion settles only once",
-          "must_exist": true,
-          "path": "platform/ios/ios-playback/src/lib.rs",
-          "text": "if state.completed"
-        },
-        {
-          "message": "seek future borrows its player",
-          "must_exist": true,
-          "path": "platform/ios/ios-playback/src/lib.rs",
-          "text": "_player: &'a IosFilePlayer"
-        },
-        {
-          "message": "seek future retains its main-thread marker",
-          "must_exist": true,
-          "path": "platform/ios/ios-playback/src/lib.rs",
-          "text": "_main_thread: objc2::MainThreadMarker"
-        },
-        {
-          "message": "dropping a seek future detaches Rust completion state",
-          "must_exist": true,
-          "path": "platform/ios/ios-playback/src/lib.rs",
-          "text": "self.cell.detach()"
-        },
-        {
-          "message": "seek does not convert through floating point",
-          "must_exist": false,
-          "path": "platform/ios/ios-playback/src/lib.rs",
-          "text": "as_secs_f64"
-        },
-        {
-          "message": "seek does not construct rounded CMTime through helper calls",
-          "must_exist": false,
-          "path": "platform/ios/ios-playback/src/lib.rs",
-          "text": "CMTimeMake"
-        },
-        {
-          "message": "playback does not expose invalidatable current time",
-          "must_exist": false,
-          "path": "platform/ios/ios-playback/src/lib.rs",
-          "text": "currentTime"
-        },
-        {
-          "message": "playback does not expose invalidatable duration",
-          "must_exist": false,
-          "path": "platform/ios/ios-playback/src/lib.rs",
-          "text": "duration"
-        },
-        {
-          "message": "playback does not mutate the host audio session",
-          "must_exist": false,
-          "path": "platform/ios/ios-playback/src/lib.rs",
-          "text": "AVAudioSession::sharedInstance"
-        },
-        {
-          "message": "playback does not implement system volume UI or control",
-          "must_exist": false,
-          "path": "platform/ios/ios-playback/src/lib.rs",
-          "text": "MPVolumeView"
-        },
-        {
-          "message": "player volume setters must not clamp input",
-          "must_exist": false,
-          "path": "platform/ios/ios-playback/src/lib.rs",
-          "text": "volume.clamp("
-        },
-        {
-          "message": "the link probe must retain the AVPlayer volume selector",
-          "must_exist": true,
-          "path": "platform/ios/ios-playback/check-link-imports.sh",
-          "text": "grep -Fxq 'volume'"
-        },
-        {
-          "message": "the link probe must retain the AVPlayer volume setter selector",
-          "must_exist": true,
-          "path": "platform/ios/ios-playback/check-link-imports.sh",
-          "text": "grep -Fxq 'setVolume:'"
-        },
-        {
-          "message": "the link probe must retain the AVPlayer mute getter selector",
-          "must_exist": true,
-          "path": "platform/ios/ios-playback/check-link-imports.sh",
-          "text": "grep -Fxq 'isMuted'"
-        },
-        {
-          "message": "the link probe must retain the AVPlayer mute setter selector",
-          "must_exist": true,
-          "path": "platform/ios/ios-playback/check-link-imports.sh",
-          "text": "grep -Fxq 'setMuted:'"
-        }
+        {"message":"local playback rejects relative paths","must_exist":true,"path":"platform/ios/ios-playback/src/lib.rs","text":"Path::new(path).is_absolute()"},
+        {"message":"local playback rejects embedded NUL","must_exist":true,"path":"platform/ios/ios-playback/src/lib.rs","text":"path.contains('\\0')"},
+        {"message":"local playback opens its path before AVPlayer construction","must_exist":true,"path":"platform/ios/ios-playback/src/lib.rs","text":"File::open(path)"},
+        {"message":"local playback rejects non-regular files","must_exist":true,"path":"platform/ios/ios-playback/src/lib.rs","text":"metadata.is_file()"},
+        {"message":"local playback preserves the validated UTF-8 path for Foundation conversion","must_exist":true,"path":"platform/ios/ios-playback/src/lib.rs","text":"NSString::from_str(path)"},
+        {"message":"local playback uses public AVPlayer URL construction","must_exist":true,"path":"platform/ios/ios-playback/src/lib.rs","text":"AVPlayer::playerWithURL(&url, main_thread)"},
+        {"message":"player creation requires a main-thread marker","must_exist":true,"path":"platform/ios/ios-playback/src/lib.rs","text":"main_thread: objc2::MainThreadMarker"},
+        {"message":"play control requires a main-thread marker","must_exist":true,"path":"platform/ios/ios-playback/src/lib.rs","text":"pub fn play(&self, _main_thread: objc2::MainThreadMarker)"},
+        {"message":"pause control requires a main-thread marker","must_exist":true,"path":"platform/ios/ios-playback/src/lib.rs","text":"pub fn pause(&self, _main_thread: objc2::MainThreadMarker)"},
+        {"message":"player exposes its volume read operation","must_exist":true,"path":"platform/ios/ios-playback/src/lib.rs","text":"pub fn volume("},
+        {"message":"player exposes its volume setter operation","must_exist":true,"path":"platform/ios/ios-playback/src/lib.rs","text":"pub fn set_volume("},
+        {"message":"player exposes its mute read operation","must_exist":true,"path":"platform/ios/ios-playback/src/lib.rs","text":"pub fn is_muted("},
+        {"message":"player exposes its mute setter operation","must_exist":true,"path":"platform/ios/ios-playback/src/lib.rs","text":"pub fn set_muted("},
+        {"message":"AVPlayer output controls are unavailable below iOS 7","must_exist":true,"path":"platform/ios/ios-playback/src/lib.rs","text":"objc2::available!(ios = 7.0, ..)"},
+        {"message":"player volume read must use the typed AVPlayer getter","must_exist":true,"path":"platform/ios/ios-playback/src/lib.rs","text":"self.player.volume()"},
+        {"message":"player volume write must use the typed AVPlayer setter","must_exist":true,"path":"platform/ios/ios-playback/src/lib.rs","text":"self.player.setVolume(volume)"},
+        {"message":"player mute read must use the typed AVPlayer getter","must_exist":true,"path":"platform/ios/ios-playback/src/lib.rs","text":"self.player.isMuted()"},
+        {"message":"player mute write must use the typed AVPlayer setter","must_exist":true,"path":"platform/ios/ios-playback/src/lib.rs","text":"self.player.setMuted(muted)"},
+        {"message":"player volume setters must reject non-finite input","must_exist":true,"path":"platform/ios/ios-playback/src/lib.rs","text":"if !volume.is_finite()"},
+        {"message":"player volume setters must enforce the closed 0.0 through 1.0 range","must_exist":true,"path":"platform/ios/ios-playback/src/lib.rs","text":"!(0.0..=1.0).contains(&volume)"},
+        {"message":"player volume getter must validate native output","must_exist":true,"path":"platform/ios/ios-playback/src/lib.rs","text":"validate_native_player_volume(unsafe { self.player.volume() })"},
+        {"message":"host tests must reject non-finite player volume inputs","must_exist":true,"path":"platform/ios/ios-playback/src/lib.rs","text":"fn player_volume_rejects_non_finite_inputs()"},
+        {"message":"host tests must reject out-of-range player volume without clamping","must_exist":true,"path":"platform/ios/ios-playback/src/lib.rs","text":"fn player_volume_rejects_out_of_range_inputs_without_clamping()"},
+        {"message":"native AVPlayer access is borrowed","must_exist":true,"path":"platform/ios/ios-playback/src/lib.rs","text":") -> &objc2_av_foundation::AVPlayer"},
+        {"message":"play invokes the AVPlayer play control","must_exist":true,"path":"platform/ios/ios-playback/src/lib.rs","text":"self.player.play()"},
+        {"message":"pause invokes the AVPlayer pause control","must_exist":true,"path":"platform/ios/ios-playback/src/lib.rs","text":"self.player.pause()"},
+        {"message":"seek is exposed as a public IosFilePlayer method","must_exist":true,"path":"platform/ios/ios-playback/src/lib.rs","text":"pub fn seek_to("},
+        {"message":"seek accepts finite portable media time on the main thread","must_exist":true,"path":"platform/ios/ios-playback/src/lib.rs","text":"time: MediaTime,"},
+        {"message":"seek uses AVPlayer's public completion-handler method","must_exist":true,"path":"platform/ios/ios-playback/src/lib.rs","text":"seekToTime_completionHandler"},
+        {"message":"seek maps MediaTime to a valid epoch-zero CMTime","must_exist":true,"path":"platform/ios/ios-playback/src/lib.rs","text":"flags: objc2_core_media::CMTimeFlags::Valid"},
+        {"message":"seek CMTime uses epoch zero","must_exist":true,"path":"platform/ios/ios-playback/src/lib.rs","text":"epoch: 0"},
+        {"message":"seek preserves the exact rational numerator and timescale","must_exist":true,"path":"platform/ios/ios-playback/src/lib.rs","text":"let (value, timescale) = media_time_parts(time)"},
+        {"message":"seek completion capture is compile-time Send and Sync","must_exist":true,"path":"platform/ios/ios-playback/src/lib.rs","text":"assert_seek_handler_send_sync(&callback)"},
+        {"message":"seek callback contains panics","must_exist":true,"path":"platform/ios/ios-playback/src/lib.rs","text":"catch_unwind(AssertUnwindSafe(|| cell.complete(seek_outcome(finished))))"},
+        {"message":"seek completion settles only once","must_exist":true,"path":"platform/ios/ios-playback/src/lib.rs","text":"if state.completed"},
+        {"message":"seek future borrows its player","must_exist":true,"path":"platform/ios/ios-playback/src/lib.rs","text":"_player: &'a IosFilePlayer"},
+        {"message":"seek future retains its main-thread marker","must_exist":true,"path":"platform/ios/ios-playback/src/lib.rs","text":"_main_thread: objc2::MainThreadMarker"},
+        {"message":"dropping a seek future detaches Rust completion state","must_exist":true,"path":"platform/ios/ios-playback/src/lib.rs","text":"self.cell.detach()"},
+        {"message":"seek does not convert through floating point","must_exist":false,"path":"platform/ios/ios-playback/src/lib.rs","text":"as_secs_f64"},
+        {"message":"seek does not construct rounded CMTime through helper calls","must_exist":false,"path":"platform/ios/ios-playback/src/lib.rs","text":"CMTimeMake"},
+        {"message":"playback does not expose invalidatable current time","must_exist":false,"path":"platform/ios/ios-playback/src/lib.rs","text":"currentTime"},
+        {"message":"playback does not expose invalidatable duration","must_exist":false,"path":"platform/ios/ios-playback/src/lib.rs","text":"duration"},
+        {"message":"playback does not mutate the host audio session","must_exist":false,"path":"platform/ios/ios-playback/src/lib.rs","text":"AVAudioSession::sharedInstance"},
+        {"message":"playback does not implement system volume UI or control","must_exist":false,"path":"platform/ios/ios-playback/src/lib.rs","text":"MPVolumeView"},
+        {"message":"player volume setters must not clamp input","must_exist":false,"path":"platform/ios/ios-playback/src/lib.rs","text":"volume.clamp("},
+        {"message":"the link probe must retain the AVPlayer volume selector","must_exist":true,"path":"platform/ios/ios-playback/check-link-imports.sh","text":"grep -Fxq 'volume'"},
+        {"message":"the link probe must retain the AVPlayer volume setter selector","must_exist":true,"path":"platform/ios/ios-playback/check-link-imports.sh","text":"grep -Fxq 'setVolume:'"},
+        {"message":"the link probe must retain the AVPlayer mute getter selector","must_exist":true,"path":"platform/ios/ios-playback/check-link-imports.sh","text":"grep -Fxq 'isMuted'"},
+        {"message":"the link probe must retain the AVPlayer mute setter selector","must_exist":true,"path":"platform/ios/ios-playback/check-link-imports.sh","text":"grep -Fxq 'setMuted:'"}
       ],
       "id": "ios-playback",
       "manifest": "platform/ios/ios-playback/Cargo.toml",
@@ -2564,336 +1441,61 @@
         {"message":"EventKit deletion must not request Calendar permission","must_exist":false,"path":"platform/ios/ios-calendar/src/event_delete.rs","text":"requestFullAccessToEventsWithCompletion"},
         {"message":"EventKit deletion must not request write-only Calendar permission","must_exist":false,"path":"platform/ios/ios-calendar/src/event_delete.rs","text":"requestWriteOnlyAccessToEventsWithCompletion"},
         {"message":"EventKit deletion must not enumerate events or calendars","must_exist":false,"path":"platform/ios/ios-calendar/src/event_delete.rs","text":"eventsMatchingPredicate"},
-        {
-          "message": "EventKit deletion must not enumerate calendars to find a fallback",
-          "must_exist": false,
-          "path": "platform/ios/ios-calendar/src/event_delete.rs",
-          "text": "calendarsForEntityType"
-        },
-        {
-          "message": "EventKit deletion must not access reminders",
-          "must_exist": false,
-          "path": "platform/ios/ios-calendar/src/event_delete.rs",
-          "text": "EKReminder"
-        },
-        {
-          "message": "EventKit deletion must not use a future-series span",
-          "must_exist": false,
-          "path": "platform/ios/ios-calendar/src/event_delete.rs",
-          "text": "EKSpan::FutureEvents"
-        },
-        {
-          "message": "the portable Calendar facade must expose one-selected-event replacement",
-          "must_exist": true,
-          "path": "crates/framework-calendar/src/lib.rs",
-          "text": "pub fn update_event"
-        },
-        {
-          "message": "the portable Calendar contract must keep event update backend selection static",
-          "must_exist": true,
-          "path": "crates/framework-calendar/src/lib.rs",
-          "text": "pub trait CalendarEventUpdateBackend"
-        },
-        {
-          "message": "the portable Calendar facade must reject a missing or empty selected event identifier",
-          "must_exist": true,
-          "path": "crates/framework-calendar/src/lib.rs",
-          "text": "return Err(CalendarEventUpdateError::InvalidEventIdentifier);"
-        },
-        {
-          "message": "the portable Calendar facade must dispatch valid updates through the selected backend",
-          "must_exist": true,
-          "path": "crates/framework-calendar/src/lib.rs",
-          "text": "self.backend.update_event(event, draft)"
-        },
-        {
-          "message": "the portable Calendar facade must validate the replacement interval before backend dispatch",
-          "must_exist": true,
-          "path": "crates/framework-calendar/src/lib.rs",
-          "text": "if draft.start() >= draft.end()"
-        },
-        {
-          "message": "EventKit update must reject missing or empty identifiers before native lookup",
-          "must_exist": true,
-          "path": "platform/ios/ios-calendar/src/event_update.rs",
-          "text": ".filter(|identifier| !identifier.is_empty())"
-        },
-        {
-          "message": "EventKit update must recheck current FullAccess without prompting",
-          "must_exist": true,
-          "path": "platform/ios/ios-calendar/src/event_update.rs",
-          "text": "require_full_access_for_update(native_authorization_status())?"
-        },
-        {
-          "message": "EventKit update must resolve only the selected event identifier",
-          "must_exist": true,
-          "path": "platform/ios/ios-calendar/src/event_update.rs",
-          "text": "eventWithIdentifier(&native_identifier)"
-        },
-        {
-          "message": "EventKit update must verify the exact selected identifier and occurrence before mutation",
-          "must_exist": true,
-          "path": "platform/ios/ios-calendar/src/event_update.rs",
-          "text": "validate_event_update_snapshot(event, &resolved_identifier, start, end)?"
-        },
-        {
-          "message": "EventKit update must require the current event calendar to support Event entities",
-          "must_exist": true,
-          "path": "platform/ios/ios-calendar/src/event_update.rs",
-          "text": ".contains(EKEntityMask::Event)"
-        },
-        {
-          "message": "EventKit update must recheck current event-calendar writability",
-          "must_exist": true,
-          "path": "platform/ios/ios-calendar/src/event_update.rs",
-          "text": "allowsContentModifications()"
-        },
-        {
-          "message": "EventKit update must set only the draft title",
-          "must_exist": true,
-          "path": "platform/ios/ios-calendar/src/event_update.rs",
-          "text": "native_event.setTitle(Some(&title))"
-        },
-        {
-          "message": "EventKit update must set the draft start date",
-          "must_exist": true,
-          "path": "platform/ios/ios-calendar/src/event_update.rs",
-          "text": "native_event.setStartDate(Some(&start))"
-        },
-        {
-          "message": "EventKit update must set the draft end date",
-          "must_exist": true,
-          "path": "platform/ios/ios-calendar/src/event_update.rs",
-          "text": "native_event.setEndDate(Some(&end))"
-        },
-        {
-          "message": "EventKit update must set the draft all-day flag",
-          "must_exist": true,
-          "path": "platform/ios/ios-calendar/src/event_update.rs",
-          "text": "native_event.setAllDay(draft.is_all_day())"
-        },
-        {
-          "message": "EventKit update must set the draft location, including an explicit clear",
-          "must_exist": true,
-          "path": "platform/ios/ios-calendar/src/event_update.rs",
-          "text": "native_event.setLocation(location.as_deref())"
-        },
-        {
-          "message": "EventKit update must set the draft notes, including an explicit clear",
-          "must_exist": true,
-          "path": "platform/ios/ios-calendar/src/event_update.rs",
-          "text": "native_event.setNotes(notes.as_deref())"
-        },
-        {
-          "message": "EventKit update must not replace the event's current calendar",
-          "must_exist": false,
-          "path": "platform/ios/ios-calendar/src/event_update.rs",
-          "text": "setCalendar"
-        },
-        {
-          "message": "EventKit update must save exactly one selected occurrence with ThisEvent and commit enabled",
-          "must_exist": true,
-          "path": "platform/ios/ios-calendar/src/event_update.rs",
-          "text": "saveEvent_span_commit_error("
-        },
-        {
-          "message": "EventKit update must use EKSpan::ThisEvent for the single committed occurrence",
-          "must_exist": true,
-          "path": "platform/ios/ios-calendar/src/event_update.rs",
-          "text": "EKSpan::ThisEvent"
-        },
-        {
-          "message": "EventKit update must commit the one ThisEvent mutation",
-          "must_exist": true,
-          "path": "platform/ios/ios-calendar/src/event_update.rs",
-          "text": "true,"
-        },
-        {
-          "message": "EventKit update must preserve native save error codes when representable",
-          "must_exist": true,
-          "path": "platform/ios/ios-calendar/src/event_update.rs",
-          "text": "update_error_from_native(error.code())"
-        },
-        {
-          "message": "EventKit update must never request Calendar permission",
-          "must_exist": false,
-          "path": "platform/ios/ios-calendar/src/event_update.rs",
-          "text": "requestFullAccessToEventsWithCompletion"
-        },
-        {
-          "message": "EventKit update must not enumerate or search events/calendars",
-          "must_exist": false,
-          "path": "platform/ios/ios-calendar/src/event_update.rs",
-          "text": "eventsMatchingPredicate"
-        },
-        {
-          "message": "EventKit update must not enumerate calendars for a fallback",
-          "must_exist": false,
-          "path": "platform/ios/ios-calendar/src/event_update.rs",
-          "text": "calendarsForEntityType"
-        },
-        {
-          "message": "EventKit update must not access reminders",
-          "must_exist": false,
-          "path": "platform/ios/ios-calendar/src/event_update.rs",
-          "text": "EKReminder"
-        },
-        {
-          "message": "EventKit update must not add or delete another event",
-          "must_exist": false,
-          "path": "platform/ios/ios-calendar/src/event_update.rs",
-          "text": "removeEvent"
-        },
-        {
-          "message": "the portable Calendar facade must expose non-prompting Reminders status",
-          "must_exist": true,
-          "path": "crates/framework-calendar/src/lib.rs",
-          "text": "pub fn reminder_authorization_status"
-        },
-        {
-          "message": "the portable Calendar facade must expose an explicit lazy full Reminders request",
-          "must_exist": true,
-          "path": "crates/framework-calendar/src/lib.rs",
-          "text": "pub async fn request_full_reminder_access"
-        },
-        {
-          "message": "Reminders authorization must use the typed public full-access request",
-          "must_exist": true,
-          "path": "platform/ios/ios-calendar/src/platform.rs",
-          "text": "requestFullAccessToRemindersWithCompletion"
-        },
-        {
-          "message": "the native status query must select Reminder, not Event",
-          "must_exist": true,
-          "path": "platform/ios/ios-calendar/src/platform.rs",
-          "text": "authorizationStatusForEntityType(EKEntityType::Reminder)"
-        },
-        {
-          "message": "EventKit write-only status must fail closed for Reminders",
-          "must_exist": true,
-          "path": "platform/ios/ios-calendar/src/conversion.rs",
-          "text": "_ => ReminderAuthorizationStatus::Unknown"
-        },
-        {
-          "message": "the portable Calendar facade must expose one-reminder creation",
-          "must_exist": true,
-          "path": "crates/framework-calendar/src/lib.rs",
-          "text": "pub fn create_reminder"
-        },
-        {
-          "message": "reminder creation must recheck current full access without prompting",
-          "must_exist": true,
-          "path": "platform/ios/ios-calendar/src/reminder_create.rs",
-          "text": "require_full_reminder_access(native_reminder_authorization_status())?"
-        },
-        {
-          "message": "reminder creation must use only EventKit default Reminders list",
-          "must_exist": true,
-          "path": "platform/ios/ios-calendar/src/reminder_create.rs",
-          "text": "defaultCalendarForNewReminders()"
-        },
-        {
-          "message": "reminder creation must create a new item in the existing event store",
-          "must_exist": true,
-          "path": "platform/ios/ios-calendar/src/reminder_create.rs",
-          "text": "EKReminder::reminderWithEventStore(event_store)"
-        },
-        {
-          "message": "reminder creation must commit one caller-titled reminder",
-          "must_exist": true,
-          "path": "platform/ios/ios-calendar/src/reminder_create.rs",
-          "text": "saveReminder_commit_error(&reminder, true)"
-        },
-        {
-          "message": "reminder creation must preserve native save errors",
-          "must_exist": true,
-          "path": "platform/ios/ios-calendar/src/reminder_create.rs",
-          "text": "reminder_create_error_from_native(error.code())"
-        },
-        {
-          "message": "reminder creation must never prompt for access",
-          "must_exist": false,
-          "path": "platform/ios/ios-calendar/src/reminder_create.rs",
-          "text": "requestFullAccessToRemindersWithCompletion"
-        },
-        {
-          "message": "reminder creation must not read, enumerate, or delete reminders",
-          "must_exist": false,
-          "path": "platform/ios/ios-calendar/src/reminder_create.rs",
-          "text": "fetchRemindersMatchingPredicate"
-        },
-        {
-          "message": "reminder creation must not delete reminders",
-          "must_exist": false,
-          "path": "platform/ios/ios-calendar/src/reminder_create.rs",
-          "text": "removeReminder"
-        },
-        {
-          "message": "the host regression suite must cover Reminders authorization and create boundaries",
-          "must_exist": true,
-          "path": "platform/ios/ios-calendar/tests/reminder_create_contract.rs",
-          "text": "invalid_or_non_full_access_never_reaches_create_backend"
-        },
-        {
-          "message": "reminder creation must not query calendar events",
-          "must_exist": false,
-          "path": "platform/ios/ios-calendar/src/reminder_create.rs",
-          "text": "eventsMatchingPredicate"
-        },
-        {
-          "message": "reminder creation must not enumerate calendars",
-          "must_exist": false,
-          "path": "platform/ios/ios-calendar/src/reminder_create.rs",
-          "text": "calendarsForEntityType"
-        },
-        {
-          "message": "Reminders callback errors must be copied as native error codes",
-          "must_exist": true,
-          "path": "platform/ios/ios-calendar/src/platform.rs",
-          "text": "error_from_native(error.code())"
-        },
-        {
-          "message": "the Reminders request future must re-query status after callback completion",
-          "must_exist": true,
-          "path": "platform/ios/ios-calendar/src/platform.rs",
-          "text": "native_reminder_authorization_status))"
-        },
-        {
-          "message": "dropping a pending Reminders request must detach result interest",
-          "must_exist": true,
-          "path": "platform/ios/ios-calendar/src/platform.rs",
-          "text": "self.completion.detach()"
-        },
-        {
-          "message": "the backend must not call an unsupported write-only Reminders request",
-          "must_exist": false,
-          "path": "platform/ios/ios-calendar/src/platform.rs",
-          "text": "requestWriteOnlyAccessToRemindersWithCompletion"
-        },
-        {
-          "message": "the Reminders contract must not claim a write-only status",
-          "must_exist": false,
-          "path": "platform/ios/ios-calendar/src/platform.rs",
-          "text": "ReminderAuthorizationStatus::WriteOnly"
-        },
-        {
-          "message": "the portable Reminders facade must reject an empty title before backend dispatch",
-          "must_exist": true,
-          "path": "crates/framework-calendar/src/lib.rs",
-          "text": "if draft.title.is_empty()"
-        },
-        {
-          "message": "the host suite must cover an unavailable default Reminders list",
-          "must_exist": true,
-          "path": "platform/ios/ios-calendar/tests/reminder_create_contract.rs",
-          "text": "missing_default_list_is_a_typed_error_without_prompt"
-        },
-        {
-          "message": "the portable Reminders status enum must not expose WriteOnly",
-          "must_exist": false,
-          "path": "crates/framework-calendar/src/reminder_status.rs",
-          "text": "WriteOnly"
-        }
+        {"message":"EventKit deletion must not enumerate calendars to find a fallback","must_exist":false,"path":"platform/ios/ios-calendar/src/event_delete.rs","text":"calendarsForEntityType"},
+        {"message":"EventKit deletion must not access reminders","must_exist":false,"path":"platform/ios/ios-calendar/src/event_delete.rs","text":"EKReminder"},
+        {"message":"EventKit deletion must not use a future-series span","must_exist":false,"path":"platform/ios/ios-calendar/src/event_delete.rs","text":"EKSpan::FutureEvents"},
+        {"message":"the portable Calendar facade must expose one-selected-event replacement","must_exist":true,"path":"crates/framework-calendar/src/lib.rs","text":"pub fn update_event"},
+        {"message":"the portable Calendar contract must keep event update backend selection static","must_exist":true,"path":"crates/framework-calendar/src/lib.rs","text":"pub trait CalendarEventUpdateBackend"},
+        {"message":"the portable Calendar facade must reject a missing or empty selected event identifier","must_exist":true,"path":"crates/framework-calendar/src/lib.rs","text":"return Err(CalendarEventUpdateError::InvalidEventIdentifier);"},
+        {"message":"the portable Calendar facade must dispatch valid updates through the selected backend","must_exist":true,"path":"crates/framework-calendar/src/lib.rs","text":"self.backend.update_event(event, draft)"},
+        {"message":"the portable Calendar facade must validate the replacement interval before backend dispatch","must_exist":true,"path":"crates/framework-calendar/src/lib.rs","text":"if draft.start() >= draft.end()"},
+        {"message":"EventKit update must reject missing or empty identifiers before native lookup","must_exist":true,"path":"platform/ios/ios-calendar/src/event_update.rs","text":".filter(|identifier| !identifier.is_empty())"},
+        {"message":"EventKit update must recheck current FullAccess without prompting","must_exist":true,"path":"platform/ios/ios-calendar/src/event_update.rs","text":"require_full_access_for_update(native_authorization_status())?"},
+        {"message":"EventKit update must resolve only the selected event identifier","must_exist":true,"path":"platform/ios/ios-calendar/src/event_update.rs","text":"eventWithIdentifier(&native_identifier)"},
+        {"message":"EventKit update must verify the exact selected identifier and occurrence before mutation","must_exist":true,"path":"platform/ios/ios-calendar/src/event_update.rs","text":"validate_event_update_snapshot(event, &resolved_identifier, start, end)?"},
+        {"message":"EventKit update must require the current event calendar to support Event entities","must_exist":true,"path":"platform/ios/ios-calendar/src/event_update.rs","text":".contains(EKEntityMask::Event)"},
+        {"message":"EventKit update must recheck current event-calendar writability","must_exist":true,"path":"platform/ios/ios-calendar/src/event_update.rs","text":"allowsContentModifications()"},
+        {"message":"EventKit update must set only the draft title","must_exist":true,"path":"platform/ios/ios-calendar/src/event_update.rs","text":"native_event.setTitle(Some(&title))"},
+        {"message":"EventKit update must set the draft start date","must_exist":true,"path":"platform/ios/ios-calendar/src/event_update.rs","text":"native_event.setStartDate(Some(&start))"},
+        {"message":"EventKit update must set the draft end date","must_exist":true,"path":"platform/ios/ios-calendar/src/event_update.rs","text":"native_event.setEndDate(Some(&end))"},
+        {"message":"EventKit update must set the draft all-day flag","must_exist":true,"path":"platform/ios/ios-calendar/src/event_update.rs","text":"native_event.setAllDay(draft.is_all_day())"},
+        {"message":"EventKit update must set the draft location, including an explicit clear","must_exist":true,"path":"platform/ios/ios-calendar/src/event_update.rs","text":"native_event.setLocation(location.as_deref())"},
+        {"message":"EventKit update must set the draft notes, including an explicit clear","must_exist":true,"path":"platform/ios/ios-calendar/src/event_update.rs","text":"native_event.setNotes(notes.as_deref())"},
+        {"message":"EventKit update must not replace the event's current calendar","must_exist":false,"path":"platform/ios/ios-calendar/src/event_update.rs","text":"setCalendar"},
+        {"message":"EventKit update must save exactly one selected occurrence with ThisEvent and commit enabled","must_exist":true,"path":"platform/ios/ios-calendar/src/event_update.rs","text":"saveEvent_span_commit_error("},
+        {"message":"EventKit update must use EKSpan::ThisEvent for the single committed occurrence","must_exist":true,"path":"platform/ios/ios-calendar/src/event_update.rs","text":"EKSpan::ThisEvent"},
+        {"message":"EventKit update must commit the one ThisEvent mutation","must_exist":true,"path":"platform/ios/ios-calendar/src/event_update.rs","text":"true,"},
+        {"message":"EventKit update must preserve native save error codes when representable","must_exist":true,"path":"platform/ios/ios-calendar/src/event_update.rs","text":"update_error_from_native(error.code())"},
+        {"message":"EventKit update must never request Calendar permission","must_exist":false,"path":"platform/ios/ios-calendar/src/event_update.rs","text":"requestFullAccessToEventsWithCompletion"},
+        {"message":"EventKit update must not enumerate or search events/calendars","must_exist":false,"path":"platform/ios/ios-calendar/src/event_update.rs","text":"eventsMatchingPredicate"},
+        {"message":"EventKit update must not enumerate calendars for a fallback","must_exist":false,"path":"platform/ios/ios-calendar/src/event_update.rs","text":"calendarsForEntityType"},
+        {"message":"EventKit update must not access reminders","must_exist":false,"path":"platform/ios/ios-calendar/src/event_update.rs","text":"EKReminder"},
+        {"message":"EventKit update must not add or delete another event","must_exist":false,"path":"platform/ios/ios-calendar/src/event_update.rs","text":"removeEvent"},
+        {"message":"the portable Calendar facade must expose non-prompting Reminders status","must_exist":true,"path":"crates/framework-calendar/src/lib.rs","text":"pub fn reminder_authorization_status"},
+        {"message":"the portable Calendar facade must expose an explicit lazy full Reminders request","must_exist":true,"path":"crates/framework-calendar/src/lib.rs","text":"pub async fn request_full_reminder_access"},
+        {"message":"Reminders authorization must use the typed public full-access request","must_exist":true,"path":"platform/ios/ios-calendar/src/platform.rs","text":"requestFullAccessToRemindersWithCompletion"},
+        {"message":"the native status query must select Reminder, not Event","must_exist":true,"path":"platform/ios/ios-calendar/src/platform.rs","text":"authorizationStatusForEntityType(EKEntityType::Reminder)"},
+        {"message":"EventKit write-only status must fail closed for Reminders","must_exist":true,"path":"platform/ios/ios-calendar/src/conversion.rs","text":"_ => ReminderAuthorizationStatus::Unknown"},
+        {"message":"the portable Calendar facade must expose one-reminder creation","must_exist":true,"path":"crates/framework-calendar/src/lib.rs","text":"pub fn create_reminder"},
+        {"message":"reminder creation must recheck current full access without prompting","must_exist":true,"path":"platform/ios/ios-calendar/src/reminder_create.rs","text":"require_full_reminder_access(native_reminder_authorization_status())?"},
+        {"message":"reminder creation must use only EventKit default Reminders list","must_exist":true,"path":"platform/ios/ios-calendar/src/reminder_create.rs","text":"defaultCalendarForNewReminders()"},
+        {"message":"reminder creation must create a new item in the existing event store","must_exist":true,"path":"platform/ios/ios-calendar/src/reminder_create.rs","text":"EKReminder::reminderWithEventStore(event_store)"},
+        {"message":"reminder creation must commit one caller-titled reminder","must_exist":true,"path":"platform/ios/ios-calendar/src/reminder_create.rs","text":"saveReminder_commit_error(&reminder, true)"},
+        {"message":"reminder creation must preserve native save errors","must_exist":true,"path":"platform/ios/ios-calendar/src/reminder_create.rs","text":"reminder_create_error_from_native(error.code())"},
+        {"message":"reminder creation must never prompt for access","must_exist":false,"path":"platform/ios/ios-calendar/src/reminder_create.rs","text":"requestFullAccessToRemindersWithCompletion"},
+        {"message":"reminder creation must not read, enumerate, or delete reminders","must_exist":false,"path":"platform/ios/ios-calendar/src/reminder_create.rs","text":"fetchRemindersMatchingPredicate"},
+        {"message":"reminder creation must not delete reminders","must_exist":false,"path":"platform/ios/ios-calendar/src/reminder_create.rs","text":"removeReminder"},
+        {"message":"the host regression suite must cover Reminders authorization and create boundaries","must_exist":true,"path":"platform/ios/ios-calendar/tests/reminder_create_contract.rs","text":"invalid_or_non_full_access_never_reaches_create_backend"},
+        {"message":"reminder creation must not query calendar events","must_exist":false,"path":"platform/ios/ios-calendar/src/reminder_create.rs","text":"eventsMatchingPredicate"},
+        {"message":"reminder creation must not enumerate calendars","must_exist":false,"path":"platform/ios/ios-calendar/src/reminder_create.rs","text":"calendarsForEntityType"},
+        {"message":"Reminders callback errors must be copied as native error codes","must_exist":true,"path":"platform/ios/ios-calendar/src/platform.rs","text":"error_from_native(error.code())"},
+        {"message":"the Reminders request future must re-query status after callback completion","must_exist":true,"path":"platform/ios/ios-calendar/src/platform.rs","text":"native_reminder_authorization_status))"},
+        {"message":"dropping a pending Reminders request must detach result interest","must_exist":true,"path":"platform/ios/ios-calendar/src/platform.rs","text":"self.completion.detach()"},
+        {"message":"the backend must not call an unsupported write-only Reminders request","must_exist":false,"path":"platform/ios/ios-calendar/src/platform.rs","text":"requestWriteOnlyAccessToRemindersWithCompletion"},
+        {"message":"the Reminders contract must not claim a write-only status","must_exist":false,"path":"platform/ios/ios-calendar/src/platform.rs","text":"ReminderAuthorizationStatus::WriteOnly"},
+        {"message":"the portable Reminders facade must reject an empty title before backend dispatch","must_exist":true,"path":"crates/framework-calendar/src/lib.rs","text":"if draft.title.is_empty()"},
+        {"message":"the host suite must cover an unavailable default Reminders list","must_exist":true,"path":"platform/ios/ios-calendar/tests/reminder_create_contract.rs","text":"missing_default_list_is_a_typed_error_without_prompt"},
+        {"message":"the portable Reminders status enum must not expose WriteOnly","must_exist":false,"path":"crates/framework-calendar/src/reminder_status.rs","text":"WriteOnly"}
       ],
       "id": "ios-calendar",
       "manifest": "platform/ios/ios-calendar/Cargo.toml",
@@ -2933,30 +1535,10 @@
       ],
       "fmt_all": false,
       "guards": [
-        {
-          "message": "the portable location API must expose a distinct update-session contract",
-          "must_exist": true,
-          "path": "crates/framework-location/src/lib.rs",
-          "text": "pub trait LocationUpdatesBackend"
-        },
-        {
-          "message": "the portable facade must expose foreground location updates separately from one-shot current requests",
-          "must_exist": true,
-          "path": "crates/framework-location/src/lib.rs",
-          "text": "pub fn updates"
-        },
-        {
-          "message": "the native update queue must remain bounded at 16 observable events",
-          "must_exist": true,
-          "path": "platform/ios/ios-location/src/operation.rs",
-          "text": "const UPDATE_QUEUE_CAPACITY: usize = 16"
-        },
-        {
-          "message": "session drop must detach and stop the native location service",
-          "must_exist": true,
-          "path": "platform/ios/ios-location/src/platform.rs",
-          "text": "unsafe { self.manager.stopUpdatingLocation() }"
-        }
+        {"message":"the portable location API must expose a distinct update-session contract","must_exist":true,"path":"crates/framework-location/src/lib.rs","text":"pub trait LocationUpdatesBackend"},
+        {"message":"the portable facade must expose foreground location updates separately from one-shot current requests","must_exist":true,"path":"crates/framework-location/src/lib.rs","text":"pub fn updates"},
+        {"message":"the native update queue must remain bounded at 16 observable events","must_exist":true,"path":"platform/ios/ios-location/src/operation.rs","text":"const UPDATE_QUEUE_CAPACITY: usize = 16"},
+        {"message":"session drop must detach and stop the native location service","must_exist":true,"path":"platform/ios/ios-location/src/platform.rs","text":"unsafe { self.manager.stopUpdatingLocation() }"}
       ],
       "id": "ios-location-updates",
       "manifest": "platform/ios/ios-location/Cargo.toml",
@@ -2974,7 +1556,7 @@
       "targets": [{"minimum_os":"10.0","sdk":"iphoneos","triple":"aarch64-apple-ios"},{"minimum_os":"14.0","sdk":"iphonesimulator","triple":"aarch64-apple-ios-sim"}]
     },
     {
-      "abi_scripts": ["platform/ios/ios-ui/check-link-imports.sh","platform/ios/ios-ui/check-text-metrics-link-imports.sh","platform/ios/ios-ui/check-text-field-link-imports.sh","platform/ios/ios-ui/check-activity-indicator-link-imports.sh"],
+      "abi_scripts": ["platform/ios/ios-ui/check-link-imports.sh","platform/ios/ios-ui/check-text-metrics-link-imports.sh","platform/ios/ios-ui/check-text-field-link-imports.sh","platform/ios/ios-ui/check-activity-indicator-link-imports.sh","platform/ios/ios-ui/check-disclosure-group-link-imports.sh","platform/ios/ios-ui/check-keyboard-action-link-imports.sh","platform/ios/ios-ui/check-grid-link-imports.sh","platform/ios/ios-ui/check-system-symbol-link-imports.sh"],
       "abi_targets": [{"triple":"aarch64-apple-ios","sdk":"iphoneos","minimum_os":"12.0"},{"triple":"aarch64-apple-ios-sim","sdk":"iphonesimulator","minimum_os":"14.0"}],
       "adapters": [],
       "cargo_tree": false,
@@ -3134,14 +1716,22 @@
 {"path":"platform/ios/ios-ui/src/layout_policy.rs","text":"fn intrinsic_layout_is_one_shot_and_rejects_manual_sizing()","must_exist":true,"message":"auto/manual reject"},
 {"path":"platform/ios/ios-ui/src/layout_policy.rs","text":"fn manual_sizing_rejects_intrinsic_layout()","must_exist":true,"message":"manual/auto reject"},
 {"path":"platform/ios/ios-ui/src/layout_policy.rs","text":"fn constraint_setup_is_one_shot()","must_exist":true,"message":"repeat reject"},{"path":"platform/ios/ios-ui/src/lib.rs","text":"pub use platform::IosActivityIndicator;","must_exist":true,"message":"activity indicator public export"}, {"path":"platform/ios/ios-ui/src/platform/activity_indicator.rs","text":"pub fn add_activity_indicator(","must_exist":true,"message":"activity indicator constructor"}, {"path":"platform/ios/ios-ui/src/platform/activity_indicator.rs","text":"UIActivityIndicatorViewStyle::Medium","must_exist":true,"message":"native medium activity indicator style"}, {"path":"platform/ios/ios-ui/src/platform/activity_indicator.rs","text":"native.stopAnimating();","must_exist":true,"message":"activity indicator stop on drop"}, {"path":"platform/ios/ios-ui/examples/ios_ui_activity_indicator_link_probe.rs","text":"add_activity_indicator(","must_exist":true,"message":"activity indicator link probe"}, {"path":"platform/ios/ios-ui/check-activity-indicator-link-imports.sh","text":"'stopAnimating'","must_exist":true,"message":"activity indicator selector link check"}
-      ],
+      ,
+{"path":"platform/ios/ios-ui/src/platform/disclosure_group.rs","text":"pub fn add_disclosure_group<F>(","must_exist":true,"message":"disclosure-group native API"},
+{"path":"platform/ios/ios-ui/src/disclosure_policy.rs","text":"fn disclosure_frame_rejects_less_than_header_height()","must_exist":true,"message":"disclosure frame regression"},
+{"path":"platform/ios/ios-ui/src/platform.rs","text":"pub fn send_resign_first_responder_action(&self) -> Result<bool>","must_exist":true,"message":"keyboard action API"},
+{"path":"platform/ios/ios-ui/src/keyboard_action_policy.rs","text":"fn missing_main_thread_proof_rejects_without_sending_action()","must_exist":true,"message":"keyboard action thread regression"},
+{"path":"platform/ios/ios-ui/src/grid.rs","text":"pub fn add_grid_view(","must_exist":true,"message":"equal-column grid API"},
+{"path":"platform/ios/ios-ui/src/grid_policy.rs","text":"fn rejects_zero_columns_and_negative_spacing()","must_exist":true,"message":"grid input regression"},
+{"path":"platform/ios/ios-ui/src/platform.rs","text":"pub fn add_system_symbol_image_view(","must_exist":true,"message":"system symbol image API"},
+{"path":"platform/ios/ios-ui/src/system_symbol_policy.rs","text":"fn reports_unknown_symbols_as_unavailable()","must_exist":true,"message":"unknown symbol regression"}],
       "id": "ios-ui",
       "manifest": "platform/ios/ios-ui/Cargo.toml",
       "offline": false,
       "package": "ios-ui",
       "rustdoc_warnings": true,
-      "scoped_files": ["PLAN_IOS_UI.md","PLAN_RIDESHARE_BOT_MIGRATION.md","crates/framework-ui/src/lib.rs","docs/capabilities/ui.md","docs/capabilities/capability-status.json","docs/generated/CAPABILITY_STATUS.md","docs/generated/VALIDATION_PROFILES.md","docs/ios/ui.md","platform/ios/ios-ui/Cargo.toml","platform/ios/ios-ui/check-image-view-link-imports.sh","platform/ios/ios-ui/check-link-imports.sh","platform/ios/ios-ui/check-text-field-link-imports.sh","platform/ios/ios-ui/check-text-metrics-link-imports.sh","platform/ios/ios-ui/examples/ios_ui_geometry_link_import_probe.rs","platform/ios/ios-ui/examples/ios_ui_image_view_link_probe.rs","platform/ios/ios-ui/examples/ios_ui_stack_link_probe.rs","platform/ios/ios-ui/examples/ios_ui_scroll_view_link_probe.rs","platform/ios/ios-ui/examples/ios_ui_text_field_link_probe.rs","platform/ios/ios-ui/examples/ios_ui_text_metrics_link_import_probe.rs","platform/ios/ios-ui/probes/geometry-layout.c","platform/ios/ios-ui/probes/text-metrics-layout.c","platform/ios/ios-ui/src/geometry.rs","platform/ios/ios-ui/src/layout_policy.rs","platform/ios/ios-ui/src/lib.rs","platform/ios/ios-ui/src/platform.rs","platform/ios/ios-ui/src/scroll_policy.rs","platform/ios/ios-ui/src/stack_spacing.rs","platform/ios/ios-ui/src/text_conversion.rs","platform/ios/ios-ui/src/text_metrics.rs","PLAN.md","platform/ios/ios-ui/examples/ios_ui_toggle_link_probe.rs","platform/ios/ios-ui/src/toggle_policy.rs","platform/ios/ios-ui/src/text_policy.rs","platform/ios/ios-ui/check-activity-indicator-link-imports.sh","platform/ios/ios-ui/examples/ios_ui_activity_indicator_link_probe.rs","platform/ios/ios-ui/src/platform/activity_indicator.rs"],
-      "shell_scripts": ["platform/ios/ios-ui/check-link-imports.sh","platform/ios/ios-ui/check-text-metrics-link-imports.sh","platform/ios/ios-ui/check-image-view-link-imports.sh","platform/ios/ios-ui/check-text-field-link-imports.sh","platform/ios/ios-ui/check-activity-indicator-link-imports.sh"],
+      "scoped_files": ["PLAN_IOS_UI.md","PLAN_RIDESHARE_BOT_MIGRATION.md","crates/framework-ui/src/lib.rs","docs/capabilities/ui.md","docs/capabilities/capability-status.json","docs/generated/CAPABILITY_STATUS.md","docs/generated/VALIDATION_PROFILES.md","docs/ios/ui.md","platform/ios/ios-ui/Cargo.toml","platform/ios/ios-ui/check-image-view-link-imports.sh","platform/ios/ios-ui/check-link-imports.sh","platform/ios/ios-ui/check-text-field-link-imports.sh","platform/ios/ios-ui/check-text-metrics-link-imports.sh","platform/ios/ios-ui/examples/ios_ui_geometry_link_import_probe.rs","platform/ios/ios-ui/examples/ios_ui_image_view_link_probe.rs","platform/ios/ios-ui/examples/ios_ui_stack_link_probe.rs","platform/ios/ios-ui/examples/ios_ui_scroll_view_link_probe.rs","platform/ios/ios-ui/examples/ios_ui_text_field_link_probe.rs","platform/ios/ios-ui/examples/ios_ui_text_metrics_link_import_probe.rs","platform/ios/ios-ui/probes/geometry-layout.c","platform/ios/ios-ui/probes/text-metrics-layout.c","platform/ios/ios-ui/src/geometry.rs","platform/ios/ios-ui/src/layout_policy.rs","platform/ios/ios-ui/src/lib.rs","platform/ios/ios-ui/src/platform.rs","platform/ios/ios-ui/src/scroll_policy.rs","platform/ios/ios-ui/src/stack_spacing.rs","platform/ios/ios-ui/src/text_conversion.rs","platform/ios/ios-ui/src/text_metrics.rs","PLAN.md","platform/ios/ios-ui/examples/ios_ui_toggle_link_probe.rs","platform/ios/ios-ui/src/toggle_policy.rs","platform/ios/ios-ui/src/text_policy.rs","platform/ios/ios-ui/check-activity-indicator-link-imports.sh","platform/ios/ios-ui/examples/ios_ui_activity_indicator_link_probe.rs","platform/ios/ios-ui/src/platform/activity_indicator.rs","platform/ios/ios-ui/check-disclosure-group-link-imports.sh","platform/ios/ios-ui/examples/ios_ui_disclosure_group_link_probe.rs","platform/ios/ios-ui/src/platform/disclosure_group.rs","platform/ios/ios-ui/src/disclosure_policy.rs","platform/ios/ios-ui/check-keyboard-action-link-imports.sh","platform/ios/ios-ui/examples/ios_ui_keyboard_action_link_probe.rs","platform/ios/ios-ui/src/keyboard_action_policy.rs","platform/ios/ios-ui/check-grid-link-imports.sh","platform/ios/ios-ui/examples/ios_ui_grid_link_probe.rs","platform/ios/ios-ui/src/grid.rs","platform/ios/ios-ui/src/grid_policy.rs","platform/ios/ios-ui/check-system-symbol-link-imports.sh","platform/ios/ios-ui/examples/ios_ui_system_symbol_link_probe.rs","platform/ios/ios-ui/src/system_symbol_policy.rs"],
+      "shell_scripts": ["platform/ios/ios-ui/check-link-imports.sh","platform/ios/ios-ui/check-text-metrics-link-imports.sh","platform/ios/ios-ui/check-image-view-link-imports.sh","platform/ios/ios-ui/check-text-field-link-imports.sh","platform/ios/ios-ui/check-activity-indicator-link-imports.sh","platform/ios/ios-ui/check-disclosure-group-link-imports.sh","platform/ios/ios-ui/check-keyboard-action-link-imports.sh","platform/ios/ios-ui/check-grid-link-imports.sh","platform/ios/ios-ui/check-system-symbol-link-imports.sh"],
       "source_dirs": [
         "crates/framework-ui",
         "platform/ios/ios-ui"
@@ -3239,114 +1829,24 @@
       ],
       "fmt_all": false,
       "guards": [
-        {
-          "message": "the provider retains its explicit main delegate queue",
-          "must_exist": true,
-          "path": "platform/ios/callkit/ios-call-provider/src/platform.rs",
-          "text": "let delegate_queue = DispatchQueue::main().retain();"
-        },
-        {
-          "message": "CallKit receives the retained main delegate queue",
-          "must_exist": true,
-          "path": "platform/ios/callkit/ios-call-provider/src/platform.rs",
-          "text": "setDelegate_queue(Some(delegate_object), Some(&delegate_queue))"
-        },
-        {
-          "message": "report completion uses a synchronized one-shot context",
-          "must_exist": true,
-          "path": "platform/ios/callkit/ios-call-provider/src/platform.rs",
-          "text": "let callback_context = Arc::new(OnceSlot::new(callback_context));"
-        },
-        {
-          "message": "native report callbacks hand state access to the main queue asynchronously",
-          "must_exist": true,
-          "path": "platform/ios/callkit/ios-call-provider/src/platform.rs",
-          "text": "DispatchQueue::main().exec_async(move || {"
-        },
-        {
-          "message": "report completion accesses main-thread state only after the queue handoff",
-          "must_exist": true,
-          "path": "platform/ios/callkit/ios-call-provider/src/platform.rs",
-          "text": "complete_incoming_report(context.get(main_thread), accepted);"
-        },
-        {
-          "message": "provider reset callback remains implemented",
-          "must_exist": true,
-          "path": "platform/ios/callkit/ios-call-provider/src/platform.rs",
-          "text": "#[unsafe(method(providerDidReset:))]"
-        },
-        {
-          "message": "answer action callback selector remains implemented",
-          "must_exist": true,
-          "path": "platform/ios/callkit/ios-call-provider/src/platform.rs",
-          "text": "#[unsafe(method(provider:performAnswerCallAction:))]"
-        },
-        {
-          "message": "end action callback selector remains implemented",
-          "must_exist": true,
-          "path": "platform/ios/callkit/ios-call-provider/src/platform.rs",
-          "text": "#[unsafe(method(provider:performEndCallAction:))]"
-        },
-        {
-          "message": "CallKit action timeout callback remains implemented",
-          "must_exist": true,
-          "path": "platform/ios/callkit/ios-call-provider/src/platform.rs",
-          "text": "#[unsafe(method(provider:timedOutPerformingAction:))]"
-        },
-        {
-          "message": "provider dependencies remain iOS-target-specific",
-          "must_exist": true,
-          "path": "platform/ios/callkit/ios-call-provider/Cargo.toml",
-          "text": "[target.'cfg(target_os = \"ios\")'.dependencies]"
-        },
-        {
-          "message": "objc2 remains an iOS-only dependency",
-          "must_exist": true,
-          "path": "platform/ios/callkit/ios-call-provider/Cargo.toml",
-          "text": "objc2 = { workspace = true }"
-        },
-        {
-          "message": "Foundation bindings remain limited to the selected CallKit surface",
-          "must_exist": true,
-          "path": "platform/ios/callkit/ios-call-provider/Cargo.toml",
-          "text": "objc2-foundation = { workspace = true, features = [\"NSDate\", \"NSError\", \"NSObject\", \"NSSet\", \"NSString\", \"NSUUID\", \"NSValue\"] }"
-        },
-        {
-          "message": "CallKit bindings remain limited to the provider and action APIs",
-          "must_exist": true,
-          "path": "platform/ios/callkit/ios-call-provider/Cargo.toml",
-          "text": "objc2-call-kit = { workspace = true, features = [\"alloc\", \"block2\", \"dispatch2\", \"CXAction\", \"CXAnswerCallAction\", \"CXCallAction\", \"CXCallUpdate\", \"CXEndCallAction\", \"CXHandle\", \"CXProvider\", \"CXProviderConfiguration\", \"CXSetHeldCallAction\", \"CXSetMutedCallAction\"] }"
-        },
-        {
-          "message": "the workspace pins CallKit bindings without default features",
-          "must_exist": true,
-          "path": "Cargo.toml",
-          "text": "objc2-call-kit = { version = \"=0.3.2\", default-features = false }"
-        },
-        {
-          "message": "the provider does not depend on the separate call-observer crate",
-          "must_exist": false,
-          "path": "platform/ios/callkit/ios-call-provider/Cargo.toml",
-          "text": "ios-call-observer"
-        },
-        {
-          "message": "no untyped private selector lookup is used by the provider",
-          "must_exist": false,
-          "path": "platform/ios/callkit/ios-call-provider/src/platform.rs",
-          "text": "sel!("
-        },
-        {
-          "message": "outgoing-call transactions stay outside this provider slice",
-          "must_exist": false,
-          "path": "platform/ios/callkit/ios-call-provider/src/platform.rs",
-          "text": "CXCallController"
-        },
-        {
-          "message": "PushKit and audio are not linked by this provider package",
-          "must_exist": false,
-          "path": "platform/ios/callkit/ios-call-provider/src/platform.rs",
-          "text": "PKPushRegistry"
-        }
+        {"message":"the provider retains its explicit main delegate queue","must_exist":true,"path":"platform/ios/callkit/ios-call-provider/src/platform.rs","text":"let delegate_queue = DispatchQueue::main().retain();"},
+        {"message":"CallKit receives the retained main delegate queue","must_exist":true,"path":"platform/ios/callkit/ios-call-provider/src/platform.rs","text":"setDelegate_queue(Some(delegate_object), Some(&delegate_queue))"},
+        {"message":"report completion uses a synchronized one-shot context","must_exist":true,"path":"platform/ios/callkit/ios-call-provider/src/platform.rs","text":"let callback_context = Arc::new(OnceSlot::new(callback_context));"},
+        {"message":"native report callbacks hand state access to the main queue asynchronously","must_exist":true,"path":"platform/ios/callkit/ios-call-provider/src/platform.rs","text":"DispatchQueue::main().exec_async(move || {"},
+        {"message":"report completion accesses main-thread state only after the queue handoff","must_exist":true,"path":"platform/ios/callkit/ios-call-provider/src/platform.rs","text":"complete_incoming_report(context.get(main_thread), accepted);"},
+        {"message":"provider reset callback remains implemented","must_exist":true,"path":"platform/ios/callkit/ios-call-provider/src/platform.rs","text":"#[unsafe(method(providerDidReset:))]"},
+        {"message":"answer action callback selector remains implemented","must_exist":true,"path":"platform/ios/callkit/ios-call-provider/src/platform.rs","text":"#[unsafe(method(provider:performAnswerCallAction:))]"},
+        {"message":"end action callback selector remains implemented","must_exist":true,"path":"platform/ios/callkit/ios-call-provider/src/platform.rs","text":"#[unsafe(method(provider:performEndCallAction:))]"},
+        {"message":"CallKit action timeout callback remains implemented","must_exist":true,"path":"platform/ios/callkit/ios-call-provider/src/platform.rs","text":"#[unsafe(method(provider:timedOutPerformingAction:))]"},
+        {"message":"provider dependencies remain iOS-target-specific","must_exist":true,"path":"platform/ios/callkit/ios-call-provider/Cargo.toml","text":"[target.'cfg(target_os = \"ios\")'.dependencies]"},
+        {"message":"objc2 remains an iOS-only dependency","must_exist":true,"path":"platform/ios/callkit/ios-call-provider/Cargo.toml","text":"objc2 = { workspace = true }"},
+        {"message":"Foundation bindings remain limited to the selected CallKit surface","must_exist":true,"path":"platform/ios/callkit/ios-call-provider/Cargo.toml","text":"objc2-foundation = { workspace = true, features = [\"NSDate\", \"NSError\", \"NSObject\", \"NSSet\", \"NSString\", \"NSUUID\", \"NSValue\"] }"},
+        {"message":"CallKit bindings remain limited to the provider and action APIs","must_exist":true,"path":"platform/ios/callkit/ios-call-provider/Cargo.toml","text":"objc2-call-kit = { workspace = true, features = [\"alloc\", \"block2\", \"dispatch2\", \"CXAction\", \"CXAnswerCallAction\", \"CXCallAction\", \"CXCallUpdate\", \"CXEndCallAction\", \"CXHandle\", \"CXProvider\", \"CXProviderConfiguration\", \"CXSetHeldCallAction\", \"CXSetMutedCallAction\"] }"},
+        {"message":"the workspace pins CallKit bindings without default features","must_exist":true,"path":"Cargo.toml","text":"objc2-call-kit = { version = \"=0.3.2\", default-features = false }"},
+        {"message":"the provider does not depend on the separate call-observer crate","must_exist":false,"path":"platform/ios/callkit/ios-call-provider/Cargo.toml","text":"ios-call-observer"},
+        {"message":"no untyped private selector lookup is used by the provider","must_exist":false,"path":"platform/ios/callkit/ios-call-provider/src/platform.rs","text":"sel!("},
+        {"message":"outgoing-call transactions stay outside this provider slice","must_exist":false,"path":"platform/ios/callkit/ios-call-provider/src/platform.rs","text":"CXCallController"},
+        {"message":"PushKit and audio are not linked by this provider package","must_exist":false,"path":"platform/ios/callkit/ios-call-provider/src/platform.rs","text":"PKPushRegistry"}
       ],
       "id": "ios-call-provider",
       "manifest": "platform/ios/callkit/ios-call-provider/Cargo.toml",
@@ -3420,48 +1920,13 @@
       "expected_imports": ["CoreFoundation.framework","CoreGraphics.framework","CoreText.framework","Foundation.framework","UIKit.framework","libobjc.A.dylib","libSystem.B.dylib","objc_getClass","objc_msgSend"],
       "fmt_all": false,
       "guards": [
-        {
-          "message": "push parent preflight",
-          "must_exist": true,
-          "path": "platform/ios/ios-navigation/src/platform.rs",
-          "text": "perform_push_if_unparented(screen.native.parentViewController().is_some(), ||"
-        },
-        {
-          "message": "negative push regression",
-          "must_exist": true,
-          "path": "platform/ios/ios-navigation/src/push_policy.rs",
-          "text": "already_parented_screen_is_rejected_without_calling_uikit_push"
-        },
-        {
-          "message": "UIKit selector initWithRootViewController:",
-          "must_exist": true,
-          "path": "platform/ios/ios-navigation/check-link-imports.sh",
-          "text": "initWithRootViewController:"
-        },
-        {
-          "message": "UIKit selector setView:",
-          "must_exist": true,
-          "path": "platform/ios/ios-navigation/check-link-imports.sh",
-          "text": "setView:"
-        },
-        {
-          "message": "UIKit selector setTitle:",
-          "must_exist": true,
-          "path": "platform/ios/ios-navigation/check-link-imports.sh",
-          "text": "setTitle:"
-        },
-        {
-          "message": "UIKit selector pushViewController:animated:",
-          "must_exist": true,
-          "path": "platform/ios/ios-navigation/check-link-imports.sh",
-          "text": "pushViewController:animated:"
-        },
-        {
-          "message": "UIKit selector popViewControllerAnimated:",
-          "must_exist": true,
-          "path": "platform/ios/ios-navigation/check-link-imports.sh",
-          "text": "popViewControllerAnimated:"
-        }
+        {"message":"push parent preflight","must_exist":true,"path":"platform/ios/ios-navigation/src/platform.rs","text":"perform_push_if_unparented(screen.native.parentViewController().is_some(), ||"},
+        {"message":"negative push regression","must_exist":true,"path":"platform/ios/ios-navigation/src/push_policy.rs","text":"already_parented_screen_is_rejected_without_calling_uikit_push"},
+        {"message":"UIKit selector initWithRootViewController:","must_exist":true,"path":"platform/ios/ios-navigation/check-link-imports.sh","text":"initWithRootViewController:"},
+        {"message":"UIKit selector setView:","must_exist":true,"path":"platform/ios/ios-navigation/check-link-imports.sh","text":"setView:"},
+        {"message":"UIKit selector setTitle:","must_exist":true,"path":"platform/ios/ios-navigation/check-link-imports.sh","text":"setTitle:"},
+        {"message":"UIKit selector pushViewController:animated:","must_exist":true,"path":"platform/ios/ios-navigation/check-link-imports.sh","text":"pushViewController:animated:"},
+        {"message":"UIKit selector popViewControllerAnimated:","must_exist":true,"path":"platform/ios/ios-navigation/check-link-imports.sh","text":"popViewControllerAnimated:"}
       ],
       "id": "ios-navigation",
       "manifest": "platform/ios/ios-navigation/Cargo.toml",
@@ -3502,6 +1967,156 @@
       "shell_scripts": ["platform/ios/ios-files/check-app-data-link-imports.sh"],
       "source_dirs": ["crates/framework-preferences","platform/ios/ios-preferences"],
       "targets": [{"minimum_os":"10.0","sdk":"iphoneos","triple":"aarch64-apple-ios"},{"minimum_os":"14.0","sdk":"iphonesimulator","triple":"aarch64-apple-ios-sim"}]
+    },
+    {"abi_scripts":["platform/ios/ios-runtime/check-timer-link-imports.sh"],"abi_targets":[{"triple":"aarch64-apple-ios","sdk":"iphoneos","minimum_os":"10.0"},{"triple":"aarch64-apple-ios-sim","sdk":"iphonesimulator","minimum_os":"14.0"}],"adapters":[],"cargo_tree":false,"check_script":"platform/ios/ios-runtime/check-timer-link-imports.sh","clippy_all_targets":true,"clippy_lib":false,"docs":["docs/ios/runtime.md","docs/capabilities/capability-status.json","docs/generated/CAPABILITY_STATUS.md","docs/generated/VALIDATION_PROFILES.md","PLAN_RIDESHARE_BOT_MIGRATION.md","PLAN.md"],"expected_imports":[],"fmt_all":false,"guards":[{"path":"platform/ios/ios-runtime/src/lib.rs","text":"pub mod repeating_timer;","must_exist":true,"message":"optional repeating timer module"},{"path":"platform/ios/ios-runtime/src/repeating_timer.rs","text":"pub fn schedule_on<F>","must_exist":true,"message":"owner-scoped dispatch timer API"},{"path":"platform/ios/ios-runtime/src/timer_policy.rs","text":"fn timer_lifecycle_stops_after_callback_panic()","must_exist":true,"message":"callback panic regression"},{"path":"platform/ios/ios-runtime/tests/timer_policy.rs","text":"fn timer_durations_reject_zero_and_native_overflow()","must_exist":true,"message":"duration boundary regression"},{"path":"platform/ios/ios-runtime/check-timer-link-imports.sh","text":"_dispatch_source_set_timer","must_exist":true,"message":"public libdispatch timer link assertion"},{"path":"platform/ios/ios-runtime/check-timer-link-imports.sh","text":"libswift","must_exist":true,"message":"reject Swift runtime imports"}],"id":"ios-runtime","manifest":"platform/ios/ios-runtime/Cargo.toml","offline":false,"package":"ios-runtime","rustdoc_warnings":true,"scoped_files":["Cargo.lock","docs/ios/runtime.md","docs/capabilities/capability-status.json","docs/generated/CAPABILITY_STATUS.md","docs/generated/VALIDATION_PROFILES.md","PLAN_RIDESHARE_BOT_MIGRATION.md","PLAN.md","platform/ios/ios-runtime/Cargo.toml","platform/ios/ios-runtime/check-timer-link-imports.sh","platform/ios/ios-runtime/examples/repeating_timer_link_probe.rs","platform/ios/ios-runtime/src/lib.rs","platform/ios/ios-runtime/src/repeating_timer.rs","platform/ios/ios-runtime/src/timer_policy.rs","platform/ios/ios-runtime/tests/timer_policy.rs","tools/validation/specs/validation-v1.json"],"shell_scripts":["platform/ios/ios-runtime/check-timer-link-imports.sh"],"source_dirs":["platform/ios/ios-runtime"],"targets":[{"triple":"aarch64-apple-ios","sdk":"iphoneos","minimum_os":"10.0"},{"triple":"aarch64-apple-ios-sim","sdk":"iphonesimulator","minimum_os":"14.0"}]},
+    {"abi_scripts":["platform/ios/ios-files/check-ios-files-link-imports.sh"],"abi_targets":[{"triple":"aarch64-apple-ios","sdk":"iphoneos","minimum_os":"10.0"},{"triple":"aarch64-apple-ios-sim","sdk":"iphonesimulator","minimum_os":"14.0"}],"adapters":[],"cargo_tree":false,"check_script":"platform/ios/ios-files/check-ios-files-link-imports.sh","clippy_all_targets":true,"clippy_lib":false,"docs":["docs/ios/files.md","docs/capabilities/capability-status.json","docs/generated/CAPABILITY_STATUS.md","docs/generated/VALIDATION_PROFILES.md","PLAN_RIDESHARE_BOT_MIGRATION.md","PLAN.md"],"expected_imports":["CoreFoundation.framework","Foundation.framework","libSystem.B.dylib","libiconv.2.dylib","libobjc.A.dylib"],"fmt_all":false,"guards":[{"path":"crates/framework-files/src/lib.rs","text":"fn append(&mut self, _path: AppPath<'_>, _bytes: &[u8]) -> Result<(), FileError>","must_exist":true,"message":"source-compatible append default"},{"path":"crates/framework-files/src/lib.rs","text":"pub fn append(&mut self, path: AppPath<'_>, bytes: &[u8]) -> Result<(), FileError>","must_exist":true,"message":"portable append facade"},{"path":"crates/framework-files/src/lib.rs","text":"fn backend_without_append_keeps_legacy_impl_compatible_and_unmodified()","must_exist":true,"message":"legacy backend negative regression"},{"path":"platform/ios/ios-files/src/append.rs","text":"libc::O_WRONLY | libc::O_APPEND | libc::O_NOFOLLOW","must_exist":true,"message":"descriptor append and no-follow flags"},{"path":"platform/ios/ios-files/src/append.rs","text":"let written = unsafe {","must_exist":true,"message":"single write keeps successful slices contiguous"},{"path":"platform/ios/ios-files/tests/append.rs","text":"fn empty_append_does_not_create_a_file()","must_exist":true,"message":"empty append regression"},{"path":"platform/ios/ios-files/tests/append.rs","text":"fn final_symlink_is_rejected_without_modifying_its_target()","must_exist":true,"message":"symlink rejection regression"},{"path":"platform/ios/ios-files/tests/append.rs","text":"fn final_directory_is_rejected()","must_exist":true,"message":"directory rejection regression"},{"path":"platform/ios/ios-files/tests/append.rs","text":"fn concurrent_append_calls_keep_each_successful_slice_contiguous()","must_exist":true,"message":"concurrent append integrity regression"},{"path":"platform/ios/ios-files/examples/ios_files_link_import_probe.rs","text":"Files::<ios_files::IosFiles>::append","must_exist":true,"message":"append ABI link probe"}],"id":"ios-files","manifest":"platform/ios/ios-files/Cargo.toml","offline":false,"package":"ios-files","rustdoc_warnings":true,"scoped_files":["Cargo.lock","crates/framework-files/Cargo.toml","crates/framework-files/src/lib.rs","docs/ios/files.md","docs/capabilities/capability-status.json","docs/generated/CAPABILITY_STATUS.md","docs/generated/VALIDATION_PROFILES.md","PLAN_RIDESHARE_BOT_MIGRATION.md","PLAN.md","platform/ios/ios-files/Cargo.toml","platform/ios/ios-files/check-ios-files-link-imports.sh","platform/ios/ios-files/check-app-data-link-imports.sh","platform/ios/ios-files/examples/ios_files_link_import_probe.rs","platform/ios/ios-files/src/append.rs","platform/ios/ios-files/src/lib.rs","platform/ios/ios-files/tests/append.rs","tools/validation/specs/validation-v1.json"],"shell_scripts":["platform/ios/ios-files/check-ios-files-link-imports.sh"],"source_dirs":["crates/framework-files","platform/ios/ios-files"],"targets":[{"triple":"aarch64-apple-ios","sdk":"iphoneos","minimum_os":"10.0"},{"triple":"aarch64-apple-ios-sim","sdk":"iphonesimulator","minimum_os":"14.0"}]},
+        {
+      "id": "ios-connection",
+      "package": "ios-connection",
+      "manifest": "platform/ios/ios-connection/Cargo.toml",
+      "check_script": "platform/ios/ios-connection/check-link-imports.sh",
+      "targets": [
+        {
+          "triple": "aarch64-apple-ios",
+          "sdk": "iphoneos",
+          "minimum_os": "12.0"
+        },
+        {
+          "triple": "aarch64-apple-ios-sim",
+          "sdk": "iphonesimulator",
+          "minimum_os": "14.0"
+        }
+      ],
+      "abi_targets": [
+        {
+          "triple": "aarch64-apple-ios",
+          "sdk": "iphoneos",
+          "minimum_os": "12.0"
+        },
+        {
+          "triple": "aarch64-apple-ios-sim",
+          "sdk": "iphonesimulator",
+          "minimum_os": "14.0"
+        }
+      ],
+      "expected_imports": [
+        "Network",
+        "libSystem.B.dylib"
+      ],
+      "abi_scripts": [
+        "platform/ios/ios-connection/check-link-imports.sh"
+      ],
+      "shell_scripts": [
+        "platform/ios/ios-connection/check-link-imports.sh"
+      ],
+      "docs": [
+        "docs/ios/connection.md",
+        "docs/capabilities/connection.md",
+        "docs/capabilities/capability-status.json",
+        "docs/generated/CAPABILITY_STATUS.md",
+        "docs/generated/VALIDATION_PROFILES.md",
+        "PLAN_RIDESHARE_BOT_MIGRATION.md"
+      ],
+      "scoped_files": [
+        "crates/framework-connection/src/lib.rs",
+        "platform/ios/ios-connection/Cargo.toml",
+        "platform/ios/ios-connection/build.rs",
+        "platform/ios/ios-connection/check-link-imports.sh",
+        "platform/ios/ios-connection/examples/ios_connection_link_import_probe.rs",
+        "platform/ios/ios-connection/examples/ios_tcp_listener_link_probe.rs",
+        "platform/ios/ios-connection/src/lib.rs",
+        "platform/ios/ios-connection/src/listener_queue.rs",
+        "platform/ios/ios-connection/src/network_connection_shim.c",
+        "platform/ios/ios-connection/src/network_connection_shim.h",
+        "platform/ios/ios-connection/src/network_listener_shim.c",
+        "platform/ios/ios-connection/src/network_listener_shim.h",
+        "platform/ios/ios-connection/src/platform.rs",
+        "docs/ios/connection.md",
+        "docs/capabilities/connection.md",
+        "docs/capabilities/capability-status.json",
+        "docs/generated/CAPABILITY_STATUS.md",
+        "docs/generated/VALIDATION_PROFILES.md",
+        "PLAN_RIDESHARE_BOT_MIGRATION.md"
+      ],
+      "source_dirs": [
+        "crates/framework-connection",
+        "platform/ios/ios-connection"
+      ],
+      "guards": [
+        {
+          "path": "crates/framework-connection/src/lib.rs",
+          "text": "#![no_std]",
+          "must_exist": true,
+          "message": "portable connection API remains no_std"
+        },
+        {
+          "path": "crates/framework-connection/src/lib.rs",
+          "text": "pub const MAX_QUEUED_ACCEPTS: usize = 8;",
+          "must_exist": true,
+          "message": "accepted queue remains bounded"
+        },
+        {
+          "path": "crates/framework-connection/src/lib.rs",
+          "text": "pub trait TcpListenerBackend",
+          "must_exist": true,
+          "message": "portable listener contract"
+        },
+        {
+          "path": "crates/framework-connection/src/lib.rs",
+          "text": "pub struct AcceptedConnection<",
+          "must_exist": true,
+          "message": "accepted stream has an owned facade"
+        },
+        {
+          "path": "crates/framework-connection/src/lib.rs",
+          "text": "listener_bind_is_lazy_and_returns_os_selected_port",
+          "must_exist": true,
+          "message": "ephemeral port and lazy bind regression"
+        },
+        {
+          "path": "crates/framework-connection/src/lib.rs",
+          "text": "dropping_pending_accept_keeps_listener_open_and_next_accept_works",
+          "must_exist": true,
+          "message": "dropping accept does not close listener regression"
+        },
+        {
+          "path": "crates/framework-connection/src/lib.rs",
+          "text": "accepted_queue_bound_rejects_extra_stream",
+          "must_exist": true,
+          "message": "bounded overflow rejection regression"
+        },
+        {
+          "path": "crates/framework-connection/src/lib.rs",
+          "text": "closing_listener_keeps_returned_stream_owned_and_usable",
+          "must_exist": true,
+          "message": "listener close preserves returned streams regression"
+        },
+        {
+          "path": "platform/ios/ios-connection/src/network_listener_shim.c",
+          "text": "nw_listener_create_with_port",
+          "must_exist": true,
+          "message": "public Network.framework listener API"
+        },
+        {
+          "path": "platform/ios/ios-connection/check-link-imports.sh",
+          "text": "ios_tcp_listener_link_probe",
+          "must_exist": true,
+          "message": "listener ABI probe is registered"
+        },
+        {
+          "path": "platform/ios/ios-connection/check-link-imports.sh",
+          "text": "nw_udp_create_options",
+          "must_exist": true,
+          "message": "listener link probe excludes UDP API"
+        }
+      ],
+      "adapters": [],
+      "offline": true,
+      "fmt_all": false,
+      "clippy_all_targets": true,
+      "clippy_lib": false,
+      "rustdoc_warnings": true,
+      "cargo_tree": false
     }
   ],
   "schema_version": 1,
@@ -3698,6 +2313,18 @@
       "global": false
     },
     {"path":"platform/ios/ios-notifications/","node":"ios-notifications","global":false},{"path":"crates/framework-preferences/","node":"framework-preferences","global":false},{"path":"platform/ios/ios-preferences/","node":"ios-preferences","global":false},{"path":"platform/ios/ios-files/check-app-data-link-imports.sh","node":"ios-preferences","global":false},
-    {"path":"platform/ios/ios-presentation/","node":"ios-presentation","global":false}, {"path":"platform/ios/ios-background-execution/","node":"ios-background-execution","global":false}, {"path":"crates/framework-background-execution/","node":"ios-background-execution","global":false}
+    {"path":"platform/ios/ios-presentation/","node":"ios-presentation","global":false}, {"path":"platform/ios/ios-background-execution/","node":"ios-background-execution","global":false}, {"path":"crates/framework-background-execution/","node":"ios-background-execution","global":false},
+    {"path":"crates/framework-files/","node":"framework-files","global":false},
+    {"path":"platform/ios/ios-files/","node":"ios-files","global":false},
+        {
+      "path": "crates/framework-connection/",
+      "node": "framework-connection",
+      "global": false
+    },
+        {
+      "path": "platform/ios/ios-connection/",
+      "node": "ios-connection",
+      "global": false
+    }
   ]
 }

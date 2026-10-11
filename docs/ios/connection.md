@@ -1,8 +1,8 @@
-# iOS secure TCP byte streams
+# iOS TCP connections and listeners
 
-`ios-connection` implements D19's `framework_connection::ConnectionBackend` with the public
-Network.framework C API. It does not use URLSession, Swift, Objective-C classes, a global executor,
-or D15's `NWPathMonitor`. One backend owns one outbound TLS-over-TCP connection
+`ios-connection` implements outbound secure TCP connections and inbound TCP listeners with public
+Network.framework C APIs. It does not use URLSession, Swift, Objective-C classes, a global executor,
+or D15's `NWPathMonitor`
 
 ## TLS and endpoint behavior
 
@@ -49,8 +49,29 @@ Info.plist, request permission, or determine authorization ahead of a connection
 operation may remain in a waiting state until the caller cancels it. No Bonjour key or multicast
 entitlement is used by this outbound-only slice
 
+## Inbound TCP listener
+
+B532 adds `TcpListenerBackend` and `AcceptedConnection` to the portable `framework-connection`
+contract, with `IosTcpListenerBackend` backed by the public Network.framework `NWListener` and
+`NWConnection` C APIs. Binding is lazy; port zero asks the OS to choose a port, returned after the
+listener reaches ready state. The iOS accepted streams are plaintext TCP, not TLS. Use a caller-owned
+protocol and keep its framing and authentication policy outside this transport crate
+
+The iOS backend queues at most eight pending accepted streams and cancels excess arrivals. An
+`accept` future has no implicit timeout; dropping it does not close the listener. `close` waits for
+native listener cancellation and does not close streams already returned to the caller; `cancel` and
+drop request nonblocking cancellation. Accepted streams reuse the existing bounded send/receive,
+explicit close, and cancellation contract. The portable API requires no global executor
+
+The listener binds a wildcard local endpoint, but does not add Bonjour advertising, service
+discovery, multicast, UDP, TLS, or an application protocol. Host apps that access the local network
+must provide `NSLocalNetworkUsageDescription` and handle the system's Local Network authorization,
+per [Apple's local-network privacy guidance](https://developer.apple.com/documentation/technotes/tn3179-understanding-local-network-privacy);
+this crate does not request permission or modify the host app's Info.plist. The selected API floor is
+iOS 12.0; the registered device and Simulator link probes use iOS 12.0 and 14.0 deployment floors
+
 ## Evidence limits
 
 Device and Simulator check, strict Clippy, and link/import probes validate compilation and linkage
-only. They do not execute a connection, TLS handshake, certificate validation, local-network
-prompt, byte exchange, EOF, cancellation callback, or runtime parity test
+only. They do not execute an outbound connection, TLS handshake, certificate validation, local-network
+prompt, listener bind/accept, plaintext byte exchange, EOF, cancellation callback, or runtime parity test

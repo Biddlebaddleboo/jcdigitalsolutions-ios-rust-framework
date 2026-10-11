@@ -60,6 +60,20 @@ let title = backend.add_label(&mut parent, child_frame, "Settings")?;
 stack.add_arranged_subview(title.native_label())?;
 ```
 
+## Equal-column grid
+
+`IosUiBackend::add_grid_view` creates a UIKit `UIStackView` containing horizontal row stacks. The
+caller chooses a nonzero column count, finite nonnegative row and column spacing, frame, and native
+child views. `IosGridView::add_arranged_subview` adds each view eagerly in row-major order; UIKit
+retains it, and the caller keeps any behavior-owning handle alive. Incomplete final rows use
+noninteractive, non-accessibility placeholder views to preserve equal column widths. The caller
+still owns parent placement and sizing.
+
+This is a lower-level UIKit layout helper, not a SwiftUI-style declarative UI. It has no view tree,
+state diffing, bindings, `ForEach`, lazy creation, or cell reuse. App composition and state updates
+remain caller-owned. Host tests reject zero columns and negative or non-finite spacing; device and
+Simulator checks establish compilation and linkage, not runtime layout or accessibility behavior
+
 ## Native scrolling
 
 `IosUiBackend::add_scroll_view` adds a public UIKit `UIScrollView` and an owned zero-origin `UIView`

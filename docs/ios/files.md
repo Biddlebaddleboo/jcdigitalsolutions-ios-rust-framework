@@ -532,6 +532,16 @@ not valid UTF-8 cannot be represented by the portable `DirectoryEntry` contract 
 
 ## Writes and errors
 
+`Files::append` adds one byte slice to a validated sandbox-relative file. An empty slice is a no-op
+and does not create the file. The portable default returns `Unsupported` without mutation, preserving
+source compatibility for older backends. On iOS, append uses descriptor-relative `openat` with
+`O_APPEND | O_NOFOLLOW` and one `write` call; newly created files request mode `0600`, subject to the
+process `umask`. A successful call does not imply crash durability. Concurrent successful slices
+remain contiguous, but their order is unspecified. On error, an unknown prefix may already have
+been written, so retrying can duplicate data. Host regressions cover empty input, symlink and
+directory rejection, concurrent appends, and unsupported legacy backends; the link probe is not
+runtime filesystem proof
+
 Create-or-replace writes to a same-directory temporary file and commits with POSIX `renameat`.
 Create-new uses Darwin `renameatx_np(RENAME_EXCL)`. Replace-existing uses
 `renameatx_np(RENAME_SWAP)` so a missing target is not created and the old regular file is replaced
