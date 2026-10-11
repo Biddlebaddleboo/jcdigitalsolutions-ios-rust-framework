@@ -288,7 +288,7 @@ B488 adds lazy `identify(&HMAccessory) -> HomeKitIdentifyFuture` to the existing
 
 ### B490 — selected-camera white-balance modes (row 046)
 
-B490 adds `IosCameraWhiteBalanceMode::{Locked, AutoWhiteBalance, ContinuousAutoWhiteBalance}`, a support query, and a setter for the existing selected camera. AVFoundation's public white-balance mode APIs have an iOS 4.0 floor, below the retained iOS 10.0 device and iOS 14.0 Simulator link floors. Mode support is checked before `lockForConfiguration`; successful locks are released on return or unwind. Host regressions and registered selector/link checks do not prove white-balance response or physical-device behavior. Manual gains and temperature/tint remain out of scope. The Apple-target profile awaits the B489 validation lane.
+B490 adds `IosCameraWhiteBalanceMode::{Locked, AutoWhiteBalance, ContinuousAutoWhiteBalance}`, a support query, and a setter for the existing selected camera. AVFoundation's public white-balance mode APIs have an iOS 4.0 floor, below the retained iOS 10.0 device and iOS 14.0 Simulator link floors. Mode support is checked before `lockForConfiguration`; successful locks are released on return or unwind. The registered camera profile passed 267 checks, with 0 FAIL, 0 BLOCKED, and 2 SKIPPED, at source head `5731f8a2e7a8aafe68731d0791638599c326260e` and snapshot `20903af39904eb5b439667382f6bf4d9b72f9c407133c9529f14913f1ce3276b`. Host tests, format, Clippy, Rustdoc, iOS 10.0 device and iOS 14.0 Simulator compilation, device Rustdoc, source guards, and link/import checks passed. Simulator execution and physical-device proof were skipped; white-balance response remains runtime-unverified. Manual gains and temperature/tint remain out of scope.
 
 ## Active work selection and limits
 
