@@ -1,4 +1,24 @@
 #[cfg(target_os = "ios")]
+fn link_scene_window(
+    main_thread: ios_runtime::main_thread::MainThread,
+    scene: &objc2_ui_kit::UIWindowScene,
+    root: &objc2_ui_kit::UIViewController,
+) {
+    if let Ok(window) = ios_app_scenes::IosSceneWindow::new(main_thread, scene, root) {
+        let _ = window.native_window().isKeyWindow();
+        drop(window);
+    }
+}
+
+#[cfg(target_os = "ios")]
+#[used]
+static SCENE_WINDOW_LINK: fn(
+    ios_runtime::main_thread::MainThread,
+    &objc2_ui_kit::UIWindowScene,
+    &objc2_ui_kit::UIViewController,
+) = link_scene_window;
+
+#[cfg(target_os = "ios")]
 fn main() {
     if let Some(main_thread) = ios_runtime::main_thread::MainThread::current() {
         let _ = ios_app_scenes::snapshot(main_thread);

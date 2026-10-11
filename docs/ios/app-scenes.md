@@ -35,6 +35,14 @@ Observer blocks run on `NSOperationQueue::mainQueue()`. The event source owns an
 
 These are the notifications UIKit posts; this API does not install or replace a `UISceneDelegate`, configure scenes, create windows, present UI, control a scene, or perform any app/runtime initialization. It does not expose capture or media data, promise event delivery while the process is suspended, or guarantee the scene's state after an event. The host remains responsible for its own scene configuration. `UIApplication.sharedApplication` is unavailable to app extensions, so this package targets apps only.
 
+## B506 caller-scene window attachment
+
+`IosSceneWindow::new(main_thread, &scene, root.native_controller())` creates a retained `UIWindow` with public `UIWindow::initWithWindowScene`, attaches the caller's root controller, and calls `makeKeyAndVisible`. The host supplies a live scene and owns delegate/bootstrap and scene-event policy; this handle does not replace `WindowGroup` or install a scene delegate.
+
+The constructor returns `framework_core::ErrorKind::InvalidInput` before creating a window when the root already has a parent controller or its already-loaded view belongs to a window. It checks `isViewLoaded` and `viewIfLoaded`; it does not load the view or reparent a controller. The main-thread-bound, `!Send`/`!Sync` handle borrows its native window with `native_window()`. On drop it hides the window and clears the root controller to release the UIKit hierarchy. Callers remain responsible for dropping it when their scene lifecycle requires cleanup.
+
+The link probe compiles the constructor, `setRootViewController:`, `makeKeyAndVisible`, native escape, and drop cleanup for device iOS 13.0 and Simulator iOS 14.0. These checks do not prove live presentation, key-window status, scene-disconnect cleanup, or on-device lifecycle behavior.
+
 The public APIs and notification constants have an iOS 13.0 floor in the installed iPhoneOS 26.5 SDK. The Rust target's effective minimum is iOS 13.0 for device and 14.0 for Simulator in the registered link probe. No permission, entitlement, or usage-description key is required.
 
 The adapter uses generated `objc2-ui-kit 0.3.2` and `objc2-foundation 0.3.2` bindings, plus `block2 0.6.2`; it adds no Swift source and no hand-written Objective-C ABI. UIKit delivery, multi-scene ordering, suspend/resume delivery, Simulator runtime, and physical-device runtime remain unverified by host tests or compile/link checks.

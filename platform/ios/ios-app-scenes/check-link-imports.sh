@@ -42,6 +42,7 @@ for target in aarch64-apple-ios aarch64-apple-ios-sim; do
     strings "$binary" > "$binary_strings"
     grep -Eq '_objc_(msgSend|getClass)' "$symbols"
     grep -Fq 'UIApplication' "$binary_strings"
+    grep -Fq 'UIWindow' "$binary_strings"
     grep -Fq 'connectedScenes' "$binary_strings"
     grep -Fq 'activationState' "$binary_strings"
     for notification in \
@@ -56,8 +57,14 @@ for target in aarch64-apple-ios aarch64-apple-ios-sim; do
     for selector in \
         addObserverForName:object:queue:usingBlock: \
         getCharacters:range: \
+        initWithWindowScene: \
+        makeKeyAndVisible \
+        parentViewController \
         persistentIdentifier \
-        removeObserver:; do
+        removeObserver: \
+        setHidden: \
+        setRootViewController: \
+        viewIfLoaded; do
         grep -Fq "$selector" "$binary_strings"
     done
     if grep -Eiq 'swift|SceneDelegate|setDelegate:|requestSceneSession|openSessions' "$symbols" "$binary_strings"; then

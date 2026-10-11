@@ -422,3 +422,5 @@ layout, and accessibility systems remain outside its scope.
 The optional foreign-language Keychain surface is documented in the
 [secure-storage C ABI guide](../bindings/secure-storage.md); it does not change the Rust-native
 call path or the iOS capability classification.
+
+Row 002 includes B506's caller-scene `IosSceneWindow` root attachment and hide/detach cleanup. It does not configure app or scene delegates, wire lifecycle events to policy, or establish runtime presentation.

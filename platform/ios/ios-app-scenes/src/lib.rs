@@ -2,6 +2,8 @@
 #![doc = "UIKit scene activity snapshots and lifecycle events for iOS apps"]
 
 #[cfg(any(target_os = "ios", test))]
+use framework_core::{Error, ErrorKind, Result};
+#[cfg(any(target_os = "ios", test))]
 use std::collections::VecDeque;
 #[cfg(test)]
 use std::sync::Arc;
@@ -18,6 +20,12 @@ mod backend;
 
 #[cfg(target_os = "ios")]
 pub use backend::IosSceneLifecycleEvents;
+
+#[cfg(target_os = "ios")]
+mod window;
+
+#[cfg(target_os = "ios")]
+pub use window::IosSceneWindow;
 
 /// Counts scene activation states from one `UIApplication.connectedScenes` read
 #[cfg(target_os = "ios")]
@@ -279,9 +287,45 @@ fn contain_callback_panic(callback: impl FnOnce()) -> bool {
     }
 }
 
+#[cfg(any(target_os = "ios", test))]
+fn validate_root_attachment(
+    already_parented: bool,
+    loaded_view_has_window: impl FnOnce() -> bool,
+) -> Result<()> {
+    if already_parented || loaded_view_has_window() {
+        Err(Error::new(ErrorKind::InvalidInput))
+    } else {
+        Ok(())
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn parented_root_is_rejected_without_loaded_view_inspection() {
+        let mut inspected = false;
+        let error = validate_root_attachment(true, || {
+            inspected = true;
+            false
+        })
+        .unwrap_err();
+
+        assert_eq!(error.kind(), ErrorKind::InvalidInput);
+        assert!(!inspected);
+    }
+
+    #[test]
+    fn window_attached_loaded_root_is_rejected() {
+        let error = validate_root_attachment(false, || true).unwrap_err();
+        assert_eq!(error.kind(), ErrorKind::InvalidInput);
+    }
+
+    #[test]
+    fn root_without_a_window_attached_loaded_view_is_accepted() {
+        assert!(validate_root_attachment(false, || false).is_ok());
+    }
 
     fn event(index: u16) -> SceneLifecycleEvent {
         SceneLifecycleEvent {

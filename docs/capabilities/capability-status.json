@@ -59,16 +59,17 @@
       "capability": "windows/screens",
       "crate_module": [
         "examples/ios-minimal",
-        "ios-runtime"
+        "ios-runtime",
+        "platform/ios/ios-app-scenes"
       ],
       "crate_module_status": "ios_backend_partial",
       "portability_class": "portable_with_platform_extensions",
       "portable_contract_status": "not_implemented",
-      "portable_contract_note": "No portable framework-crypto facade is implemented; the iOS-only CC_SHA256 operation does not cover the broader crypto facade or system/hardware key escape.",
+      "portable_contract_note": "No portable window or screen contract is implemented; B506 adds only iOS caller-scene root-window attachment.",
       "ios_implementation_class": "B",
       "implementation_status": "partial",
-      "status_reason": "The B example creates one UIWindow and reads one UIScreen; it is not a general window or screen facade.",
-      "minimum_ios_version": null,
+      "status_reason": "B506 adds a main-thread IosSceneWindow for a caller-supplied UIWindowScene, with parent/attached-root preflight and hide/detach cleanup on drop. Scene/delegate bootstrap and event-to-policy wiring remain host-owned; general window and screen APIs remain incomplete.",
+      "minimum_ios_version": "13.0",
       "required_frameworks": [
         "UIKit",
         "Foundation",
@@ -79,11 +80,11 @@
       "entitlements": [],
       "device_only_restrictions": [],
       "swift_abi_requirement": false,
-      "metadata_verification": "partial_verified_from_docs/ios/runtime.md_and_examples/ios-minimal; minimum_iOS_version_not_stated",
+      "metadata_verification": "Public objc2-ui-kit 0.3.2 UIWindow scene initialization, root-controller attachment, key/visible, and hide APIs compile/link at device iOS 13.0 and Simulator iOS 14.0; runtime presentation and scene-disconnect cleanup are unverified.",
       "parity_status": "not_tested_live_behavior_or_Apple_parity",
       "performance_status": "not_measured",
       "native_escape_handle_available": true,
-      "native_escape_handle_note": "Direct UIKit handles occur in examples/ios-minimal only; no reusable capability-level ios escape facade exists."
+      "native_escape_handle_note": "IosSceneWindow::native_window borrows the retained UIWindow; the caller supplies UIWindowScene and owns scene/delegate lifecycle."
     },
     {
       "id": "003-core-app-ui-basic-native-views-controllers-controls",

@@ -789,7 +789,7 @@
       "check_script": "platform/ios/ios-app-scenes/check.sh",
       "clippy_all_targets": true,
       "clippy_lib": false,
-      "docs": ["docs/ios/app-scenes.md","docs/ios/app-lifecycle.md","docs/capabilities/capability-status.json","docs/capabilities/README.md","PLAN.md","PLAN_CAPABILITIES_APPLICATION_LIFECYCLE.md","PLAN_IOS_SCENE_SNAPSHOT.md","PLAN_VALIDATION_IOS_SCENE_SNAPSHOT.md"],
+      "docs": ["docs/ios/app-scenes.md","docs/ios/app-lifecycle.md","docs/capabilities/capability-status.json","docs/capabilities/README.md","PLAN.md","PLAN_CAPABILITIES_APPLICATION_LIFECYCLE.md","PLAN_IOS_SCENE_SNAPSHOT.md","PLAN_VALIDATION_IOS_SCENE_SNAPSHOT.md","PLAN_RIDESHARE_BOT_MIGRATION.md"],
       "expected_imports": [
         "Foundation.framework",
         "UIKit.framework",
@@ -802,7 +802,7 @@
       "offline": false,
       "package": "ios-app-scenes",
       "rustdoc_warnings": false,
-      "scoped_files": ["PLAN.md","PLAN_CAPABILITIES_APPLICATION_LIFECYCLE.md","PLAN_IOS_SCENE_SNAPSHOT.md","PLAN_VALIDATION_IOS_SCENE_SNAPSHOT.md","platform/ios/ios-app-scenes/Cargo.toml","platform/ios/ios-app-scenes/README.md","platform/ios/ios-app-scenes/check-link-imports.sh","platform/ios/ios-app-scenes/check.sh","platform/ios/ios-app-scenes/examples/link_check.rs","platform/ios/ios-app-scenes/src/backend.rs","platform/ios/ios-app-scenes/src/lib.rs"],
+      "scoped_files": ["Cargo.lock","PLAN.md","PLAN_CAPABILITIES_APPLICATION_LIFECYCLE.md","PLAN_IOS_SCENE_SNAPSHOT.md","PLAN_VALIDATION_IOS_SCENE_SNAPSHOT.md","platform/ios/ios-app-scenes/Cargo.toml","platform/ios/ios-app-scenes/README.md","platform/ios/ios-app-scenes/check-link-imports.sh","platform/ios/ios-app-scenes/check.sh","platform/ios/ios-app-scenes/examples/link_check.rs","platform/ios/ios-app-scenes/src/backend.rs","platform/ios/ios-app-scenes/src/lib.rs","platform/ios/ios-app-scenes/src/window.rs"],
       "shell_scripts": [
         "platform/ios/ios-app-scenes/check.sh",
         "platform/ios/ios-app-scenes/check-link-imports.sh"

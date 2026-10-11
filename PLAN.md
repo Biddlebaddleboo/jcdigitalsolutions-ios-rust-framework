@@ -338,6 +338,10 @@ B504 adds reusable `TextFieldInputMode::{Text, Password, Number, Decimal}` and `
 
 B505 adds `IosScrollView` over public `UIScrollView` with a retained zero-origin `IosView` content host, existing backend control insertion, exact finite non-negative content sizing, and a typed native escape. Host regressions cover error classification and unclamped dimensions; device/Simulator compile-link checks establish class and selector linkage only, not runtime scrolling, clipping, gestures, indicators, or visual layout
 
+### B506 — caller-scene window root attachment (row 002)
+
+B506 adds a main-thread `IosSceneWindow` over public `UIWindow::initWithWindowScene`, root-controller attachment, and key/visible calls for a caller-supplied `UIWindowScene`. It rejects parented controllers and already-window-attached loaded roots without loading views, and hides the window and clears its root on drop. Host policy regressions and device/Simulator compile-link checks pass; app/scene delegate bootstrap, scene-event policy, live presentation, and scene-disconnect cleanup remain incomplete or unverified
+
 ## Active work selection and limits
 
 1. Inspect the canonical capability status/owner, the relevant family plan, then the named workstream plan and exact files/symbols. Do not scan the entire planning corpus or treat every existing plan as pending work.

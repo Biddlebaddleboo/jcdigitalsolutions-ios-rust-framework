@@ -475,6 +475,7 @@ name = "ios-app-scenes"
 version = "0.1.0"
 dependencies = [
  "block2",
+ "framework-core",
  "ios-runtime",
  "objc2",
  "objc2-foundation",
