@@ -1,6 +1,6 @@
 #![deny(missing_docs)]
 #![deny(unsafe_op_in_unsafe_fn)]
-#![doc = "Authorized live iOS microphone PCM input and read-only input-port snapshots"]
+#![doc = "Authorized live iOS microphone PCM input, input-port snapshots, and preferred-input selection"]
 
 #[cfg(any(target_os = "ios", test))]
 use core::cell::UnsafeCell;
@@ -135,6 +135,20 @@ pub enum MicrophoneInputQueryError {
     UnsupportedOperatingSystem,
 }
 
+/// Failure to select an input from the host session's currently available ports.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[cfg(any(target_os = "ios", test))]
+pub enum MicrophoneInputSelectionError {
+    /// `AVAudioSession.setPreferredInput:error:` requires iOS 7.0 or newer.
+    UnsupportedOperatingSystem,
+    /// The requested system-assigned port UID is empty.
+    InvalidUid,
+    /// No currently available input port has the requested UID.
+    InputNotAvailable,
+    /// `AVAudioSession.setPreferredInput:error:` returned a native error.
+    NativeFailure,
+}
+
 /// Reads one owned snapshot of the host-configured session's available input ports.
 ///
 /// The host owns audio-session category, mode, activation, and route policy. This function only
@@ -166,6 +180,66 @@ pub fn available_input_ports() -> Result<Vec<IosAudioInputPort>, MicrophoneInput
         })
     });
     Ok(collect_input_port_snapshot(metadata))
+}
+
+/// Requests the preferred route for a currently available audio input by its system-assigned UID.
+///
+/// The UID must match an entry in the host session's current `available_input_ports()` snapshot.
+/// This calls the public `AVAudioSession.setPreferredInput:error:` API, available from iOS 7.0.
+/// Success means the preference request was accepted; it does not prove that the active route has
+/// changed or that microphone capture can start. Apple notes that selecting an input already on
+/// the current route has no effect. The host remains responsible for session category, mode,
+/// activation, microphone authorization, and any route or interruption observation. This function
+/// does not configure or activate the session, request permission, start I/O, clear the preferred
+/// input, or register observers.
+#[cfg(target_os = "ios")]
+pub fn select_input_port(uid: &str) -> Result<(), MicrophoneInputSelectionError> {
+    if uid.is_empty() {
+        return Err(MicrophoneInputSelectionError::InvalidUid);
+    }
+    if !objc2::available!(ios = 7.0, ..) {
+        return Err(MicrophoneInputSelectionError::UnsupportedOperatingSystem);
+    }
+
+    // SAFETY: sharedInstance returns the documented process-wide AVAudioSession singleton.
+    let session = unsafe { AVAudioSession::sharedInstance() };
+    // SAFETY: availableInputs reads the retained session's current route-eligible input list.
+    select_available_input(
+        (unsafe { session.availableInputs() })
+            .map(|ports| (0..ports.count()).map(move |index| ports.objectAtIndex(index))),
+        uid,
+        |port| {
+            // SAFETY: UID is a read-only property on each retained public port description.
+            unsafe { port.UID() }.to_string()
+        },
+        |port| {
+            // SAFETY: `port` is a retained entry from this session's current availableInputs list.
+            unsafe { session.setPreferredInput_error(Some(&port)) }
+        },
+    )
+}
+
+#[cfg(any(target_os = "ios", test))]
+fn select_available_input<P, I, U, S, E>(
+    ports: Option<I>,
+    requested_uid: &str,
+    mut port_uid: U,
+    set_preferred_input: S,
+) -> Result<(), MicrophoneInputSelectionError>
+where
+    I: IntoIterator<Item = P>,
+    U: FnMut(&P) -> String,
+    S: FnOnce(P) -> Result<(), E>,
+{
+    if requested_uid.is_empty() {
+        return Err(MicrophoneInputSelectionError::InvalidUid);
+    }
+    let port = ports
+        .into_iter()
+        .flatten()
+        .find(|port| port_uid(port) == requested_uid)
+        .ok_or(MicrophoneInputSelectionError::InputNotAvailable)?;
+    set_preferred_input(port).map_err(|_| MicrophoneInputSelectionError::NativeFailure)
 }
 
 #[cfg(any(target_os = "ios", test))]
@@ -712,11 +786,18 @@ const fn may_stream(status: MediaAuthorizationStatus) -> bool {
 #[cfg(test)]
 mod tests {
     use super::{
-        FrameRing, Lifecycle, MicrophoneStreamError, allocate_storage, collect_input_port_snapshot,
-        may_stream, validate_input_format,
+        FrameRing, Lifecycle, MicrophoneInputSelectionError, MicrophoneStreamError,
+        allocate_storage, collect_input_port_snapshot, may_stream, select_available_input,
+        validate_input_format,
     };
     use framework_media_authorization::MediaAuthorizationStatus;
-    use std::cell::UnsafeCell;
+    use std::cell::{Cell, UnsafeCell};
+
+    #[derive(Debug)]
+    struct TestInputPort {
+        uid: String,
+        marker: u8,
+    }
 
     fn ring(capacity_frames: u32, channels: u32, stride: u32) -> FrameRing {
         FrameRing::new(
@@ -771,6 +852,104 @@ mod tests {
         assert_eq!(ports[0].uid(), first_uid);
         assert_eq!(ports[1].name(), "Built-in microphone");
         assert_eq!(ports[1].uid(), "external\0input-1");
+    }
+
+    #[test]
+    fn input_selection_uses_exact_uid_and_calls_setter_once_for_the_match() {
+        let setter_calls = Cell::new(0);
+        let selected_marker = Cell::new(None);
+        let ports = vec![
+            TestInputPort {
+                uid: "usb-input".to_owned(),
+                marker: 1,
+            },
+            TestInputPort {
+                uid: "bluetooth-input".to_owned(),
+                marker: 2,
+            },
+        ];
+
+        assert_eq!(
+            select_available_input(
+                Some(ports),
+                "bluetooth-input",
+                |port| port.uid.clone(),
+                |port| {
+                    setter_calls.set(setter_calls.get() + 1);
+                    selected_marker.set(Some(port.marker));
+                    Ok::<(), ()>(())
+                },
+            ),
+            Ok(())
+        );
+        assert_eq!(setter_calls.get(), 1);
+        assert_eq!(selected_marker.get(), Some(2));
+    }
+
+    #[test]
+    fn empty_or_unavailable_input_uid_never_calls_the_setter() {
+        let setter_calls = Cell::new(0);
+        let ports = vec![TestInputPort {
+            uid: "usb-input".to_owned(),
+            marker: 1,
+        }];
+
+        assert_eq!(
+            select_available_input(
+                Some(ports),
+                "",
+                |port| port.uid.clone(),
+                |_| {
+                    setter_calls.set(setter_calls.get() + 1);
+                    Ok::<(), ()>(())
+                },
+            ),
+            Err(MicrophoneInputSelectionError::InvalidUid)
+        );
+        assert_eq!(
+            select_available_input(
+                Some(vec![TestInputPort {
+                    uid: "usb-input".to_owned(),
+                    marker: 1,
+                }]),
+                "USB-input",
+                |port| port.uid.clone(),
+                |_| {
+                    setter_calls.set(setter_calls.get() + 1);
+                    Ok::<(), ()>(())
+                },
+            ),
+            Err(MicrophoneInputSelectionError::InputNotAvailable)
+        );
+        assert_eq!(
+            select_available_input(
+                None::<Vec<TestInputPort>>,
+                "usb-input",
+                |port| port.uid.clone(),
+                |_| {
+                    setter_calls.set(setter_calls.get() + 1);
+                    Ok::<(), ()>(())
+                },
+            ),
+            Err(MicrophoneInputSelectionError::InputNotAvailable)
+        );
+        assert_eq!(setter_calls.get(), 0);
+    }
+
+    #[test]
+    fn native_input_selection_failure_is_reported() {
+        assert_eq!(
+            select_available_input(
+                Some(vec![TestInputPort {
+                    uid: "usb-input".to_owned(),
+                    marker: 1,
+                }]),
+                "usb-input",
+                |port| port.uid.clone(),
+                |_| Err::<(), _>("native route error"),
+            ),
+            Err(MicrophoneInputSelectionError::NativeFailure)
+        );
     }
 
     #[test]

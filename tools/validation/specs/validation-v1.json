@@ -486,6 +486,18 @@
           "text": "objc2::available!(ios = 7.0, ..)"
         },
         {
+          "message": "preferred-input selection must expose the UID-based Rust API",
+          "must_exist": true,
+          "path": "platform/ios/ios-microphone-pcm-stream/src/lib.rs",
+          "text": "pub fn select_input_port(uid: &str) -> Result<(), MicrophoneInputSelectionError>"
+        },
+        {
+          "message": "preferred-input selection must resolve UIDs against the current available-input list",
+          "must_exist": true,
+          "path": "platform/ios/ios-microphone-pcm-stream/src/lib.rs",
+          "text": "select_available_input("
+        },
+        {
           "message": "input-port query must read only the host session availableInputs property",
           "must_exist": true,
           "path": "platform/ios/ios-microphone-pcm-stream/src/lib.rs",
@@ -552,10 +564,28 @@
           "text": "setActive"
         },
         {
-          "message": "the input-port query must not select a preferred input or route",
+          "message": "preferred-input selection must request the exact currently available port",
+          "must_exist": true,
+          "path": "platform/ios/ios-microphone-pcm-stream/src/lib.rs",
+          "text": "session.setPreferredInput_error(Some(&port))"
+        },
+        {
+          "message": "preferred-input selection must not clear the host's preferred route",
           "must_exist": false,
           "path": "platform/ios/ios-microphone-pcm-stream/src/lib.rs",
-          "text": "setPreferred"
+          "text": "setPreferredInput_error(None)"
+        },
+        {
+          "message": "preferred-input selection must not change preferred channel count or orientation",
+          "must_exist": false,
+          "path": "platform/ios/ios-microphone-pcm-stream/src/lib.rs",
+          "text": "setPreferredInputNumberOfChannels"
+        },
+        {
+          "message": "preferred-input selection must not change preferred channel count or orientation",
+          "must_exist": false,
+          "path": "platform/ios/ios-microphone-pcm-stream/src/lib.rs",
+          "text": "setPreferredInputOrientation"
         },
         {
           "message": "the input-port query must not override audio routing",

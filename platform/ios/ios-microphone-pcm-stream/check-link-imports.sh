@@ -88,6 +88,7 @@ for target in aarch64-apple-ios aarch64-apple-ios-sim; do
         authorizationStatusForMediaType: \
         sharedInstance \
         availableInputs \
+        setPreferredInput:error: \
         portType \
         portName \
         UID \

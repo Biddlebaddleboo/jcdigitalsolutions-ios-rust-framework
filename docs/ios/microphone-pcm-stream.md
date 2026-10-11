@@ -15,6 +15,17 @@ for port in input_ports {
 
 The query does not grant permission or guarantee that the listed ports will remain available. The host remains responsible for microphone permission and session configuration before recording.
 
+`select_input_port(uid)` is an explicit preferred-input request, available from iOS 7.0. Pass a UID from a current `available_input_ports()` result; the function matches it exactly against the host session's current `availableInputs` list and calls the public `AVAudioSession.setPreferredInput:error:` API only for that retained entry. An empty UID returns `InvalidUid`; a nil list or UID no longer present returns `InputNotAvailable`; a native setter error returns `NativeFailure`; older systems return `UnsupportedOperatingSystem`. A successful call means the preference request was accepted, not that the active route changed or capture can start. Apple documents that selecting an input already on the route has no effect. The list and route may change between query and selection.
+
+The host remains the sole owner of audio-session category, mode, activation, microphone permission, and route/interruption lifecycle. Selection does not set those values, prompt, start I/O, clear a preferred input, or register observers. The host must track its own route state if it needs to know which input is active.
+
+```rust,ignore
+let input_ports = available_input_ports()?;
+if let Some(port) = input_ports.first() {
+    select_input_port(port.uid())?;
+}
+```
+
 ```rust,ignore
 let mut stream = IosMicrophonePcmStream::new(48_000)?;
 let format = stream.start()?;
@@ -27,6 +38,6 @@ stream.stop();
 
 The capacity is measured in frames, is preallocated before capture, and must be between 1 and 1,048,576 frames. A single tap callback produces samples into a bounded SPSC ring while the caller polls it without waiting. If a complete tap block does not fit, that entire block is dropped and its frame count is added to `dropped_frames`; the counter saturates at `u64::MAX`. This is a bounded best-effort stream, not lossless recording. Callback format changes latch an error; reads then return `InputFormatChanged` rather than reinterpret samples.
 
-The stream is one-shot and intentionally `!Send`/`!Sync`. `start`, `stop`, and drop perform synchronous `AVAudioEngine` operations and may block, so call them away from latency-sensitive UI work. Stop and drop stop the engine and remove its tap but never deactivate or reconfigure the host-owned audio session. Route/interruption recovery and device selection are outside this API.
+The stream is one-shot and intentionally `!Send`/`!Sync`. `start`, `stop`, and drop perform synchronous `AVAudioEngine` operations and may block, so call them away from latency-sensitive UI work. Stop and drop stop the engine and remove its tap but never deactivate or reconfigure the host-owned audio session. Route/interruption recovery and active-route observation remain outside this API.
 
-The registered profile compiles and links iOS 10.0 device and iOS 14.0 Simulator probes, checks Objective-C/framework imports and public SDK declarations, and runs host regressions for input-port snapshot mapping, authorization policy, format validation, FIFO ordering, interleaving, wraparound, overflow, capacity, and lifecycle. These checks do not run the link probe, query a live audio session, request permission, access a microphone, or establish live capture, timing, acoustic fidelity, route recovery, or physical-device behavior.
+The registered profile compiles and links iOS 10.0 device and iOS 14.0 Simulator probes, checks Objective-C/framework imports and public SDK declarations, and runs host regressions for input-port snapshot mapping and selection, authorization policy, format validation, FIFO ordering, interleaving, wraparound, overflow, capacity, and lifecycle. These checks do not run the link probe, query a live audio session, request permission, access a microphone, or establish live capture, timing, acoustic fidelity, route selection behavior, route recovery, or physical-device behavior.

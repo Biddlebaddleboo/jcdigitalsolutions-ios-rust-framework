@@ -4,7 +4,14 @@ fn main() {
         return;
     }
 
-    use ios_microphone_pcm_stream::{IosMicrophonePcmStream, available_input_ports};
+    use ios_microphone_pcm_stream::{
+        IosMicrophonePcmStream, MicrophoneInputSelectionError, available_input_ports,
+        select_input_port,
+    };
+
+    std::hint::black_box(
+        select_input_port as fn(&str) -> Result<(), MicrophoneInputSelectionError>,
+    );
 
     if let Ok(input_ports) = available_input_ports() {
         for input_port in input_ports {
