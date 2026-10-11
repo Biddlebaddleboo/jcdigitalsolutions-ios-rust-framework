@@ -193,7 +193,16 @@ pub trait ButtonControl {
     fn set_title(&mut self, title: &str) -> Result<()>;
 }
 
-/// A compile-time-selected backend for a native container view, label, and button.
+/// A mutable boolean toggle handle returned by a [`UiBackend`].
+pub trait ToggleControl {
+    /// Returns the current toggle state.
+    fn is_on(&self) -> Result<bool>;
+
+    /// Changes the state without invoking the user-change callback.
+    fn set_state(&mut self, on: bool) -> Result<()>;
+}
+
+/// A compile-time-selected backend for a native container view, label, button, and toggle.
 ///
 /// The contract starts no process service, event loop, executor, or global registration. Each
 /// method is synchronous. Backends document their native thread and callback behavior.
@@ -204,6 +213,8 @@ pub trait UiBackend {
     type Label: LabelControl;
     /// The mutable button handle chosen by the backend.
     type Button: ButtonControl;
+    /// The mutable boolean toggle handle chosen by the backend.
+    type Toggle: ToggleControl;
 
     /// Creates a native container view with the supplied frame.
     fn create_view(&mut self, frame: Frame) -> Result<Self::View>;
@@ -234,6 +245,23 @@ pub trait UiBackend {
     ) -> Result<Self::Button>
     where
         F: FnMut() + 'static;
+
+    /// Creates and attaches a native boolean toggle with a Rust value-change callback.
+    ///
+    /// `initial_on` is installed during synchronous setup. The backend owns `action` if it returns
+    /// `Ok`; the returned handle must keep it alive for that handle's lifetime. The backend calls
+    /// `action` only after a user/native change and passes the resulting value; `set_state` must not
+    /// call it. If this method returns `Err`, it consumes and drops `action`. Callback thread,
+    /// reentrancy, and panic behavior are backend-defined; the callback need not be `Send`.
+    fn add_toggle<F>(
+        &mut self,
+        parent: &mut Self::View,
+        frame: Frame,
+        initial_on: bool,
+        action: F,
+    ) -> Result<Self::Toggle>
+    where
+        F: FnMut(bool) + 'static;
 }
 
 /// A thin facade over caller-owned, statically selected native UI backend state.
@@ -274,6 +302,20 @@ impl<B: UiBackend> UiClient<B> {
         F: FnMut() + 'static,
     {
         self.backend.add_button(parent, frame, title, action)
+    }
+
+    /// Creates and attaches a native boolean toggle with a Rust value-change callback.
+    pub fn add_toggle<F>(
+        &mut self,
+        parent: &mut B::View,
+        frame: Frame,
+        initial_on: bool,
+        action: F,
+    ) -> Result<B::Toggle>
+    where
+        F: FnMut(bool) + 'static,
+    {
+        self.backend.add_toggle(parent, frame, initial_on, action)
     }
 
     /// Borrows the explicitly supplied backend.
@@ -324,12 +366,36 @@ mod tests {
         }
     }
 
+    struct TestToggle {
+        on: bool,
+        action: Box<dyn FnMut(bool)>,
+    }
+
+    impl TestToggle {
+        fn user_change(&mut self, on: bool) {
+            self.on = on;
+            (self.action)(on);
+        }
+    }
+
+    impl ToggleControl for TestToggle {
+        fn is_on(&self) -> Result<bool> {
+            Ok(self.on)
+        }
+
+        fn set_state(&mut self, on: bool) -> Result<()> {
+            self.on = on;
+            Ok(())
+        }
+    }
+
     struct TestBackend;
 
     impl UiBackend for TestBackend {
         type View = TestView;
         type Label = TestLabel;
         type Button = TestButton;
+        type Toggle = TestToggle;
 
         fn create_view(&mut self, frame: Frame) -> Result<Self::View> {
             Ok(TestView(frame))
@@ -355,6 +421,22 @@ mod tests {
             F: FnMut() + 'static,
         {
             Ok(TestButton(Box::new(action)))
+        }
+
+        fn add_toggle<F>(
+            &mut self,
+            _parent: &mut Self::View,
+            _frame: Frame,
+            initial_on: bool,
+            action: F,
+        ) -> Result<Self::Toggle>
+        where
+            F: FnMut(bool) + 'static,
+        {
+            Ok(TestToggle {
+                on: initial_on,
+                action: Box::new(action),
+            })
         }
     }
 
@@ -472,6 +554,43 @@ mod tests {
                 expected
             );
         }
+    }
+
+    #[test]
+    fn toggle_initial_state_and_programmatic_changes_do_not_call_action() {
+        let calls = std::rc::Rc::new(std::cell::Cell::new(0));
+        let action_calls = calls.clone();
+        let mut ui = UiClient::new(TestBackend);
+        let frame = Frame::new(0.0, 0.0, 30.0, 40.0).unwrap();
+        let mut view = ui.create_view(frame).unwrap();
+        let mut toggle = ui
+            .add_toggle(&mut view, frame, false, move |_| {
+                action_calls.set(action_calls.get() + 1);
+            })
+            .unwrap();
+
+        assert_eq!(toggle.is_on(), Ok(false));
+        toggle.set_state(true).unwrap();
+        assert_eq!(toggle.is_on(), Ok(true));
+        assert_eq!(calls.get(), 0);
+    }
+
+    #[test]
+    fn toggle_callback_receives_each_new_user_value() {
+        let values = std::rc::Rc::new(std::cell::RefCell::new(std::vec::Vec::new()));
+        let action_values = values.clone();
+        let mut ui = UiClient::new(TestBackend);
+        let frame = Frame::new(0.0, 0.0, 30.0, 40.0).unwrap();
+        let mut view = ui.create_view(frame).unwrap();
+        let mut toggle = ui
+            .add_toggle(&mut view, frame, false, move |on| {
+                action_values.borrow_mut().push(on);
+            })
+            .unwrap();
+
+        toggle.user_change(true);
+        toggle.user_change(false);
+        assert_eq!(*values.borrow(), [true, false]);
     }
 
     #[test]

@@ -14,9 +14,11 @@ mod text_conversion;
 /// System UI font vertical metrics from CoreText.
 #[cfg(target_os = "ios")]
 pub mod text_metrics;
+#[cfg(any(test, target_os = "ios"))]
+mod toggle_policy;
 
 #[cfg(target_os = "ios")]
 pub use platform::{
-    IosButton, IosImageView, IosLabel, IosStackAxis, IosStackView, IosTextField, IosUiBackend,
-    IosView,
+    IosButton, IosImageView, IosLabel, IosStackAxis, IosStackView, IosTextField, IosToggle,
+    IosUiBackend, IosView,
 };

@@ -4,7 +4,7 @@ use core::ptr::NonNull;
 use std::rc::Rc;
 
 use framework_core::{Error, ErrorKind, Result};
-use framework_ui::{ButtonControl, Frame, LabelControl, UiBackend};
+use framework_ui::{ButtonControl, Frame, LabelControl, ToggleControl, UiBackend};
 use ios_runtime::ffi::catch_unwind;
 use ios_runtime::main_thread::MainThread;
 use objc2::rc::{Retained, autoreleasepool};
@@ -14,11 +14,12 @@ use objc2_core_foundation::{CGPoint, CGRect, CGSize};
 use objc2_foundation::{NSObjectProtocol, NSRange, NSString};
 use objc2_ui_kit::{
     UIButton, UIControlEvents, UIControlState, UIImage, UIImageView, UILabel,
-    UILayoutConstraintAxis, UIStackView, UITextField, UIView,
+    UILayoutConstraintAxis, UIStackView, UISwitch, UITextField, UIView,
 };
 
 use crate::stack_spacing::is_valid_stack_spacing;
 use crate::text_conversion::{Utf16Error, decode_utf16};
+use crate::toggle_policy::invoke_toggle_callback;
 
 /// A UIKit backend for caller-owned native controls.
 ///
@@ -81,6 +82,17 @@ pub struct IosButton {
     _not_send: PhantomData<Rc<()>>,
 }
 
+/// A retained UIKit switch and its Rust `ValueChanged` callback owner.
+///
+/// Keep this handle alive while the callback should remain active. The parent may keep displaying
+/// the native `UISwitch` after this handle drops; dropping this handle unregisters its exact
+/// target/action before releasing the callback.
+pub struct IosToggle {
+    native: Retained<UISwitch>,
+    _target: Retained<ToggleTarget>,
+    _not_send: PhantomData<Rc<()>>,
+}
+
 struct ButtonTargetState {
     action: RefCell<Box<dyn FnMut()>>,
 }
@@ -115,6 +127,43 @@ impl ButtonTarget {
     fn with_action(mtm: MainThreadMarker, action: Box<dyn FnMut()>) -> Retained<Self> {
         let this = Self::alloc(mtm).set_ivars(ButtonTargetState {
             action: RefCell::new(action),
+        });
+        // SAFETY: `this` is a fresh NSObject subclass allocation and NSObject's `init` is valid.
+        unsafe { msg_send![super(this), init] }
+    }
+}
+
+struct ToggleTargetState {
+    callback: RefCell<Box<dyn FnMut(bool)>>,
+}
+
+define_class!(
+    // SAFETY:
+    // - NSObject has no subclassing requirements.
+    // - ToggleTarget does not implement Drop.
+    #[unsafe(super(NSObject))]
+    #[thread_kind = MainThreadOnly]
+    #[name = "JcdIosUiToggleTarget"]
+    #[ivars = ToggleTargetState]
+    struct ToggleTarget;
+
+    impl ToggleTarget {
+        #[unsafe(method(toggleChanged:))]
+        fn toggle_changed(&self, sender: &UISwitch) {
+            let _keep_alive = self.retain();
+            let on = sender.isOn();
+            invoke_toggle_callback(&self.ivars().callback, on);
+        }
+    }
+
+    // SAFETY: NSObjectProtocol adds no required methods, and NSObject supplies its implementation.
+    unsafe impl NSObjectProtocol for ToggleTarget {}
+);
+
+impl ToggleTarget {
+    fn with_action(mtm: MainThreadMarker, action: Box<dyn FnMut(bool)>) -> Retained<Self> {
+        let this = Self::alloc(mtm).set_ivars(ToggleTargetState {
+            callback: RefCell::new(action),
         });
         // SAFETY: `this` is a fresh NSObject subclass allocation and NSObject's `init` is valid.
         unsafe { msg_send![super(this), init] }
@@ -334,10 +383,58 @@ impl IosStackView {
     }
 }
 
+impl IosToggle {
+    /// Reads the current state on UIKit's main thread.
+    pub fn is_on(&self) -> Result<bool> {
+        let _toggle_thread = main_thread_marker()?;
+        Ok(self.native.isOn())
+    }
+
+    /// Sets the state on UIKit's main thread with the requested native animation.
+    ///
+    /// UIKit's `setOn:animated:` does not send a `ValueChanged` action; this programmatic update
+    /// therefore does not invoke the user-change callback.
+    pub fn set_on(&mut self, on: bool, animated: bool) -> Result<()> {
+        let _toggle_thread = main_thread_marker()?;
+        self.native.setOn_animated(on, animated);
+        Ok(())
+    }
+
+    /// Borrows the native switch for caller-owned UIKit integration.
+    pub fn native_switch(&self) -> &UISwitch {
+        &self.native
+    }
+}
+
+impl ToggleControl for IosToggle {
+    fn is_on(&self) -> Result<bool> {
+        IosToggle::is_on(self)
+    }
+
+    fn set_state(&mut self, on: bool) -> Result<()> {
+        self.set_on(on, false)
+    }
+}
+
 impl IosButton {
     /// Borrows the native button for UIKit integration.
     pub fn native_button(&self) -> &UIButton {
         &self.native
+    }
+}
+
+impl Drop for IosToggle {
+    fn drop(&mut self) {
+        // SAFETY: the handle is main-thread-only and removes only its retained action for the
+        // exact selector and ValueChanged event registered below.
+        unsafe {
+            let value_changed_event = UIControlEvents::ValueChanged;
+            self.native.removeTarget_action_forControlEvents(
+                Some(&*self._target),
+                Some(sel!(toggleChanged:)),
+                value_changed_event,
+            );
+        }
     }
 }
 
@@ -382,6 +479,7 @@ impl UiBackend for IosUiBackend {
     type View = IosView;
     type Label = IosLabel;
     type Button = IosButton;
+    type Toggle = IosToggle;
 
     fn create_view(&mut self, frame: Frame) -> Result<Self::View> {
         let marker = main_thread_marker()?;
@@ -442,6 +540,38 @@ impl UiBackend for IosUiBackend {
         }
         parent.native.addSubview(&native);
         Ok(IosButton {
+            native,
+            _target: target,
+            _not_send: PhantomData,
+        })
+    }
+
+    fn add_toggle<F>(
+        &mut self,
+        parent: &mut Self::View,
+        frame: Frame,
+        initial_on: bool,
+        action: F,
+    ) -> Result<Self::Toggle>
+    where
+        F: FnMut(bool) + 'static,
+    {
+        let marker = main_thread_marker()?;
+        let native = UISwitch::new(marker);
+        native.setFrame(native_frame(frame));
+        native.setOn_animated(initial_on, false);
+        let target = ToggleTarget::with_action(marker, Box::new(action));
+        // SAFETY: `target` is strongly retained by IosToggle and implements the exact
+        // `toggleChanged:` selector registered for UIControlEvents::ValueChanged.
+        unsafe {
+            native.addTarget_action_forControlEvents(
+                Some(&*target),
+                sel!(toggleChanged:),
+                UIControlEvents::ValueChanged,
+            );
+        }
+        parent.native.addSubview(&native);
+        Ok(IosToggle {
             native,
             _target: target,
             _not_send: PhantomData,

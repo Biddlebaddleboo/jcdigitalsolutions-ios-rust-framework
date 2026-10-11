@@ -322,6 +322,10 @@ B500 adds `IosStackView` over public `UIStackView`, with typed horizontal/vertic
 
 B501 adds `ios-navigation` with a generic `IosScreenController`, optional UTF-8 title, and UIKit-owned `IosNavigationController` root/push/pop. It rejects pushing already-parented controllers, keeps the scene/window app-owned, and borrows a native navigation-controller escape. The registered profile passed 40 checks with 0 FAIL, 0 BLOCKED, and 2 runtime SKIPPED; Simulator execution and physical-device route behavior remain unverified. See [PLAN_RIDESHARE_BOT_MIGRATION.md](PLAN_RIDESHARE_BOT_MIGRATION.md)
 
+### B502 — reusable toggle and UIKit switch (row 003)
+
+B502 adds a no-std `ToggleControl` and callback-bearing `UiBackend::add_toggle` contract, plus main-thread `IosToggle` over public UIKit `UISwitch`. Programmatic state updates do not send `ValueChanged`; the retained target reports the new state synchronously, catches callback panics, ignores reentrant mutable borrows, and unregisters its exact action on handle drop. Registered host tests and device/Simulator compile-link checks do not prove live switch interaction or animation
+
 ## Active work selection and limits
 
 1. Inspect the canonical capability status/owner, the relevant family plan, then the named workstream plan and exact files/symbols. Do not scan the entire planning corpus or treat every existing plan as pending work.

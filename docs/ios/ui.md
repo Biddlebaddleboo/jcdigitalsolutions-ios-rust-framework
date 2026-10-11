@@ -80,6 +80,24 @@ let text: Option<String> = field.text()?;
 let accepted = field.request_first_responder()?;
 ```
 
+## Boolean toggle
+
+`framework_ui::ToggleControl` exposes the current boolean state and a programmatic `set_state` operation; `UiBackend::add_toggle` accepts an initial value and a callback that receives the new value after a user/native change. A programmatic `set_state` must not invoke that callback. Callback ownership lasts as long as the returned control handle, while callback thread, panic, and reentrancy policy are backend-defined
+
+On iOS, `IosUiBackend::add_toggle` creates and attaches a public UIKit `UISwitch`. `IosToggle::is_on` reads its state, `set_state` updates without animation, and `set_on(on, animated)` forwards the caller's animation choice to UIKit `setOn:animated:`. UIKit does not send a `ValueChanged` action for this programmatic setter. A user change invokes the callback synchronously on the main thread with `UISwitch.isOn`; Rust panics are caught before returning through Objective-C, and a reentrant callback is ignored
+
+`IosToggle` retains the switch and is `!Send`/`!Sync`. Keep its handle alive while the callback should remain active. Dropping the handle unregisters only its own `toggleChanged:` action for `UIControlEvents::ValueChanged`; the parent may continue to retain and display the native switch. `native_switch` provides a borrowed typed UIKit escape; direct native changes remain subject to UIKit's main-thread and ownership rules
+
+```rust
+let mut toggle = backend.add_toggle(&mut parent, frame, false, |on| {
+    // Apply application-owned state
+})?;
+let enabled = toggle.is_on()?;
+toggle.set_on(true, true)?;
+```
+
+Host contract tests and target compile/link checks do not prove UIKit interaction, switch rendering, animation, callback delivery, or runtime behavior
+
 ## Image display
 
 `IosUiBackend::add_image_view` adds a native `UIImageView` child for a `framework_ui::Frame` and an

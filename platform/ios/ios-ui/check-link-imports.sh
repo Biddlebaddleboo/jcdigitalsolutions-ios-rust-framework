@@ -109,6 +109,46 @@ for target in aarch64-apple-ios aarch64-apple-ios-sim; do
         echo "$target stack probe has deployment target ${actual_stack_deployment_target:-unknown}; expected $deployment_target" >&2
         exit 1
     fi
+
+    toggle_target_dir="target/ios-ui-toggle-link-$target"
+    IPHONEOS_DEPLOYMENT_TARGET="$deployment_target" CARGO_TARGET_DIR="$toggle_target_dir" \
+        cargo build --locked --release -p ios-ui \
+        --example ios_ui_toggle_link_probe --target "$target"
+    toggle_binary="$toggle_target_dir/$target/release/examples/ios_ui_toggle_link_probe"
+    toggle_imports="$toggle_target_dir/imports.txt"
+    toggle_symbols="$toggle_target_dir/undefined-symbols.txt"
+    toggle_build_info="$toggle_target_dir/build-info.txt"
+
+    otool -L "$toggle_binary" > "$toggle_imports"
+    if ! grep -Fq '/UIKit.framework/UIKit' "$toggle_imports"; then
+        echo "$target toggle probe does not link UIKit" >&2
+        exit 1
+    fi
+
+    nm -u "$toggle_binary" > "$toggle_symbols"
+    for symbol in _objc_getClass _objc_msgSend; do
+        if ! grep -Fq "$symbol" "$toggle_symbols"; then
+            echo "$target toggle probe is missing $symbol" >&2
+            exit 1
+        fi
+    done
+    for symbol in UISwitch isOn 'setOn:animated:' 'toggleChanged:' 'removeTarget:action:forControlEvents:'; do
+        if ! strings "$toggle_binary" | grep -Fq "$symbol"; then
+            echo "$target toggle probe is missing $symbol" >&2
+            exit 1
+        fi
+    done
+    if grep -Eqi 'swift_|Py[A-Z_]' "$toggle_symbols" || grep -Eqi 'swift|python' "$toggle_imports"; then
+        echo "unexpected Swift/Python runtime import in $target toggle probe" >&2
+        exit 1
+    fi
+
+    vtool -show-build "$toggle_binary" > "$toggle_build_info"
+    actual_toggle_deployment_target=$(awk '$1 == "minos" { print $2; exit }' "$toggle_build_info")
+    if [ "$actual_toggle_deployment_target" != "$deployment_target" ]; then
+        echo "$target toggle probe has deployment target ${actual_toggle_deployment_target:-unknown}; expected $deployment_target" >&2
+        exit 1
+    fi
 done
 
 if find platform/ios/ios-ui -type f -name '*.swift' -print -quit | grep -q .; then
