@@ -132,7 +132,7 @@ for target in aarch64-apple-ios aarch64-apple-ios-sim; do
             exit 1
         fi
     done
-    for symbol in UIScrollView 'setContentSize:'; do
+    for symbol in UIScrollView 'setContentSize:' 'contentLayoutGuide' 'frameLayoutGuide' 'topAnchor' 'leadingAnchor' 'bottomAnchor' 'trailingAnchor' 'widthAnchor' 'constraintEqualToAnchor:' 'setActive:' 'setTranslatesAutoresizingMaskIntoConstraints:'; do
         if ! strings "$scroll_binary" | grep -Fq "$symbol"; then
             echo "$target scroll probe is missing $symbol" >&2
             exit 1

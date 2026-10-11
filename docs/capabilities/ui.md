@@ -52,5 +52,7 @@ QuartzCore APIs in capability row 055
 
 The iOS backend also exposes `IosScrollView` over public UIKit `UIScrollView`. It owns a zero-origin
 content host that accepts existing iOS control handles and maps finite non-negative point dimensions
-to the host frame and native `contentSize`. This is an iOS extension only; it adds no portable scroll
-contract or general layout system
+to the host frame and native `contentSize`. Its optional intrinsic vertical mode uses UIKit's
+`contentLayoutGuide` and `frameLayoutGuide`; a one-shot `IosStackView` helper pins native stack edges
+to a caller-owned parent so UIKit can size arranged dashboard content. This is an iOS extension only;
+it adds no portable scroll contract or general layout system

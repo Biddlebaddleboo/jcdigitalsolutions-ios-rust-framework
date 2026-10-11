@@ -5,6 +5,8 @@
 /// Bounded CoreGraphics geometry operations over portable frames.
 #[cfg(target_os = "ios")]
 pub mod geometry;
+#[cfg(any(test, target_os = "ios"))]
+mod layout_policy;
 #[cfg(target_os = "ios")]
 mod platform;
 #[cfg(any(test, target_os = "ios"))]

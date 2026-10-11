@@ -83,9 +83,21 @@ scroll.set_content_size(240.0, 1024.0)?;
 let native_scroll_view = scroll.native_scroll_view();
 ```
 
+`enable_intrinsic_vertical_layout()` is a separate one-shot mode. It pins the retained host to
+UIKit's `contentLayoutGuide` and its width to `frameLayoutGuide`, allowing a vertical stack and its
+arranged subviews to determine the content height through UIKit Auto Layout. Pin an already-added
+stack with `IosStackView::pin_edges_to_parent(content_view)`. The stack must still be a direct child
+of that exact parent, and its autoresizing-mask translation must not already be disabled. Both
+helpers disable autoresizing-mask translation on the constrained view. Give arranged children
+intrinsic or explicit heights and a complete vertical constraint chain; this API adds no custom
+layout engine. Repeated constraint setup and switching between intrinsic and explicit sizing return
+`InvalidInput`; repeated explicit `set_content_size` updates remain valid. Native escape-hatch
+constraints remain caller-managed and must not duplicate or conflict with these constraints
+
 The native compile/link probe establishes public class and selector linkage for device and Simulator
 targets. It does not establish runtime scrolling, clipping, gesture behavior, indicator behavior, or
-visual layout
+visual layout. Its intrinsic-layout additions also do not establish runtime content measurement or
+visual constraint resolution
 
 ## Single-line text input
 

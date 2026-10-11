@@ -21,6 +21,7 @@ use objc2_ui_kit::{
     UIView,
 };
 
+use crate::layout_policy::{OneShotConstraints, ScrollLayoutPolicy};
 use crate::scroll_policy::validated_content_size;
 use crate::stack_spacing::is_valid_stack_spacing;
 use crate::text_conversion::{Utf16Error, decode_utf16};
@@ -66,6 +67,7 @@ pub struct IosTextField {
 /// An iOS-native arranged-subview container backed by UIKit's `UIStackView`.
 pub struct IosStackView {
     native: Retained<UIStackView>,
+    _edge_constraints: OneShotConstraints,
     _not_send: PhantomData<Rc<()>>,
 }
 
@@ -73,6 +75,7 @@ pub struct IosStackView {
 pub struct IosScrollView {
     native: Retained<UIScrollView>,
     content: IosView,
+    layout: ScrollLayoutPolicy,
     _not_send: PhantomData<Rc<()>>,
 }
 
@@ -257,6 +260,7 @@ impl IosUiBackend {
         parent.native.addSubview(&native);
         Ok(IosStackView {
             native,
+            _edge_constraints: OneShotConstraints::default(),
             _not_send: PhantomData,
         })
     }
@@ -279,6 +283,7 @@ impl IosUiBackend {
                 native: content,
                 _not_send: PhantomData,
             },
+            layout: ScrollLayoutPolicy::default(),
             _not_send: PhantomData,
         })
     }
@@ -461,6 +466,49 @@ impl IosStackView {
         Ok(())
     }
 
+    /// Pins this already-attached stack to all four edges of its `IosView` parent.
+    ///
+    /// The stack must still be a direct child of `parent` and must not already use Auto Layout.
+    /// UIKit determines the stack's arranged-subview size; this helper adds no custom layout
+    /// policy. A second call returns `InvalidInput`.
+    pub fn pin_edges_to_parent(&mut self, parent: &IosView) -> Result<()> {
+        let next_constraints = self._edge_constraints.claim()?;
+        let _stack_layout_thread = main_thread_marker()?;
+        let Some(actual_parent) = self.native.superview() else {
+            return Err(Error::new(ErrorKind::InvalidInput));
+        };
+        if !core::ptr::eq(&*actual_parent, &*parent.native)
+            || !self.native.translatesAutoresizingMaskIntoConstraints()
+        {
+            return Err(Error::new(ErrorKind::InvalidInput));
+        }
+
+        self.native
+            .setTranslatesAutoresizingMaskIntoConstraints(false);
+        let top = self
+            .native
+            .topAnchor()
+            .constraintEqualToAnchor(&parent.native.topAnchor());
+        let leading = self
+            .native
+            .leadingAnchor()
+            .constraintEqualToAnchor(&parent.native.leadingAnchor());
+        let bottom = self
+            .native
+            .bottomAnchor()
+            .constraintEqualToAnchor(&parent.native.bottomAnchor());
+        let trailing = self
+            .native
+            .trailingAnchor()
+            .constraintEqualToAnchor(&parent.native.trailingAnchor());
+        top.setActive(true);
+        leading.setActive(true);
+        bottom.setActive(true);
+        trailing.setActive(true);
+        self._edge_constraints = next_constraints;
+        Ok(())
+    }
+
     /// Borrows the native stack view for caller-owned UIKit layout and integration.
     pub fn native_stack_view(&self) -> &UIStackView {
         &self.native
@@ -480,12 +528,63 @@ impl IosScrollView {
     /// child views within that host.
     pub fn set_content_size(&mut self, width: f64, height: f64) -> Result<()> {
         let (width, height) = validated_content_size(width, height)?;
+        let next_layout = self.layout.select_manual()?;
         let _scroll_thread = main_thread_marker()?;
         self.content.native.setFrame(CGRect::new(
             CGPoint::new(0.0, 0.0),
             CGSize::new(width, height),
         ));
         self.native.setContentSize(CGSize::new(width, height));
+        self.layout = next_layout;
+        Ok(())
+    }
+
+    /// Lets UIKit derive vertical scroll extent from constrained intrinsic content.
+    ///
+    /// Pins the retained content host to `contentLayoutGuide` and its width to
+    /// `frameLayoutGuide`. Use [`IosStackView::pin_edges_to_parent`] for a vertical stack added to
+    /// [`Self::content_view_mut`], and give arranged children intrinsic or explicit heights. This
+    /// mode is one-shot and cannot be mixed with [`Self::set_content_size`].
+    pub fn enable_intrinsic_vertical_layout(&mut self) -> Result<()> {
+        let next_layout = self.layout.select_intrinsic()?;
+        let _scroll_layout_thread = main_thread_marker()?;
+        let content_guide = self.native.contentLayoutGuide();
+        let frame_guide = self.native.frameLayoutGuide();
+        self.content
+            .native
+            .setTranslatesAutoresizingMaskIntoConstraints(false);
+
+        let top = self
+            .content
+            .native
+            .topAnchor()
+            .constraintEqualToAnchor(&content_guide.topAnchor());
+        let leading = self
+            .content
+            .native
+            .leadingAnchor()
+            .constraintEqualToAnchor(&content_guide.leadingAnchor());
+        let bottom = self
+            .content
+            .native
+            .bottomAnchor()
+            .constraintEqualToAnchor(&content_guide.bottomAnchor());
+        let trailing = self
+            .content
+            .native
+            .trailingAnchor()
+            .constraintEqualToAnchor(&content_guide.trailingAnchor());
+        let width = self
+            .content
+            .native
+            .widthAnchor()
+            .constraintEqualToAnchor(&frame_guide.widthAnchor());
+        top.setActive(true);
+        leading.setActive(true);
+        bottom.setActive(true);
+        trailing.setActive(true);
+        width.setActive(true);
+        self.layout = next_layout;
         Ok(())
     }
 

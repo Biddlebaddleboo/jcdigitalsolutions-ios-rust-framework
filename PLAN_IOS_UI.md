@@ -39,6 +39,13 @@ with 0 failures, 0 blocked, and 2 skipped for simulator execution and physical-d
 and Simulator compile/link checks verify API use, symbols, imports, and deployment floors only; they
 do not prove runtime visual layout
 
+B507 adds an opt-in intrinsic vertical sizing mode to `IosScrollView` using UIKit's public
+`contentLayoutGuide` and `frameLayoutGuide`, plus `IosStackView::pin_edges_to_parent` to constrain a
+stack to its direct `IosView` parent. Explicit content sizing remains unchanged; sizing modes cannot
+be mixed, Auto Layout setup is one-shot, and host policy tests cover invalid transitions. The
+registered device and Simulator link probes check public guides, anchors, and activation selectors;
+they do not prove runtime constraint resolution, scrolling, or visual layout
+
 ## Objective
 
 Provide a small reusable Rust API for native container views, labels, buttons, image views, and
