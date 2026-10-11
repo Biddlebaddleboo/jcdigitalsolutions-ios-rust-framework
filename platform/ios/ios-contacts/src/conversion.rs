@@ -205,6 +205,22 @@ pub(crate) fn update_error_from_native(
     }
 }
 
+/// Maps a delete failure after re-checking authorization and preserving missing records.
+pub(crate) fn delete_error_from_native(
+    status: ContactsAuthorization,
+    contacts_error_domain: bool,
+    native_error_code: isize,
+) -> ContactsError {
+    if let Some(error) = fetch_authorization_error(status) {
+        return error;
+    }
+    if contacts_error_domain && native_error_code == 200 {
+        ContactsError::NotFound
+    } else {
+        error_from_native(native_error_code)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -583,6 +599,24 @@ mod tests {
         assert_eq!(unrelated.kind(), ErrorKind::Platform);
         assert_eq!(unrelated.platform_code().unwrap().get(), 200);
         let native = update_error_from_native(ContactsAuthorization::Limited, true, -42);
+        assert_eq!(native.kind(), ErrorKind::Platform);
+        assert_eq!(native.platform_code().unwrap().get(), -42);
+    }
+
+    #[test]
+    fn delete_error_maps_missing_contact_and_preserves_authorization_and_native_code() {
+        assert_eq!(
+            delete_error_from_native(ContactsAuthorization::Limited, true, 200),
+            ContactsError::NotFound
+        );
+        assert_eq!(
+            delete_error_from_native(ContactsAuthorization::Denied, true, 200),
+            ContactsError::AuthorizationRequired(ContactsAuthorization::Denied)
+        );
+        let unrelated = delete_error_from_native(ContactsAuthorization::Authorized, false, 200);
+        assert_eq!(unrelated.kind(), ErrorKind::Platform);
+        assert_eq!(unrelated.platform_code().unwrap().get(), 200);
+        let native = delete_error_from_native(ContactsAuthorization::Limited, true, -42);
         assert_eq!(native.kind(), ErrorKind::Platform);
         assert_eq!(native.platform_code().unwrap().get(), -42);
     }

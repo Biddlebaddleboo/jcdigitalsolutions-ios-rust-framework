@@ -77,7 +77,8 @@ for target in aarch64-apple-ios aarch64-apple-ios-sim; do
         'setFamilyName:' \
         'setOrganizationName:' \
         'setPhoneNumbers:' \
-        'setEmailAddresses:'; do
+        'setEmailAddresses:' \
+        'deleteContact:'; do
         printf '%s\n' "$binary_strings" | grep -F "$selector" >/dev/null || {
             printf '%s probe does not link the public Contacts selector %s\n' "$target" "$selector" >&2
             exit 1

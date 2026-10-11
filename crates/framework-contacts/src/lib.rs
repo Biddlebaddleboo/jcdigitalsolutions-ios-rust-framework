@@ -244,6 +244,16 @@ pub trait ContactsUpdateBackend: ContactsBackend {
     -> Result<(), ContactsError>;
 }
 
+/// A delete extension for backends that can remove one existing contact by local identifier.
+///
+/// Implementations must reject invalid identifiers, re-check authorization without prompting,
+/// permit only `Authorized` or `Limited`, and delete only the one caller-selected accessible
+/// record. This separate trait keeps existing [`ContactsBackend`] implementors source-compatible.
+pub trait ContactsDeleteBackend: ContactsBackend {
+    /// Deletes one accessible contact without prompting, enumerating, or changing groups.
+    fn delete_contact(&self, identifier: &str) -> Result<(), ContactsError>;
+}
+
 /// A thin facade over caller-owned, statically selected Contacts backend state.
 pub struct Contacts<B> {
     backend: B,
@@ -304,6 +314,13 @@ impl<B: ContactsUpdateBackend> Contacts<B> {
         update: &ContactUpdate,
     ) -> Result<(), ContactsError> {
         self.backend.update_contact(identifier, update)
+    }
+}
+
+impl<B: ContactsDeleteBackend> Contacts<B> {
+    /// Deletes one contact without prompting or enumerating the contact store.
+    pub fn delete_contact(&self, identifier: &str) -> Result<(), ContactsError> {
+        self.backend.delete_contact(identifier)
     }
 }
 

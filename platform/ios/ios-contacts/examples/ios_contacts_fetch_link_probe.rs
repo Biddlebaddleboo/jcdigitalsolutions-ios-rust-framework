@@ -18,6 +18,7 @@ fn main() {
         ..ContactUpdate::default()
     };
     let _ = core::hint::black_box(contacts.update_contact("selected-local-identifier", &update));
+    let _ = core::hint::black_box(contacts.delete_contact("selected-local-identifier"));
 }
 
 #[cfg(not(target_os = "ios"))]

@@ -2664,7 +2664,7 @@
           "text": "ContactsUI"
         },
         {
-          "message": "the Contacts binding must enable only the required create and update mutable-contact APIs",
+          "message": "the Contacts binding must enable only the required create, update, and delete mutable-contact APIs",
           "must_exist": true,
           "path": "platform/ios/ios-contacts/Cargo.toml",
           "text": "\"CNMutableContact\", \"CNSaveRequest\""
@@ -3094,6 +3094,132 @@
           "must_exist": false,
           "path": "platform/ios/ios-contacts/src/update.rs",
           "text": "ContactsUI"
+        },
+        {
+          "message": "delete must remain a separate source-compatible backend extension",
+          "must_exist": true,
+          "path": "crates/framework-contacts/src/lib.rs",
+          "text": "pub trait ContactsDeleteBackend: ContactsBackend"
+        },
+        {
+          "message": "the portable facade must expose one-record deletion",
+          "must_exist": true,
+          "path": "crates/framework-contacts/src/lib.rs",
+          "text": "pub fn delete_contact(&self, identifier: &str) -> Result<(), ContactsError>"
+        },
+        {
+          "message": "delete must validate the caller identifier before native work",
+          "must_exist": true,
+          "path": "platform/ios/ios-contacts/src/delete.rs",
+          "text": "validate_identifier(identifier)?;"
+        },
+        {
+          "message": "delete must recheck current Contacts authorization",
+          "must_exist": true,
+          "path": "platform/ios/ios-contacts/src/delete.rs",
+          "text": "native_authorization_status()"
+        },
+        {
+          "message": "delete must permit only Authorized or Limited access",
+          "must_exist": true,
+          "path": "platform/ios/ios-contacts/src/delete.rs",
+          "text": "fetch_authorization_error(status)"
+        },
+        {
+          "message": "delete must fetch only the supplied unified contact identifier",
+          "must_exist": true,
+          "path": "platform/ios/ios-contacts/src/delete.rs",
+          "text": "unifiedContactWithIdentifier_keysToFetch_error"
+        },
+        {
+          "message": "delete must request the identifier-only key descriptor",
+          "must_exist": true,
+          "path": "platform/ios/ios-contacts/src/delete.rs",
+          "text": "contact_identifier_key_descriptors()"
+        },
+        {
+          "message": "the delete lookup must include the public identifier key only",
+          "must_exist": true,
+          "path": "platform/ios/ios-contacts/src/snapshot.rs",
+          "text": "-> [&'static ProtocolObject<dyn CNKeyDescriptor>; 1]"
+        },
+        {
+          "message": "the identifier-only descriptor must use CNContactIdentifierKey",
+          "must_exist": true,
+          "path": "platform/ios/ios-contacts/src/snapshot.rs",
+          "text": "ProtocolObject::from_ref(CNContactIdentifierKey)"
+        },
+        {
+          "message": "delete must create its mutable value through the public copy protocol",
+          "must_exist": true,
+          "path": "platform/ios/ios-contacts/src/delete.rs",
+          "text": "contact.mutableCopy()"
+        },
+        {
+          "message": "delete must add one public contact deletion to the save request",
+          "must_exist": true,
+          "path": "platform/ios/ios-contacts/src/delete.rs",
+          "text": "request.deleteContact(&mutable_contact)"
+        },
+        {
+          "message": "delete must execute the save request exactly once",
+          "must_exist": true,
+          "path": "platform/ios/ios-contacts/src/delete.rs",
+          "text": "executeSaveRequest_error(&request)"
+        },
+        {
+          "message": "failed deletion must recheck authorization and map missing records",
+          "must_exist": true,
+          "path": "platform/ios/ios-contacts/src/delete.rs",
+          "text": "delete_error_from_native(current_status, contacts_domain, error.code())"
+        },
+        {
+          "message": "delete must not prompt for authorization",
+          "must_exist": false,
+          "path": "platform/ios/ios-contacts/src/delete.rs",
+          "text": "requestAccessForEntityType_completionHandler"
+        },
+        {
+          "message": "delete must not enumerate contacts",
+          "must_exist": false,
+          "path": "platform/ios/ios-contacts/src/delete.rs",
+          "text": "enumerateContactsWithFetchRequest_error_usingBlock"
+        },
+        {
+          "message": "delete must not search contacts",
+          "must_exist": false,
+          "path": "platform/ios/ios-contacts/src/delete.rs",
+          "text": "predicateForContactsMatchingName"
+        },
+        {
+          "message": "delete must not use the eager all-matches API",
+          "must_exist": false,
+          "path": "platform/ios/ios-contacts/src/delete.rs",
+          "text": "unifiedContactsMatchingPredicate"
+        },
+        {
+          "message": "delete must not add or update contacts",
+          "must_exist": false,
+          "path": "platform/ios/ios-contacts/src/delete.rs",
+          "text": "addContact"
+        },
+        {
+          "message": "delete must not update contacts",
+          "must_exist": false,
+          "path": "platform/ios/ios-contacts/src/delete.rs",
+          "text": "updateContact"
+        },
+        {
+          "message": "delete must not mutate groups",
+          "must_exist": false,
+          "path": "platform/ios/ios-contacts/src/delete.rs",
+          "text": "Group"
+        },
+        {
+          "message": "delete must not present ContactsUI",
+          "must_exist": false,
+          "path": "platform/ios/ios-contacts/src/delete.rs",
+          "text": "ContactsUI"
         }
       ],
       "id": "ios-contacts-fetch",
@@ -3113,6 +3239,7 @@
         "platform/ios/ios-contacts/src/fetch.rs",
         "platform/ios/ios-contacts/src/search.rs",
         "platform/ios/ios-contacts/src/create.rs",
+        "platform/ios/ios-contacts/src/delete.rs",
         "platform/ios/ios-contacts/src/snapshot.rs",
         "platform/ios/ios-contacts/src/lib.rs",
         "platform/ios/ios-contacts/src/platform.rs",
@@ -3124,7 +3251,8 @@
         "PLAN.md",
         "tools/validation/specs/validation-v1.json",
         "platform/ios/ios-contacts/src/update.rs",
-        "platform/ios/ios-contacts/tests/update_contract.rs"
+        "platform/ios/ios-contacts/tests/update_contract.rs",
+        "platform/ios/ios-contacts/tests/delete_contract.rs"
       ],
       "shell_scripts": [
         "platform/ios/ios-contacts/scripts/check-link-imports.sh"

@@ -5,7 +5,7 @@ edition.workspace = true
 rust-version.workspace = true
 license.workspace = true
 repository.workspace = true
-description = "Contacts authorization, fetch, and bounded search backend using public iOS Contacts APIs"
+description = "Contacts authorization, fetch, search, create, update, and delete backend using public iOS Contacts APIs"
 
 [dependencies]
 framework-core.workspace = true

@@ -106,3 +106,23 @@ exposes `NSMutableCopying` to `CNMutableContact` and `CNSaveRequest::updateConta
 or feature change is needed. Registered deployment floors remain iOS 10.0 device and iOS 14.0
 Simulator. Host validation covers patch/error semantics and public facade dispatch; target compile
 and link checks do not prove a live Contacts edit, Limited selection, or concurrent-store behavior.
+
+## Additive increment B474 — delete one selected contact
+
+B474 adds a source-compatible `ContactsDeleteBackend` and
+`Contacts::delete_contact(identifier)` for one caller-selected local identifier. The iOS adapter
+rejects empty/NUL identifiers before native work, rechecks authorization without prompting, accepts
+only `Authorized` or `Limited`, and fetches only the supplied identifier with only
+`CNContactIdentifierKey`. It creates a public `CNMutableContact` copy and executes one
+`CNSaveRequest.deleteContact:` operation. It does not enumerate or search, delete groups, batch
+records, or present UI. Contacts-domain code 200 maps to `NotFound` while access remains allowed;
+a fresh denied/restricted/unknown status takes precedence over a native save error, and unrelated
+native codes are preserved.
+
+Apple's Contacts access guide says Limited access can delete contacts the person grants the app and
+that records created by the app are automatically accessible. The caller identifier still must
+resolve within the current accessible set. The SDK declares `CNSaveRequest` and `CNContact` mutable
+copy support from iOS 9.0; objc2-contacts 0.3.2 already exposes `deleteContact:` using enabled
+features, so no dependency change is needed. Registered floors remain iOS 10.0 device and iOS 14.0
+Simulator. Host facade/error regressions and target compile/link selector checks do not prove a
+live deletion, Limited-access behavior, Simulator execution, or physical-device runtime behavior.

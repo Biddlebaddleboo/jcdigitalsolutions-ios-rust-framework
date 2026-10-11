@@ -153,3 +153,28 @@ target compile/link checks do not prove a live edit, Limited visibility, concurr
 behavior, Simulator execution, or physical-device behavior. See Apple's [Contacts access guide](https://developer.apple.com/documentation/contacts/accessing-the-contact-store),
 [CNMutableContact](https://developer.apple.com/documentation/contacts/cnmutablecontact), and
 [CNSaveRequest](https://developer.apple.com/documentation/contacts/cnsaverequest).
+
+## Delete one selected record
+
+`Contacts<B>::delete_contact(identifier)` delegates to the separate source-compatible
+`ContactsDeleteBackend` extension. The synchronous operation rejects empty or NUL-containing
+identifiers before native work, rechecks authorization for each valid call, permits only
+`Authorized` or `Limited`, and never prompts. The iOS backend fetches only the caller-selected
+identifier and only `CNContactIdentifierKey`, makes a public `CNMutableContact` copy, and executes
+one `CNSaveRequest.deleteContact:`. It does not enumerate or search, delete groups, present UI, or
+batch records. The return value is unit; this API provides no confirmation UI or undo.
+
+Limited access permits deletion only when the selected contact is currently accessible to the app;
+Apple documents that app-created contacts are automatically accessible. Contacts-domain
+missing-record code 200 maps to `NotFound` while access remains allowed. If access changes before a
+failed save, the fresh authorization result takes precedence; unrelated native errors remain
+`Backend`. A unified lookup targets the single logical contact returned for the supplied identifier,
+not a selected account-level constituent. Contacts fetch and save remain synchronous and may block.
+
+The public `CNSaveRequest.deleteContact:` API and `CNContact` mutable-copy contract are available
+from iOS 9.0 in the installed Xcode 26.6 / iPhoneOS 26.5 SDK and pinned `objc2-contacts` 0.3.2;
+registered device and Simulator floors remain iOS 10.0 and iOS 14.0. Host tests and target
+compile/link checks do not prove a live deletion, Limited-access decision, Simulator execution, or
+physical-device behavior. See Apple's [Contacts access guide](https://developer.apple.com/documentation/contacts/accessing-the-contact-store),
+[`CNSaveRequest`](https://developer.apple.com/documentation/contacts/cnsaverequest?language=objc), and
+[`deleteContact:`](https://developer.apple.com/documentation/contacts/cnsaverequest/delete%28_%3A%29-8m1tc?language=objc).

@@ -22,6 +22,13 @@ pub(super) fn contact_key_descriptors() -> [&'static ProtocolObject<dyn CNKeyDes
     }
 }
 
+/// Returns only the local identifier key required by one-record deletion.
+pub(super) fn contact_identifier_key_descriptors()
+-> [&'static ProtocolObject<dyn CNKeyDescriptor>; 1] {
+    // SAFETY: This immutable public key descriptor is supplied by Contacts and valid for process lifetime.
+    unsafe { [ProtocolObject::from_ref(CNContactIdentifierKey)] }
+}
+
 /// Copies the common requested contact keys before their autorelease pool ends.
 pub(super) fn contact_from_native(contact: &CNContact) -> Contact {
     // SAFETY: Callers request every property below in the fetch's key descriptors.
