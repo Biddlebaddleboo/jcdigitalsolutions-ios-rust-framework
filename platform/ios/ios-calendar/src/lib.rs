@@ -13,4 +13,7 @@ mod platform;
 mod event_query;
 
 #[cfg(target_os = "ios")]
+mod event_create;
+
+#[cfg(target_os = "ios")]
 pub use platform::{IosCalendarBackend, IosRequestFullAccessFuture};

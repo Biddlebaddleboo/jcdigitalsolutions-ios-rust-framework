@@ -26,10 +26,11 @@ use core::future::Future;
 use core::pin::pin;
 use core::task::{Context, Poll, Waker};
 use framework_calendar::{
-    Calendar, CalendarAuthorizationBackend, CalendarAuthorizationStatus, CalendarEventRange,
-    CalendarEventTime,
+    Calendar, CalendarAuthorizationBackend, CalendarAuthorizationStatus, CalendarEventDraft,
+    CalendarEventRange, CalendarEventTime, WritableEventCalendar,
 };
 use ios_calendar::IosCalendarBackend;
+use std::string::String;
 use std::sync::Arc;
 use std::task::Wake;
 
@@ -79,6 +80,34 @@ pub extern "C" fn calendar_event_range_link_probe(start: f64, end: f64) -> u8 {
         Err(error) => error.kind() as u8,
     }
 }
+
+#[unsafe(no_mangle)]
+pub extern "C" fn calendar_event_create_link_probe() -> u8 {
+    let calendar = Calendar::new(IosCalendarBackend::new());
+    let mut calendars = match calendar.writable_event_calendars() {
+        Ok(calendars) => calendars,
+        Err(error) => return error.kind() as u8,
+    };
+    if calendars.is_empty() {
+        return 0;
+    }
+    let selected = calendars.remove(0);
+    let start = CalendarEventTime::from_unix_seconds(1_700_000_000.0).unwrap();
+    let end = CalendarEventTime::from_unix_seconds(1_700_000_060.0).unwrap();
+    let draft = CalendarEventDraft::new(
+        String::from("Link probe"),
+        start,
+        end,
+        false,
+        Some(String::from("Probe location")),
+        Some(String::from("Probe notes")),
+    )
+    .unwrap();
+    match calendar.create_event(&selected, &draft) {
+        Ok(()) => 1,
+        Err(error) => error.kind() as u8,
+    }
+}
 EOF
 
 for target in aarch64-apple-ios aarch64-apple-ios-sim; do
@@ -106,6 +135,14 @@ EOF_IMPORTS
         printf 'unexpected Swift runtime or reminder symbol in %s\n' "$symbols" >&2
         exit 1
     fi
+    selectors="$scratch/$target-selectors.txt"
+    strings "$artifact" >"$selectors"
+    for selector in calendarsForEntityType: calendarIdentifier title calendarWithIdentifier: allowedEntityTypes allowsContentModifications eventWithEventStore: setCalendar: setTitle: setStartDate: setEndDate: setAllDay: setLocation: setNotes: saveEvent:span:commit:error:; do
+        if ! grep -Fq "$selector" "$selectors"; then
+            printf 'missing EventKit selector %s in %s\n' "$selector" "$artifact" >&2
+            exit 1
+        fi
+    done
     build_info="$scratch/$target-build.txt"
     vtool -show-build "$artifact" >"$build_info"
     actual_deployment_target=$(awk '$1 == "minos" { print $2; exit }' "$build_info")

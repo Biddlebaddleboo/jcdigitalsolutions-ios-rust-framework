@@ -2201,17 +2201,17 @@
       "crate_module_status": "portable_contract_and_ios_backend_partial",
       "portability_class": "portable_with_platform_extensions",
       "portable_contract_status": "implemented",
-      "portable_contract_note": "framework-calendar defines authorization status/full-access request values plus no_std owned event summaries and finite event-range contracts; iOS supplies the EventKit backend.",
+      "portable_contract_note": "framework-calendar defines authorization, finite event-range, writable event-calendar snapshot, and one-event draft/create contracts; iOS supplies the EventKit backend.",
       "ios_implementation_class": "B",
       "implementation_status": "partial",
-      "status_reason": "B30 implements EventKit Calendar authorization status and explicit full-access request. Separate B465 adds a synchronous caller-range read of Rust-owned event summaries via public EventKit; it rechecks full access, rejects ranges beyond the EventKit four-year horizon, and does not prompt. Event writes, reminder access, and calendar UI remain unsupported.",
+      "status_reason": "B30 implements EventKit Calendar authorization status and explicit full-access request. B465 adds a synchronous caller-range read of Rust-owned event summaries. B481 adds a non-prompting snapshot of writable event calendars plus creation of exactly one caller-described event in a caller-selected existing calendar. Listing and create require current FullAccess; create re-resolves the calendar and checks event support/writability before its single save. Reminder access, edits/deletes, and calendar UI remain unsupported.",
       "minimum_ios_version": "17.0",
       "required_frameworks": [
         "EventKit",
         "Foundation"
       ],
       "required_permissions": [
-        "Calendar full-access authorization is requested only by an explicit API call"
+        "Writable event-calendar listing and event creation require existing FullAccess and never prompt; only the explicit request API may prompt"
       ],
       "required_info_plist_keys": [
         "NSCalendarsFullAccessUsageDescription"
@@ -2219,7 +2219,7 @@
       "entitlements": [],
       "device_only_restrictions": null,
       "swift_abi_requirement": false,
-      "metadata_verification": "B30 verified the public full-access request API floor as iOS 17.0 and requires host NSCalendarsFullAccessUsageDescription. B465 adds finite f64 Unix-second ranges, owned summaries and public EventKit eventsMatchingPredicate; registered host/target/link/import/deployment gates provide static evidence only, with event-store data and runtime behavior unverified.",
+      "metadata_verification": "B30 verified the public full-access request API floor as iOS 17.0 and requires host NSCalendarsFullAccessUsageDescription. B465 adds finite f64 Unix-second ranges and public EventKit eventsMatchingPredicate. B481 uses objc2-event-kit 0.3.2 bindings and iPhoneOS 26.5 SDK public selectors for Event-only calendar listing and one committed event save. Registered host/target/selector-link/import/deployment gates provide static evidence only; authorization, calendar selection, persistence, and device runtime remain unverified.",
       "parity_status": "not_tested_live_behavior_or_Apple_parity",
       "performance_status": "not_measured",
       "native_escape_handle_available": false,

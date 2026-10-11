@@ -1,4 +1,4 @@
-# Calendar authorization
+# Calendar authorization and events
 
 **framework-calendar** defines portable **no_std** authorization and event-range contracts with framework-owned values. It does not probe a device, prompt a user, or create a global service. The separate iOS backend is documented in the [iOS Calendar guide](../ios/calendar.md).
 
@@ -26,6 +26,14 @@ On iOS, the backend uses only `EKEventStore`'s event-range predicate and `events
 
 This is read-only access to committed events in the selected time range and all calendars. It does not read reminders, choose calendars, fetch outside the range, request permission, or modify records.
 
+## Selecting a writable calendar and creating one event
+
+`Calendar::writable_event_calendars` returns Rust-owned snapshots containing only the identifier and title of existing event calendars that currently allow modifications. It requires existing `FullAccess` and never requests permission. An empty result means the caller has no writable event calendar to select; the API does not choose a default calendar or show UI. Calendar identifiers are opaque and can become stale after synchronization.
+
+`CalendarEventDraft::new` accepts a caller-owned title, finite ordered start/end timestamps, an all-day flag, and optional location/notes. It rejects equal or reversed times. The text and `f64` timestamps are not trimmed, normalized, rounded, or reconstructed. `Calendar::create_event` accepts one selected snapshot, requires current `FullAccess`, resolves its identifier again, and rejects a missing, non-event, or non-writable calendar before one native save. If the snapshot is stale, callers must list calendars again and select anew. It returns `Result<(), CalendarEventCreateError>`: success means EventKit's save call succeeded, not that an identifier or later sync outcome is durable. Native errors retain `ErrorKind::Platform` and a representable nonzero `PlatformErrorCode`.
+
+Calendar listing and creation are synchronous and may block on the caller's thread. They do not prompt, enumerate events, retry, create worker threads, or return EventKit objects. EventKit save failures, permission changes, and the saved event's runtime contents are not host-test proof.
+
 ## Status and result semantics
 
 `CalendarAuthorizationStatus` distinguishes `Unknown`, `NotDetermined`, `Restricted`, `Denied`, `WriteOnly`, and `FullAccess`. `Unknown` means the backend could not classify a reported status; it is distinct from `NotDetermined`, which means no user decision has been made. `WriteOnly` is not equivalent to `FullAccess`: it reports permission to save new events without full Calendar event-data access. The contract reports a write-only state but does not offer a write-only permission request.
@@ -36,7 +44,7 @@ The portable crate depends only on `framework-core` and `core` plus `alloc` for 
 
 ## Scope and checks
 
-This contract covers only status and an explicit full-access request. It does not define event/reminder enumeration, event creation or edits, reminders access, EventKitUI, calendar UI, entitlements, or permission-copy values.
+This contract covers status, an explicit full-access request, bounded event-range reads, a writable event-calendar choice snapshot, and creation of one caller-described event. It does not define full event enumeration, event edits/deletes, reminder access, EventKitUI, calendar UI, entitlements, or permission-copy values.
 
 Portable checks:
 

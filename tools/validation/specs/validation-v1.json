@@ -4012,6 +4012,7 @@
       "docs": [
         "docs/capabilities/calendar.md",
         "docs/capabilities/capability-status.json",
+        "docs/generated/CAPABILITY_STATUS.md",
         "docs/ios/calendar.md",
         "PLAN.md",
         "PLAN_IOS_CALENDAR.md",
@@ -4077,6 +4078,126 @@
           "must_exist": false,
           "path": "platform/ios/ios-calendar/src/event_query.rs",
           "text": "removeEvent"
+        },
+        {
+          "message": "the portable Calendar facade must expose a writable event-calendar snapshot",
+          "must_exist": true,
+          "path": "crates/framework-calendar/src/lib.rs",
+          "text": "pub fn writable_event_calendars"
+        },
+        {
+          "message": "the portable Calendar facade must expose one-event creation for a selected calendar",
+          "must_exist": true,
+          "path": "crates/framework-calendar/src/lib.rs",
+          "text": "pub fn create_event"
+        },
+        {
+          "message": "calendar listing must recheck current FullAccess without prompting",
+          "must_exist": true,
+          "path": "platform/ios/ios-calendar/src/event_create.rs",
+          "text": "require_full_access_for_create(native_authorization_status())?"
+        },
+        {
+          "message": "calendar choices must use the public Event-only EventKit calendar query",
+          "must_exist": true,
+          "path": "platform/ios/ios-calendar/src/event_create.rs",
+          "text": "calendarsForEntityType(EKEntityType::Event)"
+        },
+        {
+          "message": "calendar choices must include only currently writable Event calendars",
+          "must_exist": true,
+          "path": "platform/ios/ios-calendar/src/event_create.rs",
+          "text": "allowsContentModifications()"
+        },
+        {
+          "message": "calendar snapshots must drop calendars lacking Event support or modification access",
+          "must_exist": true,
+          "path": "platform/ios/ios-calendar/src/event_create.rs",
+          "text": "if !supports_events || !allows_changes"
+        },
+        {
+          "message": "calendar listing and creation must require the Event entity mask",
+          "must_exist": true,
+          "path": "platform/ios/ios-calendar/src/event_create.rs",
+          "text": "allowedEntityTypes().contains(EKEntityMask::Event)"
+        },
+        {
+          "message": "event creation must reject a selected calendar without Event support",
+          "must_exist": true,
+          "path": "platform/ios/ios-calendar/src/event_create.rs",
+          "text": "if !supports_events"
+        },
+        {
+          "message": "draft interval validation must precede native lookup and mutation",
+          "must_exist": true,
+          "path": "platform/ios/ios-calendar/src/event_create.rs",
+          "text": "if draft.start() >= draft.end()"
+        },
+        {
+          "message": "selected calendar identifier validation must precede native lookup",
+          "must_exist": true,
+          "path": "platform/ios/ios-calendar/src/event_create.rs",
+          "text": "if calendar.identifier().is_empty()"
+        },
+        {
+          "message": "event creation must resolve the caller-selected calendar identifier afresh",
+          "must_exist": true,
+          "path": "platform/ios/ios-calendar/src/event_create.rs",
+          "text": "calendarWithIdentifier(&identifier)"
+        },
+        {
+          "message": "event creation must reject calendars that no longer allow modifications",
+          "must_exist": true,
+          "path": "platform/ios/ios-calendar/src/event_create.rs",
+          "text": "if !allows_changes"
+        },
+        {
+          "message": "event creation must create its event only in the existing backend store",
+          "must_exist": true,
+          "path": "platform/ios/ios-calendar/src/event_create.rs",
+          "text": "EKEvent::eventWithEventStore(event_store)"
+        },
+        {
+          "message": "event creation must commit exactly one EventKit event with ThisEvent span",
+          "must_exist": true,
+          "path": "platform/ios/ios-calendar/src/event_create.rs",
+          "text": "saveEvent_span_commit_error"
+        },
+        {
+          "message": "event creation must save one selected EventKit event with ThisEvent and commit enabled",
+          "must_exist": true,
+          "path": "platform/ios/ios-calendar/src/event_create.rs",
+          "text": "event_store.saveEvent_span_commit_error(&event, EKSpan::ThisEvent, true)"
+        },
+        {
+          "message": "event creation must not claim or return a potentially changing EventKit identifier",
+          "must_exist": false,
+          "path": "platform/ios/ios-calendar/src/event_create.rs",
+          "text": "eventIdentifier"
+        },
+        {
+          "message": "event calendar listing and creation must never request Calendar permission",
+          "must_exist": false,
+          "path": "platform/ios/ios-calendar/src/event_create.rs",
+          "text": "requestFullAccessToEventsWithCompletion"
+        },
+        {
+          "message": "event calendar listing and creation must never request write-only access",
+          "must_exist": false,
+          "path": "platform/ios/ios-calendar/src/event_create.rs",
+          "text": "requestWriteOnlyAccessToEventsWithCompletion"
+        },
+        {
+          "message": "event creation must not access reminders or delete events",
+          "must_exist": false,
+          "path": "platform/ios/ios-calendar/src/event_create.rs",
+          "text": "EKReminder"
+        },
+        {
+          "message": "event creation must not remove events",
+          "must_exist": false,
+          "path": "platform/ios/ios-calendar/src/event_create.rs",
+          "text": "removeEvent"
         }
       ],
       "id": "ios-calendar",
@@ -4092,11 +4213,14 @@
         "platform/ios/ios-calendar/check.sh",
         "platform/ios/ios-calendar/check-link-imports.sh",
         "platform/ios/ios-calendar/src/conversion.rs",
+        "platform/ios/ios-calendar/src/event_create.rs",
         "platform/ios/ios-calendar/src/event_query.rs",
         "platform/ios/ios-calendar/src/lib.rs",
         "platform/ios/ios-calendar/src/platform.rs",
+        "platform/ios/ios-calendar/tests/event_create_contract.rs",
         "docs/capabilities/capability-status.json",
         "docs/capabilities/calendar.md",
+        "docs/generated/CAPABILITY_STATUS.md",
         "docs/generated/VALIDATION_PROFILES.md",
         "docs/ios/calendar.md",
         "PLAN.md",

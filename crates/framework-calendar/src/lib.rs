@@ -102,6 +102,144 @@ pub struct CalendarEvent {
     notes: Option<String>,
 }
 
+/// A Rust-owned snapshot of an existing event-capable calendar that currently allows changes.
+///
+/// Its identifier is an opaque native selection token, not a durable identity. A backend must
+/// resolve it again and recheck writability when creating an event because calendars can change
+/// after this snapshot is returned.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct WritableEventCalendar {
+    identifier: String,
+    title: String,
+}
+
+impl WritableEventCalendar {
+    /// Creates a calendar snapshot with a non-empty opaque identifier and owned title.
+    pub fn new(identifier: String, title: String) -> Result<Self, CalendarEventCreateError> {
+        if identifier.is_empty() {
+            return Err(CalendarEventCreateError::InvalidCalendarIdentifier);
+        }
+        Ok(Self { identifier, title })
+    }
+
+    /// Borrows the opaque calendar identifier for backend selection.
+    pub fn identifier(&self) -> &str {
+        &self.identifier
+    }
+
+    /// Borrows the owned calendar title for caller display.
+    pub fn title(&self) -> &str {
+        &self.title
+    }
+}
+
+/// Caller-owned fields for one new Calendar event.
+#[derive(Clone, Debug, PartialEq)]
+pub struct CalendarEventDraft {
+    title: String,
+    start: CalendarEventTime,
+    end: CalendarEventTime,
+    all_day: bool,
+    location: Option<String>,
+    notes: Option<String>,
+}
+
+impl CalendarEventDraft {
+    /// Creates one draft with finite ordered times and unchanged caller text.
+    pub fn new(
+        title: String,
+        start: CalendarEventTime,
+        end: CalendarEventTime,
+        all_day: bool,
+        location: Option<String>,
+        notes: Option<String>,
+    ) -> Result<Self, CalendarEventCreateError> {
+        if start >= end {
+            return Err(CalendarEventCreateError::InvalidEventInterval);
+        }
+        Ok(Self {
+            title,
+            start,
+            end,
+            all_day,
+            location,
+            notes,
+        })
+    }
+
+    /// Borrows the exact caller-provided title.
+    pub fn title(&self) -> &str {
+        &self.title
+    }
+
+    /// Returns the caller-provided start instant.
+    pub const fn start(&self) -> CalendarEventTime {
+        self.start
+    }
+
+    /// Returns the caller-provided end instant.
+    pub const fn end(&self) -> CalendarEventTime {
+        self.end
+    }
+
+    /// Returns the caller-provided all-day flag.
+    pub const fn is_all_day(&self) -> bool {
+        self.all_day
+    }
+
+    /// Borrows the optional caller-provided location.
+    pub fn location(&self) -> Option<&str> {
+        self.location.as_deref()
+    }
+
+    /// Borrows the optional caller-provided notes.
+    pub fn notes(&self) -> Option<&str> {
+        self.notes.as_deref()
+    }
+}
+
+/// An error returned while selecting a writable calendar or creating one event.
+#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
+#[non_exhaustive]
+pub enum CalendarEventCreateError {
+    /// The caller supplied an empty calendar identifier.
+    InvalidCalendarIdentifier,
+    /// The caller supplied a non-finite, empty, or reversed event interval.
+    InvalidEventInterval,
+    /// Current authorization does not permit full event-data access.
+    NotFullAccess(CalendarAuthorizationStatus),
+    /// The selected calendar identifier no longer resolves in the event store.
+    CalendarNotFound,
+    /// The selected calendar does not support events.
+    CalendarDoesNotSupportEvents,
+    /// The selected calendar does not currently allow changes.
+    CalendarNotWritable,
+    /// The backend returned a framework or native platform error.
+    Backend(Error),
+}
+
+impl CalendarEventCreateError {
+    /// Returns the stable portable error category.
+    pub const fn kind(self) -> ErrorKind {
+        match self {
+            Self::InvalidCalendarIdentifier | Self::InvalidEventInterval => ErrorKind::InvalidInput,
+            Self::NotFullAccess(_) => ErrorKind::PermissionDenied,
+            Self::CalendarNotFound => ErrorKind::NotFound,
+            Self::CalendarDoesNotSupportEvents => ErrorKind::Unsupported,
+            Self::CalendarNotWritable => ErrorKind::Unavailable,
+            Self::Backend(error) => error.kind(),
+        }
+    }
+
+    /// Returns the optional backend-native code.
+    pub const fn platform_code(self) -> Option<PlatformErrorCode> {
+        match self {
+            Self::Backend(error) => error.platform_code(),
+            _ => None,
+        }
+    }
+}
+
 impl CalendarEvent {
     /// Creates a summary with owned text and an ordered event interval.
     #[allow(clippy::too_many_arguments)]
@@ -267,6 +405,27 @@ pub trait CalendarEventBackend {
     ) -> Result<Vec<CalendarEvent>, CalendarEventError>;
 }
 
+/// A statically selected backend for non-prompting writable-calendar selection and event creation.
+///
+/// Both operations must recheck current authorization and require `FullAccess`; neither may
+/// prompt. Calendar snapshots must contain only event-capable calendars that currently allow
+/// modifications. Creation must resolve the selected opaque identifier again, recheck those
+/// properties, and save exactly one event or return an error. Calls may block and leave thread
+/// choice to the caller.
+pub trait CalendarEventCreateBackend {
+    /// Returns Rust-owned snapshots of calendars that currently accept events and modifications.
+    fn writable_event_calendars(
+        &self,
+    ) -> Result<Vec<WritableEventCalendar>, CalendarEventCreateError>;
+
+    /// Creates exactly one caller-described event in the selected calendar.
+    fn create_event(
+        &self,
+        calendar: &WritableEventCalendar,
+        draft: &CalendarEventDraft,
+    ) -> Result<(), CalendarEventCreateError>;
+}
+
 /// A small owner of a caller-selected Calendar authorization backend.
 pub struct Calendar<B> {
     backend: B,
@@ -317,6 +476,30 @@ impl<B: CalendarEventBackend> Calendar<B> {
         range: CalendarEventRange,
     ) -> Result<Vec<CalendarEvent>, CalendarEventError> {
         self.backend.events_in_range(range)
+    }
+}
+
+impl<B: CalendarEventCreateBackend> Calendar<B> {
+    /// Returns a non-prompting snapshot of calendars that can currently accept events.
+    pub fn writable_event_calendars(
+        &self,
+    ) -> Result<Vec<WritableEventCalendar>, CalendarEventCreateError> {
+        self.backend.writable_event_calendars()
+    }
+
+    /// Creates exactly one event in a caller-selected writable calendar snapshot.
+    ///
+    /// The backend re-resolves the snapshot identifier and rechecks authorization and calendar
+    /// writability immediately before native mutation. EventKit identifiers can change after
+    /// synchronization; if a snapshot becomes stale, callers should request a fresh list and
+    /// select again. Success reports only that the native save API succeeded and returns no event
+    /// identifier.
+    pub fn create_event(
+        &self,
+        calendar: &WritableEventCalendar,
+        draft: &CalendarEventDraft,
+    ) -> Result<(), CalendarEventCreateError> {
+        self.backend.create_event(calendar, draft)
     }
 }
 
