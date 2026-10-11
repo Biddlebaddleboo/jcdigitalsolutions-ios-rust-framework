@@ -120,6 +120,15 @@ responder status; `Ok(false)` means it did not. This result does not establish t
 keyboard was visible or disappeared. The method requires the current main thread; the existing
 `IosTextField::resign_first_responder()` remains the narrower, field-specific operation
 
+`IosUiBackend::send_resign_first_responder_action()` asks `UIApplication` to send the public
+[`UIResponder.resignFirstResponder`](https://developer.apple.com/documentation/uikit/uiresponder/resignfirstresponder%28%29?language=objc)
+action to a nil target, so UIKit searches the current responder chain without a view or text-field
+handle. It requires the current main thread and returns `Result<bool>` containing
+[`UIApplication.sendAction:to:from:forEvent:`](https://developer.apple.com/documentation/uikit/uiapplication/sendaction%28_%3Ato%3Afrom%3Afor%3A%29?language=objc)'s
+Boolean unchanged. That Boolean does not report keyboard visibility or disappearance. This
+app-level responder-chain action is distinct from `IosView::end_editing()`, which searches one view
+subtree, and `IosTextField::resign_first_responder()`, which targets one field
+
 ## Activity indicator
 
 `IosUiBackend::add_activity_indicator` adds a medium `UIActivityIndicatorView` to a caller-owned

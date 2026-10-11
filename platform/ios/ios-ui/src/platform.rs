@@ -16,11 +16,12 @@ use objc2::{DefinedClass, MainThreadMarker, MainThreadOnly, Message, define_clas
 use objc2_core_foundation::{CGPoint, CGRect, CGSize};
 use objc2_foundation::{NSObjectProtocol, NSRange, NSString};
 use objc2_ui_kit::{
-    UIButton, UIControlEvents, UIControlState, UIImage, UIImageView, UIKeyboardType, UILabel,
-    UILayoutConstraintAxis, UIScrollView, UIStackView, UISwitch, UITextField, UITextInputTraits,
-    UIView,
+    UIApplication, UIButton, UIControlEvents, UIControlState, UIImage, UIImageView, UIKeyboardType,
+    UILabel, UILayoutConstraintAxis, UIScrollView, UIStackView, UISwitch, UITextField,
+    UITextInputTraits, UIView,
 };
 
+use crate::keyboard_action_policy::run_with_main_thread_marker;
 use crate::layout_policy::{OneShotConstraints, ScrollLayoutPolicy};
 use crate::scroll_policy::validated_content_size;
 use crate::stack_spacing::is_valid_stack_spacing;
@@ -274,6 +275,21 @@ impl IosUiBackend {
             _main_thread: main_thread,
             _not_send: PhantomData,
         }
+    }
+
+    /// Ask UIKit's current responder chain to perform `resignFirstResponder`.
+    ///
+    /// Returns `ErrorKind::Unavailable` off the main thread; otherwise returns UIKit's
+    /// `UIApplication.sendAction` Boolean unchanged. `true` reports that UIKit handled the action;
+    /// it does not report keyboard visibility or disappearance. The call does not require a
+    /// particular view or text-field handle.
+    pub fn send_resign_first_responder_action(&self) -> Result<bool> {
+        run_with_main_thread_marker(MainThread::current(), |main_thread| {
+            let app = UIApplication::sharedApplication(main_thread.into_objc2());
+            // SAFETY: `resignFirstResponder` is the public UIResponder action selector. UIKit
+            // permits a nil target to search the responder chain and nil sender/event values.
+            unsafe { app.sendAction_to_from_forEvent(sel!(resignFirstResponder), None, None, None) }
+        })
     }
 
     /// Adds a UIKit stack view to a caller-owned container.

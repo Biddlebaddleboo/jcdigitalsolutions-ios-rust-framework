@@ -8,6 +8,8 @@ mod disclosure_policy;
 #[cfg(target_os = "ios")]
 pub mod geometry;
 #[cfg(any(test, target_os = "ios"))]
+mod keyboard_action_policy;
+#[cfg(any(test, target_os = "ios"))]
 mod layout_policy;
 #[cfg(target_os = "ios")]
 mod platform;
