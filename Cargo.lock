@@ -754,6 +754,7 @@ dependencies = [
 name = "ios-homekit-identify-status"
 version = "0.1.0"
 dependencies = [
+ "block2",
  "objc2",
  "objc2-home-kit",
 ]
@@ -1679,6 +1680,7 @@ version = "0.3.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "205a358c80d7eed98606da64110a3c081a96724b498ad26634883d18a001945c"
 dependencies = [
+ "block2",
  "objc2",
  "objc2-foundation",
 ]

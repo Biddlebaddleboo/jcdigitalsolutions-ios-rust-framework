@@ -5,11 +5,12 @@ edition.workspace = true
 rust-version.workspace = true
 license.workspace = true
 repository.workspace = true
-description = "Host-supplied HomeKit accessory identify-support snapshot for iOS"
+description = "Host-supplied HomeKit accessory identify support and operation for iOS"
 
 [target.'cfg(all(target_os = "ios", not(target_abi = "macabi")))'.dependencies]
+block2 = { workspace = true, features = ["alloc"] }
 objc2 = { workspace = true, features = ["std"] }
-objc2-home-kit = { version = "=0.3.2", default-features = false, features = ["HMAccessory"] }
+objc2-home-kit = { version = "=0.3.2", default-features = false, features = ["HMAccessory", "block2"] }
 
 [[example]]
 name = "homekit_identify_link_probe"

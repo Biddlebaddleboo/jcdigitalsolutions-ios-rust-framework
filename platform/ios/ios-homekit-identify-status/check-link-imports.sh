@@ -32,6 +32,11 @@ for target in aarch64-apple-ios aarch64-apple-ios-sim; do
         echo "$target probe does not retain the HomeKit accessor import" >&2
         exit 1
     }
+    selectors=$(strings "$probe")
+    printf '%s\n' "$selectors" | grep -F 'identifyWithCompletionHandler:' >/dev/null || {
+        echo "$target probe does not retain the typed HomeKit identify selector" >&2
+        exit 1
+    }
     build=$(xcrun vtool -show-build "$probe")
     printf '%s\n' "$build" | grep -E "(minos|version)[[:space:]]+$minimum([.]0)?([[:space:]]|$)" >/dev/null || {
         echo "$target probe does not declare the iOS $minimum deployment floor" >&2

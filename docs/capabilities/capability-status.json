@@ -2278,7 +2278,7 @@
       "portable_contract_note": "No portable facade for this capability is included in D1.",
       "ios_implementation_class": "B",
       "implementation_status": "partial",
-      "status_reason": "B339 reads only the per-accessory HMAccessory.supportsIdentify bit from a live accessory supplied by the host HomeKit lifecycle. False means Apple documents that identifyWithCompletionHandler returns an error; true does not guarantee success. B394 reads only the retained HMAccessory.profiles array length from a host-supplied live accessory; the count does not establish profile-feature availability or readiness. Neither crate creates HMHomeManager, prompts, enumerates accessories, or reports authorization, reachability, or general HomeKit readiness. B173/B322 no-go audits remain applicable to manager authorization and reachability.",
+      "status_reason": "B339 reads only the per-accessory HMAccessory.supportsIdentify bit from a live accessory supplied by the host HomeKit lifecycle. False means Apple documents that identifyWithCompletionHandler returns an error; true does not guarantee success. B488 adds a lazy host-supplied identifyWithCompletionHandler operation that preserves NSError domain/code and reports callback completion only, not visible accessory behavior. B394 reads only the retained HMAccessory.profiles array length from a host-supplied live accessory; the count does not establish profile-feature availability or readiness. These crates do not create HMHomeManager, prompt, enumerate accessories, or report authorization, reachability, or general HomeKit readiness. B173/B322 no-go audits remain applicable to manager authorization and reachability.",
       "minimum_ios_version": "11.0",
       "required_frameworks": [
         "HomeKit",
@@ -2295,11 +2295,11 @@
       ],
       "device_only_restrictions": [],
       "swift_abi_requirement": false,
-      "metadata_verification": "verified_from iPhoneOS 26.5 HMAccessory.h and objc2-home-kit 0.3.2; B339 supportsIdentify API floor iOS 11.3 and B394 profiles count API floor iOS 11.0; exact host capability, entitlement, and usage description documented; host Xcode 26.6/iOS 26.5 is below Xcode 27.x baseline",
+      "metadata_verification": "verified_from iPhoneOS 26.5 HMAccessory.h and objc2-home-kit 0.3.2; B339 supportsIdentify API floor iOS 11.3, B394 profiles count API floor iOS 11.0, and B488 identifyWithCompletionHandler inherits HMAccessory iOS 8.0 floor; exact host capability, entitlement, and usage description documented; host Xcode 26.6/iOS 26.5 is below Xcode 27.x baseline",
       "parity_status": "not_tested_live_HomeKit_behavior_or_Apple_parity",
       "performance_status": "not_measured",
       "native_escape_handle_available": true,
-      "native_escape_handle_note": "Callers supply a borrowed live HMAccessory to the supportsIdentify and profile-count snapshots; these crates add no manager, accessory discovery, or general native HomeKit handle API."
+      "native_escape_handle_note": "Callers supply a live HMAccessory to the supportsIdentify and profile-count snapshots or identify operation; the operation retains it through completion. These crates add no manager, accessory discovery, or general native HomeKit handle API."
     },
     {
       "id": "073-personal-data-system-stores-safetykit",

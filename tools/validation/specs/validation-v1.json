@@ -2398,6 +2398,30 @@
           "text": "unsafe { accessory.supportsIdentify() }"
         },
         {
+          "message": "typed HomeKit identify operation is required",
+          "must_exist": true,
+          "path": "platform/ios/ios-homekit-identify-status/src/lib.rs",
+          "text": "unsafe { self.accessory.identifyWithCompletionHandler(&handler) }"
+        },
+        {
+          "message": "HomeKit identify callback must preserve NSError domain and code",
+          "must_exist": true,
+          "path": "platform/ios/ios-homekit-identify-status/src/lib.rs",
+          "text": "domain: error.domain().to_string(),"
+        },
+        {
+          "message": "HomeKit identify callback must preserve NSError code",
+          "must_exist": true,
+          "path": "platform/ios/ios-homekit-identify-status/src/lib.rs",
+          "text": "code: error.code() as i64,"
+        },
+        {
+          "message": "HomeKit identify operation must enforce the HMAccessory iOS 8 floor",
+          "must_exist": true,
+          "path": "platform/ios/ios-homekit-identify-status/src/lib.rs",
+          "text": "objc2::available!(ios = 8.0, ..)"
+        },
+        {
           "message": "iOS 11.3 availability guard is required",
           "must_exist": true,
           "path": "platform/ios/ios-homekit-identify-status/src/lib.rs",
@@ -2416,22 +2440,40 @@
           "text": "requestAuthorization("
         },
         {
-          "message": "HomeKit identify operation is outside this pilot",
-          "must_exist": false,
-          "path": "platform/ios/ios-homekit-identify-status/src/lib.rs",
-          "text": ".identifyWithCompletionHandler("
-        },
-        {
-          "message": "HomeKit identify operation is outside this pilot",
+          "message": "Do not invoke an untyped HomeKit identify method",
           "must_exist": false,
           "path": "platform/ios/ios-homekit-identify-status/src/lib.rs",
           "text": ".identify("
         },
         {
+          "message": "HomeKit operations must use the generated typed binding, not raw Objective-C messaging",
+          "must_exist": false,
+          "path": "platform/ios/ios-homekit-identify-status/src/lib.rs",
+          "text": "msg_send!("
+        },
+        {
+          "message": "HomeKit operations must not construct raw Objective-C selectors",
+          "must_exist": false,
+          "path": "platform/ios/ios-homekit-identify-status/src/lib.rs",
+          "text": "sel!("
+        },
+        {
           "message": "HomeKit dependency and feature scope changed",
           "must_exist": true,
           "path": "platform/ios/ios-homekit-identify-status/Cargo.toml",
-          "text": "objc2-home-kit = { version = \"=0.3.2\", default-features = false, features = [\"HMAccessory\"] }"
+          "text": "objc2-home-kit = { version = \"=0.3.2\", default-features = false, features = [\"HMAccessory\", \"block2\"] }"
+        },
+        {
+          "message": "HomeKit identify block dependency is required",
+          "must_exist": true,
+          "path": "platform/ios/ios-homekit-identify-status/Cargo.toml",
+          "text": "block2 = { workspace = true, features = [\"alloc\"] }"
+        },
+        {
+          "message": "linked HomeKit probe must retain the typed identify selector",
+          "must_exist": true,
+          "path": "platform/ios/ios-homekit-identify-status/check-link-imports.sh",
+          "text": "grep -F 'identifyWithCompletionHandler:'"
         }
       ],
       "id": "ios-homekit-identify-status",
@@ -2440,13 +2482,19 @@
       "package": "ios-homekit-identify-status",
       "rustdoc_warnings": false,
       "scoped_files": [
+        "Cargo.lock",
         "platform/ios/ios-homekit-identify-status/src/lib.rs",
         "platform/ios/ios-homekit-identify-status/Cargo.toml",
         "platform/ios/ios-homekit-identify-status/check.sh",
         "platform/ios/ios-homekit-identify-status/check-link-imports.sh",
         "platform/ios/ios-homekit-identify-status/examples/homekit_identify_link_probe.rs",
         "docs/ios/homekit-identify-status.md",
-        "PLAN_CAPABILITIES_HOMEKIT.md"
+        "PLAN_CAPABILITIES_HOMEKIT.md",
+        "PLAN.md",
+        "docs/capabilities/capability-status.json",
+        "docs/generated/CAPABILITY_STATUS.md",
+        "tools/validation/adapters/check_homekit_contract.py",
+        "tools/validation/specs/validation-v1.json"
       ],
       "shell_scripts": [
         "platform/ios/ios-homekit-identify-status/check.sh",
