@@ -9,9 +9,17 @@ enum CallPhase {
     Reporting,
     Starting,
     Active,
+    OutgoingActive,
     Connecting,
     Connected,
     Ending(CallEndReason),
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+struct CallEntry {
+    // Provider generation for incoming reports, request token for outgoing calls.
+    identity: u64,
+    phase: CallPhase,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -38,6 +46,12 @@ pub(crate) enum OutgoingRequestTransition {
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(crate) struct OutgoingRequestToken {
+    generation: u64,
+    request: u64,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) enum ReportTransition {
     Accepted,
     EndAfterAccept(CallEndReason),
@@ -47,8 +61,9 @@ pub(crate) enum ReportTransition {
 
 #[derive(Default)]
 pub(crate) struct CallRegistry {
-    calls: HashMap<CallId, (u64, CallPhase)>,
+    calls: HashMap<CallId, CallEntry>,
     generation: u64,
+    next_outgoing_request: u64,
     invalidated: bool,
 }
 
@@ -152,8 +167,13 @@ impl CallRegistry {
         if self.calls.contains_key(&id) {
             return Err(BeginReportError::Duplicate);
         }
-        self.calls
-            .insert(id, (self.generation, CallPhase::Reporting));
+        self.calls.insert(
+            id,
+            CallEntry {
+                identity: self.generation,
+                phase: CallPhase::Reporting,
+            },
+        );
         Ok(self.generation)
     }
 
@@ -166,62 +186,88 @@ impl CallRegistry {
         if self.invalidated || generation != self.generation {
             return ReportTransition::Stale;
         }
-        let Some((call_generation, phase)) = self.calls.remove(&id) else {
+        let Some(mut entry) = self.calls.remove(&id) else {
             return ReportTransition::Stale;
         };
-        if call_generation != generation {
-            self.calls.insert(id, (call_generation, phase));
+        if entry.identity != generation {
+            self.calls.insert(id, entry);
             return ReportTransition::Stale;
         }
         if !accepted {
             return ReportTransition::Rejected;
         }
-        match phase {
+        match entry.phase {
             CallPhase::Reporting => {
-                self.calls.insert(id, (generation, CallPhase::Active));
+                entry.phase = CallPhase::Active;
+                self.calls.insert(id, entry);
                 ReportTransition::Accepted
             }
             CallPhase::Ending(reason) => ReportTransition::EndAfterAccept(reason),
             CallPhase::Active => {
-                self.calls.insert(id, (generation, CallPhase::Active));
+                self.calls.insert(id, entry);
                 ReportTransition::Stale
             }
-            CallPhase::Starting | CallPhase::Connecting | CallPhase::Connected => {
-                self.calls.insert(id, (generation, phase));
+            CallPhase::Starting
+            | CallPhase::OutgoingActive
+            | CallPhase::Connecting
+            | CallPhase::Connected => {
+                self.calls.insert(id, entry);
                 ReportTransition::Stale
             }
         }
     }
 
-    pub(crate) fn begin_outgoing(&mut self, id: CallId) -> Result<u64, BeginReportError> {
+    pub(crate) fn begin_outgoing(
+        &mut self,
+        id: CallId,
+    ) -> Result<OutgoingRequestToken, BeginReportError> {
         if self.invalidated {
             return Err(BeginReportError::Unavailable);
         }
         if self.calls.contains_key(&id) {
             return Err(BeginReportError::Duplicate);
         }
-        self.calls
-            .insert(id, (self.generation, CallPhase::Starting));
-        Ok(self.generation)
+        let request = self
+            .next_outgoing_request
+            .checked_add(1)
+            .ok_or(BeginReportError::Unavailable)?;
+        self.next_outgoing_request = request;
+        let token = OutgoingRequestToken {
+            generation: self.generation,
+            request,
+        };
+        self.calls.insert(
+            id,
+            CallEntry {
+                identity: request,
+                phase: CallPhase::Starting,
+            },
+        );
+        Ok(token)
     }
 
     pub(crate) fn outgoing_request_completed(
         &mut self,
         id: CallId,
-        generation: u64,
+        token: OutgoingRequestToken,
         accepted: bool,
     ) -> OutgoingRequestTransition {
-        if self.invalidated || generation != self.generation {
+        if self.invalidated || token.generation != self.generation {
             return OutgoingRequestTransition::Stale;
         }
         if accepted {
             return OutgoingRequestTransition::Accepted;
         }
-        if self
-            .calls
-            .get(&id)
-            .is_some_and(|(call_generation, _)| *call_generation == generation)
-        {
+        if self.calls.get(&id).is_some_and(|entry| {
+            entry.identity == token.request
+                && matches!(
+                    entry.phase,
+                    CallPhase::Starting
+                        | CallPhase::OutgoingActive
+                        | CallPhase::Connecting
+                        | CallPhase::Connected
+                )
+        }) {
             self.calls.remove(&id);
         }
         OutgoingRequestTransition::Rejected
@@ -232,7 +278,7 @@ impl CallRegistry {
             && self
                 .calls
                 .get(&id)
-                .is_some_and(|(_, phase)| *phase == CallPhase::Starting)
+                .is_some_and(|entry| entry.phase == CallPhase::Starting)
     }
 
     pub(crate) fn finish_start_action(&mut self, id: CallId, accepted: bool) -> bool {
@@ -240,8 +286,8 @@ impl CallRegistry {
             return false;
         }
         if accepted {
-            if let Some((_, phase)) = self.calls.get_mut(&id) {
-                *phase = CallPhase::Active;
+            if let Some(entry) = self.calls.get_mut(&id) {
+                entry.phase = CallPhase::OutgoingActive;
             }
         } else {
             self.calls.remove(&id);
@@ -253,13 +299,13 @@ impl CallRegistry {
         if self.invalidated {
             return false;
         }
-        let Some((_, phase)) = self.calls.get_mut(&id) else {
+        let Some(entry) = self.calls.get_mut(&id) else {
             return false;
         };
-        if *phase != CallPhase::Active {
+        if entry.phase != CallPhase::OutgoingActive {
             return false;
         }
-        *phase = CallPhase::Connecting;
+        entry.phase = CallPhase::Connecting;
         true
     }
 
@@ -267,13 +313,13 @@ impl CallRegistry {
         if self.invalidated {
             return false;
         }
-        let Some((_, phase)) = self.calls.get_mut(&id) else {
+        let Some(entry) = self.calls.get_mut(&id) else {
             return false;
         };
-        if *phase != CallPhase::Connecting {
+        if entry.phase != CallPhase::Connecting {
             return false;
         }
-        *phase = CallPhase::Connected;
+        entry.phase = CallPhase::Connected;
         true
     }
 
@@ -281,25 +327,26 @@ impl CallRegistry {
         if self.invalidated {
             return EndTransition::Unavailable;
         }
-        let Some((generation, phase)) = self.calls.remove(&id) else {
+        let Some(mut entry) = self.calls.remove(&id) else {
             return EndTransition::NotFound;
         };
-        match phase {
+        match entry.phase {
             CallPhase::Reporting => {
-                self.calls
-                    .insert(id, (generation, CallPhase::Ending(reason)));
+                entry.phase = CallPhase::Ending(reason);
+                self.calls.insert(id, entry);
                 EndTransition::Deferred
             }
-            CallPhase::Active | CallPhase::Connecting | CallPhase::Connected => {
-                EndTransition::ReportNow(reason)
-            }
+            CallPhase::Active
+            | CallPhase::OutgoingActive
+            | CallPhase::Connecting
+            | CallPhase::Connected => EndTransition::ReportNow(reason),
             CallPhase::Starting => {
-                self.calls.insert(id, (generation, CallPhase::Starting));
+                self.calls.insert(id, entry);
                 EndTransition::InvalidState
             }
             CallPhase::Ending(existing_reason) => {
-                self.calls
-                    .insert(id, (generation, CallPhase::Ending(existing_reason)));
+                entry.phase = CallPhase::Ending(existing_reason);
+                self.calls.insert(id, entry);
                 EndTransition::AlreadyEnding
             }
         }
@@ -307,10 +354,13 @@ impl CallRegistry {
 
     pub(crate) fn is_active(&self, id: CallId) -> bool {
         !self.invalidated
-            && self.calls.get(&id).is_some_and(|(_, phase)| {
+            && self.calls.get(&id).is_some_and(|entry| {
                 matches!(
-                    phase,
-                    CallPhase::Active | CallPhase::Connecting | CallPhase::Connected
+                    entry.phase,
+                    CallPhase::Active
+                        | CallPhase::OutgoingActive
+                        | CallPhase::Connecting
+                        | CallPhase::Connected
                 )
             })
     }
@@ -380,7 +430,7 @@ mod tests {
     #[test]
     fn outgoing_call_requires_transaction_and_start_action_acceptance() {
         let mut registry = CallRegistry::default();
-        let generation = registry.begin_outgoing(id(11)).unwrap();
+        let token = registry.begin_outgoing(id(11)).unwrap();
         assert!(registry.is_starting(id(11)));
         assert!(!registry.is_active(id(11)));
         assert_eq!(
@@ -388,7 +438,7 @@ mod tests {
             Err(BeginReportError::Duplicate)
         );
         assert_eq!(
-            registry.outgoing_request_completed(id(11), generation, true),
+            registry.outgoing_request_completed(id(11), token, true),
             OutgoingRequestTransition::Accepted
         );
         assert!(registry.finish_start_action(id(11), true));
@@ -406,31 +456,51 @@ mod tests {
     #[test]
     fn rejected_transaction_or_start_action_removes_outgoing_call() {
         let mut registry = CallRegistry::default();
-        let transaction_generation = registry.begin_outgoing(id(12)).unwrap();
+        let transaction_token = registry.begin_outgoing(id(12)).unwrap();
         assert_eq!(
-            registry.outgoing_request_completed(id(12), transaction_generation, false),
+            registry.outgoing_request_completed(id(12), transaction_token, false),
             OutgoingRequestTransition::Rejected
         );
         assert!(!registry.is_starting(id(12)));
 
-        let action_generation = registry.begin_outgoing(id(13)).unwrap();
+        let action_token = registry.begin_outgoing(id(13)).unwrap();
         assert_eq!(
-            registry.outgoing_request_completed(id(13), action_generation, true),
+            registry.outgoing_request_completed(id(13), action_token, true),
             OutgoingRequestTransition::Accepted
         );
         assert!(registry.finish_start_action(id(13), false));
         assert!(!registry.is_starting(id(13)));
         assert!(!registry.is_active(id(13)));
         assert_eq!(
-            registry.outgoing_request_completed(id(13), action_generation, true),
+            registry.outgoing_request_completed(id(13), action_token, true),
             OutgoingRequestTransition::Accepted
         );
     }
 
     #[test]
+    fn stale_rejected_transaction_cannot_remove_reused_call_id() {
+        let mut registry = CallRegistry::default();
+        let stale_token = registry.begin_outgoing(id(15)).unwrap();
+        assert!(registry.finish_start_action(id(15), false));
+
+        let current_token = registry.begin_outgoing(id(15)).unwrap();
+        assert_ne!(stale_token, current_token);
+        assert_eq!(
+            registry.outgoing_request_completed(id(15), stale_token, false),
+            OutgoingRequestTransition::Rejected
+        );
+        assert!(registry.is_starting(id(15)));
+        assert_eq!(
+            registry.outgoing_request_completed(id(15), current_token, true),
+            OutgoingRequestTransition::Accepted
+        );
+        assert!(registry.is_starting(id(15)));
+    }
+
+    #[test]
     fn outgoing_progress_reports_require_start_and_connection_order() {
         let mut registry = CallRegistry::default();
-        let generation = registry.begin_outgoing(id(14)).unwrap();
+        let token = registry.begin_outgoing(id(14)).unwrap();
         assert!(!registry.report_outgoing_connecting(id(14)));
         assert!(!registry.report_outgoing_connected(id(14)));
         assert_eq!(
@@ -445,7 +515,7 @@ mod tests {
         assert!(!registry.report_outgoing_connected(id(14)));
         registry.reset();
         assert_eq!(
-            registry.outgoing_request_completed(id(14), generation, true),
+            registry.outgoing_request_completed(id(14), token, true),
             OutgoingRequestTransition::Stale
         );
     }

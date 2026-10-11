@@ -23,7 +23,7 @@ use objc2_foundation::{NSError, NSNumber, NSObject, NSObjectProtocol, NSSet, NSS
 
 use crate::registry::{
     BeginReportError, CallRegistry, DeferredActionGate, EndTransition, OnceSlot,
-    OutgoingRequestTransition, ReportTransition,
+    OutgoingRequestToken, OutgoingRequestTransition, ReportTransition,
 };
 use crate::types::CallProviderEventDelivery;
 use crate::{
@@ -157,7 +157,7 @@ struct ReportCallbackContext {
 struct OutgoingRequestContext {
     shared: Rc<ProviderShared>,
     call_id: CallId,
-    generation: u64,
+    token: OutgoingRequestToken,
     completion: Rc<RefCell<Option<ReportCompletion>>>,
 }
 
@@ -781,7 +781,7 @@ impl CallProvider {
         // enforces that the configured provider supports video when requested.
         unsafe { action.setVideo(call.has_video) };
 
-        let generation = self
+        let token = self
             .shared
             .state
             .get(self._main_thread)
@@ -797,7 +797,7 @@ impl CallProvider {
             OutgoingRequestContext {
                 shared: Rc::clone(&self.shared),
                 call_id: call.id,
-                generation,
+                token,
                 completion: Rc::new(RefCell::new(Some(Box::new(completion) as ReportCompletion))),
             },
             self._main_thread,
@@ -1066,7 +1066,7 @@ fn complete_outgoing_request(context: &OutgoingRequestContext, accepted: bool) {
             .get(main_thread)
             .borrow_mut()
             .calls
-            .outgoing_request_completed(context.call_id, context.generation, accepted)
+            .outgoing_request_completed(context.call_id, context.token, accepted)
     }))
     .unwrap_or(OutgoingRequestTransition::Stale);
 

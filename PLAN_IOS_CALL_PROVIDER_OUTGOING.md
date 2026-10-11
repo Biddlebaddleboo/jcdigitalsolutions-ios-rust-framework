@@ -18,7 +18,7 @@ This workstream is separate from B538 selectable `UITextView` and B539 UDP/TCP n
 
 ## Acceptance
 
-1. Host tests cover outgoing input constraints, transaction/action state transitions, ordered progress reports, rejection, duplicate IDs, reset/stale completion, and invalid ordering.
+1. Host tests cover outgoing input constraints, transaction/action state transitions, ordered progress reports, rejection, duplicate IDs, reset/stale completion, invalid ordering, and a late rejection after reusing the same `CallId`.
 2. The iOS device and Simulator targets compile with the package's existing feature configuration and strict Clippy settings.
 3. Release link probes preserve the package's framework/deployment contract while requiring the public controller, start action, transaction selector, start delegate method, and outgoing progress-report selectors. Existing negative checks continue to reject Swift runtime, PushKit, call-directory, audio, UIKit, and Python imports/strings.
 4. Rust documentation describes the separation between transaction acceptance, app signaling, and CallKit progress reports.
@@ -27,14 +27,14 @@ This workstream is separate from B538 selectable `UITextView` and B539 UDP/TCP n
 ## Implemented package surface
 
 - `platform/ios/callkit/ios-call-provider/src/types.rs`: `OutgoingCall`, start event/action types, outgoing-input validation, and explicit invalid-state error.
-- `platform/ios/callkit/ios-call-provider/src/registry.rs`: outgoing start and progress state transitions with deterministic negative regressions.
+- `platform/ios/callkit/ios-call-provider/src/registry.rs`: outgoing start and progress state transitions with a unique request token that prevents stale rejection from removing a newer call that reused its `CallId`.
 - `platform/ios/callkit/ios-call-provider/src/platform.rs`: `CXCallController` transaction submission, start-action routing/resolution, and ordered public CallKit progress reports.
 - `platform/ios/callkit/ios-call-provider/check-link-imports.sh` and `examples/ios_call_provider_link_probe.rs`: device/Simulator release link and import/string/deployment checks for the added API.
 - `platform/ios/callkit/ios-call-provider/README.md`: package-level API and non-claim documentation.
 
-## Validation performed on base `0a54b83c6651876ea8e939e32981a2b438363067`
+## Validation performed on base `1c94640` (latest `origin/main` before B540)
 
-- `cargo +1.94.1 test --locked --offline -p ios-call-provider` — passed, 31 tests.
+- `cargo +1.94.1 test --locked --offline -p ios-call-provider` — passed, 32 tests.
 - `cargo +1.94.1 clippy --locked --offline -p ios-call-provider --all-targets -- -D warnings` — passed.
 - `cargo +1.94.1 check --locked --offline -p ios-call-provider --target aarch64-apple-ios` — passed.
 - `cargo +1.94.1 check --locked --offline -p ios-call-provider --target aarch64-apple-ios-sim` — passed.
