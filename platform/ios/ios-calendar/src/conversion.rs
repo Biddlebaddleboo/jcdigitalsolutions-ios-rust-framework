@@ -1,6 +1,6 @@
 use framework_calendar::{
     CalendarAuthorizationStatus, CalendarEvent, CalendarEventDeleteError, CalendarEventError,
-    CalendarEventRange, CalendarEventTime,
+    CalendarEventRange, CalendarEventTime, CalendarEventUpdateError,
 };
 use framework_core::{Error, ErrorKind, PlatformErrorCode};
 
@@ -27,6 +27,16 @@ pub(crate) fn error_from_native(code: isize) -> framework_calendar::CalendarErro
         error = error.with_platform_code(code);
     }
     framework_calendar::CalendarError::Backend(error)
+}
+
+/// Maps an EventKit mutation error to the selected-event update contract.
+pub(crate) fn update_error_from_native(code: isize) -> CalendarEventUpdateError {
+    match error_from_native(code) {
+        framework_calendar::CalendarError::Backend(error) => {
+            CalendarEventUpdateError::Backend(error)
+        }
+        _ => CalendarEventUpdateError::Backend(Error::new(ErrorKind::Platform)),
+    }
 }
 
 /// Fails closed unless EventKit currently permits full event-data access.
@@ -56,14 +66,36 @@ pub(crate) fn validate_event_delete_snapshot(
     start_seconds: f64,
     end_seconds: f64,
 ) -> Result<(), CalendarEventDeleteError> {
-    if event.event_identifier() != Some(resolved_identifier)
-        || start_seconds != event.start().unix_seconds()
-        || end_seconds != event.end().unix_seconds()
-    {
+    if !selected_event_snapshot_matches(event, resolved_identifier, start_seconds, end_seconds) {
         Err(CalendarEventDeleteError::EventNotFound)
     } else {
         Ok(())
     }
+}
+
+/// Rejects a stale or ambiguous selected occurrence before EventKit update.
+pub(crate) fn validate_event_update_snapshot(
+    event: &CalendarEvent,
+    resolved_identifier: &str,
+    start_seconds: f64,
+    end_seconds: f64,
+) -> Result<(), CalendarEventUpdateError> {
+    if !selected_event_snapshot_matches(event, resolved_identifier, start_seconds, end_seconds) {
+        Err(CalendarEventUpdateError::EventNotFound)
+    } else {
+        Ok(())
+    }
+}
+
+fn selected_event_snapshot_matches(
+    event: &CalendarEvent,
+    resolved_identifier: &str,
+    start_seconds: f64,
+    end_seconds: f64,
+) -> bool {
+    event.event_identifier() == Some(resolved_identifier)
+        && start_seconds == event.start().unix_seconds()
+        && end_seconds == event.end().unix_seconds()
 }
 
 /// Copies decoded EventKit fields into a validated Rust-owned summary.
@@ -134,9 +166,17 @@ mod tests {
         assert_eq!(error.kind(), ErrorKind::Platform);
         assert_eq!(error.platform_code().unwrap().get(), -42);
 
+        let update_error = update_error_from_native(-42);
+        assert_eq!(update_error.kind(), ErrorKind::Platform);
+        assert_eq!(update_error.platform_code().unwrap().get(), -42);
+
         let zero = error_from_native(0);
         assert_eq!(zero.kind(), ErrorKind::Platform);
         assert_eq!(zero.platform_code(), None);
+
+        let zero_update = update_error_from_native(0);
+        assert_eq!(zero_update.kind(), ErrorKind::Platform);
+        assert_eq!(zero_update.platform_code(), None);
     }
 
     #[test]
@@ -235,6 +275,31 @@ mod tests {
 
         assert_eq!(result, Err(CalendarEventDeleteError::EventNotFound));
         assert_eq!(remove_calls, 0);
+    }
+
+    #[test]
+    fn recurring_first_occurrence_mismatch_fails_before_update() {
+        let selected = CalendarEvent::new(
+            Some("recurring-event".to_string()),
+            "Selected occurrence".to_string(),
+            CalendarEventTime::from_unix_seconds(1_700_086_400.0).unwrap(),
+            CalendarEventTime::from_unix_seconds(1_700_086_800.0).unwrap(),
+            false,
+            None,
+            None,
+        )
+        .unwrap();
+        let mut save_calls = 0_u8;
+        let result = validate_event_update_snapshot(
+            &selected,
+            "recurring-event",
+            1_700_000_000.0,
+            1_700_000_400.0,
+        )
+        .map(|()| save_calls += 1);
+
+        assert_eq!(result, Err(CalendarEventUpdateError::EventNotFound));
+        assert_eq!(save_calls, 0);
     }
 
     #[test]

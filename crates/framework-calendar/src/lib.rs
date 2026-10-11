@@ -133,7 +133,7 @@ impl WritableEventCalendar {
     }
 }
 
-/// Caller-owned fields for one new Calendar event.
+/// Caller-owned fields for creating or replacing one Calendar event.
 #[derive(Clone, Debug, PartialEq)]
 pub struct CalendarEventDraft {
     title: String,
@@ -263,6 +263,48 @@ impl CalendarEventDeleteError {
     pub const fn kind(self) -> ErrorKind {
         match self {
             Self::InvalidEventIdentifier => ErrorKind::InvalidInput,
+            Self::NotFullAccess(_) => ErrorKind::PermissionDenied,
+            Self::EventNotFound => ErrorKind::NotFound,
+            Self::CalendarDoesNotSupportEvents => ErrorKind::Unsupported,
+            Self::CalendarNotWritable => ErrorKind::Unavailable,
+            Self::Backend(error) => error.kind(),
+        }
+    }
+
+    /// Returns the optional backend-native code.
+    pub const fn platform_code(self) -> Option<PlatformErrorCode> {
+        match self {
+            Self::Backend(error) => error.platform_code(),
+            _ => None,
+        }
+    }
+}
+
+/// An error returned while updating one caller-selected Calendar event.
+#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
+#[non_exhaustive]
+pub enum CalendarEventUpdateError {
+    /// The selected event summary has no non-empty native event identifier.
+    InvalidEventIdentifier,
+    /// The caller supplied an empty or reversed event interval.
+    InvalidEventInterval,
+    /// Current authorization does not permit full event-data access.
+    NotFullAccess(CalendarAuthorizationStatus),
+    /// The selected identifier or exact event snapshot no longer resolves.
+    EventNotFound,
+    /// The resolved event's calendar no longer supports events.
+    CalendarDoesNotSupportEvents,
+    /// The resolved event's calendar does not currently allow changes.
+    CalendarNotWritable,
+    /// The backend returned a framework or native platform error.
+    Backend(Error),
+}
+
+impl CalendarEventUpdateError {
+    /// Returns the stable portable error category.
+    pub const fn kind(self) -> ErrorKind {
+        match self {
+            Self::InvalidEventIdentifier | Self::InvalidEventInterval => ErrorKind::InvalidInput,
             Self::NotFullAccess(_) => ErrorKind::PermissionDenied,
             Self::EventNotFound => ErrorKind::NotFound,
             Self::CalendarDoesNotSupportEvents => ErrorKind::Unsupported,
@@ -477,6 +519,22 @@ pub trait CalendarEventDeleteBackend {
     fn delete_event(&self, event: &CalendarEvent) -> Result<(), CalendarEventDeleteError>;
 }
 
+/// A statically selected backend for updating one caller-selected event occurrence.
+///
+/// A backend must reject absent or empty identifiers before native lookup, recheck current
+/// `FullAccess` without prompting, resolve only the selected event, verify its current identifier
+/// and exact start/end snapshot, and confirm its current event calendar is modifiable. It must
+/// replace only fields from the supplied draft, preserve the event's current calendar, and commit
+/// exactly one occurrence. Calls may block and leave thread choice to the caller.
+pub trait CalendarEventUpdateBackend {
+    /// Replaces the caller-described fields of exactly one selected event occurrence.
+    fn update_event(
+        &self,
+        event: &CalendarEvent,
+        draft: &CalendarEventDraft,
+    ) -> Result<(), CalendarEventUpdateError>;
+}
+
 /// A small owner of a caller-selected Calendar authorization backend.
 pub struct Calendar<B> {
     backend: B,
@@ -567,6 +625,30 @@ impl<B: CalendarEventDeleteBackend> Calendar<B> {
             return Err(CalendarEventDeleteError::InvalidEventIdentifier);
         }
         self.backend.delete_event(event)
+    }
+}
+
+impl<B: CalendarEventUpdateBackend> Calendar<B> {
+    /// Updates exactly one caller-selected event occurrence from a complete replacement draft.
+    ///
+    /// Missing or empty native identifiers fail before backend dispatch. The backend must
+    /// re-resolve the selected ID, verify the exact selected occurrence and current calendar
+    /// writability, then update only title, start, end, all-day, location, and notes. The event's
+    /// current calendar is preserved, and stale snapshots fail without mutation. The operation is
+    /// synchronous and may block.
+    pub fn update_event(
+        &self,
+        event: &CalendarEvent,
+        draft: &CalendarEventDraft,
+    ) -> Result<(), CalendarEventUpdateError> {
+        let identifier = event.event_identifier();
+        if identifier.is_none_or(|identifier| identifier.is_empty()) {
+            return Err(CalendarEventUpdateError::InvalidEventIdentifier);
+        }
+        if draft.start() >= draft.end() {
+            return Err(CalendarEventUpdateError::InvalidEventInterval);
+        }
+        self.backend.update_event(event, draft)
     }
 }
 

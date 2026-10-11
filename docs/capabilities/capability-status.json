@@ -2201,17 +2201,17 @@
       "crate_module_status": "portable_contract_and_ios_backend_partial",
       "portability_class": "portable_with_platform_extensions",
       "portable_contract_status": "implemented",
-      "portable_contract_note": "framework-calendar defines authorization, finite event-range, writable event-calendar snapshot, one-event draft/create, and caller-selected one-event delete contracts; iOS supplies the EventKit backend.",
+      "portable_contract_note": "framework-calendar defines authorization, finite event-range, writable event-calendar snapshot, one-event draft/create, and caller-selected one-event delete/update contracts; iOS supplies the EventKit backend.",
       "ios_implementation_class": "B",
       "implementation_status": "partial",
-      "status_reason": "B30 implements EventKit Calendar authorization status and explicit full-access request. B465 adds a synchronous caller-range read of Rust-owned event summaries. B481 adds a non-prompting snapshot of writable event calendars plus creation of exactly one caller-described event in a caller-selected existing calendar. B483 adds deletion of one selected range-query event after a fresh selected-ID lookup, exact occurrence check, and current modifiable-calendar check. Event operations require current FullAccess and never prompt. Reminder access, event edits, and calendar UI remain unsupported.",
+      "status_reason": "B30 implements EventKit Calendar authorization status and explicit full-access request. B465 adds a synchronous caller-range read of Rust-owned event summaries. B481 adds a non-prompting snapshot of writable event calendars plus creation of exactly one caller-described event in a caller-selected existing calendar. B483 adds deletion of one selected range-query event after a fresh selected-ID lookup, exact occurrence check, and current modifiable-calendar check. B485 adds replacement of six fields on one selected event while preserving its current calendar, with an exact occurrence check before mutation. Event operations require current FullAccess and never prompt. Reminder access, recurring-series edits, and calendar UI remain unsupported; live EventKit data and device behavior remain unverified.",
       "minimum_ios_version": "17.0",
       "required_frameworks": [
         "EventKit",
         "Foundation"
       ],
       "required_permissions": [
-        "Writable event-calendar listing and event creation require existing FullAccess and never prompt; only the explicit request API may prompt"
+        "Writable event-calendar listing, event creation, and selected-event deletion/update require existing FullAccess and never prompt; only the explicit request API may prompt"
       ],
       "required_info_plist_keys": [
         "NSCalendarsFullAccessUsageDescription"
@@ -2219,7 +2219,7 @@
       "entitlements": [],
       "device_only_restrictions": null,
       "swift_abi_requirement": false,
-      "metadata_verification": "B30 verified the public full-access request API floor as iOS 17.0 and requires host NSCalendarsFullAccessUsageDescription. B465 adds finite f64 Unix-second ranges and public EventKit eventsMatchingPredicate. B481 uses objc2-event-kit 0.3.2 bindings and iPhoneOS 26.5 SDK public selectors for Event-only calendar listing and one committed event save. B483 uses the public eventWithIdentifier: and removeEvent:span:commit:error: selectors from objc2-event-kit 0.3.2; it checks the exact selected event snapshot and current Event-calendar writability before one ThisEvent removal. Registered host/target/selector-link/import/deployment gates provide static evidence only; authorization, calendar selection, persistence, deletion, and device runtime remain unverified.",
+      "metadata_verification": "B30 verified the public full-access request API floor as iOS 17.0 and requires host NSCalendarsFullAccessUsageDescription. B465 adds finite f64 Unix-second ranges and public EventKit eventsMatchingPredicate. B481 uses objc2-event-kit 0.3.2 bindings and iPhoneOS 26.5 SDK public selectors for Event-only calendar listing and one committed event save. B483 uses public eventWithIdentifier: and removeEvent:span:commit:error: selectors and checks the exact selected snapshot and current Event-calendar writability before one ThisEvent removal. B485 uses public eventWithIdentifier:, the EKEvent title/date/all-day/location/notes setters, and saveEvent:span:commit:error: with EKSpan::ThisEvent; it performs the exact selected snapshot and writable-calendar checks before changing fields and does not set the calendar. The iOS 17.0 device/Simulator profile registers host regressions, both target builds, selector/link/import/deployment checks, strict Clippy, Rustdoc, source guards, and docs checks; static evidence does not prove authorization, selected occurrence updates, persistence, recurrence behavior, or runtime on a device.",
       "parity_status": "not_tested_live_behavior_or_Apple_parity",
       "performance_status": "not_measured",
       "native_escape_handle_available": false,

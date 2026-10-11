@@ -1,6 +1,6 @@
 # iOS Calendar authorization
 
-**ios-calendar** implements `framework-calendar` authorization and event contracts using public EventKit APIs from Rust. The backend targets iOS 17.0 or later. It exposes non-prompting status, an explicit full-access request, a synchronous read of events within one caller-selected range, writable calendar selection, one-event creation, and one-selected-event deletion.
+**ios-calendar** implements `framework-calendar` authorization and event contracts using public EventKit APIs from Rust. The backend targets iOS 17.0 or later. It exposes non-prompting status, an explicit full-access request, a synchronous read of events within one caller-selected range, writable calendar selection, one-event creation, and one-selected-event deletion and update.
 
 ## Permission declaration and request
 
@@ -49,15 +49,23 @@ The native list and save calls may block on the caller's thread. No executor or 
 
 The iPhoneOS 26.5 SDK and `objc2-event-kit` 0.3.2 bindings document `eventWithIdentifier:` as returning the first occurrence for a recurring identifier. If that fresh object does not match the selected summary's exact start/end instants, deletion fails as `EventNotFound` rather than remove another occurrence. This operation never requests permission or shows UI. A successful call reports that EventKit accepted one ThisEvent removal; it does not prove cross-device sync or later database state. Host regressions cover invalid identifiers, revoked access, exact selected ID, one removal call, stale-ID failure, and native error-code retention. Registered target/link checks prove compile and selector linkage only, not live deletion.
 
+## Update one selected event (B485)
+
+`Calendar::update_event(&CalendarEvent, &CalendarEventDraft)` accepts a selected summary from the range query and a complete replacement draft. It rechecks current `FullAccess` without prompting, resolves only the selected identifier, and verifies the returned identifier plus exact selected start/end instants before any field change. The event's attached calendar must still support Event entities and allow modifications.
+
+The backend sets only title, start date, end date, all-day, location, and notes from the draft. Optional location/notes set to `None` clear those values. It deliberately does not set `calendar`, preserving the event's current calendar. It then commits once with `saveEvent:span:commit:error:`, `EKSpan::ThisEvent`, and `commit: YES`; native error kind and representable code are preserved. There is no enumeration, search, retry, reminder access, EventKitUI, or series edit.
+
+As with deletion, `eventWithIdentifier:` returns the first occurrence for a recurring identifier. A selected later occurrence whose exact start/end does not match that result fails as `EventNotFound` without mutation; the backend does not search for another occurrence. The host suite checks this rejection before save. The method is synchronous and may block on the caller's thread; selector/link checks do not prove EventKit persistence, recurrence behavior, Simulator execution, or physical-device behavior.
+
 The future starts the native request on first poll. Dropping it before first poll starts no request. Dropping it after start detaches Rust result interest; it cannot promise to dismiss an operating-system prompt. EventKit retains the copied completion block for its asynchronous callback, and callback state is detached and completed at most once. No main-thread requirement is imposed by this backend; the native store remains on the non-`Send` backend value, while callback work is synchronized independently.
 
 `IosCalendarBackend::native_event_store` is a narrow iOS-only escape hatch. Direct native operations may observe or change EventKit state independently of this contract.
 
 ## API floor, exclusions, and evidence limits
 
-The local iPhoneOS 26.5 SDK marks `requestFullAccessToEventsWithCompletion:` available from iOS 17.0. The package does not add a runtime fallback for older operating systems; apps using this package must target iOS 17.0 or later. The backend does not request reminders or write-only event permission, read reminders, edit events, display EventKitUI or calendar UI, add entitlements, or ship Swift source.
+The local iPhoneOS 26.5 SDK marks `requestFullAccessToEventsWithCompletion:` available from iOS 17.0. The package does not add a runtime fallback for older operating systems; apps using this package must target iOS 17.0 or later. The backend does not request reminders or write-only event permission, read reminders, edit event series, display EventKitUI or calendar UI, add entitlements, or ship Swift source.
 
-Host tests verify status gating, finite ranges, EventKit's maximum query horizon, fractional-second retention, nullable fields, all-day flag retention, malformed native-date failure, writable-calendar selection, one-event create success/error behavior, and selected-event delete regressions through deterministic backends. Device/Simulator compilation and Release selector/link/import/deployment probes verify target compilation and static linkage only. They do not exercise a live authorization prompt, a user's choice, event-store contents, event persistence/deletion, or runtime behavior on a device.
+Host tests verify status gating, finite ranges, EventKit's maximum query horizon, fractional-second retention, nullable fields, all-day flag retention, malformed native-date failure, writable-calendar selection, one-event create success/error behavior, and selected-event delete/update regressions through deterministic backends. Device/Simulator compilation and Release selector/link/import/deployment probes verify target compilation and static linkage only. They do not exercise a live authorization prompt, a user's choice, event-store contents, event persistence/deletion/update, or runtime behavior on a device.
 
 Apple references: [`EKEventStore` access and request guidance](https://developer.apple.com/documentation/eventkit/accessing-the-event-store?changes=__3%2C__3), [`EKAuthorizationStatus`](https://developer.apple.com/documentation/eventkit/ekauthorizationstatus?changes=_5%2C_5), [retrieving events and reminders](https://developer.apple.com/documentation/eventkit/retrieving-events-and-reminders?changes=_9), [`eventsMatchingPredicate:`](https://developer.apple.com/documentation/eventkit/ekeventstore/events%28matching%3A%29?language=objc), and [Calendar access with EventKit](https://developer.apple.com/documentation/eventkit/accessing-calendar-using-eventkit-and-eventkitui?changes=_7).
 

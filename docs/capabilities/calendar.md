@@ -40,6 +40,14 @@ Calendar listing and creation are synchronous and may block on the caller's thre
 
 Apple documents that `eventWithIdentifier:` returns the first occurrence for a recurring identifier. To avoid deleting a different occurrence, the backend fails closed when the resolved date interval differs from the selected summary; it does not enumerate or search for a substitute occurrence. The operation does not remove a series or future occurrences, access reminders, prompt, retry, or show UI. EventKit deletion and runtime state are not proven by host tests.
 
+## Updating one selected event (B485)
+
+`Calendar::update_event(&CalendarEvent, &CalendarEventDraft)` treats the existing `CalendarEventDraft` as a complete replacement for title, start, end, all-day, location, and notes. Optional location/notes set to `None` clear those fields. The operation preserves the event's current calendar; the draft cannot select or move an event to another calendar.
+
+The iOS backend rejects missing/empty identifiers before native work, rechecks current `FullAccess` without prompting, resolves only the selected identifier, and requires the resolved identifier and exact start/end instants to match the selected snapshot before mutation. It then checks the attached calendar's Event support and current modifiability, sets only the six draft fields, and calls `saveEvent:span:commit:error:` exactly once with `EKSpan::ThisEvent` and commit enabled. It does not set the calendar, enumerate or search events, retry, access reminders, edit a series, or show UI. Native error kind and representable code are retained. Because `eventWithIdentifier:` resolves the first occurrence for a recurring identifier, a different selected occurrence fails closed without mutation rather than searching for a substitute.
+
+The operation is synchronous and may block. Host regressions cover invalid identifiers/no dispatch, denied access, stale occurrence/no save, non-event and unwritable calendars, exact replacement fields/current-calendar preservation, one save, and native error-code retention. These checks do not prove live EventKit state or on-device recurrence behavior.
+
 ## Status and result semantics
 
 `CalendarAuthorizationStatus` distinguishes `Unknown`, `NotDetermined`, `Restricted`, `Denied`, `WriteOnly`, and `FullAccess`. `Unknown` means the backend could not classify a reported status; it is distinct from `NotDetermined`, which means no user decision has been made. `WriteOnly` is not equivalent to `FullAccess`: it reports permission to save new events without full Calendar event-data access. The contract reports a write-only state but does not offer a write-only permission request.
@@ -50,7 +58,7 @@ The portable crate depends only on `framework-core` and `core` plus `alloc` for 
 
 ## Scope and checks
 
-This contract covers status, an explicit full-access request, bounded event-range reads, a writable event-calendar choice snapshot, creation of one caller-described event, and deletion of one selected event. It does not define full event enumeration, event edits, reminder access, EventKitUI, calendar UI, entitlements, or permission-copy values.
+This contract covers status, an explicit full-access request, bounded event-range reads, a writable event-calendar choice snapshot, creation of one caller-described event, deletion of one selected event, and replacement of six fields on one selected event. It does not define full event enumeration, series edits, reminder access, EventKitUI, calendar UI, entitlements, or permission-copy values.
 
 Portable checks:
 
