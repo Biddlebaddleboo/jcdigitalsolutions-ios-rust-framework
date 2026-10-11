@@ -27,6 +27,7 @@ fn main() {
     let _ = field.set_placeholder(Some("new hint"));
     let _ = field.request_first_responder();
     let _ = field.resign_first_responder();
+    let _ = parent.end_editing();
     let _ = field.native_text_field();
 
     let mut ui = framework_ui::UiClient::new(backend);

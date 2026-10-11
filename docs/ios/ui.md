@@ -113,11 +113,19 @@ not prove keyboard visibility or text-input runtime behavior. The handle is reta
 `!Send`/`!Sync`; all operations require the current main thread. This slice adds no delegate,
 keyboard management, controller/window ownership, or runtime UI proof
 
+`IosView::end_editing()` forces UIKit to end editing in that view or one of its descendants through
+the public `UIView.endEditing(true)` API. It searches only the passed view hierarchy and is not a
+process-wide responder search. `Ok(true)` means UIKit reports that the scoped view resigned first
+responder status; `Ok(false)` means it did not. This result does not establish that an on-screen
+keyboard was visible or disappeared. The method requires the current main thread; the existing
+`IosTextField::resign_first_responder()` remains the narrower, field-specific operation
+
 ```rust
 let mut field = backend.add_text_field(&mut parent, frame, None, Some("Name"))?;
 field.set_text(Some("Ada"))?;
 let text: Option<String> = field.text()?;
 let accepted = field.request_first_responder()?;
+let ended = parent.end_editing()?;
 ```
 
 `framework_ui::TextFieldControl` and `UiClient::add_text_field` add a portable user-edit callback.
@@ -195,9 +203,9 @@ minimum
 
 The B489 image-view link fixture checks the public UIKit framework, `UIImageView` class,
 `setImage:` selector, and iOS 12.0 device / iOS 14.0 Simulator deployment targets. The B493
-text-field fixture checks `UITextField`, nullable text/placeholder selectors, both responder
-selectors, and the same target floors. Link passes are not runtime image display, visual proof,
-keyboard behavior, or text-input proof
+text-field fixture checks `UITextField`, nullable text/placeholder selectors, both field responder
+selectors, the view-scoped `endEditing:` selector, and the same target floors. Link passes are not
+runtime image display, visual proof, keyboard behavior, or text-input proof
 
 ## Scope and evidence
 

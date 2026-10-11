@@ -339,6 +339,19 @@ impl IosUiBackend {
 }
 
 impl IosView {
+    /// Forces UIKit to end editing in this view or one of its descendants.
+    ///
+    /// This operation searches only this native view hierarchy, not the process-wide responder
+    /// chain. The returned value is UIKit's result for `UIView.endEditing(true)`; it does not
+    /// report whether an on-screen keyboard was visible or disappeared.
+    pub fn end_editing(&mut self) -> Result<bool> {
+        let _view_end_editing_thread = main_thread_marker()?;
+        // SAFETY: `UIView.endEditing:` is public and takes/returns `BOOL`; `self.native` is a
+        // retained `UIView`. objc2-ui-kit does not currently expose this UIView method.
+        let ended: bool = unsafe { msg_send![&*self.native, endEditing: true] };
+        Ok(ended)
+    }
+
     /// Borrows the native container view for UIKit integration.
     pub fn native_view(&self) -> &UIView {
         &self.native

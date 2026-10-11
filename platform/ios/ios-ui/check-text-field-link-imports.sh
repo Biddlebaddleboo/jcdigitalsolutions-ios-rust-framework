@@ -43,7 +43,7 @@ for target in aarch64-apple-ios aarch64-apple-ios-sim; do
     }
     for selector in 'setText:' 'text' 'setPlaceholder:' 'placeholder' \
         'becomeFirstResponder' 'resignFirstResponder' 'setSecureTextEntry:' \
-        'setKeyboardType:' 'textFieldChanged:' \
+        'setKeyboardType:' 'textFieldChanged:' 'endEditing:' \
         'removeTarget:action:forControlEvents:'; do
         printf '%s\n' "$binary_strings" | grep -F "$selector" >/dev/null || {
             echo "$target text-field probe is missing the $selector selector" >&2
