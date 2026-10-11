@@ -1003,6 +1003,24 @@
           "text": "AVCaptureSession::new()"
         },
         {
+          "message": "Auto must map to AVFoundation one-shot autofocus",
+          "must_exist": true,
+          "path": "platform/ios/ios-camera-capture-session/src/lib.rs",
+          "text": "IosCameraFocusMode::Auto => AVCaptureFocusMode::AutoFocus"
+        },
+        {
+          "message": "ContinuousAuto must map to AVFoundation continuous autofocus",
+          "must_exist": true,
+          "path": "platform/ios/ios-camera-capture-session/src/lib.rs",
+          "text": "IosCameraFocusMode::ContinuousAuto => AVCaptureFocusMode::ContinuousAutoFocus"
+        },
+        {
+          "message": "Locked must map to AVFoundation locked focus",
+          "must_exist": true,
+          "path": "platform/ios/ios-camera-capture-session/src/lib.rs",
+          "text": "IosCameraFocusMode::Locked => AVCaptureFocusMode::Locked"
+        },
+        {
           "message": "live preview must use the public AVFoundation preview layer",
           "must_exist": true,
           "path": "platform/ios/ios-camera-capture-session/src/lib.rs",
@@ -1451,6 +1469,126 @@
           "must_exist": false,
           "path": "platform/ios/ios-camera-capture-session/src/lib.rs",
           "text": "setActiveFormat"
+        },
+        {
+          "message": "selected-camera focus must expose a typed focus operation",
+          "must_exist": true,
+          "path": "platform/ios/ios-camera-capture-session/src/lib.rs",
+          "text": "pub fn set_focus("
+        },
+        {
+          "message": "focus modes must map the requested semantics to typed public modes",
+          "must_exist": true,
+          "path": "platform/ios/ios-camera-capture-session/src/lib.rs",
+          "text": "pub enum IosCameraFocusMode"
+        },
+        {
+          "message": "focus points must use framework-owned normalized coordinates",
+          "must_exist": true,
+          "path": "platform/ios/ios-camera-capture-session/src/lib.rs",
+          "text": "pub struct NormalizedFocusPoint"
+        },
+        {
+          "message": "focus control must reject non-finite or out-of-range coordinates",
+          "must_exist": true,
+          "path": "platform/ios/ios-camera-capture-session/src/lib.rs",
+          "text": "fn valid_focus_point(point: NormalizedFocusPoint) -> bool"
+        },
+        {
+          "message": "focus control must reject invalid focus requests before native support queries",
+          "must_exist": true,
+          "path": "platform/ios/ios-camera-capture-session/src/lib.rs",
+          "text": "if point.is_some_and(|point| !valid_focus_point(point))"
+        },
+        {
+          "message": "focus control must reject a point combined with locked focus mode",
+          "must_exist": true,
+          "path": "platform/ios/ios-camera-capture-session/src/lib.rs",
+          "text": "FocusControlError::LockedModeCannotUseFocusPoint"
+        },
+        {
+          "message": "focus control must validate supported mode and point before locking",
+          "must_exist": true,
+          "path": "platform/ios/ios-camera-capture-session/src/lib.rs",
+          "text": "validate_support(mode, point)?;"
+        },
+        {
+          "message": "focus control must check point support only when a point is requested before locking",
+          "must_exist": true,
+          "path": "platform/ios/ios-camera-capture-session/src/lib.rs",
+          "text": "if point.is_some() && !unsafe { device.isFocusPointOfInterestSupported() } {"
+        },
+        {
+          "message": "focus control must use the selected device's public mode support query",
+          "must_exist": true,
+          "path": "platform/ios/ios-camera-capture-session/src/lib.rs",
+          "text": "device.isFocusModeSupported(native_mode(mode))"
+        },
+        {
+          "message": "focus control must use the selected device's public point support query",
+          "must_exist": true,
+          "path": "platform/ios/ios-camera-capture-session/src/lib.rs",
+          "text": "device.isFocusPointOfInterestSupported()"
+        },
+        {
+          "message": "focus control must set an accepted point before applying focus mode",
+          "must_exist": true,
+          "path": "platform/ios/ios-camera-capture-session/src/lib.rs",
+          "text": "device.setFocusPointOfInterest(CGPoint::new(point.x(), point.y()))"
+        },
+        {
+          "message": "focus control must use the public AVFoundation focus-mode setter",
+          "must_exist": true,
+          "path": "platform/ios/ios-camera-capture-session/src/lib.rs",
+          "text": "device.setFocusMode(native_mode(mode))"
+        },
+        {
+          "message": "focus control must release a successful device lock through the shared drop guard",
+          "must_exist": true,
+          "path": "platform/ios/ios-camera-capture-session/src/lib.rs",
+          "text": "let unlock = UnlockDeviceConfiguration(Some(unlock))"
+        },
+        {
+          "message": "focus control must not set a manual lens position",
+          "must_exist": false,
+          "path": "platform/ios/ios-camera-capture-session/src/lib.rs",
+          "text": "setFocusModeLockedWithLensPosition_completionHandler"
+        },
+        {
+          "message": "focus control must not request camera authorization",
+          "must_exist": false,
+          "path": "platform/ios/ios-camera-capture-session/src/lib.rs",
+          "text": "requestAccessForMediaType_completionHandler"
+        },
+        {
+          "message": "focus control must not enumerate or switch the selected camera",
+          "must_exist": false,
+          "path": "platform/ios/ios-camera-capture-session/src/lib.rs",
+          "text": "AVCaptureDeviceDiscoverySession"
+        },
+        {
+          "message": "focus link probe must retain the public mode support selector",
+          "must_exist": true,
+          "path": "platform/ios/ios-camera-capture-session/check-link-imports.sh",
+          "text": "isFocusModeSupported:"
+        },
+        {
+          "message": "focus link probe must retain the public mode setter selector",
+          "must_exist": true,
+          "path": "platform/ios/ios-camera-capture-session/check-link-imports.sh",
+          "text": "setFocusMode:"
+        },
+        {
+          "message": "focus link probe must retain the public point support selector",
+          "must_exist": true,
+          "path": "platform/ios/ios-camera-capture-session/check-link-imports.sh",
+          "text": "isFocusPointOfInterestSupported"
+        },
+        {
+          "message": "focus link probe must retain the public point setter selector",
+          "must_exist": true,
+          "path": "platform/ios/ios-camera-capture-session/check-link-imports.sh",
+          "text": "setFocusPointOfInterest:"
         }
       ],
       "id": "ios-camera-capture-session",

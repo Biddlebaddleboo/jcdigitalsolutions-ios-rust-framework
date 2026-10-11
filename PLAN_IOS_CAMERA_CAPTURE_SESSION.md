@@ -94,3 +94,13 @@ B475 adds `IosCameraCaptureSession::set_zoom_factor(f64)` for the device already
 - The installed `objc2-av-foundation` 0.3.2 binding exposes `activeFormat`, `videoMaxZoomFactor`, and `setVideoZoomFactor:` with the `objc2-core-foundation` feature. No new crate dependency is added.
 - Host regressions cover missing device, non-finite and lower/upper-bound errors, invalid device bounds, lock failure, exact set order, and unlock on range failure/unwind. The registered device and Simulator link probe retains the zoom selectors.
 - Static tests and links do not prove live zoom changes, automatic device behavior, Simulator execution, or physical-device behavior.
+
+## B476: selected-camera focus control
+
+B476 adds `IosCameraCaptureSession::set_focus(IosCameraFocusMode, Option<NormalizedFocusPoint>)` for the device already retained by the capture graph. `Auto` autofocuses once, `ContinuousAuto` keeps autofocus active, and `Locked` holds the current lens position. A point is accepted only with an automatic mode because a focus point alone does not start focus and Locked does not apply the supplied point. `None` preserves the current native point
+
+- Coordinates must be finite and in the inclusive `[0.0, 1.0]` range. Apple defines `(0.0, 0.0)` as the image's top-left and `(1.0, 1.0)` as its bottom-right. They are not UIKit preview-layer coordinates; callers must account for preview rotation and mirroring
+- Mode and point support are checked before the device configuration lock. After a successful lock, a requested point is set before the focus mode, then `UnlockDeviceConfiguration` releases the lock, including during unwind. Typed errors distinguish a missing selected camera, invalid point, Locked-plus-point, unsupported mode, unsupported point, and lock failure
+- Public AVFoundation focus APIs have an iOS 4.0 floor, below the existing iOS 10.0 device and iOS 14.0 Simulator floors. `CGPoint` uses the already-pinned `objc2-core-foundation` binding; no new crate, Swift source, C ABI, permission prompt, enumeration, camera switch, or session/audio policy is added
+- Host regressions cover inclusive bounds, NaN/infinity/out-of-range rejection, invalid mode/point combination, unsupported mode/point before lock, missing device, lock failure, point-before-mode order, `None` behavior, and unlock on unwind. Device/Simulator link probes retain the four public mode/point selector references
+- Host tests and device/Simulator compile/link checks do not prove autofocus, point orientation, camera hardware support, Simulator execution, or physical-device behavior

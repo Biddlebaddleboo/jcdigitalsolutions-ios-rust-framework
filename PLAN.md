@@ -240,6 +240,10 @@ Commit `1b9fac5` adds a source-compatible delete extension that validates one ca
 
 B475 adds `IosCameraCaptureSession::set_zoom_factor(f64)` for its already selected device. The public iOS 7.0 `videoZoomFactor`, `activeFormat`, and `videoMaxZoomFactor` APIs are below the existing iOS 10 device / iOS 14 Simulator floors; the newer iOS 11 min/max-available properties are not used. The setter validates a finite request in the inclusive `[1.0, activeFormat.videoMaxZoomFactor]` range under the configuration lock, applies the exact value without clamping or ramping, and always unlocks after a successful lock. Host regressions and registered device/Simulator selector checks do not prove live zoom behavior; see [PLAN_IOS_CAMERA_CAPTURE_SESSION.md](PLAN_IOS_CAMERA_CAPTURE_SESSION.md).
 
+### B476 — selected-camera focus control (row 046)
+
+B476 adds `IosCameraCaptureSession::set_focus(IosCameraFocusMode, Option<NormalizedFocusPoint>)` for its already selected device. Auto focuses once, ContinuousAuto continues automatic focus, and Locked holds the current lens position; a point with Locked is rejected. Finite normalized points use AVFoundation's inclusive `[0.0, 1.0]` image-coordinate range; mode/point support checks precede the lock, then the requested point precedes the mode under the existing RAII unlock guard. Host regressions and registered iOS device/Simulator compile/link selector checks do not prove autofocus, orientation mapping, Simulator execution, or physical-device behavior; see [PLAN_IOS_CAMERA_CAPTURE_SESSION.md](PLAN_IOS_CAMERA_CAPTURE_SESSION.md)
+
 ## Active work selection and limits
 
 1. Inspect the canonical capability status/owner, the relevant family plan, then the named workstream plan and exact files/symbols. Do not scan the entire planning corpus or treat every existing plan as pending work.

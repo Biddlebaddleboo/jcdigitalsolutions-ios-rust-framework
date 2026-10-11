@@ -573,6 +573,7 @@ dependencies = [
  "ios-media-authorization",
  "objc2",
  "objc2-av-foundation",
+ "objc2-core-foundation",
  "objc2-core-media",
  "objc2-foundation",
 ]

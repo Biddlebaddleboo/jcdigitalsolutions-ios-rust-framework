@@ -80,6 +80,10 @@ for target in aarch64-apple-ios aarch64-apple-ios-sim; do
         activeFormat \
         videoMaxZoomFactor \
         setVideoZoomFactor: \
+        isFocusModeSupported: \
+        setFocusMode: \
+        isFocusPointOfInterestSupported \
+        setFocusPointOfInterest: \
         canAddInput: \
         addInput: \
         layerWithSession: \

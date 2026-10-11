@@ -33,11 +33,13 @@ use objc2::{AnyThread, DefinedClass, MainThreadMarker, define_class, msg_send};
 use objc2_av_foundation::{
     AVCaptureConnection, AVCaptureDevice, AVCaptureDeviceInput, AVCaptureDevicePosition,
     AVCaptureDeviceTypeBuiltInWideAngleCamera, AVCaptureFileOutput,
-    AVCaptureFileOutputRecordingDelegate, AVCaptureMovieFileOutput, AVCaptureOutput,
-    AVCapturePhoto, AVCapturePhotoCaptureDelegate, AVCapturePhotoOutput, AVCapturePhotoSettings,
-    AVCaptureSession, AVCaptureTorchMode, AVCaptureVideoDataOutput,
+    AVCaptureFileOutputRecordingDelegate, AVCaptureFocusMode, AVCaptureMovieFileOutput,
+    AVCaptureOutput, AVCapturePhoto, AVCapturePhotoCaptureDelegate, AVCapturePhotoOutput,
+    AVCapturePhotoSettings, AVCaptureSession, AVCaptureTorchMode, AVCaptureVideoDataOutput,
     AVCaptureVideoDataOutputSampleBufferDelegate, AVCaptureVideoPreviewLayer, AVMediaTypeVideo,
 };
+#[cfg(target_os = "ios")]
+use objc2_core_foundation::CGPoint;
 #[cfg(target_os = "ios")]
 use objc2_core_media::CMSampleBuffer;
 #[cfg(target_os = "ios")]
@@ -893,6 +895,62 @@ pub enum ZoomControlError {
     ConfigurationLockFailed,
 }
 
+/// Public AVFoundation focus behavior for the selected camera
+#[cfg(any(target_os = "ios", test))]
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum IosCameraFocusMode {
+    /// Autofocus once, then hold the resulting lens position
+    Auto,
+    /// Continue to autofocus when the camera determines it is needed
+    ContinuousAuto,
+    /// Hold the current lens position
+    Locked,
+}
+
+/// A normalized point in the selected camera's image coordinates
+#[cfg(any(target_os = "ios", test))]
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct NormalizedFocusPoint {
+    x: f64,
+    y: f64,
+}
+
+#[cfg(any(target_os = "ios", test))]
+impl NormalizedFocusPoint {
+    /// Create a focus point; `set_focus` rejects non-finite or out-of-range coordinates
+    pub const fn new(x: f64, y: f64) -> Self {
+        Self { x, y }
+    }
+
+    /// Return the normalized horizontal coordinate
+    pub const fn x(self) -> f64 {
+        self.x
+    }
+
+    /// Return the normalized vertical coordinate
+    pub const fn y(self) -> f64 {
+        self.y
+    }
+}
+
+/// Failure to configure focus on the session's selected camera
+#[cfg(any(target_os = "ios", test))]
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum FocusControlError {
+    /// The session graph has no configured video device
+    NoSelectedCamera,
+    /// Either normalized point coordinate is non-finite or outside `[0.0, 1.0]`
+    InvalidFocusPoint,
+    /// A locked focus mode cannot apply a requested focus point
+    LockedModeCannotUseFocusPoint,
+    /// The selected camera does not support the requested focus mode
+    FocusModeUnsupported,
+    /// The selected camera does not support focus points of interest
+    FocusPointUnsupported,
+    /// AVFoundation could not lock the selected camera for configuration
+    ConfigurationLockFailed,
+}
+
 #[cfg(any(target_os = "ios", test))]
 struct UnlockDeviceConfiguration<F: FnOnce()>(Option<F>);
 
@@ -960,6 +1018,49 @@ fn configure_video_zoom_factor(
         return Err(ZoomControlError::ZoomFactorOutOfRange);
     }
     set_factor(factor);
+    drop(unlock);
+    Ok(())
+}
+
+#[cfg(any(target_os = "ios", test))]
+fn require_selected_focus_camera<T>(device: Option<T>) -> Result<T, FocusControlError> {
+    device.ok_or(FocusControlError::NoSelectedCamera)
+}
+
+#[cfg(any(target_os = "ios", test))]
+fn valid_focus_point(point: NormalizedFocusPoint) -> bool {
+    point.x.is_finite()
+        && point.y.is_finite()
+        && (0.0..=1.0).contains(&point.x)
+        && (0.0..=1.0).contains(&point.y)
+}
+
+#[cfg(any(target_os = "ios", test))]
+fn configure_focus(
+    mode: IosCameraFocusMode,
+    point: Option<NormalizedFocusPoint>,
+    validate_support: impl FnOnce(
+        IosCameraFocusMode,
+        Option<NormalizedFocusPoint>,
+    ) -> Result<(), FocusControlError>,
+    lock: impl FnOnce() -> Result<(), ()>,
+    set_point: impl FnOnce(NormalizedFocusPoint),
+    set_mode: impl FnOnce(IosCameraFocusMode),
+    unlock: impl FnOnce(),
+) -> Result<(), FocusControlError> {
+    if point.is_some_and(|point| !valid_focus_point(point)) {
+        return Err(FocusControlError::InvalidFocusPoint);
+    }
+    if mode == IosCameraFocusMode::Locked && point.is_some() {
+        return Err(FocusControlError::LockedModeCannotUseFocusPoint);
+    }
+    validate_support(mode, point)?;
+    lock().map_err(|()| FocusControlError::ConfigurationLockFailed)?;
+    let unlock = UnlockDeviceConfiguration(Some(unlock));
+    if let Some(point) = point {
+        set_point(point);
+    }
+    set_mode(mode);
     drop(unlock);
     Ok(())
 }
@@ -1231,6 +1332,66 @@ impl IosCameraCaptureSession {
                 // the matching device configuration lock is held.
                 |factor| unsafe { device.setVideoZoomFactor(factor) },
                 // SAFETY: configure_video_zoom_factor invokes this only after a successful lock.
+                || unsafe { device.unlockForConfiguration() },
+            );
+        });
+        result
+    }
+
+    /// Set the selected camera's focus mode and optional normalized point of interest
+    ///
+    /// Coordinates use AVFoundation's image coordinate system: `(0.0, 0.0)` is the top-left
+    /// and `(1.0, 1.0)` is the bottom-right. They are not UIKit preview-layer coordinates; callers
+    /// must convert points from a rotated or mirrored preview before passing them. `None` leaves
+    /// the native point unchanged. A point is accepted only with `Auto` or `ContinuousAuto`, since
+    /// `Locked` holds the current lens position and a point alone does not start a focus operation.
+    /// The request is checked against the selected camera before its configuration lock is taken,
+    /// then the point (if any) and mode are set under that lock. This does not prompt, switch
+    /// cameras, or alter capture-session or audio policy.
+    pub fn set_focus(
+        &self,
+        mode: IosCameraFocusMode,
+        point: Option<NormalizedFocusPoint>,
+    ) -> Result<(), FocusControlError> {
+        let graph = Arc::clone(&self.graph);
+        let mut result = Err(FocusControlError::NoSelectedCamera);
+        self.queue.exec_sync(|| {
+            let graph = graph
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner);
+            let Ok(device) = require_selected_focus_camera(graph.device.as_ref()) else {
+                return;
+            };
+            let native_mode = |mode| match mode {
+                IosCameraFocusMode::Auto => AVCaptureFocusMode::AutoFocus,
+                IosCameraFocusMode::ContinuousAuto => AVCaptureFocusMode::ContinuousAutoFocus,
+                IosCameraFocusMode::Locked => AVCaptureFocusMode::Locked,
+            };
+            result = configure_focus(
+                mode,
+                point,
+                // SAFETY: These public focus modes are available from iOS 4.0, below the
+                // package's iOS 10.0 device and iOS 14.0 Simulator floors. The optional point
+                // support query is public and runs only after the requested mode is supported.
+                |mode, point| {
+                    if !unsafe { device.isFocusModeSupported(native_mode(mode)) } {
+                        return Err(FocusControlError::FocusModeUnsupported);
+                    }
+                    if point.is_some() && !unsafe { device.isFocusPointOfInterestSupported() } {
+                        return Err(FocusControlError::FocusPointUnsupported);
+                    }
+                    Ok(())
+                },
+                // SAFETY: The retained selected device remains protected by the graph mutex for
+                // this serialized operation; lockForConfiguration is public AVFoundation API.
+                || unsafe { device.lockForConfiguration().map_err(|_| ()) },
+                // SAFETY: The point was validated and is set only after support and lock checks.
+                |point| unsafe {
+                    device.setFocusPointOfInterest(CGPoint::new(point.x(), point.y()))
+                },
+                // SAFETY: The requested mode was checked before locking, and the lock is held.
+                |mode| unsafe { device.setFocusMode(native_mode(mode)) },
+                // SAFETY: configure_focus invokes this only after a successful matching lock.
                 || unsafe { device.unlockForConfiguration() },
             );
         });
@@ -1798,13 +1959,14 @@ fn invoke_video_completion(completion: VideoRecordingCompletion, result: VideoRe
 #[cfg(test)]
 mod tests {
     use super::{
-        CameraCaptureError, IosCameraPosition, MediaAuthorizationStatus, MovieRecordingState,
-        PhotoCaptureError, PhotoCaptureResult, TorchControlError, VideoFrameStreamError,
-        VideoFrameStreamState, VideoRecordingError, VideoRecordingResult, ZoomControlError,
+        CameraCaptureError, FocusControlError, IosCameraFocusMode, IosCameraPosition,
+        MediaAuthorizationStatus, MovieRecordingState, NormalizedFocusPoint, PhotoCaptureError,
+        PhotoCaptureResult, TorchControlError, VideoFrameStreamError, VideoFrameStreamState,
+        VideoRecordingError, VideoRecordingResult, ZoomControlError, configure_focus,
         configure_torch_enabled, configure_video_zoom_factor, drop_video_frame_callback_safely,
         invoke_video_frame_callback, may_create_device_input, photo_request_error,
-        require_camera_at_position, require_selected_camera, settle_movie_result,
-        settle_photo_result, take_photo_completion, take_video_completion,
+        require_camera_at_position, require_selected_camera, require_selected_focus_camera,
+        settle_movie_result, settle_photo_result, take_photo_completion, take_video_completion,
         validate_movie_destination,
     };
     use std::cell::RefCell;
@@ -1997,6 +2159,206 @@ mod tests {
             require_selected_camera::<u8>(None),
             Err(ZoomControlError::NoSelectedCamera)
         );
+    }
+
+    #[test]
+    fn focus_control_requires_a_selected_camera() {
+        assert_eq!(require_selected_focus_camera(Some(17_u8)), Ok(17));
+        assert_eq!(
+            require_selected_focus_camera::<u8>(None),
+            Err(FocusControlError::NoSelectedCamera)
+        );
+    }
+
+    #[test]
+    fn focus_control_accepts_normalized_boundaries_and_rejects_invalid_points_before_native_calls()
+    {
+        for point in [
+            NormalizedFocusPoint::new(0.0, 0.0),
+            NormalizedFocusPoint::new(1.0, 1.0),
+            NormalizedFocusPoint::new(0.0, 1.0),
+            NormalizedFocusPoint::new(1.0, 0.0),
+        ] {
+            assert_eq!(
+                configure_focus(
+                    IosCameraFocusMode::Auto,
+                    Some(point),
+                    |_, _| Ok(()),
+                    || Ok(()),
+                    |_| {},
+                    |_| {},
+                    || {},
+                ),
+                Ok(())
+            );
+        }
+
+        for point in [
+            NormalizedFocusPoint::new(f64::NAN, 0.5),
+            NormalizedFocusPoint::new(0.5, f64::INFINITY),
+            NormalizedFocusPoint::new(f64::NEG_INFINITY, 0.5),
+            NormalizedFocusPoint::new(-f64::EPSILON, 0.5),
+            NormalizedFocusPoint::new(0.5, 1.0 + f64::EPSILON),
+        ] {
+            assert_eq!(
+                configure_focus(
+                    IosCameraFocusMode::Auto,
+                    Some(point),
+                    |_, _| panic!("invalid point must be rejected before support queries"),
+                    || panic!("invalid point must not lock the device"),
+                    |_| panic!("invalid point must not be set"),
+                    |_| panic!("invalid point must not change mode"),
+                    || panic!("device was not locked"),
+                ),
+                Err(FocusControlError::InvalidFocusPoint)
+            );
+        }
+    }
+
+    #[test]
+    fn focus_control_rejects_locked_point_and_unsupported_mode_or_point_before_lock() {
+        assert_eq!(
+            configure_focus(
+                IosCameraFocusMode::Locked,
+                Some(NormalizedFocusPoint::new(0.5, 0.5)),
+                |_, _| panic!("locked focus point must be rejected before native checks"),
+                || panic!("invalid combination must not lock the device"),
+                |_| panic!("invalid combination must not set a point"),
+                |_| panic!("invalid combination must not change mode"),
+                || panic!("device was not locked"),
+            ),
+            Err(FocusControlError::LockedModeCannotUseFocusPoint)
+        );
+        assert_eq!(
+            configure_focus(
+                IosCameraFocusMode::ContinuousAuto,
+                None,
+                |_, _| Err(FocusControlError::FocusModeUnsupported),
+                || panic!("unsupported mode must not lock the device"),
+                |_| panic!("unsupported mode must not set a point"),
+                |_| panic!("unsupported mode must not be set"),
+                || panic!("device was not locked"),
+            ),
+            Err(FocusControlError::FocusModeUnsupported)
+        );
+        assert_eq!(
+            configure_focus(
+                IosCameraFocusMode::Auto,
+                Some(NormalizedFocusPoint::new(0.5, 0.5)),
+                |_, point| {
+                    assert!(point.is_some());
+                    Err(FocusControlError::FocusPointUnsupported)
+                },
+                || panic!("unsupported point must not lock the device"),
+                |_| panic!("unsupported point must not be set"),
+                |_| panic!("unsupported point must not change mode"),
+                || panic!("device was not locked"),
+            ),
+            Err(FocusControlError::FocusPointUnsupported)
+        );
+    }
+
+    #[test]
+    fn focus_control_reports_lock_failure_and_sets_point_before_mode() {
+        assert_eq!(
+            configure_focus(
+                IosCameraFocusMode::Auto,
+                None,
+                |_, _| Ok(()),
+                || Err(()),
+                |_| panic!("device lock failed"),
+                |_| panic!("device lock failed"),
+                || panic!("device was not locked"),
+            ),
+            Err(FocusControlError::ConfigurationLockFailed)
+        );
+
+        let events = RefCell::new(Vec::new());
+        let point = NormalizedFocusPoint::new(0.25, 0.75);
+        assert_eq!(
+            configure_focus(
+                IosCameraFocusMode::ContinuousAuto,
+                Some(point),
+                |mode, point| {
+                    assert_eq!(mode, IosCameraFocusMode::ContinuousAuto);
+                    events.borrow_mut().push("supports-mode");
+                    if point.is_some() {
+                        events.borrow_mut().push("supports-point");
+                    }
+                    Ok(())
+                },
+                || {
+                    events.borrow_mut().push("lock");
+                    Ok(())
+                },
+                |requested| {
+                    assert_eq!(requested, point);
+                    events.borrow_mut().push("set-point");
+                },
+                |mode| {
+                    assert_eq!(mode, IosCameraFocusMode::ContinuousAuto);
+                    events.borrow_mut().push("set-mode");
+                },
+                || events.borrow_mut().push("unlock"),
+            ),
+            Ok(())
+        );
+        assert_eq!(
+            *events.borrow(),
+            [
+                "supports-mode",
+                "supports-point",
+                "lock",
+                "set-point",
+                "set-mode",
+                "unlock"
+            ]
+        );
+
+        let events = RefCell::new(Vec::new());
+        assert_eq!(
+            configure_focus(
+                IosCameraFocusMode::Locked,
+                None,
+                |_, point| {
+                    assert!(point.is_none());
+                    Ok(())
+                },
+                || {
+                    events.borrow_mut().push("lock");
+                    Ok(())
+                },
+                |_| panic!("no point was requested"),
+                |mode| {
+                    assert_eq!(mode, IosCameraFocusMode::Locked);
+                    events.borrow_mut().push("set-mode");
+                },
+                || events.borrow_mut().push("unlock"),
+            ),
+            Ok(())
+        );
+        assert_eq!(*events.borrow(), ["lock", "set-mode", "unlock"]);
+    }
+
+    #[test]
+    fn focus_control_unlocks_after_unwind() {
+        let events = RefCell::new(Vec::new());
+        let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            configure_focus(
+                IosCameraFocusMode::Auto,
+                Some(NormalizedFocusPoint::new(0.5, 0.5)),
+                |_, _| Ok(()),
+                || {
+                    events.borrow_mut().push("lock");
+                    Ok(())
+                },
+                |_| events.borrow_mut().push("set-point"),
+                |_| panic!("simulated focus mode set panic"),
+                || events.borrow_mut().push("unlock"),
+            )
+        }));
+        assert!(result.is_err());
+        assert_eq!(*events.borrow(), ["lock", "set-point", "unlock"]);
     }
 
     #[test]
