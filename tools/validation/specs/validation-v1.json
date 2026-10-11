@@ -653,8 +653,8 @@
           "text": "captureOutput_didFinishCaptureForResolvedSettings_error"
         },
         {
-          "message": "movie recording output is outside the camera-session capability",
-          "must_exist": false,
+          "message": "video recording must use the public AVFoundation movie-file output",
+          "must_exist": true,
           "path": "platform/ios/ios-camera-capture-session/src/lib.rs",
           "text": "AVCaptureMovieFileOutput"
         },
@@ -699,6 +699,90 @@
           "must_exist": false,
           "path": "platform/ios/ios-camera-capture-session/src/lib.rs",
           "text": "deviceWithType"
+        },
+        {
+          "message": "video recording must configure one movie-file output",
+          "must_exist": true,
+          "path": "platform/ios/ios-camera-capture-session/src/lib.rs",
+          "text": "AVCaptureMovieFileOutput::new()"
+        },
+        {
+          "message": "movie-file recording must use AVFoundation file URLs and terminal delegate callbacks",
+          "must_exist": true,
+          "path": "platform/ios/ios-camera-capture-session/src/lib.rs",
+          "text": "startRecordingToOutputFileURL_recordingDelegate"
+        },
+        {
+          "message": "movie recording must stop through AVFoundation file finalization",
+          "must_exist": true,
+          "path": "platform/ios/ios-camera-capture-session/src/lib.rs",
+          "text": "output.stopRecording()"
+        },
+        {
+          "message": "movie recording must settle from the required terminal recording callback",
+          "must_exist": true,
+          "path": "platform/ios/ios-camera-capture-session/src/lib.rs",
+          "text": "captureOutput_didFinishRecordingToOutputFileAtURL_fromConnections_error"
+        },
+        {
+          "message": "movie recording must defer session stop while finalization is pending",
+          "must_exist": true,
+          "path": "platform/ios/ios-camera-capture-session/src/lib.rs",
+          "text": "pending_session_stop: bool"
+        },
+        {
+          "message": "movie destination paths must reject non-UTF-8 before NSURL conversion",
+          "must_exist": true,
+          "path": "platform/ios/ios-camera-capture-session/src/lib.rs",
+          "text": "path.to_str()"
+        },
+        {
+          "message": "movie output must remain video-only",
+          "must_exist": false,
+          "path": "platform/ios/ios-camera-capture-session/src/lib.rs",
+          "text": "AVMediaTypeAudio"
+        },
+        {
+          "message": "movie output must not add an AVFoundation audio file output",
+          "must_exist": false,
+          "path": "platform/ios/ios-camera-capture-session/src/lib.rs",
+          "text": "AVCaptureAudioFileOutput"
+        },
+        {
+          "message": "movie output must not add an AVFoundation audio sample output",
+          "must_exist": false,
+          "path": "platform/ios/ios-camera-capture-session/src/lib.rs",
+          "text": "AVCaptureAudioDataOutput"
+        },
+        {
+          "message": "movie recording must not read or mutate AVAudioSession",
+          "must_exist": false,
+          "path": "platform/ios/ios-camera-capture-session/src/lib.rs",
+          "text": "AVAudioSession"
+        },
+        {
+          "message": "the camera crate must not enable or depend on AVAudioSession",
+          "must_exist": false,
+          "path": "platform/ios/ios-camera-capture-session/Cargo.toml",
+          "text": "AVAudioSession"
+        },
+        {
+          "message": "movie recording must not write to the Photos library",
+          "must_exist": false,
+          "path": "platform/ios/ios-camera-capture-session/src/lib.rs",
+          "text": "PHPhotoLibrary"
+        },
+        {
+          "message": "movie destination conversion must use a file NSURL",
+          "must_exist": true,
+          "path": "platform/ios/ios-camera-capture-session/src/lib.rs",
+          "text": "NSURL::fileURLWithPath(&path_string)"
+        },
+        {
+          "message": "photo requests must reject new work during deferred movie-session shutdown",
+          "must_exist": true,
+          "path": "platform/ios/ios-camera-capture-session/src/lib.rs",
+          "text": "fn photo_request_error("
         }
       ],
       "id": "ios-camera-capture-session",

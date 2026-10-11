@@ -18,6 +18,11 @@ fn main() {
     let _ = session.capture_photo(|result| {
         let _ = std::hint::black_box(result);
     });
+    let movie_path = std::path::PathBuf::from("/tmp/ios-camera-link-probe.mov");
+    let _ = std::hint::black_box(session.start_video_recording(&movie_path, |result| {
+        let _ = std::hint::black_box(result);
+    }));
+    session.stop_video_recording();
     session.stop();
 }
 

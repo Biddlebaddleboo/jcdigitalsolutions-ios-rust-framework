@@ -14,9 +14,10 @@ framework-media-authorization = { path = "../../../crates/framework-media-author
 dispatch2 = { workspace = true, features = ["alloc"] }
 ios-media-authorization = { path = "../ios-media-authorization", version = "0.1.0" }
 objc2 = { workspace = true, features = ["std"] }
-objc2-foundation = { workspace = true, features = ["NSData", "NSError", "NSObject"] }
+objc2-foundation = { workspace = true, features = ["NSData", "NSError", "NSArray", "NSObject", "NSString", "NSURL"] }
 objc2-av-foundation = { workspace = true, features = [
     "AVCaptureOutputBase",
+    "AVCaptureFileOutput",
     "AVCapturePhotoOutput",
     "AVCaptureDevice",
     "AVCaptureInput",
