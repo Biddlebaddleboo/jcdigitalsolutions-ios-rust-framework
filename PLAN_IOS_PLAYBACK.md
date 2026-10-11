@@ -85,3 +85,13 @@ detachment, late callback, and callback/waker panic containment. Device/Simulato
 Release link checks prove the typed ABI shape, direct CoreMedia/AVFoundation imports, selector string,
 and deployment metadata. They do not prove a seek on an item, decoding, displayed output, or live
 playback. Apple API: [AVPlayer.seekToTime:completionHandler:](https://developer.apple.com/documentation/avfoundation/avplayer/seek%28to%3Acompletionhandler%3A%29).
+
+## B492 — per-player AVPlayer volume and mute controls
+
+B492 adds `IosFilePlayer::volume`, `set_volume`, `is_muted`, and `set_muted`. All four methods require `objc2::MainThreadMarker`, use generated typed AVPlayer property calls, and return `IosPlayerOutputError::NativeApiUnavailable` below iOS 7.0. The existing iOS 4.0 aggregate API floor and registered device/Simulator floors stay unchanged.
+
+`set_volume` accepts only finite values in `[0.0, 1.0]`; it rejects invalid input without a native call or clamp. The getter returns only finite in-range native values. AVPlayer volume is a per-player level relative to system volume and is not suitable for a user-facing system-volume slider. `is_muted` and `set_muted` expose only the player mute flag, not device mute state, route suppression, or audible output. No system-volume API or AVAudioSession mutation is used.
+
+The iPhoneOS 26.5 SDK header declares both properties from iOS 7.0, and generated `objc2-av-foundation` 0.3.2 exposes typed `volume`, `setVolume:`, `isMuted`, and `setMuted:` methods under the existing `AVPlayer` feature. Host regressions cover inclusive endpoints, non-finite and out-of-range values, and invalid native reads. The Apple-target profile remains pending; no device/Simulator compile, selector/link, runtime, or audible-output claim is made.
+
+Apple APIs: [AVPlayer.volume](https://developer.apple.com/documentation/avfoundation/avplayer/volume) and [AVPlayer.isMuted](https://developer.apple.com/documentation/avfoundation/avplayer/ismuted).

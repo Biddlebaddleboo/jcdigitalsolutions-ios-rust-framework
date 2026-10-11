@@ -6,6 +6,17 @@ require `objc2::MainThreadMarker`. `as_av_player` lends `&AVPlayer` on the main 
 integration with `AVPlayerLayer` or other public AVFoundation APIs. The wrapper owns the player;
 the borrow does not transfer ownership.
 
+`volume`, `set_volume`, `is_muted`, and `set_muted` also require `objc2::MainThreadMarker`. Their
+AVPlayer properties are available from iOS 7.0; older systems return
+`IosPlayerOutputError::NativeApiUnavailable`, so the package's iOS 4.0 base floor is unchanged.
+`volume` returns only a finite native value in the inclusive 0.0 through 1.0 range. `set_volume`
+rejects non-finite or out-of-range input without a native call or coercion. AVPlayer volume is a
+per-player level relative to system volume: 0.0 silences this player and 1.0 is full volume for
+this player. It does not read or set system volume, and Apple says not to use it as a user-facing
+volume slider. The crate exposes no system-volume UI or programmatic system-volume control.
+`is_muted` and `set_muted` access only the player mute flag; they do not report device mute state,
+route suppression, or audible output.
+
 The constructor accepts an absolute Rust UTF-8 path, rejects embedded NUL, opens it to verify
 readability and regular-file metadata, then passes the unchanged path to `NSURL::fileURLWithPath`.
 This is a preflight, not a guarantee that the file remains present or unchanged after return.
@@ -35,6 +46,8 @@ Release link/import checks. None executes the link probe or establishes runtime 
 codec support, or hardware behavior.
 
 Apple APIs: [AVPlayer](https://developer.apple.com/documentation/avfoundation/avplayer),
+[AVPlayer.volume](https://developer.apple.com/documentation/avfoundation/avplayer/volume),
+[AVPlayer.isMuted](https://developer.apple.com/documentation/avfoundation/avplayer/ismuted),
 [AVPlayer.play](https://developer.apple.com/documentation/avfoundation/avplayer/play()),
 [AVPlayer.pause](https://developer.apple.com/documentation/avfoundation/avplayer/pause()),
 [AVPlayer.seekToTime:completionHandler:](https://developer.apple.com/documentation/avfoundation/avplayer/seek%28to%3Acompletionhandler%3A%29),

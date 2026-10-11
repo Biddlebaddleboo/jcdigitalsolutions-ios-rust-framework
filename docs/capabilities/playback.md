@@ -7,5 +7,7 @@ play/pause, an asynchronous seek-completion future, and a borrowed native-player
 
 The snapshot answers only whether the selected backend reports system HDR playback eligibility at
 the time of the query. It does not identify an HDR asset, current item, active playback, or HDR
-output on the display. See the [iOS playback API](../ios/playback.md) for AVPlayer path, readiness,
-session-policy, and runtime limits.
+output on the display. The iOS extension also offers validated per-player relative volume and mute
+controls; these do not access device/system volume or establish audible output. See the
+[iOS playback API](../ios/playback.md) for AVPlayer path, readiness, session-policy, and runtime
+limits.

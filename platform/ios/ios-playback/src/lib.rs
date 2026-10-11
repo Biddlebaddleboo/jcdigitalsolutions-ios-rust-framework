@@ -27,6 +27,46 @@ pub enum LocalFilePlayerError {
     NotRegularFile,
 }
 
+/// A per-player AVPlayer output control failed.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[non_exhaustive]
+#[cfg(any(target_os = "ios", test))]
+pub enum IosPlayerOutputError {
+    /// The AVPlayer output-control API is unavailable on this iOS version.
+    NativeApiUnavailable,
+    /// The requested volume is not finite.
+    NonFiniteVolume,
+    /// The requested volume is outside the inclusive 0.0 through 1.0 range.
+    VolumeOutOfRange,
+    /// AVPlayer returned a volume outside the finite 0.0 through 1.0 range.
+    InvalidNativeVolume,
+}
+
+#[cfg(any(target_os = "ios", test))]
+fn validate_requested_player_volume(volume: f32) -> Result<(), IosPlayerOutputError> {
+    if !volume.is_finite() {
+        return Err(IosPlayerOutputError::NonFiniteVolume);
+    }
+    if !(0.0..=1.0).contains(&volume) {
+        return Err(IosPlayerOutputError::VolumeOutOfRange);
+    }
+    Ok(())
+}
+
+#[cfg(any(target_os = "ios", test))]
+fn validate_native_player_volume(volume: f32) -> Result<f32, IosPlayerOutputError> {
+    if volume.is_finite() && (0.0..=1.0).contains(&volume) {
+        Ok(volume)
+    } else {
+        Err(IosPlayerOutputError::InvalidNativeVolume)
+    }
+}
+
+#[cfg(target_os = "ios")]
+fn player_output_controls_available() -> bool {
+    objc2::available!(ios = 7.0, ..)
+}
+
 #[cfg(any(target_os = "ios", test))]
 fn validate_local_file_path(path: &str) -> Result<(), LocalFilePlayerError> {
     if !Path::new(path).is_absolute() {
@@ -216,6 +256,80 @@ impl IosFilePlayer {
         unsafe { self.player.pause() };
     }
 
+    /// Reads AVPlayer's per-player volume on the main thread.
+    ///
+    /// This is a relative audio-output level in the inclusive 0.0 through 1.0 range, not the
+    /// device or system volume. Returns an error if AVPlayer reports a non-finite or out-of-range
+    /// value. The property is available from iOS 7.0; older systems return
+    /// [`IosPlayerOutputError::NativeApiUnavailable`].
+    pub fn volume(
+        &self,
+        _main_thread: objc2::MainThreadMarker,
+    ) -> Result<f32, IosPlayerOutputError> {
+        if !player_output_controls_available() {
+            return Err(IosPlayerOutputError::NativeApiUnavailable);
+        }
+        // SAFETY: the availability guard proves the getter exists and the marker proves this call
+        // is on the main thread required by AVPlayer.
+        validate_native_player_volume(unsafe { self.player.volume() })
+    }
+
+    /// Sets AVPlayer's per-player relative volume on the main thread.
+    ///
+    /// Accepts only finite values from 0.0 through 1.0, inclusive. Invalid values return an error
+    /// without a native call or coercion. This does not set device or system volume. The property
+    /// is available from iOS 7.0; older systems return
+    /// [`IosPlayerOutputError::NativeApiUnavailable`].
+    pub fn set_volume(
+        &self,
+        volume: f32,
+        _main_thread: objc2::MainThreadMarker,
+    ) -> Result<(), IosPlayerOutputError> {
+        if !player_output_controls_available() {
+            return Err(IosPlayerOutputError::NativeApiUnavailable);
+        }
+        validate_requested_player_volume(volume)?;
+        // SAFETY: the availability guard proves the setter exists, the marker proves this call is
+        // on the main thread, and the input was checked to be finite and within AVPlayer's range.
+        unsafe { self.player.setVolume(volume) };
+        Ok(())
+    }
+
+    /// Reads AVPlayer's per-player mute flag on the main thread.
+    ///
+    /// This flag applies only to the player; it does not report device mute state, route
+    /// suppression, or audible output. The property is available from iOS 7.0; older systems
+    /// return [`IosPlayerOutputError::NativeApiUnavailable`].
+    pub fn is_muted(
+        &self,
+        _main_thread: objc2::MainThreadMarker,
+    ) -> Result<bool, IosPlayerOutputError> {
+        if !player_output_controls_available() {
+            return Err(IosPlayerOutputError::NativeApiUnavailable);
+        }
+        // SAFETY: the availability guard proves the getter exists and the marker proves this call
+        // is on the main thread required by AVPlayer.
+        Ok(unsafe { self.player.isMuted() })
+    }
+
+    /// Sets AVPlayer's per-player mute flag on the main thread.
+    ///
+    /// This does not change device mute state or system volume. The property is available from
+    /// iOS 7.0; older systems return [`IosPlayerOutputError::NativeApiUnavailable`].
+    pub fn set_muted(
+        &self,
+        muted: bool,
+        _main_thread: objc2::MainThreadMarker,
+    ) -> Result<(), IosPlayerOutputError> {
+        if !player_output_controls_available() {
+            return Err(IosPlayerOutputError::NativeApiUnavailable);
+        }
+        // SAFETY: the availability guard proves the setter exists and the marker proves this call
+        // is on the main thread required by AVPlayer.
+        unsafe { self.player.setMuted(muted) };
+        Ok(())
+    }
+
     /// Starts a nonblocking seek to an exact finite rational media time on the main thread.
     ///
     /// The returned future borrows this player and retains the main-thread marker until it is
@@ -334,8 +448,9 @@ pub fn hdr_playback_eligibility() -> Option<framework_audio::HdrPlaybackEligibil
 #[cfg(test)]
 mod tests {
     use super::{
-        LocalFilePlayerError, SeekCompletion, SeekOutcome, complete_seek_callback,
-        media_time_parts, seek_outcome, validate_local_file_path,
+        IosPlayerOutputError, LocalFilePlayerError, SeekCompletion, SeekOutcome,
+        complete_seek_callback, media_time_parts, seek_outcome, validate_local_file_path,
+        validate_native_player_volume, validate_requested_player_volume,
     };
     use core::task::{Context, Poll, Waker};
     use framework_media::MediaTime;
@@ -507,5 +622,41 @@ mod tests {
             validate_local_file_path(path.to_str().unwrap()),
             Err(LocalFilePlayerError::FileAccess(ErrorKind::NotFound))
         );
+    }
+
+    #[test]
+    fn player_volume_accepts_finite_closed_range_without_coercion() {
+        for volume in [0.0, -0.0, 0.5, 1.0] {
+            assert_eq!(validate_requested_player_volume(volume), Ok(()));
+            assert_eq!(validate_native_player_volume(volume), Ok(volume));
+        }
+    }
+
+    #[test]
+    fn player_volume_rejects_non_finite_inputs() {
+        for volume in [f32::NAN, f32::INFINITY, f32::NEG_INFINITY] {
+            assert_eq!(
+                validate_requested_player_volume(volume),
+                Err(IosPlayerOutputError::NonFiniteVolume)
+            );
+            assert_eq!(
+                validate_native_player_volume(volume),
+                Err(IosPlayerOutputError::InvalidNativeVolume)
+            );
+        }
+    }
+
+    #[test]
+    fn player_volume_rejects_out_of_range_inputs_without_clamping() {
+        for volume in [-f32::EPSILON, 1.0 + f32::EPSILON] {
+            assert_eq!(
+                validate_requested_player_volume(volume),
+                Err(IosPlayerOutputError::VolumeOutOfRange)
+            );
+            assert_eq!(
+                validate_native_player_volume(volume),
+                Err(IosPlayerOutputError::InvalidNativeVolume)
+            );
+        }
     }
 }

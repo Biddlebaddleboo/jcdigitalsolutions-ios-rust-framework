@@ -9,6 +9,10 @@ fn main() {
         );
         if let Ok(player) = player {
             player.play(main_thread);
+            let _ = player.volume(main_thread);
+            let _ = player.set_volume(0.5, main_thread);
+            let _ = player.is_muted(main_thread);
+            let _ = player.set_muted(false, main_thread);
             player.pause(main_thread);
             let seek = player.seek_to(framework_media::MediaTime::new(3, 2).unwrap(), main_thread);
             core::hint::black_box(&seek);

@@ -3477,6 +3477,8 @@
         "docs/generated/CAPABILITY_STATUS.md",
         "docs/generated/VALIDATION_PROFILES.md",
         "docs/ios/playback.md",
+        "platform/ios/ios-playback/README.md",
+        "PLAN.md",
         "PLAN_IOS_PLAYBACK.md"
       ],
       "expected_imports": [
@@ -3541,6 +3543,90 @@
           "must_exist": true,
           "path": "platform/ios/ios-playback/src/lib.rs",
           "text": "pub fn pause(&self, _main_thread: objc2::MainThreadMarker)"
+        },
+        {
+          "message": "player exposes its volume read operation",
+          "must_exist": true,
+          "path": "platform/ios/ios-playback/src/lib.rs",
+          "text": "pub fn volume("
+        },
+        {
+          "message": "player exposes its volume setter operation",
+          "must_exist": true,
+          "path": "platform/ios/ios-playback/src/lib.rs",
+          "text": "pub fn set_volume("
+        },
+        {
+          "message": "player exposes its mute read operation",
+          "must_exist": true,
+          "path": "platform/ios/ios-playback/src/lib.rs",
+          "text": "pub fn is_muted("
+        },
+        {
+          "message": "player exposes its mute setter operation",
+          "must_exist": true,
+          "path": "platform/ios/ios-playback/src/lib.rs",
+          "text": "pub fn set_muted("
+        },
+        {
+          "message": "AVPlayer output controls are unavailable below iOS 7",
+          "must_exist": true,
+          "path": "platform/ios/ios-playback/src/lib.rs",
+          "text": "objc2::available!(ios = 7.0, ..)"
+        },
+        {
+          "message": "player volume read must use the typed AVPlayer getter",
+          "must_exist": true,
+          "path": "platform/ios/ios-playback/src/lib.rs",
+          "text": "self.player.volume()"
+        },
+        {
+          "message": "player volume write must use the typed AVPlayer setter",
+          "must_exist": true,
+          "path": "platform/ios/ios-playback/src/lib.rs",
+          "text": "self.player.setVolume(volume)"
+        },
+        {
+          "message": "player mute read must use the typed AVPlayer getter",
+          "must_exist": true,
+          "path": "platform/ios/ios-playback/src/lib.rs",
+          "text": "self.player.isMuted()"
+        },
+        {
+          "message": "player mute write must use the typed AVPlayer setter",
+          "must_exist": true,
+          "path": "platform/ios/ios-playback/src/lib.rs",
+          "text": "self.player.setMuted(muted)"
+        },
+        {
+          "message": "player volume setters must reject non-finite input",
+          "must_exist": true,
+          "path": "platform/ios/ios-playback/src/lib.rs",
+          "text": "if !volume.is_finite()"
+        },
+        {
+          "message": "player volume setters must enforce the closed 0.0 through 1.0 range",
+          "must_exist": true,
+          "path": "platform/ios/ios-playback/src/lib.rs",
+          "text": "!(0.0..=1.0).contains(&volume)"
+        },
+        {
+          "message": "player volume getter must validate native output",
+          "must_exist": true,
+          "path": "platform/ios/ios-playback/src/lib.rs",
+          "text": "validate_native_player_volume(unsafe { self.player.volume() })"
+        },
+        {
+          "message": "host tests must reject non-finite player volume inputs",
+          "must_exist": true,
+          "path": "platform/ios/ios-playback/src/lib.rs",
+          "text": "fn player_volume_rejects_non_finite_inputs()"
+        },
+        {
+          "message": "host tests must reject out-of-range player volume without clamping",
+          "must_exist": true,
+          "path": "platform/ios/ios-playback/src/lib.rs",
+          "text": "fn player_volume_rejects_out_of_range_inputs_without_clamping()"
         },
         {
           "message": "native AVPlayer access is borrowed",
@@ -3667,6 +3753,42 @@
           "must_exist": false,
           "path": "platform/ios/ios-playback/src/lib.rs",
           "text": "AVAudioSession::sharedInstance"
+        },
+        {
+          "message": "playback does not implement system volume UI or control",
+          "must_exist": false,
+          "path": "platform/ios/ios-playback/src/lib.rs",
+          "text": "MPVolumeView"
+        },
+        {
+          "message": "player volume setters must not clamp input",
+          "must_exist": false,
+          "path": "platform/ios/ios-playback/src/lib.rs",
+          "text": "volume.clamp("
+        },
+        {
+          "message": "the link probe must retain the AVPlayer volume selector",
+          "must_exist": true,
+          "path": "platform/ios/ios-playback/check-link-imports.sh",
+          "text": "grep -Fxq 'volume'"
+        },
+        {
+          "message": "the link probe must retain the AVPlayer volume setter selector",
+          "must_exist": true,
+          "path": "platform/ios/ios-playback/check-link-imports.sh",
+          "text": "grep -Fxq 'setVolume:'"
+        },
+        {
+          "message": "the link probe must retain the AVPlayer mute getter selector",
+          "must_exist": true,
+          "path": "platform/ios/ios-playback/check-link-imports.sh",
+          "text": "grep -Fxq 'isMuted'"
+        },
+        {
+          "message": "the link probe must retain the AVPlayer mute setter selector",
+          "must_exist": true,
+          "path": "platform/ios/ios-playback/check-link-imports.sh",
+          "text": "grep -Fxq 'setMuted:'"
         }
       ],
       "id": "ios-playback",
@@ -3687,6 +3809,7 @@
         "docs/generated/VALIDATION_PROFILES.md",
         "docs/ios/playback.md",
         "platform/ios/ios-playback/README.md",
+        "PLAN.md",
         "PLAN_IOS_PLAYBACK.md",
         "tools/validation/specs/validation-v1.json"
       ],
