@@ -1,6 +1,6 @@
-# Tooling bug: validator rejects a stable source snapshot
+# Validation note: primary-worktree snapshot instability
 
-- State: suspected tooling defect
+- State: worktree-specific instability observed; no confirmed tooling defect
 - Affected tool: `ios-rust-validate`
 - Tool version, release ID, full source SHA: `0.1.0`, `ios-rust-tools-0.1.0+350971094cc3b77191cd6b3d07e01af04d71943d`, `350971094cc3b77191cd6b3d07e01af04d71943d`
 - Binary SHA-256: `77f9c7aa941ba1335827ffc6ce274898987ce1d5f408d91d1a7c1daf34527944`
@@ -18,10 +18,11 @@ ios-rust-validate --workspace-root "$PWD" --spec "$PWD/tools/validation/specs/va
 ios-rust-validate --workspace-root "$PWD" --spec "$PWD/tools/validation/specs/validation-v1.json" --capability ios-connection
 ```
 
-The first two commands succeed. The capability command exits before reporting any gates. Repeating
-with `ios-files` and `ios-runtime` produces the same result. A temporary valid one-profile
-`ios-connection` spec under the repository also passes `--list` and `--explain`, then fails on
-`--capability` with the same diagnostic; the temporary spec was removed after reproduction
+The first two commands succeed. In the primary worktree, the capability command exits before
+reporting gates. The same error repeated for `ios-files` and `ios-runtime`, including after the
+implementation and report commits were pushed and the worktree was clean. A temporary valid
+one-profile `ios-connection` spec under the repository also passed `--list` and `--explain`, then
+failed on `--capability`; the temporary spec was removed after reproduction
 
 ## Expected behavior
 
@@ -37,8 +38,12 @@ The command exits 1 and returns:
 {"code":"validation_error","message":"error-blocked: snapshot-unstable: source changed during capture","schema_version":1,"status":"error-blocked"}
 ```
 
-The same message occurs before any capability gates for the listed profiles. No PASS result is
-available for these final registered profile runs
+The same message occurs before any capability gates in the primary worktree. Detached clean
+worktrees at the successive pushed `main` commits captured successfully and ran the affected
+profiles: `ios-connection` passed 53 checks with 2 runtime skips and `ios-files` passed 50 with 2
+runtime skips at `37efeb5`; `ios-runtime` passed 43 with 2 runtime skips at `3470d7f`; and `ios-ui`
+passed 253 with 2 runtime skips at `f298fd1`, after its Rustfmt mismatch was fixed. These isolated
+worktree runs establish the profile results; the primary-worktree capture failure remains unexplained
 
 ## Troubleshooting already performed
 
@@ -47,18 +52,18 @@ available for these final registered profile runs
 - Validated the full spec with `python3 -m json.tool`; `--list` and `--explain` succeed; spec size is below the 262,144-byte limit
 - Reproduced with both the full spec and a valid temporary one-profile spec under the workspace root
 - Checked `git status`; the worktree was clean at the committed reproduction point
-- Hashed every tracked and nonignored untracked file before and after a failing attempt; no file content changed
-- Confirmed no Cargo or validator process was active outside the reproduction command
-- Confirmed the final tree still passes the focused iOS Files release link/import script, documentation index check, zero-Swift-source check, and generated-report freshness check; these do not replace the blocked validator gates
+- Hashed every tracked and nonignored untracked file before and after a failing primary-worktree attempt; no file content changed; this did not cover ignored/generated files or concurrent processes in other worktrees
+- Confirmed the final tree passes focused profiles from a detached clean worktree at the same pushed `main` commit; no product-source changes were needed to make snapshot capture succeed there
+- The original workspace contains other worktrees and ignored build output; their activity/content was not isolated during the failing captures
 
 ## Impact
 
-The final `ios-connection`, `ios-files`, and `ios-runtime` registered checks cannot be reported as
-passed from this source snapshot. Existing agent-reported B532 host tests and device/Simulator
-compile/link checks, and the direct iOS Files link/import result, remain separate evidence. No
-required validator check was bypassed or weakened. Independent implementation work can continue
+The primary worktree cannot currently be used for validator source capture. The detached clean
+worktree ran the required profiles successfully, with simulator execution and physical-device
+behavior still skipped. No required validator check was bypassed or weakened
 
 ## Recommended maintenance investigation
 
-Inspect the installed release's source-snapshot consistency check and its set of files/metadata
-treated as mutable during capture. No cause or fix is asserted from this black-box reproduction
+If the primary-worktree issue recurs, isolate ignored/generated files and concurrent worktree activity
+before treating it as an engine defect. No engine maintenance change or cause is asserted from this
+black-box evidence
