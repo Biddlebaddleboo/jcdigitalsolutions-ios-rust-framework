@@ -26,6 +26,7 @@ async fn schedule_reminder(
             String::from("Reminder"),
             Some(String::from("Review today's notes")),
         )
+        .with_badge_count(1)
         .with_system_default_sound()
         .with_thread_identifier(String::from("reminders"))
         .with_user_info_entry(String::from("reference"), String::from("item:42")),
@@ -50,16 +51,16 @@ Native `Authorized`, `Provisional`, and `Ephemeral` map to portable `Authorized`
 loses the provisional/temporary distinction and does not imply that banners, lock-screen display,
 or sound are enabled. `UserNotifications` has no `Restricted` authorization status, so that portable
 state is not synthesized; unknown native raw values map to `Unknown`. The backend does not request
-provisional authorization. The portable `request_authorization()` asks only for alerts because D3
-models title/body text and has no sound or badge fields.
+provisional authorization. The portable `request_authorization()` asks only for alerts; badge
+authorization remains an explicit iOS option.
 
 The iOS-only `IosNotificationsBackend::request_authorization_with_options` accepts a
 `IosNotificationAuthorizationOptions` value. Combine `ALERT`, `BADGE`, and `SOUND` with `|` to
 choose the requested interactions. This call uses the same callback and result path as the portable
 method, and its native prompt starts only when the returned future is first polled. The portable
-method remains alert-only. Notification content has a separate opt-in for system-default sound;
-this does not change authorization options. The options do not expose critical or provisional
-authorization and do not register for remote notifications.
+method remains alert-only. Notification content has separate opt-ins for system-default sound and
+badge count; neither changes authorization options. The options do not expose critical or
+provisional authorization and do not register for remote notifications.
 
 B86 extends B4 with the iOS-only `IosNotificationsBackend::authorization_status_raw_value` future.
 It returns the raw signed `NSInteger` from `UNNotificationSettings.authorizationStatus` without
@@ -122,8 +123,12 @@ action, response-delegate, or notification-service-extension behavior.
   normalization. D3's constructor remains responsible for rejecting empty and NUL-containing IDs.
 - Title and optional body strings are copied into `UNMutableNotificationContent`. Content created
   by `NotificationContent::new` has no sound. Call `with_system_default_sound` to set the public
-  `UNNotificationSound.defaultSound`; custom sounds, actions, categories, attachments, and badges
-  are not represented.
+  `UNNotificationSound.defaultSound`; custom sounds, actions, categories, and attachments are not
+  represented.
+- `with_badge_count(count)` maps the exact `u32` count to `UNMutableNotificationContent.badge`.
+  `None` leaves the native content default unchanged; `Some(0)` requests clearing the badge.
+  Authorization, scheduling success, delivery, and the resulting app-icon state remain controlled
+  by the system.
 - `with_thread_identifier` sets the optional exact UTF-8 grouping identifier through
   `UNMutableNotificationContent.threadIdentifier`. `with_user_info_entry` sets string-only keys and
   values through the public `userInfo` dictionary. Repeated keys replace the prior value; entry

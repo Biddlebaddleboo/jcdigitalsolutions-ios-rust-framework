@@ -402,6 +402,14 @@ B537 adds fixed `IosContextMenuAction` snapshots and an `IosContextMenu` handle 
 
 B538 adds a caller-owned `IosSelectableTextView` over `UITextView`, with editing disabled, selection/scrolling enabled, main-thread-bound strict UTF-16 reads, length-aware writes and a typed UIKit escape. Embedded NUL and supplementary scalars are preserved; malformed UTF-16 is rejected. Package tests pass 46/46; Device/Simulator compilation and link/import probes pass at iOS 12.0 / 14.0. Root profile integration is in progress. Runtime selection and clipboard behavior remain unverified; this is not SwiftUI state binding.
 
+### B539 — portable local-notification badge count (row 031)
+
+B539 adds optional badge-count semantics to portable `NotificationContent` and maps them to public
+UserNotifications content through `NSNumber`. Omitted badge leaves the native default unchanged;
+zero explicitly requests clear. Portable tests cover default, zero, and `u32::MAX`; the registered
+iOS profile checks the public API, host regression, native mapping, and link probe. Notification
+permission, delivery, and app-icon state remain unverified.
+
 ## Active work selection and limits
 
 1. Inspect the canonical capability status/owner, the relevant family plan, then the named workstream plan and exact files/symbols. Do not scan the entire planning corpus or treat every existing plan as pending work.

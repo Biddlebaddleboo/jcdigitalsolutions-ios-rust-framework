@@ -63,6 +63,14 @@ No tests, live permission prompts, or notification delivery checks were run in t
 
 B508 adds allocation-free `IosNotificationAuthorizationOptions` for alert, badge, and sound, plus an iOS-only `request_authorization_with_options` path. The portable `request_authorization` remains alert-only. The registered profile exercises all eight option combinations and checks the native flag mapping before device/Simulator linking. Live prompt behavior and notification delivery remain unverified
 
+### B539 — portable local-notification badge count (row 031)
+
+B539 adds `NotificationContent::with_badge_count(u32)` and `badge_count()`. `None` leaves the
+native badge unchanged; zero is preserved as an explicit clear request. The iOS backend maps the
+count through `NSNumber` to `UNMutableNotificationContent.setBadge`. Portable unit regressions cover
+the default, zero, and `u32::MAX`; iOS compile/link checks cover the registered API use and native
+mapping. This does not request badge authorization or prove scheduling, delivery, or icon state.
+
 ## Objective
 
 Implement the D3 local-notification contract with public iOS UserNotifications APIs reached from Rust, without a Swift application/source layer.
@@ -91,7 +99,7 @@ Do not change the portable D3 contract, shared core semantics, other iOS backend
 
 ## Non-goals
 
-- No remote notifications/APNs/PushKit, response delegate, categories/actions, badges, attachments, repeats, or calendar-recurring schedule API.
+- No remote notifications/APNs/PushKit, response delegate, categories/actions, attachments, repeats, or calendar-recurring schedule API.
 - No live user prompt, simulator delivery, or device-delivery claim in automated checks.
 - No `.swift` source, C ABI surface, global notification registry, or mandatory executor.
 

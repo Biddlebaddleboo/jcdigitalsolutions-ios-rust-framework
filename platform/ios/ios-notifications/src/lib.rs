@@ -23,7 +23,7 @@ pub use platform::{
 };
 
 #[cfg(test)]
-mod notification_sound_tests {
+mod notification_content_tests {
     use framework_notifications::NotificationContent;
 
     #[test]
@@ -44,6 +44,17 @@ mod notification_sound_tests {
         let content = NotificationContent::new(String::from("Title"), None);
         assert_eq!(content.thread_identifier(), None);
         assert!(content.user_info_entries().is_empty());
+    }
+
+    #[test]
+    fn badge_count_defaults_to_unchanged_and_preserves_zero_and_maximum() {
+        let content = NotificationContent::new(String::from("Title"), None);
+        assert_eq!(content.badge_count(), None);
+        assert_eq!(content.clone().with_badge_count(0).badge_count(), Some(0));
+        assert_eq!(
+            content.with_badge_count(u32::MAX).badge_count(),
+            Some(u32::MAX)
+        );
     }
 
     #[test]

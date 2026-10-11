@@ -1543,16 +1543,21 @@
       "check_script": "platform/ios/ios-notifications/check-link-imports.sh",
       "clippy_all_targets": true,
       "clippy_lib": false,
-      "docs": ["docs/ios/notifications.md","docs/capabilities/capability-status.json","docs/generated/VALIDATION_PROFILES.md","PLAN_IOS_NOTIFICATIONS.md","PLAN_RIDESHARE_BOT_MIGRATION.md","PLAN.md"],
+      "docs": ["docs/notifications.md","docs/ios/notifications.md","docs/capabilities/capability-status.json","docs/generated/VALIDATION_PROFILES.md","PLAN_IOS_NOTIFICATIONS.md","PLAN_RIDESHARE_BOT_MIGRATION.md","PLAN.md"],
       "expected_imports": ["Foundation.framework","UserNotifications.framework","libSystem.B.dylib","libobjc.A.dylib"],
       "fmt_all": false,
-      "guards": [],
+      "guards": [
+        {"message":"portable optional badge count API","must_exist":true,"path":"crates/framework-notifications/src/lib.rs","text":"pub const fn with_badge_count(mut self, count: u32) -> Self"},
+        {"message":"badge default, zero, and maximum regression","must_exist":true,"path":"platform/ios/ios-notifications/src/lib.rs","text":"badge_count_defaults_to_unchanged_and_preserves_zero_and_maximum"},
+        {"message":"only a present badge count mutates native content","must_exist":true,"path":"platform/ios/ios-notifications/src/platform.rs","text":"if let Some(badge_count) = notification.content().badge_count() {"},
+        {"message":"badge count maps to UserNotifications","must_exist":true,"path":"platform/ios/ios-notifications/src/platform.rs","text":"content.setBadge(Some(&badge));"}
+      ],
       "id": "ios-notifications",
       "manifest": "platform/ios/ios-notifications/Cargo.toml",
       "offline": false,
       "package": "ios-notifications",
       "rustdoc_warnings": true,
-      "scoped_files": ["crates/framework-notifications/src/lib.rs","platform/ios/ios-notifications/Cargo.toml","platform/ios/ios-notifications/check-link-imports.sh","platform/ios/ios-notifications/examples/ios_notifications_link_import_probe.rs","platform/ios/ios-notifications/src/authorization.rs","platform/ios/ios-notifications/src/lib.rs","platform/ios/ios-notifications/src/platform.rs","tools/validation/specs/validation-v1.json"],
+      "scoped_files": ["crates/framework-notifications/src/lib.rs","platform/ios/ios-notifications/Cargo.toml","platform/ios/ios-notifications/check-link-imports.sh","platform/ios/ios-notifications/examples/ios_notifications_link_import_probe.rs","platform/ios/ios-notifications/src/authorization.rs","platform/ios/ios-notifications/src/lib.rs","platform/ios/ios-notifications/src/platform.rs","docs/notifications.md","docs/ios/notifications.md","docs/capabilities/capability-status.json","PLAN_IOS_NOTIFICATIONS.md","PLAN.md","tools/validation/specs/validation-v1.json"],
       "shell_scripts": ["platform/ios/ios-notifications/check-link-imports.sh"],
       "source_dirs": ["crates/framework-notifications","platform/ios/ios-notifications"],
       "targets": [{"minimum_os":"10.0","sdk":"iphoneos","triple":"aarch64-apple-ios"},{"minimum_os":"14.0","sdk":"iphonesimulator","triple":"aarch64-apple-ios-sim"}]
@@ -1770,210 +1775,58 @@
   ],
   "schema_version": 1,
   "path_rules": [
-    {
-      "path": "Cargo.toml",
-      "global": true
-    },
-    {
-      "path": "Cargo.lock",
-      "global": true
-    },
-    {
-      "path": "rust-toolchain.toml",
-      "global": true
-    },
-    {
-      "path": ".github/workflows/",
-      "global": true
-    },
-    {
-      "path": ".cargo/",
-      "global": true
-    },
-    {
-      "path": "docs/",
-      "global": true
-    },
-    {
-      "path": "tools/xtask/",
-      "global": true
-    },
-    {
-      "path": "tools/ios-rust-validate/",
-      "global": true
-    },
-    {
-      "path": "tools/native-build-support/",
-      "node": "ios-native-build-support",
-      "global": false
-    },
-    {
-      "path": "interop/swift-abi-core/",
-      "node": "swift-abi-core",
-      "global": false
-    },
-    {
-      "path": "interop/swift-abi-generated/",
-      "node": "swift-abi-core",
-      "global": false
-    },
-    {
-      "path": "tools/validation/",
-      "global": true
-    },
-    {
-      "path": "platform/ios/ios-app-lifecycle/",
-      "node": "ios-app-lifecycle",
-      "global": false
-    },
-    {
-      "path": "platform/ios/ios-app-scenes/",
-      "node": "ios-app-scenes",
-      "global": false
-    },
-    {
-      "path": "crates/framework-app/",
-      "node": "framework-app",
-      "global": false
-    },
-    {
-      "path": "platform/ios/ios-runtime/",
-      "node": "ios-runtime",
-      "global": false
-    },
-    {
-      "path": "crates/framework-media-authorization/",
-      "node": "framework-media-authorization",
-      "global": false
-    },
-    {
-      "path": "platform/ios/ios-media-authorization/",
-      "node": "ios-media-authorization",
-      "global": false
-    },
-    {
-      "path": "platform/ios/ios-camera-capture-session/",
-      "node": "ios-camera-capture-session",
-      "global": false
-    },
-    {
-      "path": "platform/ios/ios-microphone-recorder/",
-      "node": "ios-microphone-recorder",
-      "global": false
-    },
-    {
-      "path": "platform/ios/ios-microphone-pcm-stream/",
-      "node": "ios-microphone-pcm-stream",
-      "global": false
-    },
-    {
-      "path": "tools/releases/",
-      "global": true
-    },
-    {
-      "path": "tools/install-tools.sh",
-      "global": true
-    },
-    {
-      "path": "tools/native-build/",
-      "node": "ios-native-build-support",
-      "global": false
-    },
-    {
-      "path": "crates/framework-photos/",
-      "node": "framework-photos",
-      "global": false
-    },
-    {
-      "path": "platform/ios/ios-photos/",
-      "node": "ios-photos",
-      "global": false
-    },
-    {
-      "path": "crates/framework-audio/",
-      "node": "framework-audio",
-      "global": false
-    },
-    {
-      "path": "crates/framework-media/",
-      "node": "framework-media",
-      "global": false
-    },
-    {
-      "path": "platform/ios/ios-playback/",
-      "node": "ios-playback",
-      "global": false
-    },
-    {
-      "path": "crates/framework-contacts/",
-      "node": "framework-contacts",
-      "global": false
-    },
-    {
-      "path": "platform/ios/ios-contacts/",
-      "node": "ios-contacts-fetch",
-      "global": false
-    },
-    {
-      "path": "crates/framework-location/",
-      "node": "ios-location-updates",
-      "global": false
-    },
-    {
-      "path": "platform/ios/ios-location/",
-      "node": "ios-location-updates",
-      "global": false
-    },
-    {
-      "path": "crates/framework-ui/",
-      "node": "framework-ui",
-      "global": false
-    },
-    {
-      "path": "platform/ios/ios-ui/",
-      "node": "ios-ui",
-      "global": false
-    },
-    {
-      "path": "crates/framework-datagram/",
-      "node": "framework-datagram",
-      "global": false
-    },
-    {
-      "path": "platform/ios/ios-datagram/",
-      "node": "ios-datagram",
-      "global": false
-    },
-    {
-      "path": "crates/framework-notifications/",
-      "node": "framework-notifications",
-      "global": false
-    },
-    {
-      "path": "platform/ios/ios-notification-responses/",
-      "node": "ios-notification-responses",
-      "global": false
-    },
+    {"path":"Cargo.toml","global":true},
+    {"path":"Cargo.lock","global":true},
+    {"path":"rust-toolchain.toml","global":true},
+    {"path":".github/workflows/","global":true},
+    {"path":".cargo/","global":true},
+    {"path":"docs/","global":true},
+    {"path":"tools/xtask/","global":true},
+    {"path":"tools/ios-rust-validate/","global":true},
+    {"path":"tools/native-build-support/","node":"ios-native-build-support","global":false},
+    {"path":"interop/swift-abi-core/","node":"swift-abi-core","global":false},
+    {"path":"interop/swift-abi-generated/","node":"swift-abi-core","global":false},
+    {"path":"tools/validation/","global":true},
+    {"path":"platform/ios/ios-app-lifecycle/","node":"ios-app-lifecycle","global":false},
+    {"path":"platform/ios/ios-app-scenes/","node":"ios-app-scenes","global":false},
+    {"path":"crates/framework-app/","node":"framework-app","global":false},
+    {"path":"platform/ios/ios-runtime/","node":"ios-runtime","global":false},
+    {"path":"crates/framework-media-authorization/","node":"framework-media-authorization","global":false},
+    {"path":"platform/ios/ios-media-authorization/","node":"ios-media-authorization","global":false},
+    {"path":"platform/ios/ios-camera-capture-session/","node":"ios-camera-capture-session","global":false},
+    {"path":"platform/ios/ios-microphone-recorder/","node":"ios-microphone-recorder","global":false},
+    {"path":"platform/ios/ios-microphone-pcm-stream/","node":"ios-microphone-pcm-stream","global":false},
+    {"path":"tools/releases/","global":true},
+    {"path":"tools/install-tools.sh","global":true},
+    {"path":"tools/native-build/","node":"ios-native-build-support","global":false},
+    {"path":"crates/framework-photos/","node":"framework-photos","global":false},
+    {"path":"platform/ios/ios-photos/","node":"ios-photos","global":false},
+    {"path":"crates/framework-audio/","node":"framework-audio","global":false},
+    {"path":"crates/framework-media/","node":"framework-media","global":false},
+    {"path":"platform/ios/ios-playback/","node":"ios-playback","global":false},
+    {"path":"crates/framework-contacts/","node":"framework-contacts","global":false},
+    {"path":"platform/ios/ios-contacts/","node":"ios-contacts-fetch","global":false},
+    {"path":"crates/framework-location/","node":"ios-location-updates","global":false},
+    {"path":"platform/ios/ios-location/","node":"ios-location-updates","global":false},
+    {"path":"crates/framework-ui/","node":"framework-ui","global":false},
+    {"path":"platform/ios/ios-ui/","node":"ios-ui","global":false},
+    {"path":"crates/framework-datagram/","node":"framework-datagram","global":false},
+    {"path":"platform/ios/ios-datagram/","node":"ios-datagram","global":false},
+    {"path":"crates/framework-notifications/","node":"framework-notifications","global":false},
+    {"path":"platform/ios/ios-notification-responses/","node":"ios-notification-responses","global":false},
     {"path":"platform/ios/ios-navigation/","node":"ios-navigation","global":false},
     {"path":"crates/framework-core/","node":"framework-core","global":false},
-    {
-      "path": "platform/ios/callkit/ios-call-provider/",
-      "node": "ios-call-provider",
-      "global": false
-    },
-    {"path":"platform/ios/ios-notifications/","node":"ios-notifications","global":false},{"path":"crates/framework-preferences/","node":"framework-preferences","global":false},{"path":"platform/ios/ios-preferences/","node":"ios-preferences","global":false},{"path":"platform/ios/ios-files/check-app-data-link-imports.sh","node":"ios-preferences","global":false},
-    {"path":"platform/ios/ios-presentation/","node":"ios-presentation","global":false}, {"path":"platform/ios/ios-background-execution/","node":"ios-background-execution","global":false}, {"path":"crates/framework-background-execution/","node":"ios-background-execution","global":false},
+    {"path":"platform/ios/callkit/ios-call-provider/","node":"ios-call-provider","global":false},
+    {"path":"platform/ios/ios-notifications/","node":"ios-notifications","global":false},
+    {"path":"crates/framework-preferences/","node":"framework-preferences","global":false},
+    {"path":"platform/ios/ios-preferences/","node":"ios-preferences","global":false},
+    {"path":"platform/ios/ios-files/check-app-data-link-imports.sh","node":"ios-preferences","global":false},
+    {"path":"platform/ios/ios-presentation/","node":"ios-presentation","global":false},
+    {"path":"platform/ios/ios-background-execution/","node":"ios-background-execution","global":false},
+    {"path":"crates/framework-background-execution/","node":"ios-background-execution","global":false},
     {"path":"crates/framework-files/","node":"framework-files","global":false},
     {"path":"platform/ios/ios-files/","node":"ios-files","global":false},
-        {
-      "path": "crates/framework-connection/",
-      "node": "framework-connection",
-      "global": false
-    },
-        {
-      "path": "platform/ios/ios-connection/",
-      "node": "ios-connection",
-      "global": false
-    }
+    {"path":"crates/framework-connection/","node":"framework-connection","global":false},
+    {"path":"platform/ios/ios-connection/","node":"ios-connection","global":false}
   ]
 }
