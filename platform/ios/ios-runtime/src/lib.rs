@@ -7,5 +7,7 @@
 //! Objective-C objects stay under Objective-C ownership, and UIKit work stays on the main
 //! thread. It intentionally exposes no portable API and does not wrap capability services.
 
+#[cfg(feature = "dispatch")]
+pub mod dispatch;
 pub mod ffi;
 pub mod main_thread;

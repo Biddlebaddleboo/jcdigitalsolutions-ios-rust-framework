@@ -16,6 +16,11 @@ CARGO_PATH = PACKAGE_ROOT + "/Cargo.toml"
 CHECK_PATH = PACKAGE_ROOT + "/check.sh"
 LINK_CHECK_PATH = PACKAGE_ROOT + "/check-link-imports.sh"
 LINK_PROBE_PATH = PACKAGE_ROOT + "/examples/link_probe.rs"
+RUNTIME_ROOT = "platform/ios/ios-runtime"
+RUNTIME_MANIFEST_PATH = RUNTIME_ROOT + "/Cargo.toml"
+RUNTIME_LIB_PATH = RUNTIME_ROOT + "/src/lib.rs"
+DISPATCH_PATH = RUNTIME_ROOT + "/src/dispatch.rs"
+MAIN_THREAD_PATH = RUNTIME_ROOT + "/src/main_thread.rs"
 EXPECTED_TARGETS = {
  ("aarch64-apple-ios", "iphoneos"): "10.0",
  ("aarch64-apple-ios-sim", "iphonesimulator"): "14.0",
@@ -33,6 +38,10 @@ REQUIRED_INPUTS = {
  CHECK_PATH,
  LINK_CHECK_PATH,
  LINK_PROBE_PATH,
+ RUNTIME_MANIFEST_PATH,
+ RUNTIME_LIB_PATH,
+ DISPATCH_PATH,
+ MAIN_THREAD_PATH,
  DOC_PATH,
  MANIFEST_PATH,
  SPEC_PATH,
@@ -179,6 +188,70 @@ def check_profile_floor_regressions(spec_text):
  return True
 
 
+def check_dispatch_contract(sources):
+ runtime_manifest = sources[RUNTIME_MANIFEST_PATH]
+ lifecycle_manifest = sources[CARGO_PATH]
+ runtime_lib = sources[RUNTIME_LIB_PATH]
+ dispatch = " ".join(rust_without_comments(sources[DISPATCH_PATH]).split())
+ main_thread = rust_without_comments(sources[MAIN_THREAD_PATH])
+ link_probe = " ".join(rust_without_comments(sources[LINK_PROBE_PATH]).split())
+ link_script = sources[LINK_CHECK_PATH]
+ features = re.search(r"(?ms)^\[features\]\s*(.*?)(?=^\[|\Z)", runtime_manifest)
+ dependency = re.search(r"(?ms)^dispatch2\s*=\s*\{([^}]*)\}", runtime_manifest)
+ if features is None or dependency is None:
+  return False
+ if not re.search(r'(?m)^dispatch\s*=\s*\["dep:dispatch2"\]\s*$', features.group(1)):
+  return False
+ if re.search(r'(?m)^default\s*=\s*\[[^\]]*"dispatch"', features.group(1)):
+  return False
+ if not re.search(r"\boptional\s*=\s*true\b", dependency.group(1)):
+  return False
+ if not re.search(r'(?m)^main-thread-dispatch\s*=\s*\["ios-runtime/dispatch"\]\s*$', lifecycle_manifest):
+  return False
+ if not re.search(r'(?m)#\[cfg\(feature\s*=\s*"dispatch"\)\]\s*pub\s+mod\s+dispatch\s*;', runtime_lib):
+  return False
+ if not re.search(r"(?m)#\[cfg\(feature\s*=\s*\"dispatch\"\)\]\s*pub\(crate\)\s+unsafe\s+fn\s+assume_current", main_thread):
+  return False
+ if "pub fn run_on_main(callback: impl FnOnce(MainThread) + Send + 'static) -> MainThreadHandoff" not in dispatch:
+  return False
+ if not all(fragment in dispatch for fragment in (
+  "MainThread::current()",
+  "callback(main_thread)",
+  "DispatchQueue::main().exec_async",
+  "MainThread::assume_current()",
+  "catch_unwind(|| callback(main_thread))",
+  "MainThreadHandoff::RanInline",
+  "MainThreadHandoff::Enqueued",
+ )):
+  return False
+ if not re.search(r"(?s)#\[cfg\(feature\s*=\s*\"main-thread-dispatch\"\)\].*?run_on_main\(", link_probe):
+  return False
+ return all(fragment in link_script for fragment in (
+  "--features main-thread-dispatch",
+  "libSystem.B.dylib",
+  "_dispatch_(get_main_queue|async_f)",
+ ))
+
+
+def check_dispatch_negative_regressions(sources):
+ cases = (
+  (RUNTIME_MANIFEST_PATH, 'dispatch = ["dep:dispatch2"]', 'default = ["dispatch"]\ndispatch = ["dep:dispatch2"]'),
+  (RUNTIME_MANIFEST_PATH, "optional = true", "optional = false"),
+  (MAIN_THREAD_PATH, "pub(crate) unsafe fn assume_current", "pub unsafe fn assume_current"),
+  (DISPATCH_PATH, "FnOnce(MainThread) + Send", "FnOnce(MainThread)"),
+  (LINK_CHECK_PATH, "--features main-thread-dispatch", "--features missing-dispatch"),
+  (LINK_PROBE_PATH, '#[cfg(feature = "main-thread-dispatch")]\n        let _ = ios_runtime::dispatch::run_on_main', '#[cfg(feature = "main-thread-dispatch")]\n        let _ = ios_runtime::dispatch::missing_dispatch'),
+ )
+ for path, before, after in cases:
+  if before not in sources[path]:
+   return False
+  mutated = dict(sources)
+  mutated[path] = sources[path].replace(before, after, 1)
+  if check_dispatch_contract(mutated):
+   return False
+ return True
+
+
 def check_contract(root, sources):
  library = sources[LIB_PATH]
  platform = sources[PLATFORM_PATH]
@@ -206,6 +279,10 @@ def check_contract(root, sources):
   failures.append("registered iOS lifecycle link checks must use 10.0 device and 14.0 Simulator deployment floors")
  elif not check_profile_floor_regressions(sources[SPEC_PATH]):
   failures.append("registered iOS lifecycle profile must reject each changed device/Simulator floor")
+ if not check_dispatch_contract(sources):
+  failures.append("opt-in main-thread dispatch API, ownership, panic, and compiled ABI contract is incomplete")
+ elif not check_dispatch_negative_regressions(sources):
+  failures.append("main-thread dispatch default, optional dependency, Send, or link-feature regressions must fail")
  if not all(fragment in link_probe for fragment in (
   "MainThread::current()",
   "IosApplicationLifecycle::new(main_thread)",
@@ -313,7 +390,7 @@ def main():
   if failures:
    emit("FAIL", "; ".join(failures[:6]))
    return
-  emit("PASS", "iOS lifecycle source contract, API availability and deployment floors, registered link probe, and partial capability status are present; runtime behavior is not proven")
+  emit("PASS", "iOS lifecycle and opt-in main-thread dispatch source contracts, negative regressions, API availability and deployment floors, registered link probe, and partial capability status are present; runtime behavior is not proven")
  except Exception as error:
   emit("ERROR-BLOCKED", str(error)[:256])
 

@@ -35,7 +35,7 @@
       "portable_contract_note": "framework-app defines portable values and a generic backend contract; ios-app-lifecycle implements aggregate UIApplication state and lifecycle notifications plus an iOS-only app Settings action, while ios-app-scenes provides per-scene UIScene events and activation snapshots for iOS.",
       "ios_implementation_class": "B",
       "implementation_status": "partial",
-      "status_reason": "B453 adds a main-thread UIKit backend for aggregate UIApplication state and lifecycle notifications. B454 adds six per-scene UIScene lifecycle notifications with exact UTF-16 session identifiers and a bounded event queue. B510 adds `ios_app_lifecycle::open_application_settings(MainThread)` using UIKit's public app-settings URL; it does not report open success or prove a Settings presentation. B81 remains a point-in-time activation-state snapshot. Static checks do not prove live notification delivery or runtime behavior.",
+      "status_reason": "B453 adds a main-thread UIKit backend for aggregate UIApplication state and lifecycle notifications. B454 adds six per-scene UIScene lifecycle notifications with exact UTF-16 session identifiers and a bounded event queue. B510 adds `ios_app_lifecycle::open_application_settings(MainThread)` using UIKit's public app-settings URL; it does not report open success or prove a Settings presentation. B511 adds opt-in `ios_runtime::dispatch::run_on_main` for a typed, one-shot main-thread handoff; queued work has no cancellation handle. B81 remains a point-in-time activation-state snapshot. Static checks do not prove runtime behavior.",
       "minimum_ios_version": "4.0",
       "required_frameworks": [
         "UIKit",
@@ -47,7 +47,7 @@
       "entitlements": [],
       "device_only_restrictions": [],
       "swift_abi_requirement": false,
-      "metadata_verification": "B453 API floor verified from installed Xcode 26.6 / iPhoneOS SDK 26.5 UIKit UIApplication.h. B510 uses public UIApplicationOpenSettingsURLString (iOS 8.0+) and openURL:options:completionHandler:; the registered profile passed device/Simulator compile and link checks at its iOS 10.0/14.0 floors. Link probes were not executed; runtime opening is unverified. The API is not app-extension-safe.",
+      "metadata_verification": "B453 API floor verified from installed Xcode 26.6 / iPhoneOS SDK 26.5 UIKit UIApplication.h. B510 uses public UIApplicationOpenSettingsURLString (iOS 8.0+) and openURL:options:completionHandler:; B511 uses public libdispatch main-queue handoff behind an opt-in feature. The default dependency graph excludes dispatch2; the registered profile passed device/Simulator compile and link checks at its iOS 10.0/14.0 floors; queued work was not executed. The Settings API is not app-extension-safe.",
       "parity_status": "not_tested_live_behavior_or_Apple_parity",
       "performance_status": "not_measured",
       "native_escape_handle_available": true,

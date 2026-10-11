@@ -225,20 +225,7 @@
           "deadline_seconds": 10,
           "evidence_type": "source-contract-consistency",
           "id": "ios-app-lifecycle-contract",
-          "input_paths": [
-            "platform/ios/ios-app-lifecycle/src/lib.rs",
-            "platform/ios/ios-app-lifecycle/src/platform.rs",
-            "platform/ios/ios-app-lifecycle/src/queue.rs",
-            "platform/ios/ios-app-lifecycle/src/mapping.rs",
-            "platform/ios/ios-app-lifecycle/src/observers.rs",
-            "platform/ios/ios-app-lifecycle/Cargo.toml",
-            "platform/ios/ios-app-lifecycle/check.sh",
-            "platform/ios/ios-app-lifecycle/check-link-imports.sh",
-            "platform/ios/ios-app-lifecycle/examples/link_probe.rs",
-            "docs/ios/app-lifecycle.md",
-            "docs/capabilities/capability-status.json",
-            "tools/validation/specs/validation-v1.json"
-          ],
+          "input_paths": ["platform/ios/ios-app-lifecycle/src/lib.rs","platform/ios/ios-app-lifecycle/src/platform.rs","platform/ios/ios-app-lifecycle/src/queue.rs","platform/ios/ios-app-lifecycle/src/mapping.rs","platform/ios/ios-app-lifecycle/src/observers.rs","platform/ios/ios-app-lifecycle/Cargo.toml","platform/ios/ios-app-lifecycle/check.sh","platform/ios/ios-app-lifecycle/check-link-imports.sh","platform/ios/ios-app-lifecycle/examples/link_probe.rs","platform/ios/ios-runtime/Cargo.toml","platform/ios/ios-runtime/src/dispatch.rs","platform/ios/ios-runtime/src/lib.rs","platform/ios/ios-runtime/src/main_thread.rs","docs/ios/app-lifecycle.md","docs/capabilities/capability-status.json","tools/validation/specs/validation-v1.json"],
           "interpreter": "python3",
           "minimum_version": "3.9",
           "required": true,
@@ -254,6 +241,7 @@
       "clippy_lib": false,
       "docs": [
         "docs/ios/app-lifecycle.md",
+        "docs/ios/runtime.md",
         "docs/capabilities/capability-status.json"
       ],
       "expected_imports": [
@@ -268,14 +256,15 @@
       "offline": false,
       "package": "ios-app-lifecycle",
       "rustdoc_warnings": false,
-      "scoped_files": ["platform/ios/ios-app-lifecycle/Cargo.toml","platform/ios/ios-app-lifecycle/check-link-imports.sh","platform/ios/ios-app-lifecycle/check-surface.sh","platform/ios/ios-app-lifecycle/check.sh","platform/ios/ios-app-lifecycle/examples/link_probe.rs","platform/ios/ios-app-lifecycle/src/lib.rs","platform/ios/ios-app-lifecycle/src/mapping.rs","platform/ios/ios-app-lifecycle/src/observers.rs","platform/ios/ios-app-lifecycle/src/platform.rs","platform/ios/ios-app-lifecycle/src/queue.rs","tools/validation/adapters/check_ios_app_lifecycle.py"],
+      "scoped_files": ["docs/ios/runtime.md","platform/ios/ios-app-lifecycle/Cargo.toml","platform/ios/ios-app-lifecycle/check-link-imports.sh","platform/ios/ios-app-lifecycle/examples/link_probe.rs","platform/ios/ios-runtime/Cargo.toml","platform/ios/ios-runtime/src/dispatch.rs","platform/ios/ios-runtime/src/lib.rs","platform/ios/ios-runtime/src/main_thread.rs","tools/validation/adapters/check_ios_app_lifecycle.py"],
       "shell_scripts": [
         "platform/ios/ios-app-lifecycle/check.sh",
         "platform/ios/ios-app-lifecycle/check-surface.sh",
         "platform/ios/ios-app-lifecycle/check-link-imports.sh"
       ],
       "source_dirs": [
-        "platform/ios/ios-app-lifecycle"
+        "platform/ios/ios-app-lifecycle",
+        "platform/ios/ios-runtime"
       ],
       "targets": [{"minimum_os":"10.0","sdk":"iphoneos","triple":"aarch64-apple-ios"},{"minimum_os":"14.0","sdk":"iphonesimulator","triple":"aarch64-apple-ios-sim"}]
     },

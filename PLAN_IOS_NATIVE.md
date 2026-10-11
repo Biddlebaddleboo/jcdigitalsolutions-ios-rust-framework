@@ -78,6 +78,8 @@ Proposed internal modules/symbols:
 - `dispatch`
 - `native_handle`
 
+B511 implements the opt-in `dispatch::run_on_main` one-shot main-queue handoff through `dispatch2`; it does not add an executor, cancellation handle, or global scheduler. Other dispatch adapters remain proposed.
+
 Use `objc2`/`block2` as preferred current dependencies, with narrow adapters and no public leakage into portable APIs.
 
 Proposed wrappers:

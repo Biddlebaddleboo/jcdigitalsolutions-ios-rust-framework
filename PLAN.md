@@ -358,6 +358,10 @@ B509 adds an opt-in portable `NotificationContent::with_system_default_sound`; e
 
 B510 adds iOS-only `ios_app_lifecycle::open_application_settings(MainThread)` through UIKit's public app-settings URL and open selector, matching the existing Rideshare settings action. The registered `ios-app-lifecycle` profile reports 32 PASS, 0 FAIL, 0 BLOCKED, and 2 SKIPPED; Simulator execution and physical-device behavior remain unverified
 
+### B511 — opt-in main-thread handoff (row 001)
+
+B511 adds `ios_runtime::dispatch::run_on_main` behind the `ios-runtime/dispatch` feature. It runs inline on main or enqueues one `Send + 'static` callback on `DispatchQueue::main`, with a typed `MainThread` proof; queued work has no cancellation handle. The repository-pinned `ios-rust-validate` release `ios-rust-tools-0.1.0+2289e6a73257b696f6ae5ecd61ee20fd16ab8b37` passed 31 gates with 0 FAIL, 0 BLOCKED, and 2 SKIPPED; simulator execution and physical-device behavior remain unverified
+
 ## Active work selection and limits
 
 1. Inspect the canonical capability status/owner, the relevant family plan, then the named workstream plan and exact files/symbols. Do not scan the entire planning corpus or treat every existing plan as pending work.

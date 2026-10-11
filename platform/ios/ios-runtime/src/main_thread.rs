@@ -18,4 +18,15 @@ impl MainThread {
     pub fn into_objc2(self) -> MainThreadMarker {
         self.0
     }
+
+    /// Construct a main-thread proof when the caller has an independent platform guarantee.
+    ///
+    /// # Safety
+    /// The caller must run on the process main thread. This is used only after a one-shot block
+    /// has been submitted to `DispatchQueue::main`.
+    #[cfg(feature = "dispatch")]
+    pub(crate) unsafe fn assume_current() -> Self {
+        // SAFETY: upheld by the caller's main-thread execution guarantee.
+        Self(unsafe { MainThreadMarker::new_unchecked() })
+    }
 }

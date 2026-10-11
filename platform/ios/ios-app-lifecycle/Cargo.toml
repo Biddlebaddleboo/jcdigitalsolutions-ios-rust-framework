@@ -7,6 +7,9 @@ license.workspace = true
 repository.workspace = true
 description = "UIKit application lifecycle backend for iOS"
 
+[features]
+main-thread-dispatch = ["ios-runtime/dispatch"]
+
 [dependencies]
 framework-app = { path = "../../../crates/framework-app" }
 framework-core.workspace = true

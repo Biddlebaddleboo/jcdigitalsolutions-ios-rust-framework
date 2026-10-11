@@ -27,7 +27,7 @@ for target in aarch64-apple-ios aarch64-apple-ios-sim; do
     export IPHONEOS_DEPLOYMENT_TARGET=$minimum
     export RUSTFLAGS="-C link-arg=$min_flag"
     cargo +1.94.1 build --locked --release --target "$target" \
-        -p ios-app-lifecycle --example link_probe
+        -p ios-app-lifecycle --example link_probe --features main-thread-dispatch
 
     probe="target/$target/release/examples/link_probe"
     imports=$(otool -L "$probe")
@@ -41,6 +41,10 @@ for target in aarch64-apple-ios aarch64-apple-ios-sim; do
     symbols=$(nm -u "$probe")
     printf '%s\n' "$symbols" | grep -F '_objc_msgSend' >/dev/null || {
         printf '%s probe does not import objc_msgSend\n' "$target" >&2
+        exit 1
+    }
+    printf '%s\n' "$symbols" | grep -E '_dispatch_(get_main_queue|async_f)' >/dev/null || {
+        printf '%s probe does not import the main dispatch queue handoff symbols\n' "$target" >&2
         exit 1
     }
     for symbol in \
