@@ -112,7 +112,7 @@
       "ios-sharing",
       "ios-runtime"
     ],
-["ios-microphone-pcm-recorder","ios-media-authorization"],["ios-datagram","framework-datagram"],["ios-notification-responses","framework-notifications"],["ios-navigation","framework-core"],["ios-navigation","framework-ui"],["ios-navigation","ios-runtime"],["ios-navigation","ios-ui"],["ios-call-provider","objc2-call-kit"],["ios-notifications","framework-core"],["ios-notifications","framework-notifications"]
+["ios-microphone-pcm-recorder","ios-media-authorization"],["ios-datagram","framework-datagram"],["ios-notification-responses","framework-notifications"],["ios-navigation","framework-core"],["ios-navigation","framework-ui"],["ios-navigation","ios-runtime"],["ios-navigation","ios-ui"],["ios-call-provider","objc2-call-kit"],["ios-notifications","framework-core"],["ios-notifications","framework-notifications"],["ios-preferences","framework-core"],["ios-preferences","framework-preferences"]
   ],
   "pilots": [
     {
@@ -3248,306 +3248,56 @@
       ],
       "fmt_all": false,
       "guards": [
-        {
-          "message": "event reads must reject ranges beyond EventKit's query horizon",
-          "must_exist": true,
-          "path": "platform/ios/ios-calendar/src/event_query.rs",
-          "text": "validate_eventkit_range(range)?"
-        },
-        {
-          "message": "event reads must recheck current full Calendar access",
-          "must_exist": true,
-          "path": "platform/ios/ios-calendar/src/event_query.rs",
-          "text": "require_full_access(native_authorization_status())?"
-        },
-        {
-          "message": "event reads must create an EventKit-owned date predicate",
-          "must_exist": true,
-          "path": "platform/ios/ios-calendar/src/event_query.rs",
-          "text": "predicateForEventsWithStartDate_endDate_calendars"
-        },
-        {
-          "message": "event reads must use the synchronous public EventKit query",
-          "must_exist": true,
-          "path": "platform/ios/ios-calendar/src/event_query.rs",
-          "text": "eventsMatchingPredicate(&predicate)"
-        },
-        {
-          "message": "event reads must not request Calendar permission",
-          "must_exist": false,
-          "path": "platform/ios/ios-calendar/src/event_query.rs",
-          "text": "requestFullAccessToEventsWithCompletion"
-        },
-        {
-          "message": "event reads must not request write-only Calendar permission",
-          "must_exist": false,
-          "path": "platform/ios/ios-calendar/src/event_query.rs",
-          "text": "requestWriteOnlyAccessToEventsWithCompletion"
-        },
-        {
-          "message": "event reads must not query reminders",
-          "must_exist": false,
-          "path": "platform/ios/ios-calendar/src/event_query.rs",
-          "text": "EKReminder"
-        },
-        {
-          "message": "event reads must not mutate or delete events",
-          "must_exist": false,
-          "path": "platform/ios/ios-calendar/src/event_query.rs",
-          "text": "saveEvent"
-        },
-        {
-          "message": "event reads must not delete events",
-          "must_exist": false,
-          "path": "platform/ios/ios-calendar/src/event_query.rs",
-          "text": "removeEvent"
-        },
-        {
-          "message": "the portable Calendar facade must expose a writable event-calendar snapshot",
-          "must_exist": true,
-          "path": "crates/framework-calendar/src/lib.rs",
-          "text": "pub fn writable_event_calendars"
-        },
-        {
-          "message": "the portable Calendar facade must expose one-event creation for a selected calendar",
-          "must_exist": true,
-          "path": "crates/framework-calendar/src/lib.rs",
-          "text": "pub fn create_event"
-        },
-        {
-          "message": "calendar listing must recheck current FullAccess without prompting",
-          "must_exist": true,
-          "path": "platform/ios/ios-calendar/src/event_create.rs",
-          "text": "require_full_access_for_create(native_authorization_status())?"
-        },
-        {
-          "message": "calendar choices must use the public Event-only EventKit calendar query",
-          "must_exist": true,
-          "path": "platform/ios/ios-calendar/src/event_create.rs",
-          "text": "calendarsForEntityType(EKEntityType::Event)"
-        },
-        {
-          "message": "calendar choices must include only currently writable Event calendars",
-          "must_exist": true,
-          "path": "platform/ios/ios-calendar/src/event_create.rs",
-          "text": "allowsContentModifications()"
-        },
-        {
-          "message": "calendar snapshots must drop calendars lacking Event support or modification access",
-          "must_exist": true,
-          "path": "platform/ios/ios-calendar/src/event_create.rs",
-          "text": "if !supports_events || !allows_changes"
-        },
-        {
-          "message": "calendar listing and creation must require the Event entity mask",
-          "must_exist": true,
-          "path": "platform/ios/ios-calendar/src/event_create.rs",
-          "text": "allowedEntityTypes().contains(EKEntityMask::Event)"
-        },
-        {
-          "message": "event creation must reject a selected calendar without Event support",
-          "must_exist": true,
-          "path": "platform/ios/ios-calendar/src/event_create.rs",
-          "text": "if !supports_events"
-        },
-        {
-          "message": "draft interval validation must precede native lookup and mutation",
-          "must_exist": true,
-          "path": "platform/ios/ios-calendar/src/event_create.rs",
-          "text": "if draft.start() >= draft.end()"
-        },
-        {
-          "message": "selected calendar identifier validation must precede native lookup",
-          "must_exist": true,
-          "path": "platform/ios/ios-calendar/src/event_create.rs",
-          "text": "if calendar.identifier().is_empty()"
-        },
-        {
-          "message": "event creation must resolve the caller-selected calendar identifier afresh",
-          "must_exist": true,
-          "path": "platform/ios/ios-calendar/src/event_create.rs",
-          "text": "calendarWithIdentifier(&identifier)"
-        },
-        {
-          "message": "event creation must reject calendars that no longer allow modifications",
-          "must_exist": true,
-          "path": "platform/ios/ios-calendar/src/event_create.rs",
-          "text": "if !allows_changes"
-        },
-        {
-          "message": "event creation must create its event only in the existing backend store",
-          "must_exist": true,
-          "path": "platform/ios/ios-calendar/src/event_create.rs",
-          "text": "EKEvent::eventWithEventStore(event_store)"
-        },
-        {
-          "message": "event creation must commit exactly one EventKit event with ThisEvent span",
-          "must_exist": true,
-          "path": "platform/ios/ios-calendar/src/event_create.rs",
-          "text": "saveEvent_span_commit_error"
-        },
-        {
-          "message": "event creation must save one selected EventKit event with ThisEvent and commit enabled",
-          "must_exist": true,
-          "path": "platform/ios/ios-calendar/src/event_create.rs",
-          "text": "event_store.saveEvent_span_commit_error(&event, EKSpan::ThisEvent, true)"
-        },
-        {
-          "message": "event creation must not claim or return a potentially changing EventKit identifier",
-          "must_exist": false,
-          "path": "platform/ios/ios-calendar/src/event_create.rs",
-          "text": "eventIdentifier"
-        },
-        {
-          "message": "event calendar listing and creation must never request Calendar permission",
-          "must_exist": false,
-          "path": "platform/ios/ios-calendar/src/event_create.rs",
-          "text": "requestFullAccessToEventsWithCompletion"
-        },
-        {
-          "message": "event calendar listing and creation must never request write-only access",
-          "must_exist": false,
-          "path": "platform/ios/ios-calendar/src/event_create.rs",
-          "text": "requestWriteOnlyAccessToEventsWithCompletion"
-        },
-        {
-          "message": "event creation must not access reminders or delete events",
-          "must_exist": false,
-          "path": "platform/ios/ios-calendar/src/event_create.rs",
-          "text": "EKReminder"
-        },
-        {
-          "message": "event creation must not remove events",
-          "must_exist": false,
-          "path": "platform/ios/ios-calendar/src/event_create.rs",
-          "text": "removeEvent"
-        },
-        {
-          "message": "the portable Calendar facade must expose one-selected-event deletion",
-          "must_exist": true,
-          "path": "crates/framework-calendar/src/lib.rs",
-          "text": "pub fn delete_event"
-        },
-        {
-          "message": "the portable Calendar contract must keep event deletion source-compatible",
-          "must_exist": true,
-          "path": "crates/framework-calendar/src/lib.rs",
-          "text": "pub trait CalendarEventDeleteBackend"
-        },
-        {
-          "message": "the facade must inspect the selected event identifier before backend dispatch",
-          "must_exist": true,
-          "path": "crates/framework-calendar/src/lib.rs",
-          "text": "event.event_identifier()"
-        },
-        {
-          "message": "the facade must reject missing or empty identifiers before backend dispatch",
-          "must_exist": true,
-          "path": "crates/framework-calendar/src/lib.rs",
-          "text": ".is_none_or(|identifier| identifier.is_empty())"
-        },
-        {
-          "message": "EventKit deletion must reject missing or empty identifiers before native lookup",
-          "must_exist": true,
-          "path": "platform/ios/ios-calendar/src/event_delete.rs",
-          "text": ".filter(|identifier| !identifier.is_empty())"
-        },
-        {
-          "message": "EventKit deletion must recheck current FullAccess without prompting",
-          "must_exist": true,
-          "path": "platform/ios/ios-calendar/src/event_delete.rs",
-          "text": "require_full_access_for_delete(native_authorization_status())?"
-        },
-        {
-          "message": "EventKit deletion must resolve only the selected event identifier",
-          "must_exist": true,
-          "path": "platform/ios/ios-calendar/src/event_delete.rs",
-          "text": "eventWithIdentifier(&native_identifier)"
-        },
-        {
-          "message": "the shared selected-event snapshot validator must compare the resolved identifier",
-          "must_exist": true,
-          "path": "platform/ios/ios-calendar/src/conversion.rs",
-          "text": "event.event_identifier() == Some(resolved_identifier)"
-        },
-        {
-          "message": "EventKit deletion must fail closed when the resolved occurrence differs from the selected snapshot",
-          "must_exist": true,
-          "path": "platform/ios/ios-calendar/src/event_delete.rs",
-          "text": "validate_event_delete_snapshot(event, &resolved_identifier, start, end)?"
-        },
-        {
-          "message": "the shared event snapshot validator must reject any identifier or date mismatch",
-          "must_exist": true,
-          "path": "platform/ios/ios-calendar/src/conversion.rs",
-          "text": "if !selected_event_snapshot_matches(event, resolved_identifier, start_seconds, end_seconds)"
-        },
-        {
-          "message": "the shared event snapshot validator must compare the selected start instant",
-          "must_exist": true,
-          "path": "platform/ios/ios-calendar/src/conversion.rs",
-          "text": "start_seconds == event.start().unix_seconds()"
-        },
-        {
-          "message": "the shared event snapshot validator must compare the selected end instant",
-          "must_exist": true,
-          "path": "platform/ios/ios-calendar/src/conversion.rs",
-          "text": "end_seconds == event.end().unix_seconds()"
-        },
-        {
-          "message": "EventKit deletion must require the resolved event calendar to support Event entities",
-          "must_exist": true,
-          "path": "platform/ios/ios-calendar/src/event_delete.rs",
-          "text": "allowedEntityTypes()"
-        },
-        {
-          "message": "EventKit deletion must check for the Event entity mask",
-          "must_exist": true,
-          "path": "platform/ios/ios-calendar/src/event_delete.rs",
-          "text": ".contains(EKEntityMask::Event)"
-        },
-        {
-          "message": "EventKit deletion must recheck current calendar writability",
-          "must_exist": true,
-          "path": "platform/ios/ios-calendar/src/event_delete.rs",
-          "text": "allowsContentModifications()"
-        },
-        {
-          "message": "EventKit deletion must commit one ThisEvent removal only",
-          "must_exist": true,
-          "path": "platform/ios/ios-calendar/src/event_delete.rs",
-          "text": "removeEvent_span_commit_error"
-        },
-        {
-          "message": "EventKit deletion must not remove a recurring series or future occurrences",
-          "must_exist": true,
-          "path": "platform/ios/ios-calendar/src/event_delete.rs",
-          "text": "EKSpan::ThisEvent"
-        },
-        {
-          "message": "EventKit deletion must commit the single selected-event removal",
-          "must_exist": true,
-          "path": "platform/ios/ios-calendar/src/event_delete.rs",
-          "text": "true,"
-        },
-        {
-          "message": "EventKit deletion must not request Calendar permission",
-          "must_exist": false,
-          "path": "platform/ios/ios-calendar/src/event_delete.rs",
-          "text": "requestFullAccessToEventsWithCompletion"
-        },
-        {
-          "message": "EventKit deletion must not request write-only Calendar permission",
-          "must_exist": false,
-          "path": "platform/ios/ios-calendar/src/event_delete.rs",
-          "text": "requestWriteOnlyAccessToEventsWithCompletion"
-        },
-        {
-          "message": "EventKit deletion must not enumerate events or calendars",
-          "must_exist": false,
-          "path": "platform/ios/ios-calendar/src/event_delete.rs",
-          "text": "eventsMatchingPredicate"
-        },
+        {"message":"event reads must reject ranges beyond EventKit's query horizon","must_exist":true,"path":"platform/ios/ios-calendar/src/event_query.rs","text":"validate_eventkit_range(range)?"},
+        {"message":"event reads must recheck current full Calendar access","must_exist":true,"path":"platform/ios/ios-calendar/src/event_query.rs","text":"require_full_access(native_authorization_status())?"},
+        {"message":"event reads must create an EventKit-owned date predicate","must_exist":true,"path":"platform/ios/ios-calendar/src/event_query.rs","text":"predicateForEventsWithStartDate_endDate_calendars"},
+        {"message":"event reads must use the synchronous public EventKit query","must_exist":true,"path":"platform/ios/ios-calendar/src/event_query.rs","text":"eventsMatchingPredicate(&predicate)"},
+        {"message":"event reads must not request Calendar permission","must_exist":false,"path":"platform/ios/ios-calendar/src/event_query.rs","text":"requestFullAccessToEventsWithCompletion"},
+        {"message":"event reads must not request write-only Calendar permission","must_exist":false,"path":"platform/ios/ios-calendar/src/event_query.rs","text":"requestWriteOnlyAccessToEventsWithCompletion"},
+        {"message":"event reads must not query reminders","must_exist":false,"path":"platform/ios/ios-calendar/src/event_query.rs","text":"EKReminder"},
+        {"message":"event reads must not mutate or delete events","must_exist":false,"path":"platform/ios/ios-calendar/src/event_query.rs","text":"saveEvent"},
+        {"message":"event reads must not delete events","must_exist":false,"path":"platform/ios/ios-calendar/src/event_query.rs","text":"removeEvent"},
+        {"message":"the portable Calendar facade must expose a writable event-calendar snapshot","must_exist":true,"path":"crates/framework-calendar/src/lib.rs","text":"pub fn writable_event_calendars"},
+        {"message":"the portable Calendar facade must expose one-event creation for a selected calendar","must_exist":true,"path":"crates/framework-calendar/src/lib.rs","text":"pub fn create_event"},
+        {"message":"calendar listing must recheck current FullAccess without prompting","must_exist":true,"path":"platform/ios/ios-calendar/src/event_create.rs","text":"require_full_access_for_create(native_authorization_status())?"},
+        {"message":"calendar choices must use the public Event-only EventKit calendar query","must_exist":true,"path":"platform/ios/ios-calendar/src/event_create.rs","text":"calendarsForEntityType(EKEntityType::Event)"},
+        {"message":"calendar choices must include only currently writable Event calendars","must_exist":true,"path":"platform/ios/ios-calendar/src/event_create.rs","text":"allowsContentModifications()"},
+        {"message":"calendar snapshots must drop calendars lacking Event support or modification access","must_exist":true,"path":"platform/ios/ios-calendar/src/event_create.rs","text":"if !supports_events || !allows_changes"},
+        {"message":"calendar listing and creation must require the Event entity mask","must_exist":true,"path":"platform/ios/ios-calendar/src/event_create.rs","text":"allowedEntityTypes().contains(EKEntityMask::Event)"},
+        {"message":"event creation must reject a selected calendar without Event support","must_exist":true,"path":"platform/ios/ios-calendar/src/event_create.rs","text":"if !supports_events"},
+        {"message":"draft interval validation must precede native lookup and mutation","must_exist":true,"path":"platform/ios/ios-calendar/src/event_create.rs","text":"if draft.start() >= draft.end()"},
+        {"message":"selected calendar identifier validation must precede native lookup","must_exist":true,"path":"platform/ios/ios-calendar/src/event_create.rs","text":"if calendar.identifier().is_empty()"},
+        {"message":"event creation must resolve the caller-selected calendar identifier afresh","must_exist":true,"path":"platform/ios/ios-calendar/src/event_create.rs","text":"calendarWithIdentifier(&identifier)"},
+        {"message":"event creation must reject calendars that no longer allow modifications","must_exist":true,"path":"platform/ios/ios-calendar/src/event_create.rs","text":"if !allows_changes"},
+        {"message":"event creation must create its event only in the existing backend store","must_exist":true,"path":"platform/ios/ios-calendar/src/event_create.rs","text":"EKEvent::eventWithEventStore(event_store)"},
+        {"message":"event creation must commit exactly one EventKit event with ThisEvent span","must_exist":true,"path":"platform/ios/ios-calendar/src/event_create.rs","text":"saveEvent_span_commit_error"},
+        {"message":"event creation must save one selected EventKit event with ThisEvent and commit enabled","must_exist":true,"path":"platform/ios/ios-calendar/src/event_create.rs","text":"event_store.saveEvent_span_commit_error(&event, EKSpan::ThisEvent, true)"},
+        {"message":"event creation must not claim or return a potentially changing EventKit identifier","must_exist":false,"path":"platform/ios/ios-calendar/src/event_create.rs","text":"eventIdentifier"},
+        {"message":"event calendar listing and creation must never request Calendar permission","must_exist":false,"path":"platform/ios/ios-calendar/src/event_create.rs","text":"requestFullAccessToEventsWithCompletion"},
+        {"message":"event calendar listing and creation must never request write-only access","must_exist":false,"path":"platform/ios/ios-calendar/src/event_create.rs","text":"requestWriteOnlyAccessToEventsWithCompletion"},
+        {"message":"event creation must not access reminders or delete events","must_exist":false,"path":"platform/ios/ios-calendar/src/event_create.rs","text":"EKReminder"},
+        {"message":"event creation must not remove events","must_exist":false,"path":"platform/ios/ios-calendar/src/event_create.rs","text":"removeEvent"},
+        {"message":"the portable Calendar facade must expose one-selected-event deletion","must_exist":true,"path":"crates/framework-calendar/src/lib.rs","text":"pub fn delete_event"},
+        {"message":"the portable Calendar contract must keep event deletion source-compatible","must_exist":true,"path":"crates/framework-calendar/src/lib.rs","text":"pub trait CalendarEventDeleteBackend"},
+        {"message":"the facade must inspect the selected event identifier before backend dispatch","must_exist":true,"path":"crates/framework-calendar/src/lib.rs","text":"event.event_identifier()"},
+        {"message":"the facade must reject missing or empty identifiers before backend dispatch","must_exist":true,"path":"crates/framework-calendar/src/lib.rs","text":".is_none_or(|identifier| identifier.is_empty())"},
+        {"message":"EventKit deletion must reject missing or empty identifiers before native lookup","must_exist":true,"path":"platform/ios/ios-calendar/src/event_delete.rs","text":".filter(|identifier| !identifier.is_empty())"},
+        {"message":"EventKit deletion must recheck current FullAccess without prompting","must_exist":true,"path":"platform/ios/ios-calendar/src/event_delete.rs","text":"require_full_access_for_delete(native_authorization_status())?"},
+        {"message":"EventKit deletion must resolve only the selected event identifier","must_exist":true,"path":"platform/ios/ios-calendar/src/event_delete.rs","text":"eventWithIdentifier(&native_identifier)"},
+        {"message":"the shared selected-event snapshot validator must compare the resolved identifier","must_exist":true,"path":"platform/ios/ios-calendar/src/conversion.rs","text":"event.event_identifier() == Some(resolved_identifier)"},
+        {"message":"EventKit deletion must fail closed when the resolved occurrence differs from the selected snapshot","must_exist":true,"path":"platform/ios/ios-calendar/src/event_delete.rs","text":"validate_event_delete_snapshot(event, &resolved_identifier, start, end)?"},
+        {"message":"the shared event snapshot validator must reject any identifier or date mismatch","must_exist":true,"path":"platform/ios/ios-calendar/src/conversion.rs","text":"if !selected_event_snapshot_matches(event, resolved_identifier, start_seconds, end_seconds)"},
+        {"message":"the shared event snapshot validator must compare the selected start instant","must_exist":true,"path":"platform/ios/ios-calendar/src/conversion.rs","text":"start_seconds == event.start().unix_seconds()"},
+        {"message":"the shared event snapshot validator must compare the selected end instant","must_exist":true,"path":"platform/ios/ios-calendar/src/conversion.rs","text":"end_seconds == event.end().unix_seconds()"},
+        {"message":"EventKit deletion must require the resolved event calendar to support Event entities","must_exist":true,"path":"platform/ios/ios-calendar/src/event_delete.rs","text":"allowedEntityTypes()"},
+        {"message":"EventKit deletion must check for the Event entity mask","must_exist":true,"path":"platform/ios/ios-calendar/src/event_delete.rs","text":".contains(EKEntityMask::Event)"},
+        {"message":"EventKit deletion must recheck current calendar writability","must_exist":true,"path":"platform/ios/ios-calendar/src/event_delete.rs","text":"allowsContentModifications()"},
+        {"message":"EventKit deletion must commit one ThisEvent removal only","must_exist":true,"path":"platform/ios/ios-calendar/src/event_delete.rs","text":"removeEvent_span_commit_error"},
+        {"message":"EventKit deletion must not remove a recurring series or future occurrences","must_exist":true,"path":"platform/ios/ios-calendar/src/event_delete.rs","text":"EKSpan::ThisEvent"},
+        {"message":"EventKit deletion must commit the single selected-event removal","must_exist":true,"path":"platform/ios/ios-calendar/src/event_delete.rs","text":"true,"},
+        {"message":"EventKit deletion must not request Calendar permission","must_exist":false,"path":"platform/ios/ios-calendar/src/event_delete.rs","text":"requestFullAccessToEventsWithCompletion"},
+        {"message":"EventKit deletion must not request write-only Calendar permission","must_exist":false,"path":"platform/ios/ios-calendar/src/event_delete.rs","text":"requestWriteOnlyAccessToEventsWithCompletion"},
+        {"message":"EventKit deletion must not enumerate events or calendars","must_exist":false,"path":"platform/ios/ios-calendar/src/event_delete.rs","text":"eventsMatchingPredicate"},
         {
           "message": "EventKit deletion must not enumerate calendars to find a fallback",
           "must_exist": false,
@@ -4459,6 +4209,36 @@
       "shell_scripts": ["platform/ios/ios-navigation/check-link-imports.sh"],
       "source_dirs": ["platform/ios/ios-navigation"],
       "targets": [{"minimum_os":"12.0","sdk":"iphoneos","triple":"aarch64-apple-ios"},{"minimum_os":"14.0","sdk":"iphonesimulator","triple":"aarch64-apple-ios-sim"}]
+    },
+    {
+      "abi_scripts": ["platform/ios/ios-files/check-app-data-link-imports.sh"],
+      "abi_targets": [{"minimum_os":"10.0","sdk":"iphoneos","triple":"aarch64-apple-ios"},{"minimum_os":"14.0","sdk":"iphonesimulator","triple":"aarch64-apple-ios-sim"}],
+      "adapters": [],
+      "cargo_tree": false,
+      "check_script": "platform/ios/ios-files/check-app-data-link-imports.sh",
+      "clippy_all_targets": true,
+      "clippy_lib": false,
+      "docs": ["docs/ios/preferences.md"],
+      "expected_imports": ["CoreFoundation.framework","Foundation.framework","libSystem.B.dylib","libobjc.A.dylib"],
+      "fmt_all": false,
+      "guards": [
+        {"message":"NSString-only read","must_exist":true,"path":"platform/ios/ios-preferences/src/lib.rs","text":"downcast::<NSString>()"},
+        {"message":"CFBoolean-only read","must_exist":true,"path":"platform/ios/ios-preferences/src/lib.rs","text":"downcast_ref::<CFBoolean>()"},
+        {"message":"NSData-only byte read","must_exist":true,"path":"platform/ios/ios-preferences/src/lib.rs","text":"value.downcast::<NSData>()"},
+        {"message":"No stringForKey","must_exist":false,"path":"platform/ios/ios-preferences/src/lib.rs","text":"stringForKey"},
+        {"message":"No boolForKey","must_exist":false,"path":"platform/ios/ios-preferences/src/lib.rs","text":"boolForKey"},
+        {"message":"NSDate-only read","must_exist":true,"path":"platform/ios/ios-preferences/src/lib.rs","text":"downcast::<NSDate>()"},
+        {"message":"NSDate Unix-second write","must_exist":true,"path":"platform/ios/ios-preferences/src/lib.rs","text":"NSDate::dateWithTimeIntervalSince1970(seconds)"}
+      ],
+      "id": "ios-preferences",
+      "manifest": "platform/ios/ios-preferences/Cargo.toml",
+      "offline": false,
+      "package": "ios-preferences",
+      "rustdoc_warnings": true,
+      "scoped_files": ["Cargo.lock","docs/ios/preferences.md","platform/ios/ios-files/check-app-data-link-imports.sh","platform/ios/ios-preferences/Cargo.toml","platform/ios/ios-preferences/src/lib.rs","platform/ios/ios-preferences/src/value_policy.rs","platform/ios/ios-preferences/tests/value_policy.rs","tools/validation/specs/validation-v1.json"],
+      "shell_scripts": ["platform/ios/ios-files/check-app-data-link-imports.sh"],
+      "source_dirs": ["crates/framework-preferences","platform/ios/ios-preferences"],
+      "targets": [{"minimum_os":"10.0","sdk":"iphoneos","triple":"aarch64-apple-ios"},{"minimum_os":"14.0","sdk":"iphonesimulator","triple":"aarch64-apple-ios-sim"}]
     }
   ],
   "schema_version": 1,
@@ -4654,6 +4434,6 @@
       "node": "ios-call-provider",
       "global": false
     },
-    {"path":"platform/ios/ios-notifications/","node":"ios-notifications","global":false}
+    {"path":"platform/ios/ios-notifications/","node":"ios-notifications","global":false},{"path":"crates/framework-preferences/","node":"framework-preferences","global":false},{"path":"platform/ios/ios-preferences/","node":"ios-preferences","global":false},{"path":"platform/ios/ios-files/check-app-data-link-imports.sh","node":"ios-preferences","global":false}
   ]
 }

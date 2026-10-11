@@ -21,6 +21,7 @@ libobjc.A.dylib
 IMPORTS
 
 cat > target/ios-app-data-ios-preferences-imports-expected.txt <<'IMPORTS'
+CoreFoundation
 Foundation
 libSystem.B.dylib
 libobjc.A.dylib

@@ -13,6 +13,21 @@ values ([NSUserDefaults](https://developer.apple.com/documentation/foundation/us
 are not prefixed or normalized. A pre-existing value under that key that is not an
 `NSData` value returns `InvalidInput` rather than being silently treated as absent.
 
+`IosPreferences` also has iOS-only typed accessors for native property-list values. String values
+map to/from `NSString`; Boolean values map to/from an `NSNumber` backed by Core Foundation's Boolean
+type; date values map to/from `NSDate` with `get_date_seconds`/`set_date_seconds`. The getters
+inspect `objectForKey:` without Foundation coercion: a missing key returns `Ok(None)`, while an
+existing value of another type returns `Err(IosPreferencesValueError::WrongType)`. An `NSString`
+with an unpaired UTF-16 surrogate returns `Err(IosPreferencesValueError::InvalidUtf16)`; valid code
+units are converted strictly and embedded NUL is preserved. A numeric `NSNumber` is not accepted as
+a Boolean or date. Date methods use finite `f64` seconds since 1970-01-01T00:00:00Z via Foundation's
+`NSTimeInterval` APIs; they do not promise nanosecond or bit-for-bit round trips through `NSDate`.
+`get_date_seconds` returns `InvalidDateSeconds` for a non-finite native interval, and
+`set_date_seconds` rejects non-finite input. The portable byte contract is unchanged: `get_bytes`
+accepts only `NSData` and returns `InvalidInput` for native strings, Booleans, dates, or other
+property-list types. Do not store credentials or passwords here; use the secure-storage capability
+for secrets.
+
 This is non-secure app preference storage, not Keychain, not cross-device sync, and not an
 immediate durable-flush API. `NSUserDefaults` makes a set visible to the process before it stores
 the value persistently; persistent storage happens asynchronously. This adapter does not call
@@ -51,8 +66,9 @@ Calls are synchronous and Foundation documents `NSUserDefaults` as thread-safe. 
 starts no callbacks or async tasks and has no cancellation operation. Dropping the backend releases
 its retained Objective-C reference.
 
-The iOS dependency surface is `objc2` 0.6.5 and `objc2-foundation` 0.3.2 with only the
-`NSData`, `NSString`, and `NSUserDefaults` surfaces enabled. A minimal consumer of both app-data
+The iOS dependency surface is `objc2` 0.6.5, `objc2-foundation` 0.3.2, and the workspace's existing
+`objc2-core-foundation` 0.3.2 binding, with only the `NSData`, `NSDate`, `NSString`, `NSUserDefaults`,
+`NSValue`, and `CFNumber` surfaces enabled. A minimal consumer of both app-data
 crates was built for device and simulator with
 `IPHONEOS_DEPLOYMENT_TARGET=10.0 cargo build --release --target aarch64-apple-ios` and
 `IPHONEOS_DEPLOYMENT_TARGET=10.0 cargo build --release --target aarch64-apple-ios-sim`. `otool -L`

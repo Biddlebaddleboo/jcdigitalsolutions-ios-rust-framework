@@ -28,6 +28,7 @@ The following are configured validation profiles, not claims that every gate pas
 | ios-call-provider | ios-call-provider | 2 | 1 | 1 | True |
 | ios-notifications | ios-notifications | 2 | 1 | 0 | False |
 | ios-navigation | ios-navigation | 2 | 1 | 0 | False |
+| ios-preferences | ios-preferences | 2 | 1 | 0 | False |
 
 
 ## Inspect actual gates
