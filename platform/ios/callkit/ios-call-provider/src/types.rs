@@ -232,6 +232,42 @@ pub enum CallProviderEvent {
     ProviderReset,
     /// CallKit timed out an action; that action is already failed and must not be completed again.
     ActionTimedOut,
+    /// CallKit activated its audio session for the provider.
+    ///
+    /// This is a notification only. It does not expose the native audio session or configure
+    /// application audio behavior.
+    #[cfg(feature = "audio-session-events")]
+    AudioSessionActivated,
+    /// CallKit deactivated its audio session for the provider.
+    ///
+    /// This is a notification only. It does not expose the native audio session or configure
+    /// application audio behavior.
+    #[cfg(feature = "audio-session-events")]
+    AudioSessionDeactivated,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[cfg(any(test, target_os = "ios"))]
+pub(crate) enum CallProviderEventDelivery {
+    Action,
+    Lifecycle,
+}
+
+#[cfg(any(test, target_os = "ios"))]
+impl CallProviderEvent {
+    pub(crate) const fn delivery(self) -> CallProviderEventDelivery {
+        match self {
+            Self::AnswerRequested { .. }
+            | Self::EndRequested { .. }
+            | Self::MuteRequested { .. }
+            | Self::HoldRequested { .. } => CallProviderEventDelivery::Action,
+            Self::ProviderReset | Self::ActionTimedOut => CallProviderEventDelivery::Lifecycle,
+            #[cfg(feature = "audio-session-events")]
+            Self::AudioSessionActivated | Self::AudioSessionDeactivated => {
+                CallProviderEventDelivery::Lifecycle
+            }
+        }
+    }
 }
 
 /// Immediate response to a CallKit call action.
@@ -588,6 +624,38 @@ mod tests {
                 CallActionRequest::new(call_id, kind, CallActionCompletion::new(|_| Ok(())));
             assert_eq!(request.call_id(), call_id);
             assert_eq!(request.kind(), kind);
+        }
+    }
+
+    #[cfg(feature = "audio-session-events")]
+    #[test]
+    fn audio_session_transitions_use_lifecycle_delivery() {
+        assert_eq!(
+            CallProviderEvent::AudioSessionActivated.delivery(),
+            CallProviderEventDelivery::Lifecycle
+        );
+        assert_eq!(
+            CallProviderEvent::AudioSessionDeactivated.delivery(),
+            CallProviderEventDelivery::Lifecycle
+        );
+    }
+
+    #[test]
+    fn call_action_events_keep_action_delivery() {
+        let call_id = CallId::from_bytes([43; 16]);
+        for event in [
+            CallProviderEvent::AnswerRequested { call_id },
+            CallProviderEvent::EndRequested { call_id },
+            CallProviderEvent::MuteRequested {
+                call_id,
+                is_muted: true,
+            },
+            CallProviderEvent::HoldRequested {
+                call_id,
+                is_held: true,
+            },
+        ] {
+            assert_eq!(event.delivery(), CallProviderEventDelivery::Action);
         }
     }
 }

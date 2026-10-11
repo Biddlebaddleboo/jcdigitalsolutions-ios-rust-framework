@@ -12,6 +12,8 @@ use objc2::MainThreadOnly;
 use objc2::rc::{Retained, Weak, autoreleasepool};
 use objc2::runtime::ProtocolObject;
 use objc2::{AnyThread, ClassType, DefinedClass, available, define_class, msg_send};
+#[cfg(feature = "audio-session-events")]
+use objc2_avf_audio::AVAudioSession;
 use objc2_call_kit::{
     CXAction, CXAnswerCallAction, CXCallAction, CXCallEndedReason, CXCallUpdate, CXEndCallAction,
     CXHandle, CXHandleType, CXProvider, CXProviderConfiguration, CXProviderDelegate,
@@ -22,6 +24,7 @@ use objc2_foundation::{NSError, NSNumber, NSObject, NSObjectProtocol, NSSet, NSS
 use crate::registry::{
     BeginReportError, CallRegistry, DeferredActionGate, EndTransition, OnceSlot, ReportTransition,
 };
+use crate::types::CallProviderEventDelivery;
 use crate::{
     ActionDecision, CallActionCompletion, CallActionCompletionError, CallActionKind,
     CallActionRequest, CallEndReason, CallHandleKind, CallId, CallProviderConfig,
@@ -179,7 +182,7 @@ define_class!(
                     state.pending_actions.invalidate()
                 };
                 drop(pending);
-                dispatch_lifecycle(shared, CallProviderEvent::ProviderReset);
+                dispatch_event(shared, CallProviderEvent::ProviderReset);
             }));
         }
 
@@ -263,7 +266,37 @@ define_class!(
                     .pending_actions
                     .timeout(&action_id);
                 drop(pending);
-                dispatch_lifecycle(shared, CallProviderEvent::ActionTimedOut);
+                dispatch_event(shared, CallProviderEvent::ActionTimedOut);
+            }));
+        }
+
+        #[cfg(feature = "audio-session-events")]
+        #[unsafe(method(provider:didActivateAudioSession:))]
+        unsafe fn provider_didActivateAudioSession(
+            &self,
+            _provider: &CXProvider,
+            _audio_session: &AVAudioSession,
+        ) {
+            let _ = catch_unwind(AssertUnwindSafe(|| {
+                dispatch_event(
+                    &self.ivars().shared,
+                    CallProviderEvent::AudioSessionActivated,
+                );
+            }));
+        }
+
+        #[cfg(feature = "audio-session-events")]
+        #[unsafe(method(provider:didDeactivateAudioSession:))]
+        unsafe fn provider_didDeactivateAudioSession(
+            &self,
+            _provider: &CXProvider,
+            _audio_session: &AVAudioSession,
+        ) {
+            let _ = catch_unwind(AssertUnwindSafe(|| {
+                dispatch_event(
+                    &self.ivars().shared,
+                    CallProviderEvent::AudioSessionDeactivated,
+                );
             }));
         }
     }
@@ -278,6 +311,10 @@ impl ProviderDelegate {
 }
 
 fn dispatch_event(shared: &ProviderShared, event: CallProviderEvent) -> ActionDecision {
+    if event.delivery() == CallProviderEventDelivery::Lifecycle {
+        dispatch_lifecycle(shared, event);
+        return ActionDecision::Fail;
+    }
     let mut handler = shared.handler.borrow_mut();
     let Some(handler) = handler.as_mut() else {
         return ActionDecision::Fail;
@@ -493,8 +530,9 @@ impl CallProvider {
     /// Create a provider on the main thread with an immediate call-action handler.
     ///
     /// The handler runs synchronously on the CallKit delegate queue, which is the main queue. It
-    /// must return promptly and must not wait for network work. For `ProviderReset` and
-    /// `ActionTimedOut` events, its return value is ignored. Panics become failed actions.
+    /// must return promptly and must not wait for network work. For provider lifecycle events,
+    /// including audio-session activation and deactivation, its return value is ignored. Panics
+    /// are contained; a call-action handler panic fails that action.
     pub fn new<F>(
         main_thread: MainThreadMarker,
         config: CallProviderConfig,
@@ -508,10 +546,12 @@ impl CallProvider {
 
     /// Create a provider whose call actions can resolve after application work completes.
     ///
-    /// The lifecycle handler receives only `ProviderReset` and `ActionTimedOut`. The action
-    /// handler receives a one-shot request on the main CallKit delegate queue and must return
-    /// promptly. Move the request or its completion to app-owned asynchronous work; this API adds
-    /// no executor or networking policy. Dropping an unsubmitted completion fails the action.
+    /// The lifecycle handler receives `ProviderReset`, `ActionTimedOut`, and CallKit audio-session
+    /// activation and deactivation notifications. It receives no native audio-session object and
+    /// does not configure audio policy. The action handler receives a one-shot request on the main
+    /// CallKit delegate queue and must return promptly. Move the request or its completion to
+    /// app-owned asynchronous work; this API adds no executor or networking policy. Dropping an
+    /// unsubmitted completion fails the action.
     pub fn new_with_deferred_actions<L, A>(
         main_thread: MainThreadMarker,
         config: CallProviderConfig,
