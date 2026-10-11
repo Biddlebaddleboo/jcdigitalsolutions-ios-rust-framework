@@ -28,6 +28,9 @@ use crate::text_conversion::{Utf16Error, decode_utf16};
 use crate::text_policy::{KeyboardHint, TextFieldCallback, input_traits, invoke_text_callback};
 use crate::toggle_policy::invoke_toggle_callback;
 
+mod activity_indicator;
+pub use activity_indicator::IosActivityIndicator;
+
 /// A UIKit backend for caller-owned native controls.
 ///
 /// Construct it on the main thread. It owns no window, controller, scene, or global service.

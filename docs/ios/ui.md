@@ -120,6 +120,24 @@ responder status; `Ok(false)` means it did not. This result does not establish t
 keyboard was visible or disappeared. The method requires the current main thread; the existing
 `IosTextField::resign_first_responder()` remains the narrower, field-specific operation
 
+## Activity indicator
+
+`IosUiBackend::add_activity_indicator` adds a medium `UIActivityIndicatorView` to a caller-owned
+`IosView`, using the supplied frame and initial animation state. `IosActivityIndicator::start` and
+`stop` map to UIKit's public animation methods; the wrapper sets `hidesWhenStopped(true)`, so stop
+hides the indicator and start shows it unless an ancestor view is hidden. `is_animating` reports
+UIKit's current state. Dropping the main-thread-only handle stops animation, while UIKit may retain
+the now-stopped child view in its parent hierarchy. `native_activity_indicator` is a typed escape
+hatch; direct UIKit changes can alter the wrapper's visibility semantics. Compile/link checks do not
+prove runtime animation or visual behavior
+
+```rust
+let mut indicator = backend.add_activity_indicator(&mut parent, frame, false)?;
+indicator.start()?;
+let active = indicator.is_animating()?;
+indicator.stop()?;
+```
+
 ```rust
 let mut field = backend.add_text_field(&mut parent, frame, None, Some("Name"))?;
 field.set_text(Some("Ada"))?;

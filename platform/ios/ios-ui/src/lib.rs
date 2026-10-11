@@ -24,6 +24,8 @@ mod text_policy;
 mod toggle_policy;
 
 #[cfg(target_os = "ios")]
+pub use platform::IosActivityIndicator;
+#[cfg(target_os = "ios")]
 pub use platform::{
     IosButton, IosImageView, IosLabel, IosScrollView, IosStackAxis, IosStackView, IosTextField,
     IosToggle, IosUiBackend, IosView,
