@@ -17,9 +17,8 @@ use objc2_core_foundation::{CGPoint, CGRect, CGSize};
 use objc2_foundation::{NSObjectProtocol, NSRange, NSString};
 use objc2_ui_kit::{
     UIApplication, UIButton, UIColor, UIControlEvents, UIControlState, UIImage, UIImageView,
-    UIKeyboardType,
-    UILabel, UILayoutConstraintAxis, UIScrollView, UIStackView, UISwitch, UITextField,
-    UITextInputTraits, UIView,
+    UIKeyboardType, UILabel, UILayoutConstraintAxis, UIScrollView, UIStackView, UISwitch,
+    UITextField, UITextInputTraits, UIView,
 };
 
 use crate::keyboard_action_policy::run_with_main_thread_marker;
