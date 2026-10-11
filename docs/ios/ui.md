@@ -2,9 +2,9 @@
 
 `ios-ui` implements the portable `framework-ui` contract with public UIKit bindings. It creates a
 native `UIView`, adds native `UILabel`, `UIButton`, `UIImageView`, `UIScrollView`, `UIStackView`,
-`UITableView`, `UIContextMenuInteraction`, and single-line `UITextField` children, and supports
-synchronous label, button, image, scroll-host, field, disclosure-group, reusable-list, and fixed
-context-menu operations. `Frame` maps to
+`UITableView`, `UIContextMenuInteraction`, single-line `UITextField`, and multiline `UITextView`
+children, and supports synchronous label, button, image, scroll-host, field, selectable-text,
+disclosure-group, reusable-list, and fixed context-menu operations. `Frame` maps to
 `CGRect` in the parent view's local coordinate system; its logical units are UIKit points
 
 ## Main-thread and ownership rules
@@ -12,8 +12,8 @@ context-menu operations. `Frame` maps to
 - Construct `IosUiBackend` with `ios_runtime::main_thread::MainThread`; all UIKit creation and
   updates require the main thread. A failed runtime main-thread proof returns
   `framework_core::ErrorKind::Unavailable`. Backend and handle values are `!Send`/`!Sync`
-- `IosView`, `IosLabel`, `IosButton`, `IosImageView`, `IosScrollView`, `IosTextField`, and
-  `IosListView` retain
+- `IosView`, `IosLabel`, `IosButton`, `IosImageView`, `IosScrollView`, `IosTextField`,
+  `IosSelectableTextView`, and `IosListView` retain
   their native UIKit objects. The caller owns hierarchy placement and must attach
   `IosView::native_view()` to a caller-owned controller or parent view
 - UIKit retains added child views in its native hierarchy. The Rust `IosButton` handle also owns
@@ -125,6 +125,21 @@ custom preview, bindings, or state observation. Action meaning and operations su
 remain app-owned. Host regressions cover invalid menus/IDs, action identity, callback panic, and
 reentry. Device/Simulator link probes verify selectors and deployment floors but do not establish
 menu presentation, selection, or runtime behavior
+
+## Selectable multiline text
+
+`IosUiBackend::add_selectable_text_view` adds a caller-framed, scrollable `UITextView` with editing
+disabled and selection enabled. `IosSelectableTextView::text` returns a strict UTF-16 snapshot;
+`set_text` replaces the content without enabling editing. Embedded NUL and supplementary Unicode
+scalars are preserved, while malformed native UTF-16 returns `InvalidInput`. The handle is
+main-thread-bound and `native_text_view` provides a typed UIKit escape. Content and copy behavior
+remain caller-owned
+
+This is a native text-selection primitive, not SwiftUI `.textSelection` state binding. It does not
+observe application state, provide a custom copy menu, or define clipboard policy. Host tests cover
+length-aware text and malformed-surrogate regressions. Device/Simulator compilation and link probes
+verify the UIKit type, selectors, imports, and deployment floors; they do not establish live
+selection, menu, or clipboard behavior
 
 ## Native scrolling
 

@@ -84,6 +84,13 @@ while preserving the crate's iOS 12 compile floor. The registered profile covers
 regressions and Device/Simulator link probes; menu display and selection behavior remain
 runtime-unverified. This does not add SwiftUI context-menu composition or clipboard policy
 
+B538 adds `IosSelectableTextView` over public `UITextView`, with editing disabled, selection and
+scrolling enabled, strict UTF-16 text snapshots, length-aware writes, and a typed native escape.
+Host tests preserve embedded NUL/supplementary scalars and reject malformed surrogate data. Device
+and Simulator compile/link checks establish UIKit selector availability at iOS 12.0 / 14.0, not
+live selection or clipboard behavior. This is not SwiftUI text state binding; content and copy
+policy remain caller-owned
+
 ## Objective
 
 Provide a small reusable Rust API for native container views, labels, buttons, image views, and

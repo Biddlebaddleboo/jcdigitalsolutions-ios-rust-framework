@@ -67,3 +67,9 @@ The iOS backend also exposes a fixed-action `IosContextMenu` over public
 compile floor, and its handle removes the exact interaction on drop when the weakly held parent
 still exists. This UIKit-only menu adds no portable menu contract, dynamic state binding, or
 declarative view composition
+
+The iOS backend also exposes a caller-framed `IosSelectableTextView` over public `UITextView`.
+It is read-only, selectable, scrollable, and main-thread-bound; text snapshots preserve embedded
+NUL and supplementary Unicode scalars and reject malformed UTF-16. Its native escape remains
+available. This does not add a portable text-view contract or SwiftUI state binding; content and
+copy policy remain with the app

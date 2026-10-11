@@ -398,6 +398,10 @@ B536 adds default-on `audio-session-events` to `ios-call-provider`. Its typed `A
 
 B537 adds fixed `IosContextMenuAction` snapshots and an `IosContextMenu` handle over public UIKit `UIContextMenuInteraction`. IDs are unique `u64` values, titles are owned and nonempty, selection callbacks run synchronously on main, callback panics/reentry are contained, and drop removes the exact interaction if its weak parent still exists. The API returns `Unavailable` below iOS 13 while the crate retains its iOS 12 compile floor. The integrated `ios-ui` profile passed 267 checks with 0 FAIL, 0 BLOCKED, and 2 runtime SKIPPED at snapshot `23ceab9c2a97f7439f0c9a95efcb2385f14fcd14cbcd45e03da56be69e83b514`. Runtime menu presentation and selection remain unverified; this is not SwiftUI context-menu composition or clipboard policy.
 
+### B538 — selectable multiline UIKit text (row 003)
+
+B538 adds a caller-owned `IosSelectableTextView` over `UITextView`, with editing disabled, selection/scrolling enabled, main-thread-bound strict UTF-16 reads, length-aware writes and a typed UIKit escape. Embedded NUL and supplementary scalars are preserved; malformed UTF-16 is rejected. Package tests pass 46/46; Device/Simulator compilation and link/import probes pass at iOS 12.0 / 14.0. Root profile integration is in progress. Runtime selection and clipboard behavior remain unverified; this is not SwiftUI state binding.
+
 ## Active work selection and limits
 
 1. Inspect the canonical capability status/owner, the relevant family plan, then the named workstream plan and exact files/symbols. Do not scan the entire planning corpus or treat every existing plan as pending work.
