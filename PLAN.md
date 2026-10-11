@@ -390,6 +390,10 @@ B534 adds `IosListView` over `UITableView`, with native subtitle-cell reuse, own
 
 B535 adds owned string-to-string user-info entries to `NotificationResponse`, exact-key lookup, and a complete parts-transfer method. The iOS bridge keeps only `NSString` key/value pairs with valid UTF-16, omits unsupported entries individually, and sorts native keys; arbitrary property-list values are not preserved. Host regressions and the integrated `ios-notification-responses` profile pass (34 PASS, 0 FAIL, 0 BLOCKED, 2 SKIPPED); Simulator execution and physical-device response behavior remain unverified.
 
+### B536 — CallKit audio-session lifecycle notifications (row 083)
+
+B536 adds default-on `audio-session-events` to `ios-call-provider`. Its typed `AudioSessionActivated` and `AudioSessionDeactivated` lifecycle events expose CallKit's public provider delegate callbacks without exposing or configuring `AVAudioSession`, changing audio policy, or performing media I/O. The optional AVFoundation binding is absent with `--no-default-features`. The integrated `ios-call-provider` profile passed 65 checks with 0 FAIL, 0 BLOCKED, and 2 runtime SKIPPED at snapshot `3c716fcc4cbbb6d8ccb7a82eebebdec1613aabbb591bafc14e15f8c39d0296c3`; Simulator execution and physical-device behavior remain unverified.
+
 ## Active work selection and limits
 
 1. Inspect the canonical capability status/owner, the relevant family plan, then the named workstream plan and exact files/symbols. Do not scan the entire planning corpus or treat every existing plan as pending work.
