@@ -28,6 +28,9 @@ mod export;
 mod update;
 
 #[cfg(target_os = "ios")]
+mod thumbnail;
+
+#[cfg(target_os = "ios")]
 mod snapshot;
 
 #[cfg(target_os = "ios")]

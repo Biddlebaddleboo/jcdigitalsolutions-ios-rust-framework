@@ -265,6 +265,17 @@ pub trait ContactsExportBackend: ContactsBackend {
     fn export_contact_vcard(&self, identifier: &str) -> Result<Vec<u8>, ContactsError>;
 }
 
+/// A read-only extension for backends that fetch one selected contact's thumbnail image.
+///
+/// Implementations must reject empty/NUL identifiers, re-check authorization without prompting,
+/// permit only `Authorized` or `Limited`, fetch only the supplied identifier with the thumbnail
+/// key, and return the exact native image bytes without decoding or transcoding. This separate
+/// trait keeps existing [`ContactsBackend`] implementors source-compatible.
+pub trait ContactsImageBackend: ContactsBackend {
+    /// Fetches one accessible contact's owned thumbnail bytes, or `None` when no thumbnail exists.
+    fn fetch_contact_thumbnail(&self, identifier: &str) -> Result<Option<Vec<u8>>, ContactsError>;
+}
+
 /// A thin facade over caller-owned, statically selected Contacts backend state.
 pub struct Contacts<B> {
     backend: B,
@@ -339,6 +350,16 @@ impl<B: ContactsExportBackend> Contacts<B> {
     /// Exports one contact as native vCard bytes without prompting or enumerating contacts.
     pub fn export_contact_vcard(&self, identifier: &str) -> Result<Vec<u8>, ContactsError> {
         self.backend.export_contact_vcard(identifier)
+    }
+}
+
+impl<B: ContactsImageBackend> Contacts<B> {
+    /// Fetches one contact's raw thumbnail bytes without prompting or enumerating contacts.
+    pub fn fetch_contact_thumbnail(
+        &self,
+        identifier: &str,
+    ) -> Result<Option<Vec<u8>>, ContactsError> {
+        self.backend.fetch_contact_thumbnail(identifier)
     }
 }
 

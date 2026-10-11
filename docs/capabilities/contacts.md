@@ -1,11 +1,10 @@
-# Portable Contacts authorization, read, create, and update
+# Portable Contacts authorization and data operations
 
 `framework-contacts` defines a portable authorization contract and separate optional extensions
-for one-record fetch, bounded name search, add-only creation, and one-record updates. It exposes no
-ContactsUI type or picker, does not enumerate the full store, and does not delete contacts.
-Existing `ContactsBackend` implementors need not implement these operations; a backend opts in
-through `ContactsFetchBackend`, `ContactsSearchBackend`, `ContactsCreateBackend`, or
-`ContactsUpdateBackend`.
+for one-record fetch and thumbnail read, bounded name search, add-only creation, selected-record
+update and delete, and vCard export. It exposes no ContactsUI type or picker and does not enumerate
+the full store. Existing `ContactsBackend` implementors need not implement these operations; a
+backend opts in through the operation-specific extension trait.
 
 ## Authorization states
 
@@ -60,6 +59,20 @@ contact object. It does not observe later store changes. The iOS backend require
 `NSContactsUsageDescription` for Contacts access; fetch itself does not request access. Static
 checks do not prove permission state, selected-contact visibility,
 or a live Contacts fetch on simulator or device.
+
+## Read one contact thumbnail
+
+`Contacts<B>::fetch_contact_thumbnail(identifier)` delegates to the separate
+`ContactsImageBackend` extension and returns `Ok(None)` when the selected contact has no thumbnail,
+or owned `Vec<u8>` bytes copied from native thumbnail `NSData`. The iOS backend rejects empty or
+NUL-containing identifiers, rechecks access without prompting, accepts only `Authorized` or
+`Limited`, and fetches exactly the supplied identifier with only `CNContactThumbnailImageDataKey`.
+It reads `thumbnailImageData()` only after that fetch and returns its bytes unchanged; it does not
+fetch the full image, decode or transcode data, or alter the common `Contact` snapshot.
+
+The operation is synchronous and may block on Contacts I/O. Limited access applies only to contacts
+currently visible to the app. Registered host tests and static target compile/link checks do not
+prove live thumbnail availability, Limited visibility, or physical-device behavior.
 
 ## Bounded name search
 

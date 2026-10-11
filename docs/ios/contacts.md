@@ -1,10 +1,11 @@
-# iOS Contacts authorization, reads, create, update, and delete
+# iOS Contacts authorization and data operations
 
 `ios-contacts` implements the portable [`framework-contacts`](../capabilities/contacts.md)
-authorization, read, create, selected-record update, and single-record delete contract through
+authorization, read, create, selected-record update, single-record delete, and vCard export contract through
 public Contacts APIs. It can query status, explicitly request access, fetch one caller-selected
-record, search names with a caller-supplied result cap, create exactly one new contact, update
-selected common fields on one caller-selected record, and delete one caller-selected record. It does not fetch the whole store,
+record or its thumbnail, search names with a caller-supplied result cap, create exactly one new
+contact, update selected common fields on one caller-selected record, delete one caller-selected
+record, and export one record as vCard bytes. It does not fetch the whole store,
 present ContactsUI, or provide a picker or button.
 
 ```rust,ignore
@@ -86,6 +87,34 @@ not found, so the result does not prove that the contact is absent from the full
 identifiers are local handles, not durable identity; deletion or unification can make a saved
 identifier stale. The fetched unified record's returned identifier may differ from the supplied
 identifier. Re-fetch when needed and handle `NotFound`.
+
+## Read one selected contact thumbnail
+
+After access is already available, fetch only the thumbnail for a supplied local identifier:
+
+```rust,ignore
+use framework_contacts::Contacts;
+use ios_contacts::IosContactsBackend;
+
+fn read_thumbnail(identifier: &str) -> Result<Option<Vec<u8>>, framework_contacts::ContactsError> {
+    Contacts::new(IosContactsBackend::new()).fetch_contact_thumbnail(identifier)
+}
+```
+
+The synchronous call rejects empty/NUL identifiers before native work, rechecks current status,
+accepts only `Authorized` or `Limited`, and never prompts. It fetches exactly one contact with only
+`CNContactThumbnailImageDataKey`, then reads the nullable `thumbnailImageData()` property. No image
+returns `Ok(None)`; present `NSData` is copied byte-for-byte into owned Rust storage before the
+autorelease pool ends. The API does not fetch full image data, decode or transcode bytes, or modify
+the common `Contact` snapshot. Under Limited access, the identifier still must be visible to the
+app. Contacts I/O may block; host tests and static target compile/link checks do not prove live
+thumbnail data or on-device behavior.
+
+The installed Xcode 26.6 / iPhoneOS 26.5 SDK marks `CNContact` and
+`CNContactThumbnailImageDataKey` available from iOS 9.0. The existing registered floors remain iOS
+10.0 for device and iOS 14.0 for Simulator. Pinned `objc2-contacts` 0.3.2 exposes the key and
+nullable property through the already enabled `CNContact` feature, so no dependency feature or
+minimum-floor change is required.
 
 ## Bounded name search
 
@@ -256,13 +285,15 @@ Apple's [Contacts access guide](https://developer.apple.com/documentation/contac
 The iOS-only adapter uses `objc2-contacts` 0.3.2 with default features disabled and only its
 `CNContact`, `CNContactStore`, `CNContact_Predicates`, `CNContactFetchRequest`, `CNFetchRequest`,
 `CNMutableContact`, `CNSaveRequest`, `CNLabeledValue`, `CNPhoneNumber`, `CNError`, and `block2`
-features, plus `objc2`, Foundation `NSArray`, `NSError`, and `NSString`, and `block2`. The mutable
+features, plus `objc2`, Foundation `NSArray`, `NSError`, and `NSString`, and `block2`. Thumbnail
+fetch uses `CNContactThumbnailImageDataKey` and `thumbnailImageData()` through the existing
+`CNContact` feature. The mutable
 binding features are used for explicit create, update, and delete APIs. The portable crate exposes
 no binding types. Fetch, search, create, update, and delete APIs are available
 from iOS 9.0; Limited authorization itself was introduced in iOS 18.0.
 Rust 1.94.1 sets iOS 10.0 as its minimum supported device deployment target, so the registered
 device and Simulator link checks use floors iOS 10.0 and iOS 14.0, respectively. They verify public
-Contacts/Foundation imports, create/fetch/search/update/delete selectors, and deployment metadata, but do not
+Contacts/Foundation imports, create/fetch/search/update/delete/thumbnail selectors, and deployment metadata, but do not
 execute the probe. No Swift source, UI framework, or private API is added.
 
 References: [Apple CNContactStore](https://developer.apple.com/documentation/contacts/cncontactstore),

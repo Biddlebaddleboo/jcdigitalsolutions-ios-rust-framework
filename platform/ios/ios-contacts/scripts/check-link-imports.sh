@@ -53,6 +53,10 @@ for target in aarch64-apple-ios aarch64-apple-ios-sim; do
         printf '%s probe does not import objc_getClass for public Contacts class lookup\n' "$target" >&2
         exit 1
     }
+    printf '%s\n' "$symbols" | grep -F CNContactThumbnailImageDataKey >/dev/null || {
+        printf '%s probe does not import the public thumbnail key descriptor\n' "$target" >&2
+        exit 1
+    }
     binary_strings=$(strings "$binary")
     for class in CNMutableContact CNSaveRequest CNContactVCardSerialization; do
         printf '%s\n' "$binary_strings" | grep -Fx "$class" >/dev/null || {
@@ -80,7 +84,8 @@ for target in aarch64-apple-ios aarch64-apple-ios-sim; do
         'setEmailAddresses:' \
         'deleteContact:' \
         'descriptorForRequiredKeys' \
-        'dataWithContacts:error:'; do
+        'dataWithContacts:error:' \
+        'thumbnailImageData'; do
         printf '%s\n' "$binary_strings" | grep -F "$selector" >/dev/null || {
             printf '%s probe does not link the public Contacts selector %s\n' "$target" "$selector" >&2
             exit 1

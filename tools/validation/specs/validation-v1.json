@@ -4076,6 +4076,120 @@
           "must_exist": false,
           "path": "platform/ios/ios-contacts/src/export.rs",
           "text": "contactsWithData_error"
+        },
+        {
+          "message": "thumbnail fetch must validate the selected identifier before native work",
+          "must_exist": true,
+          "path": "platform/ios/ios-contacts/src/thumbnail.rs",
+          "text": "validate_identifier(identifier)?;"
+        },
+        {
+          "message": "thumbnail fetch must re-check current authorization without prompting",
+          "must_exist": true,
+          "path": "platform/ios/ios-contacts/src/thumbnail.rs",
+          "text": "fetch_authorization_error(status)"
+        },
+        {
+          "message": "thumbnail fetch must look up exactly one selected contact",
+          "must_exist": true,
+          "path": "platform/ios/ios-contacts/src/thumbnail.rs",
+          "text": "unifiedContactWithIdentifier_keysToFetch_error"
+        },
+        {
+          "message": "thumbnail fetch must request exactly one key descriptor",
+          "must_exist": true,
+          "path": "platform/ios/ios-contacts/src/thumbnail.rs",
+          "text": "thumbnail_key_descriptors() -> [&'static ProtocolObject<dyn CNKeyDescriptor>; 1]"
+        },
+        {
+          "message": "thumbnail fetch must use the public thumbnail key only",
+          "must_exist": true,
+          "path": "platform/ios/ios-contacts/src/thumbnail.rs",
+          "text": "CNContactThumbnailImageDataKey"
+        },
+        {
+          "message": "thumbnail fetch must read the nullable thumbnail property after key selection",
+          "must_exist": true,
+          "path": "platform/ios/ios-contacts/src/thumbnail.rs",
+          "text": "contact.thumbnailImageData()"
+        },
+        {
+          "message": "thumbnail fetch must copy exact native bytes to Rust-owned storage",
+          "must_exist": true,
+          "path": "platform/ios/ios-contacts/src/thumbnail.rs",
+          "text": "data.to_vec()"
+        },
+        {
+          "message": "thumbnail lookup failures must preserve current authorization and native errors",
+          "must_exist": true,
+          "path": "platform/ios/ios-contacts/src/thumbnail.rs",
+          "text": "fetch_error_from_native(current_status, contacts_domain, error.code())"
+        },
+        {
+          "message": "thumbnail fetch must not request authorization",
+          "must_exist": false,
+          "path": "platform/ios/ios-contacts/src/thumbnail.rs",
+          "text": "requestAccessForEntityType_completionHandler"
+        },
+        {
+          "message": "thumbnail fetch must not enumerate contacts",
+          "must_exist": false,
+          "path": "platform/ios/ios-contacts/src/thumbnail.rs",
+          "text": "enumerateContactsWithFetchRequest_error_usingBlock"
+        },
+        {
+          "message": "thumbnail fetch must not search contacts",
+          "must_exist": false,
+          "path": "platform/ios/ios-contacts/src/thumbnail.rs",
+          "text": "predicateForContactsMatchingName"
+        },
+        {
+          "message": "thumbnail fetch must not request full image data",
+          "must_exist": false,
+          "path": "platform/ios/ios-contacts/src/thumbnail.rs",
+          "text": "CNContactImageDataKey"
+        },
+        {
+          "message": "thumbnail fetch must not access the full image property",
+          "must_exist": false,
+          "path": "platform/ios/ios-contacts/src/thumbnail.rs",
+          "text": "contact.imageData()"
+        },
+        {
+          "message": "thumbnail fetch must not mutate contacts",
+          "must_exist": false,
+          "path": "platform/ios/ios-contacts/src/thumbnail.rs",
+          "text": "executeSaveRequest_error"
+        },
+        {
+          "message": "thumbnail fetch must not use ContactsUI or picker APIs",
+          "must_exist": false,
+          "path": "platform/ios/ios-contacts/src/thumbnail.rs",
+          "text": "ContactsUI"
+        },
+        {
+          "message": "host contract tests must cover exact selected identifiers and owned binary bytes",
+          "must_exist": true,
+          "path": "platform/ios/ios-contacts/tests/thumbnail_contract.rs",
+          "text": "fn facade_fetches_only_the_selected_id_and_returns_owned_raw_bytes()"
+        },
+        {
+          "message": "host contract tests must cover absent thumbnails",
+          "must_exist": true,
+          "path": "platform/ios/ios-contacts/tests/thumbnail_contract.rs",
+          "text": "fn absent_thumbnail_is_none()"
+        },
+        {
+          "message": "host contract tests must cover denied authorization before read",
+          "must_exist": true,
+          "path": "platform/ios/ios-contacts/tests/thumbnail_contract.rs",
+          "text": "fn denied_status_returns_before_thumbnail_read()"
+        },
+        {
+          "message": "host contract tests must cover native error propagation",
+          "must_exist": true,
+          "path": "platform/ios/ios-contacts/tests/thumbnail_contract.rs",
+          "text": "fn native_backend_error_is_preserved()"
         }
       ],
       "id": "ios-contacts-fetch",
@@ -4110,7 +4224,9 @@
         "platform/ios/ios-contacts/tests/update_contract.rs",
         "platform/ios/ios-contacts/tests/delete_contract.rs",
         "platform/ios/ios-contacts/src/export.rs",
-        "platform/ios/ios-contacts/tests/export_contract.rs"
+        "platform/ios/ios-contacts/tests/export_contract.rs",
+        "platform/ios/ios-contacts/src/thumbnail.rs",
+        "platform/ios/ios-contacts/tests/thumbnail_contract.rs"
       ],
       "shell_scripts": [
         "platform/ios/ios-contacts/scripts/check-link-imports.sh"

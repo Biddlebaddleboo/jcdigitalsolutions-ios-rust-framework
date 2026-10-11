@@ -132,3 +132,22 @@ live deletion, Limited-access behavior, Simulator execution, or physical-device 
 B480 adds a source-compatible `ContactsExportBackend` and `Contacts::export_contact_vcard(identifier)` extension returning an owned `Vec<u8>`. The iOS backend rejects empty/NUL identifiers before native access, rechecks current authorization without prompting, and proceeds only for `Authorized` or `Limited`. It fetches exactly the caller-supplied local identifier with only `CNContactVCardSerialization::descriptorForRequiredKeys`, then serializes an array containing exactly that fetched contact through public `CNContactVCardSerialization::dataWithContacts:error:`. The native `NSData` is copied byte-for-byte into Rust-owned storage before the autorelease pool ends; no UTF-8 conversion, re-encoding, logging, enumeration, mutation, or UI is involved. Lookup errors reuse the existing authorization/`NotFound` mapping; serialization errors preserve the native code through the existing backend error category after a fresh authorization query.
 
 The installed Xcode 26.6 / iPhoneOS 26.5 SDK declares `CNContactVCardSerialization` public from iOS 9.0 and requires fetched contacts to use its required-key descriptor. Pinned `objc2-contacts` 0.3.2 exposes both serialization selectors behind its `CNContactVCardSerialization` feature, and the Foundation `NSData` binding provides an owned byte copy. Registered device and Simulator floors remain iOS 10.0 and iOS 14.0. Host tests and static target compile/link checks do not prove live authorization, Limited visibility, native vCard field coverage, or physical-device output.
+
+## Additive increment B484 — fetch one selected contact thumbnail
+
+B484 adds the source-compatible `ContactsImageBackend` extension and
+`Contacts::fetch_contact_thumbnail(identifier)`, which returns `Ok(None)` when one accessible
+selected contact has no thumbnail and otherwise returns an owned copy of its raw thumbnail bytes.
+The iOS backend rejects empty/NUL identifiers before native work, rechecks current authorization
+without prompting, accepts only `Authorized` or `Limited`, and fetches exactly the supplied local
+identifier with only `CNContactThumbnailImageDataKey`. It reads `thumbnailImageData()` only after
+that one-key lookup and copies exact `NSData` bytes before the autorelease pool ends. It does not
+fetch full image data, decode/transcode bytes, enumerate/search/mutate contacts, or alter existing
+`Contact` fields. Lookup errors use the existing authorization/`NotFound` and native-code mapping.
+
+The installed Xcode 26.6 / iPhoneOS 26.5 SDK marks `CNContact` and
+`CNContactThumbnailImageDataKey` public from iOS 9.0; pinned `objc2-contacts` 0.3.2 exposes the
+nullable `thumbnailImageData()` property and key through the enabled `CNContact` feature. No
+dependency or feature change is needed. Registered iOS floors remain 10.0 device and 14.0
+Simulator. Host regressions and static compile/link checks do not prove selected-contact visibility,
+live thumbnail availability, Simulator execution, or physical-device behavior.
