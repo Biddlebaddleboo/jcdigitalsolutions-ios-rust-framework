@@ -5467,6 +5467,12 @@
           "must_exist": true,
           "path": "platform/ios/ios-calendar/tests/reminder_create_contract.rs",
           "text": "missing_default_list_is_a_typed_error_without_prompt"
+        },
+        {
+          "message": "the portable Reminders status enum must not expose WriteOnly",
+          "must_exist": false,
+          "path": "crates/framework-calendar/src/reminder_status.rs",
+          "text": "WriteOnly"
         }
       ],
       "id": "ios-calendar",
@@ -5501,7 +5507,8 @@
         "PLAN_VALIDATION_IOS_CALENDAR.md",
         "tools/validation/specs/validation-v1.json",
         "platform/ios/ios-calendar/src/reminder_create.rs",
-        "platform/ios/ios-calendar/tests/reminder_create_contract.rs"
+        "platform/ios/ios-calendar/tests/reminder_create_contract.rs",
+        "crates/framework-calendar/src/reminder_status.rs"
       ],
       "shell_scripts": [
         "platform/ios/ios-calendar/check.sh",

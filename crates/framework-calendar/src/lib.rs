@@ -5,6 +5,10 @@
 
 extern crate alloc;
 
+mod reminder_status;
+
+pub use reminder_status::ReminderAuthorizationStatus;
+
 use alloc::string::String;
 use alloc::vec::Vec;
 use core::future::Future;
@@ -32,26 +36,6 @@ pub enum CalendarAuthorizationStatus {
     /// The platform permits saving new events but does not grant full access.
     WriteOnly,
     /// The platform grants full access to Calendar event data.
-    FullAccess,
-}
-
-/// The normalized authorization status for Reminders data.
-///
-/// EventKit currently exposes full access as the only requestable reminder-access level. A
-/// status that does not safely identify full Reminders access, including a write-only raw value,
-/// maps to `Unknown` rather than implying that reminder creation is authorized.
-#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
-#[non_exhaustive]
-pub enum ReminderAuthorizationStatus {
-    /// The platform returned a status this contract cannot classify as a Reminders state.
-    Unknown,
-    /// The platform has not yet asked the user for Reminders access.
-    NotDetermined,
-    /// Access is blocked by platform policy or device restrictions.
-    Restricted,
-    /// The user denied Reminders access.
-    Denied,
-    /// The platform grants full read and write access to Reminders data.
     FullAccess,
 }
 
