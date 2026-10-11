@@ -7,7 +7,9 @@ extern crate alloc;
 
 pub mod response;
 
+use alloc::boxed::Box;
 use alloc::string::String;
+use alloc::vec::Vec;
 use core::future::Future;
 use framework_core::{AuthorizationState, Availability, Error, ErrorKind, PlatformErrorCode};
 
@@ -54,6 +56,13 @@ pub struct NotificationContent {
     title: String,
     body: Option<String>,
     system_default_sound: bool,
+    metadata: Option<Box<NotificationMetadata>>,
+}
+
+#[derive(Clone, Debug, Default, Eq, PartialEq)]
+struct NotificationMetadata {
+    thread_identifier: Option<String>,
+    user_info_entries: Vec<(String, String)>,
 }
 
 impl NotificationContent {
@@ -63,7 +72,50 @@ impl NotificationContent {
             title,
             body,
             system_default_sound: false,
+            metadata: None,
         }
+    }
+
+    /// Sets an exact platform-neutral notification grouping identifier.
+    ///
+    /// The value is owned without normalization. A backend may map it to its native thread or
+    /// grouping identifier. When omitted, the backend's existing grouping behavior is unchanged.
+    pub fn with_thread_identifier(mut self, identifier: String) -> Self {
+        self.metadata_mut().thread_identifier = Some(identifier);
+        self
+    }
+
+    /// Borrows the exact optional notification grouping identifier.
+    pub fn thread_identifier(&self) -> Option<&str> {
+        self.metadata
+            .as_deref()
+            .and_then(|metadata| metadata.thread_identifier.as_deref())
+    }
+
+    /// Adds one owned string-valued user-info entry.
+    ///
+    /// Keys and values remain exact UTF-8 strings. Repeating a key replaces its value in place,
+    /// so the last value wins while entry iteration retains the key's first-insertion position.
+    pub fn with_user_info_entry(mut self, key: String, value: String) -> Self {
+        let entries = &mut self.metadata_mut().user_info_entries;
+        if let Some(index) = entries.iter().position(|(existing_key, _)| existing_key == &key) {
+            entries[index].1 = value;
+        } else {
+            entries.push((key, value));
+        }
+        self
+    }
+
+    /// Borrows the owned string key/value entries in deterministic first-insertion order.
+    pub fn user_info_entries(&self) -> &[(String, String)] {
+        self.metadata
+            .as_deref()
+            .map_or(&[], |metadata| metadata.user_info_entries.as_slice())
+    }
+
+    fn metadata_mut(&mut self) -> &mut NotificationMetadata {
+        self.metadata
+            .get_or_insert_with(|| Box::new(NotificationMetadata::default()))
     }
 
     /// Opts into the platform's system-default notification sound.

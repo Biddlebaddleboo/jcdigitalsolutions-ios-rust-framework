@@ -13,10 +13,11 @@ use framework_notifications::{
 };
 use objc2::ClassType;
 use objc2::rc::{Retained, autoreleasepool};
-use objc2::runtime::Bool;
+use objc2::runtime::{AnyObject, Bool};
 use objc2::sel;
 use objc2_foundation::{
-    NSArray, NSCalendar, NSDateComponents, NSError, NSObjectProtocol, NSString, NSTimeZone,
+    NSArray, NSCalendar, NSDateComponents, NSError, NSMutableDictionary, NSObjectProtocol,
+    NSString, NSTimeZone,
 };
 use objc2_user_notifications::{
     UNAuthorizationOptions, UNCalendarNotificationTrigger, UNMutableNotificationContent,
@@ -617,6 +618,28 @@ fn make_request(
         content.setTitle(&NSString::from_str(notification.content().title()));
         if let Some(body) = notification.content().body() {
             content.setBody(&NSString::from_str(body));
+        }
+        if let Some(thread_identifier) = notification.content().thread_identifier() {
+            content.setThreadIdentifier(&NSString::from_str(thread_identifier));
+        }
+        if !notification.content().user_info_entries().is_empty() {
+            let user_info = NSMutableDictionary::<NSString, NSString>::new();
+            for (key, value) in notification.content().user_info_entries() {
+                let native_key = NSString::from_str(key);
+                let native_value = NSString::from_str(value);
+                user_info.insert(&*native_key, &*native_value);
+            }
+            // SAFETY: NSString keys and values are valid NSObject subclasses; the dictionary
+            // contains only these exact string objects, so widening its Objective-C generics to
+            // AnyObject does not change its runtime representation or contents.
+            let user_info = unsafe {
+                user_info
+                    .as_super()
+                    .cast_unchecked::<AnyObject, AnyObject>()
+            };
+            // SAFETY: Every key and value is an NSString property-list value accepted by
+            // UNMutableNotificationContent.userInfo.
+            unsafe { content.setUserInfo(user_info) };
         }
         if notification.content().uses_system_default_sound() {
             let sound = UNNotificationSound::defaultSound();

@@ -26,7 +26,9 @@ async fn schedule_reminder(
             String::from("Reminder"),
             Some(String::from("Review today's notes")),
         )
-        .with_system_default_sound(),
+        .with_system_default_sound()
+        .with_thread_identifier(String::from("reminders"))
+        .with_user_info_entry(String::from("reference"), String::from("item:42")),
         NotificationTrigger::at_unix_millis(trigger_at_unix_millis)?,
     );
     notifications.schedule(request).await
@@ -122,6 +124,12 @@ action, response-delegate, or notification-service-extension behavior.
   by `NotificationContent::new` has no sound. Call `with_system_default_sound` to set the public
   `UNNotificationSound.defaultSound`; custom sounds, actions, categories, attachments, and badges
   are not represented.
+- `with_thread_identifier` sets the optional exact UTF-8 grouping identifier through
+  `UNMutableNotificationContent.threadIdentifier`. `with_user_info_entry` sets string-only keys and
+  values through the public `userInfo` dictionary. Repeated keys replace the prior value; entry
+  iteration keeps first-insertion order. Values are not normalized or interpreted as URLs, and no
+  notification response or tap-routing behavior is provided. Omitting both metadata forms leaves
+  the existing native content defaults unchanged.
 - Immediate triggers and timestamps already in the past use a nil native trigger, which requests
   immediate delivery. Future absolute Unix-millisecond timestamps become non-repeating calendar
   triggers with Gregorian calendar and UTC time zone, including the millisecond fraction in the
