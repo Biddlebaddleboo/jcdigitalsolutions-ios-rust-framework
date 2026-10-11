@@ -15,6 +15,8 @@ mod grid_policy;
 mod keyboard_action_policy;
 #[cfg(any(test, target_os = "ios"))]
 mod layout_policy;
+#[cfg(any(test, target_os = "ios"))]
+mod list_policy;
 #[cfg(target_os = "ios")]
 mod platform;
 #[cfg(any(test, target_os = "ios"))]
@@ -44,3 +46,5 @@ pub use platform::{
     IosButton, IosImageView, IosLabel, IosScrollView, IosStackAxis, IosStackView, IosTextField,
     IosToggle, IosUiBackend, IosView,
 };
+#[cfg(target_os = "ios")]
+pub use platform::{IosListRow, IosListView};

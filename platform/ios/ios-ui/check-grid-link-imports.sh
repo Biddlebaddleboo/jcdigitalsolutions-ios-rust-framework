@@ -53,4 +53,43 @@ for target in aarch64-apple-ios aarch64-apple-ios-sim; do
     fi
     printf '%s UIKit grid selectors verified at iOS %s; probe not executed\n' \
         "$target" "$deployment_target"
+
+    list_target_dir="target/ios-ui-list-link-$target"
+    IPHONEOS_DEPLOYMENT_TARGET="$deployment_target" CARGO_TARGET_DIR="$list_target_dir" \
+        cargo build --locked --offline --release -p ios-ui \
+        --example ios_ui_list_link_probe --target "$target"
+    list_binary="$list_target_dir/$target/release/examples/ios_ui_list_link_probe"
+    list_imports=$(otool -L "$list_binary")
+    printf '%s\n' "$list_imports" | grep -F '/UIKit.framework/UIKit' >/dev/null || {
+        echo "$target list probe does not link UIKit" >&2
+        exit 1
+    }
+    list_symbols=$(nm -u "$list_binary")
+    list_strings=$(strings "$list_binary")
+    for symbol in objc_getClass objc_msgSend; do
+        printf '%s\n' "$list_symbols" | grep -F "$symbol" >/dev/null || {
+            echo "$target list probe is missing Objective-C symbol $symbol" >&2
+            exit 1
+        }
+    done
+    for symbol in UITableView UITableViewCell 'setDataSource:' 'setDelegate:' \
+        'tableView:numberOfRowsInSection:' 'tableView:cellForRowAtIndexPath:' \
+        'tableView:didSelectRowAtIndexPath:' 'dequeueReusableCellWithIdentifier:' \
+        'initWithStyle:reuseIdentifier:' textLabel detailTextLabel reloadData; do
+        printf '%s\n' "$list_strings" | grep -F "$symbol" >/dev/null || {
+            echo "$target list probe is missing UIKit symbol or selector $symbol" >&2
+            exit 1
+        }
+    done
+    if printf '%s\n' "$list_symbols" "$list_imports" | grep -Eqi 'swift_|Py[A-Z_]|swift|python'; then
+        echo "unexpected Swift/Python runtime import in $target list probe" >&2
+        exit 1
+    fi
+    list_deployment_target=$(vtool -show-build "$list_binary" | awk '$1 == "minos" { print $2; exit }')
+    if [ "$list_deployment_target" != "$deployment_target" ]; then
+        echo "$target list probe has deployment target ${list_deployment_target:-unknown}; expected $deployment_target" >&2
+        exit 1
+    fi
+    printf '%s UITableView reuse and selection selectors verified at iOS %s; probe not executed\n' \
+        "$target" "$deployment_target"
 done
