@@ -1935,6 +1935,150 @@
           "must_exist": true,
           "path": "platform/ios/ios-camera-capture-session/examples/camera_capture_link_probe.rs",
           "text": "session.set_exposure_target_bias(0.0)"
+        },
+        {
+          "message": "movie orientation must expose a typed caller-selected orientation",
+          "must_exist": true,
+          "path": "platform/ios/ios-camera-capture-session/src/lib.rs",
+          "text": "pub enum IosCameraVideoOrientation"
+        },
+        {
+          "message": "movie orientation must be an explicit capture-session operation",
+          "must_exist": true,
+          "path": "platform/ios/ios-camera-capture-session/src/lib.rs",
+          "text": "pub fn set_movie_orientation("
+        },
+        {
+          "message": "movie orientation must serialize on the private capture queue",
+          "must_exist": true,
+          "path": "platform/ios/ios-camera-capture-session/src/lib.rs",
+          "text": "result = configure_movie_orientation("
+        },
+        {
+          "message": "movie orientation must reject pending session shutdown before output access",
+          "must_exist": true,
+          "path": "platform/ios/ios-camera-capture-session/src/lib.rs",
+          "text": "if movie_state.pending_session_stop {"
+        },
+        {
+          "message": "movie orientation must reject active capture and finalization before output access",
+          "must_exist": true,
+          "path": "platform/ios/ios-camera-capture-session/src/lib.rs",
+          "text": "if movie_state.active {"
+        },
+        {
+          "message": "movie orientation must obtain the video connection from the movie output",
+          "must_exist": true,
+          "path": "platform/ios/ios-camera-capture-session/src/lib.rs",
+          "text": "output.connectionWithMediaType(video_media_type)"
+        },
+        {
+          "message": "movie orientation must check native support before mutation",
+          "must_exist": true,
+          "path": "platform/ios/ios-camera-capture-session/src/lib.rs",
+          "text": "connection.isVideoOrientationSupported()"
+        },
+        {
+          "message": "movie orientation must set only the supported native video connection",
+          "must_exist": true,
+          "path": "platform/ios/ios-camera-capture-session/src/lib.rs",
+          "text": "connection.setVideoOrientation(map_camera_video_orientation("
+        },
+        {
+          "message": "movie orientation must map portrait to the matching AVFoundation value",
+          "must_exist": true,
+          "path": "platform/ios/ios-camera-capture-session/src/lib.rs",
+          "text": "AVCaptureVideoOrientation::Portrait,"
+        },
+        {
+          "message": "movie orientation must map upside-down portrait to the matching AVFoundation value",
+          "must_exist": true,
+          "path": "platform/ios/ios-camera-capture-session/src/lib.rs",
+          "text": "AVCaptureVideoOrientation::PortraitUpsideDown,"
+        },
+        {
+          "message": "movie orientation must map landscape-right to the matching AVFoundation value",
+          "must_exist": true,
+          "path": "platform/ios/ios-camera-capture-session/src/lib.rs",
+          "text": "AVCaptureVideoOrientation::LandscapeRight,"
+        },
+        {
+          "message": "movie orientation must map landscape-left to the matching AVFoundation value",
+          "must_exist": true,
+          "path": "platform/ios/ios-camera-capture-session/src/lib.rs",
+          "text": "AVCaptureVideoOrientation::LandscapeLeft,"
+        },
+        {
+          "message": "movie orientation must isolate required AVFoundation deprecation handling",
+          "must_exist": true,
+          "path": "platform/ios/ios-camera-capture-session/src/lib.rs",
+          "text": "#[allow(deprecated)]"
+        },
+        {
+          "message": "movie orientation must retain its exact mapping regression",
+          "must_exist": true,
+          "path": "platform/ios/ios-camera-capture-session/src/lib.rs",
+          "text": "fn camera_video_orientation_maps_each_value_to_avfoundation_order()"
+        },
+        {
+          "message": "movie orientation must retain unsupported-before-set and unchanged-state regressions",
+          "must_exist": true,
+          "path": "platform/ios/ios-camera-capture-session/src/lib.rs",
+          "text": "fn unsupported_movie_orientation_is_checked_before_set_and_preserves_prior_value()"
+        },
+        {
+          "message": "movie orientation must retain missing-output and missing-connection regressions",
+          "must_exist": true,
+          "path": "platform/ios/ios-camera-capture-session/src/lib.rs",
+          "text": "fn movie_orientation_rejects_missing_output_and_connection_without_mutation()"
+        },
+        {
+          "message": "movie orientation must retain active, finalizing, and pending-shutdown regressions",
+          "must_exist": true,
+          "path": "platform/ios/ios-camera-capture-session/src/lib.rs",
+          "text": "fn movie_orientation_rejects_start_finalization_and_pending_shutdown_queue_states()"
+        },
+        {
+          "message": "the camera API must not add orientation auto-detection",
+          "must_exist": false,
+          "path": "platform/ios/ios-camera-capture-session/src/lib.rs",
+          "text": "AVCaptureDeviceRotationCoordinator"
+        },
+        {
+          "message": "the camera API must not read UIKit device orientation",
+          "must_exist": false,
+          "path": "platform/ios/ios-camera-capture-session/src/lib.rs",
+          "text": "UIDevice.current.orientation"
+        },
+        {
+          "message": "the camera API must not add CoreMotion orientation tracking",
+          "must_exist": false,
+          "path": "platform/ios/ios-camera-capture-session/src/lib.rs",
+          "text": "CMMotionManager"
+        },
+        {
+          "message": "the movie orientation link probe must invoke the Rust operation",
+          "must_exist": true,
+          "path": "platform/ios/ios-camera-capture-session/examples/camera_capture_link_probe.rs",
+          "text": "session.set_movie_orientation("
+        },
+        {
+          "message": "the movie orientation link probe must retain connection lookup",
+          "must_exist": true,
+          "path": "platform/ios/ios-camera-capture-session/check-link-imports.sh",
+          "text": "connectionWithMediaType:"
+        },
+        {
+          "message": "the movie orientation link probe must retain the native support selector",
+          "must_exist": true,
+          "path": "platform/ios/ios-camera-capture-session/check-link-imports.sh",
+          "text": "isVideoOrientationSupported"
+        },
+        {
+          "message": "the movie orientation link probe must retain the native setter selector",
+          "must_exist": true,
+          "path": "platform/ios/ios-camera-capture-session/check-link-imports.sh",
+          "text": "setVideoOrientation:"
         }
       ],
       "id": "ios-camera-capture-session",

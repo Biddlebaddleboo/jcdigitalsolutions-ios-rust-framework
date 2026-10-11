@@ -108,6 +108,24 @@ pub enum VideoRecordingError {
     FinalizedFileUnavailable,
 }
 
+/// Failure to set the orientation for a future camera movie recording
+#[cfg(any(target_os = "ios", test))]
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum MovieOrientationError {
+    /// The public AVFoundation video media-type constant is unavailable
+    VideoMediaTypeUnavailable,
+    /// The configured capture session does not have its movie-file output
+    MovieOutputUnavailable,
+    /// The movie-file output has no video connection
+    VideoConnectionUnavailable,
+    /// The video connection does not support the requested orientation
+    OrientationUnsupported,
+    /// A movie recording or its finalization is active
+    RecordingActive,
+    /// The session has a shutdown request pending
+    SessionStopping,
+}
+
 #[cfg(any(target_os = "ios", test))]
 type VideoRecordingResult = Result<PathBuf, VideoRecordingError>;
 
@@ -246,6 +264,85 @@ impl MovieRecordingState {
         self.pending_session_stop = false;
         stop_session
     }
+}
+
+#[cfg(any(target_os = "ios", test))]
+fn map_camera_video_orientation<T: Copy>(
+    orientation: IosCameraVideoOrientation,
+    portrait: T,
+    portrait_upside_down: T,
+    landscape_right: T,
+    landscape_left: T,
+) -> T {
+    match orientation {
+        IosCameraVideoOrientation::Portrait => portrait,
+        IosCameraVideoOrientation::PortraitUpsideDown => portrait_upside_down,
+        IosCameraVideoOrientation::LandscapeRight => landscape_right,
+        IosCameraVideoOrientation::LandscapeLeft => landscape_left,
+    }
+}
+
+#[cfg(any(target_os = "ios", test))]
+fn set_supported_movie_orientation<C>(
+    connection: &C,
+    orientation: IosCameraVideoOrientation,
+    is_supported: impl FnOnce(&C) -> bool,
+    set_orientation: impl FnOnce(&C, IosCameraVideoOrientation),
+) -> Result<(), MovieOrientationError> {
+    if !is_supported(connection) {
+        return Err(MovieOrientationError::OrientationUnsupported);
+    }
+    set_orientation(connection, orientation);
+    Ok(())
+}
+
+#[cfg(any(target_os = "ios", test))]
+fn configure_movie_orientation<T, C>(
+    movie_state: &MovieRecordingState,
+    movie_output: Option<&T>,
+    orientation: IosCameraVideoOrientation,
+    video_connection: impl FnOnce(&T) -> Result<Option<C>, MovieOrientationError>,
+    set_connection_orientation: impl FnOnce(
+        &C,
+        IosCameraVideoOrientation,
+    ) -> Result<(), MovieOrientationError>,
+) -> Result<(), MovieOrientationError> {
+    if movie_state.pending_session_stop {
+        return Err(MovieOrientationError::SessionStopping);
+    }
+    if movie_state.active {
+        return Err(MovieOrientationError::RecordingActive);
+    }
+    let output = movie_output.ok_or(MovieOrientationError::MovieOutputUnavailable)?;
+    let connection =
+        video_connection(output)?.ok_or(MovieOrientationError::VideoConnectionUnavailable)?;
+    set_connection_orientation(&connection, orientation)
+}
+
+#[cfg(target_os = "ios")]
+#[allow(deprecated)]
+fn configure_avfoundation_movie_orientation(
+    connection: &AVCaptureConnection,
+    orientation: IosCameraVideoOrientation,
+) -> Result<(), MovieOrientationError> {
+    set_supported_movie_orientation(
+        connection,
+        orientation,
+        // SAFETY: The public orientation support query is available from iOS 4.0, below both
+        // package floors. It is checked before the setter to avoid AVFoundation exceptions.
+        |connection| unsafe { connection.isVideoOrientationSupported() },
+        // SAFETY: set_supported_movie_orientation invokes this only after AVFoundation confirms
+        // support for the exact requested public orientation.
+        |connection, orientation| unsafe {
+            connection.setVideoOrientation(map_camera_video_orientation(
+                orientation,
+                objc2_av_foundation::AVCaptureVideoOrientation::Portrait,
+                objc2_av_foundation::AVCaptureVideoOrientation::PortraitUpsideDown,
+                objc2_av_foundation::AVCaptureVideoOrientation::LandscapeRight,
+                objc2_av_foundation::AVCaptureVideoOrientation::LandscapeLeft,
+            ))
+        },
+    )
 }
 
 #[cfg(any(target_os = "ios", test))]
@@ -902,6 +999,20 @@ pub enum IosCameraPosition {
     Front,
     /// The subject-facing built-in wide-angle camera
     Back,
+}
+
+/// Caller-selected orientation for a future movie-file recording
+#[cfg(any(target_os = "ios", test))]
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum IosCameraVideoOrientation {
+    /// Video is vertical with the home button at the bottom
+    Portrait,
+    /// Video is vertical with the home button at the top
+    PortraitUpsideDown,
+    /// Video is horizontal with the home button at the right
+    LandscapeRight,
+    /// Video is horizontal with the home button at the left
+    LandscapeLeft,
 }
 
 /// Failure to create or configure a camera capture session
@@ -1709,6 +1820,45 @@ impl IosCameraCaptureSession {
         result
     }
 
+    /// Set the caller-selected orientation for subsequent movie-file recordings
+    ///
+    /// This changes only the video connection of the configured movie-file output; it does not
+    /// rotate the preview layer, still photos, or video sample stream. The current AVFoundation
+    /// default remains in effect until this method succeeds. The request runs synchronously on
+    /// the private capture queue and fails if a movie is active or finalizing, session shutdown is
+    /// pending, the output/connection is unavailable, or AVFoundation does not support the value.
+    /// The value applies to both video-only and audio-enabled movies. A call ordered before a
+    /// movie start affects that movie; a call ordered after its start is rejected until terminal
+    /// finalization. This method does not inspect device or UI orientation.
+    pub fn set_movie_orientation(
+        &self,
+        orientation: IosCameraVideoOrientation,
+    ) -> Result<(), MovieOrientationError> {
+        let graph = Arc::clone(&self.graph);
+        let mut result = Err(MovieOrientationError::MovieOutputUnavailable);
+        self.queue.exec_sync(|| {
+            let graph = graph
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner);
+            result = configure_movie_orientation(
+                &graph.movie_recording,
+                graph.movie_output.as_deref(),
+                orientation,
+                |output| {
+                    let video_media_type = unsafe { AVMediaTypeVideo }
+                        .ok_or(MovieOrientationError::VideoMediaTypeUnavailable)?;
+                    // SAFETY: This retained output belongs to the configured graph. The connection
+                    // is selected by the public video media type and retained for this queue task.
+                    Ok(unsafe { output.connectionWithMediaType(video_media_type) })
+                },
+                |connection, orientation| {
+                    configure_avfoundation_movie_orientation(connection, orientation)
+                },
+            );
+        });
+        result
+    }
+
     /// Enqueue a nonblocking stop request on the private serial queue
     ///
     /// The method returns before AVFoundation completes shutdown.
@@ -2384,15 +2534,17 @@ fn invoke_video_completion(completion: VideoRecordingCompletion, result: VideoRe
 mod tests {
     use super::{
         CameraCaptureError, ExposureControlError, FocusControlError, IosCameraExposureMode,
-        IosCameraFocusMode, IosCameraPosition, MediaAuthorizationStatus, MovieRecordingState,
-        NormalizedFocusPoint, PhotoCaptureError, PhotoCaptureResult, TorchControlError,
-        VideoFrameStreamError, VideoFrameStreamState, VideoRecordingError, VideoRecordingResult,
-        ZoomControlError, configure_exposure, configure_exposure_target_bias, configure_focus,
+        IosCameraFocusMode, IosCameraPosition, IosCameraVideoOrientation, MediaAuthorizationStatus,
+        MovieOrientationError, MovieRecordingState, NormalizedFocusPoint, PhotoCaptureError,
+        PhotoCaptureResult, TorchControlError, VideoFrameStreamError, VideoFrameStreamState,
+        VideoRecordingError, VideoRecordingResult, ZoomControlError, configure_exposure,
+        configure_exposure_target_bias, configure_focus, configure_movie_orientation,
         configure_torch_enabled, configure_video_zoom_factor, drop_video_frame_callback_safely,
-        exposure_target_bias_range, invoke_video_frame_callback, may_create_device_input,
-        photo_request_error, prepare_optional_movie_audio, require_camera_at_position,
-        require_selected_camera, require_selected_focus_camera, settle_movie_result,
-        settle_movie_terminal, settle_photo_result, take_photo_completion, take_video_completion,
+        exposure_target_bias_range, invoke_video_frame_callback, map_camera_video_orientation,
+        may_create_device_input, photo_request_error, prepare_optional_movie_audio,
+        require_camera_at_position, require_selected_camera, require_selected_focus_camera,
+        set_supported_movie_orientation, settle_movie_result, settle_movie_terminal,
+        settle_photo_result, take_photo_completion, take_video_completion,
         validate_movie_destination, with_authorized_microphone, with_selected_exposure_camera,
     };
     use std::cell::RefCell;
@@ -2485,6 +2637,164 @@ mod tests {
             ["remove-input", "completion", "stop-session"]
         );
         assert!(!state.active);
+    }
+
+    #[test]
+    fn camera_video_orientation_maps_each_value_to_avfoundation_order() {
+        use IosCameraVideoOrientation as Orientation;
+
+        assert_eq!(
+            map_camera_video_orientation(Orientation::Portrait, 1, 2, 3, 4),
+            1
+        );
+        assert_eq!(
+            map_camera_video_orientation(Orientation::PortraitUpsideDown, 1, 2, 3, 4),
+            2
+        );
+        assert_eq!(
+            map_camera_video_orientation(Orientation::LandscapeRight, 1, 2, 3, 4),
+            3
+        );
+        assert_eq!(
+            map_camera_video_orientation(Orientation::LandscapeLeft, 1, 2, 3, 4),
+            4
+        );
+    }
+
+    #[test]
+    fn movie_orientation_rejects_missing_output_and_connection_without_mutation() {
+        use IosCameraVideoOrientation as Orientation;
+
+        let state = MovieRecordingState::default();
+        let current = std::cell::Cell::new(Orientation::LandscapeLeft);
+        assert_eq!(
+            configure_movie_orientation(
+                &state,
+                None::<&u8>,
+                Orientation::Portrait,
+                |_| Ok(Some(1_u8)),
+                |_, requested| {
+                    current.set(requested);
+                    Ok(())
+                },
+            ),
+            Err(MovieOrientationError::MovieOutputUnavailable)
+        );
+        assert_eq!(current.get(), Orientation::LandscapeLeft);
+
+        let output = 7_u8;
+        assert_eq!(
+            configure_movie_orientation(
+                &state,
+                Some(&output),
+                Orientation::Portrait,
+                |_| -> Result<Option<u8>, MovieOrientationError> {
+                    Err(MovieOrientationError::VideoMediaTypeUnavailable)
+                },
+                |_, requested| {
+                    current.set(requested);
+                    Ok(())
+                },
+            ),
+            Err(MovieOrientationError::VideoMediaTypeUnavailable)
+        );
+        assert_eq!(current.get(), Orientation::LandscapeLeft);
+
+        assert_eq!(
+            configure_movie_orientation(
+                &state,
+                Some(&output),
+                Orientation::Portrait,
+                |_| Ok(None::<u8>),
+                |_, requested| {
+                    current.set(requested);
+                    Ok(())
+                },
+            ),
+            Err(MovieOrientationError::VideoConnectionUnavailable)
+        );
+        assert_eq!(current.get(), Orientation::LandscapeLeft);
+    }
+
+    #[test]
+    fn unsupported_movie_orientation_is_checked_before_set_and_preserves_prior_value() {
+        use IosCameraVideoOrientation as Orientation;
+
+        let current = std::cell::Cell::new(Orientation::PortraitUpsideDown);
+        let support_checks = std::cell::Cell::new(0);
+        let setter_calls = std::cell::Cell::new(0);
+        assert_eq!(
+            set_supported_movie_orientation(
+                &(),
+                Orientation::LandscapeRight,
+                |_| {
+                    support_checks.set(support_checks.get() + 1);
+                    false
+                },
+                |_, requested| {
+                    setter_calls.set(setter_calls.get() + 1);
+                    current.set(requested);
+                },
+            ),
+            Err(MovieOrientationError::OrientationUnsupported)
+        );
+        assert_eq!(support_checks.get(), 1);
+        assert_eq!(setter_calls.get(), 0);
+        assert_eq!(current.get(), Orientation::PortraitUpsideDown);
+    }
+
+    #[test]
+    fn supported_movie_orientation_sets_the_exact_requested_value_once() {
+        use IosCameraVideoOrientation as Orientation;
+
+        let current = std::cell::Cell::new(Orientation::Portrait);
+        let setter_calls = std::cell::Cell::new(0);
+        assert_eq!(
+            set_supported_movie_orientation(
+                &(),
+                Orientation::LandscapeLeft,
+                |_| true,
+                |_, requested| {
+                    setter_calls.set(setter_calls.get() + 1);
+                    current.set(requested);
+                },
+            ),
+            Ok(())
+        );
+        assert_eq!(setter_calls.get(), 1);
+        assert_eq!(current.get(), Orientation::LandscapeLeft);
+    }
+
+    #[test]
+    fn movie_orientation_rejects_start_finalization_and_pending_shutdown_queue_states() {
+        use IosCameraVideoOrientation as Orientation;
+
+        let output = 7_u8;
+        let mut state = MovieRecordingState::default();
+        assert_eq!(state.begin(), Ok(()));
+        let current = std::cell::Cell::new(Orientation::Portrait);
+        let attempt = |state: &MovieRecordingState| {
+            configure_movie_orientation(
+                state,
+                Some(&output),
+                Orientation::LandscapeRight,
+                |output| Ok(Some(*output)),
+                |_, requested| {
+                    current.set(requested);
+                    Ok(())
+                },
+            )
+        };
+
+        assert_eq!(attempt(&state), Err(MovieOrientationError::RecordingActive));
+        assert_eq!(current.get(), Orientation::Portrait);
+        assert!(state.request_recording_stop());
+        assert!(state.active);
+        assert_eq!(attempt(&state), Err(MovieOrientationError::RecordingActive));
+        assert_eq!(current.get(), Orientation::Portrait);
+        assert!(state.request_session_stop());
+        assert_eq!(attempt(&state), Err(MovieOrientationError::SessionStopping));
+        assert_eq!(current.get(), Orientation::Portrait);
     }
 
     #[test]

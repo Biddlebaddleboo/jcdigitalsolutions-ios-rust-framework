@@ -95,6 +95,9 @@ for target in aarch64-apple-ios aarch64-apple-ios-sim; do
         minExposureTargetBias \
         maxExposureTargetBias \
         setExposureTargetBias:completionHandler: \
+        connectionWithMediaType: \
+        isVideoOrientationSupported \
+        setVideoOrientation: \
         setAutomaticallyConfiguresApplicationAudioSession: \
         canAddInput: \
         addInput: \
