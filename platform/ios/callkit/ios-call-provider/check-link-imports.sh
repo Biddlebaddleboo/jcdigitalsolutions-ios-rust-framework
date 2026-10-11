@@ -43,17 +43,21 @@ for target in aarch64-apple-ios aarch64-apple-ios-sim; do
             exit 1
         fi
     done
-    if grep -Eqi 'swift_|Py[A-Z_]|CXCallController|CXCallDirectory|AVAudioSession|PushKit|PKPushRegistry|UIApplication|UIView|_OBJC_CLASS_\$_(CXCallController|CXCallDirectory|AVAudioSession)' "$symbols"; then
-        echo "unexpected Swift runtime, call-control, audio, PushKit, or UI symbol import in $symbols" >&2
+    if grep -Eqi 'swift_|Py[A-Z_]|CXCallDirectory|AVAudioSession|PushKit|PKPushRegistry|UIApplication|UIView|_OBJC_CLASS_\$_(CXCallDirectory|AVAudioSession)' "$symbols"; then
+        echo "unexpected Swift runtime, call-directory, audio, PushKit, or UI symbol import in $symbols" >&2
         exit 1
     fi
 
     strings "$binary" > "$strings_file"
     for selector in \
-        CXProvider CXProviderConfiguration CXCallUpdate CXHandle NSUUID \
+        CXProvider CXProviderConfiguration CXCallController CXStartCallAction CXCallUpdate CXHandle NSUUID \
         'initWithConfiguration:' 'setDelegate:queue:' \
+        'initWithCallUUID:handle:' 'requestTransactionWithAction:completion:' 'setVideo:' \
+        'provider:performStartCallAction:' \
         'reportNewIncomingCallWithUUID:update:completion:' \
         'reportCallWithUUID:endedAtDate:reason:' 'providerDidReset:' \
+        'reportOutgoingCallWithUUID:startedConnectingAtDate:' \
+        'reportOutgoingCallWithUUID:connectedAtDate:' \
         'provider:performAnswerCallAction:' 'provider:performEndCallAction:' \
         'provider:performSetMutedCallAction:' 'provider:performSetHeldCallAction:' \
         'provider:timedOutPerformingAction:' 'provider:didActivateAudioSession:' \
@@ -72,8 +76,8 @@ for target in aarch64-apple-ios aarch64-apple-ios-sim; do
         echo "$target probe unexpectedly links the initializer below its iOS 14 availability floor" >&2
         exit 1
     fi
-    if grep -Eqi 'CXCallController|CXCallDirectory|AVAudioSession|PushKit|PKPushRegistry|_TtC|swift_' "$strings_file"; then
-        echo "unexpected call-controller, call-directory, audio, PushKit, or Swift string in $strings_file" >&2
+    if grep -Eqi 'CXCallDirectory|AVAudioSession|PushKit|PKPushRegistry|_TtC|swift_' "$strings_file"; then
+        echo "unexpected call-directory, audio, PushKit, or Swift string in $strings_file" >&2
         exit 1
     fi
 

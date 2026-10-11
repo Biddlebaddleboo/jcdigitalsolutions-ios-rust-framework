@@ -7,7 +7,10 @@ use crate::{CallActionCompletionError, CallEndReason, CallId};
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 enum CallPhase {
     Reporting,
+    Starting,
     Active,
+    Connecting,
+    Connected,
     Ending(CallEndReason),
 }
 
@@ -22,8 +25,16 @@ pub(crate) enum EndTransition {
     ReportNow(CallEndReason),
     Deferred,
     AlreadyEnding,
+    InvalidState,
     NotFound,
     Unavailable,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(crate) enum OutgoingRequestTransition {
+    Accepted,
+    Rejected,
+    Stale,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -175,7 +186,95 @@ impl CallRegistry {
                 self.calls.insert(id, (generation, CallPhase::Active));
                 ReportTransition::Stale
             }
+            CallPhase::Starting | CallPhase::Connecting | CallPhase::Connected => {
+                self.calls.insert(id, (generation, phase));
+                ReportTransition::Stale
+            }
         }
+    }
+
+    pub(crate) fn begin_outgoing(&mut self, id: CallId) -> Result<u64, BeginReportError> {
+        if self.invalidated {
+            return Err(BeginReportError::Unavailable);
+        }
+        if self.calls.contains_key(&id) {
+            return Err(BeginReportError::Duplicate);
+        }
+        self.calls
+            .insert(id, (self.generation, CallPhase::Starting));
+        Ok(self.generation)
+    }
+
+    pub(crate) fn outgoing_request_completed(
+        &mut self,
+        id: CallId,
+        generation: u64,
+        accepted: bool,
+    ) -> OutgoingRequestTransition {
+        if self.invalidated || generation != self.generation {
+            return OutgoingRequestTransition::Stale;
+        }
+        if accepted {
+            return OutgoingRequestTransition::Accepted;
+        }
+        if self
+            .calls
+            .get(&id)
+            .is_some_and(|(call_generation, _)| *call_generation == generation)
+        {
+            self.calls.remove(&id);
+        }
+        OutgoingRequestTransition::Rejected
+    }
+
+    pub(crate) fn is_starting(&self, id: CallId) -> bool {
+        !self.invalidated
+            && self
+                .calls
+                .get(&id)
+                .is_some_and(|(_, phase)| *phase == CallPhase::Starting)
+    }
+
+    pub(crate) fn finish_start_action(&mut self, id: CallId, accepted: bool) -> bool {
+        if !self.is_starting(id) {
+            return false;
+        }
+        if accepted {
+            if let Some((_, phase)) = self.calls.get_mut(&id) {
+                *phase = CallPhase::Active;
+            }
+        } else {
+            self.calls.remove(&id);
+        }
+        true
+    }
+
+    pub(crate) fn report_outgoing_connecting(&mut self, id: CallId) -> bool {
+        if self.invalidated {
+            return false;
+        }
+        let Some((_, phase)) = self.calls.get_mut(&id) else {
+            return false;
+        };
+        if *phase != CallPhase::Active {
+            return false;
+        }
+        *phase = CallPhase::Connecting;
+        true
+    }
+
+    pub(crate) fn report_outgoing_connected(&mut self, id: CallId) -> bool {
+        if self.invalidated {
+            return false;
+        }
+        let Some((_, phase)) = self.calls.get_mut(&id) else {
+            return false;
+        };
+        if *phase != CallPhase::Connecting {
+            return false;
+        }
+        *phase = CallPhase::Connected;
+        true
     }
 
     pub(crate) fn end(&mut self, id: CallId, reason: CallEndReason) -> EndTransition {
@@ -191,7 +290,13 @@ impl CallRegistry {
                     .insert(id, (generation, CallPhase::Ending(reason)));
                 EndTransition::Deferred
             }
-            CallPhase::Active => EndTransition::ReportNow(reason),
+            CallPhase::Active | CallPhase::Connecting | CallPhase::Connected => {
+                EndTransition::ReportNow(reason)
+            }
+            CallPhase::Starting => {
+                self.calls.insert(id, (generation, CallPhase::Starting));
+                EndTransition::InvalidState
+            }
             CallPhase::Ending(existing_reason) => {
                 self.calls
                     .insert(id, (generation, CallPhase::Ending(existing_reason)));
@@ -202,10 +307,12 @@ impl CallRegistry {
 
     pub(crate) fn is_active(&self, id: CallId) -> bool {
         !self.invalidated
-            && self
-                .calls
-                .get(&id)
-                .is_some_and(|(_, phase)| *phase == CallPhase::Active)
+            && self.calls.get(&id).is_some_and(|(_, phase)| {
+                matches!(
+                    phase,
+                    CallPhase::Active | CallPhase::Connecting | CallPhase::Connected
+                )
+            })
     }
 
     pub(crate) fn finish_end_action(&mut self, id: CallId) -> bool {
@@ -268,6 +375,79 @@ mod tests {
             ReportTransition::Stale
         );
         assert!(registry.is_active(id(1)));
+    }
+
+    #[test]
+    fn outgoing_call_requires_transaction_and_start_action_acceptance() {
+        let mut registry = CallRegistry::default();
+        let generation = registry.begin_outgoing(id(11)).unwrap();
+        assert!(registry.is_starting(id(11)));
+        assert!(!registry.is_active(id(11)));
+        assert_eq!(
+            registry.begin_outgoing(id(11)),
+            Err(BeginReportError::Duplicate)
+        );
+        assert_eq!(
+            registry.outgoing_request_completed(id(11), generation, true),
+            OutgoingRequestTransition::Accepted
+        );
+        assert!(registry.finish_start_action(id(11), true));
+        assert!(!registry.is_starting(id(11)));
+        assert!(registry.is_active(id(11)));
+        assert!(registry.report_outgoing_connecting(id(11)));
+        assert!(registry.report_outgoing_connected(id(11)));
+        assert_eq!(
+            registry.end(id(11), CallEndReason::RemoteEnded),
+            EndTransition::ReportNow(CallEndReason::RemoteEnded)
+        );
+        assert!(!registry.is_active(id(11)));
+    }
+
+    #[test]
+    fn rejected_transaction_or_start_action_removes_outgoing_call() {
+        let mut registry = CallRegistry::default();
+        let transaction_generation = registry.begin_outgoing(id(12)).unwrap();
+        assert_eq!(
+            registry.outgoing_request_completed(id(12), transaction_generation, false),
+            OutgoingRequestTransition::Rejected
+        );
+        assert!(!registry.is_starting(id(12)));
+
+        let action_generation = registry.begin_outgoing(id(13)).unwrap();
+        assert_eq!(
+            registry.outgoing_request_completed(id(13), action_generation, true),
+            OutgoingRequestTransition::Accepted
+        );
+        assert!(registry.finish_start_action(id(13), false));
+        assert!(!registry.is_starting(id(13)));
+        assert!(!registry.is_active(id(13)));
+        assert_eq!(
+            registry.outgoing_request_completed(id(13), action_generation, true),
+            OutgoingRequestTransition::Accepted
+        );
+    }
+
+    #[test]
+    fn outgoing_progress_reports_require_start_and_connection_order() {
+        let mut registry = CallRegistry::default();
+        let generation = registry.begin_outgoing(id(14)).unwrap();
+        assert!(!registry.report_outgoing_connecting(id(14)));
+        assert!(!registry.report_outgoing_connected(id(14)));
+        assert_eq!(
+            registry.end(id(14), CallEndReason::Failed),
+            EndTransition::InvalidState
+        );
+        assert!(registry.finish_start_action(id(14), true));
+        assert!(!registry.report_outgoing_connected(id(14)));
+        assert!(registry.report_outgoing_connecting(id(14)));
+        assert!(!registry.report_outgoing_connecting(id(14)));
+        assert!(registry.report_outgoing_connected(id(14)));
+        assert!(!registry.report_outgoing_connected(id(14)));
+        registry.reset();
+        assert_eq!(
+            registry.outgoing_request_completed(id(14), generation, true),
+            OutgoingRequestTransition::Stale
+        );
     }
 
     #[test]

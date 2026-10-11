@@ -15,20 +15,21 @@ use objc2::{AnyThread, ClassType, DefinedClass, available, define_class, msg_sen
 #[cfg(feature = "audio-session-events")]
 use objc2_avf_audio::AVAudioSession;
 use objc2_call_kit::{
-    CXAction, CXAnswerCallAction, CXCallAction, CXCallEndedReason, CXCallUpdate, CXEndCallAction,
-    CXHandle, CXHandleType, CXProvider, CXProviderConfiguration, CXProviderDelegate,
-    CXSetHeldCallAction, CXSetMutedCallAction,
+    CXAction, CXAnswerCallAction, CXCallAction, CXCallController, CXCallEndedReason, CXCallUpdate,
+    CXEndCallAction, CXHandle, CXHandleType, CXProvider, CXProviderConfiguration,
+    CXProviderDelegate, CXSetHeldCallAction, CXSetMutedCallAction, CXStartCallAction,
 };
 use objc2_foundation::{NSError, NSNumber, NSObject, NSObjectProtocol, NSSet, NSString, NSUUID};
 
 use crate::registry::{
-    BeginReportError, CallRegistry, DeferredActionGate, EndTransition, OnceSlot, ReportTransition,
+    BeginReportError, CallRegistry, DeferredActionGate, EndTransition, OnceSlot,
+    OutgoingRequestTransition, ReportTransition,
 };
 use crate::types::CallProviderEventDelivery;
 use crate::{
     ActionDecision, CallActionCompletion, CallActionCompletionError, CallActionKind,
     CallActionRequest, CallEndReason, CallHandleKind, CallId, CallProviderConfig,
-    CallProviderError, CallProviderEvent, EndCallOutcome, IncomingCall,
+    CallProviderError, CallProviderEvent, EndCallOutcome, IncomingCall, OutgoingCall,
 };
 
 type EventHandler = Box<dyn FnMut(CallProviderEvent) -> ActionDecision + 'static>;
@@ -153,6 +154,13 @@ struct ReportCallbackContext {
     completion: Rc<RefCell<Option<ReportCompletion>>>,
 }
 
+struct OutgoingRequestContext {
+    shared: Rc<ProviderShared>,
+    call_id: CallId,
+    generation: u64,
+    completion: Rc<RefCell<Option<ReportCompletion>>>,
+}
+
 struct ProviderDelegateIvars {
     shared: Rc<ProviderShared>,
 }
@@ -183,6 +191,23 @@ define_class!(
                 };
                 drop(pending);
                 dispatch_event(shared, CallProviderEvent::ProviderReset);
+            }));
+        }
+
+        #[unsafe(method(provider:performStartCallAction:))]
+        unsafe fn provider_performStartCallAction(
+            &self,
+            _provider: &CXProvider,
+            action: &CXStartCallAction,
+        ) {
+            let _ = catch_unwind(AssertUnwindSafe(|| {
+                autoreleasepool(|_| {
+                    handle_call_action(
+                        &self.ivars().shared,
+                        action.as_super(),
+                        CallActionKind::Start,
+                    );
+                });
             }));
         }
 
@@ -259,12 +284,16 @@ define_class!(
                 // SAFETY: CallKit invokes this delegate on the explicitly selected main queue.
                 let main_thread = unsafe { MainThreadMarker::new_unchecked() };
                 let action_id = native_action_id(action);
-                let pending = shared
-                    .state
-                    .get(main_thread)
-                    .borrow_mut()
-                    .pending_actions
-                    .timeout(&action_id);
+                let pending = {
+                    let mut state = shared.state.get(main_thread).borrow_mut();
+                    let pending = state.pending_actions.timeout(&action_id);
+                    if let Some(action) = pending.as_ref() {
+                        if action.kind == CallActionKind::Start {
+                            state.calls.finish_start_action(action.call_id, false);
+                        }
+                    }
+                    pending
+                };
                 drop(pending);
                 dispatch_event(shared, CallProviderEvent::ActionTimedOut);
             }));
@@ -348,13 +377,15 @@ fn complete_call_action(shared: &ProviderShared, action: &CXCallAction, kind: Ca
     };
     // SAFETY: This callback is invoked by CallKit on the selected main queue.
     let main_thread = unsafe { MainThreadMarker::new_unchecked() };
-    if !shared
-        .state
-        .get(main_thread)
-        .borrow()
-        .calls
-        .is_active(call_id)
-    {
+    let actionable = {
+        let state = shared.state.get(main_thread).borrow();
+        if kind == CallActionKind::Start {
+            state.calls.is_starting(call_id)
+        } else {
+            state.calls.is_active(call_id)
+        }
+    };
+    if !actionable {
         if !unsafe { action.isComplete() } {
             unsafe { action.fail() };
         }
@@ -371,17 +402,36 @@ fn complete_call_action(shared: &ProviderShared, action: &CXCallAction, kind: Ca
     }
     match decision {
         ActionDecision::Fulfill => {
-            if matches!(kind, CallActionKind::End) {
+            let transitioned = {
+                let mut state = shared.state.get(main_thread).borrow_mut();
+                match kind {
+                    CallActionKind::Start => state.calls.finish_start_action(call_id, true),
+                    CallActionKind::End => {
+                        state.calls.finish_end_action(call_id);
+                        true
+                    }
+                    CallActionKind::Answer
+                    | CallActionKind::SetMuted { .. }
+                    | CallActionKind::SetHeld { .. } => state.calls.is_active(call_id),
+                }
+            };
+            if !transitioned {
+                unsafe { action.fail() };
+                return;
+            }
+            unsafe { action.fulfill() };
+        }
+        ActionDecision::Fail => {
+            if kind == CallActionKind::Start {
                 shared
                     .state
                     .get(main_thread)
                     .borrow_mut()
                     .calls
-                    .finish_end_action(call_id);
+                    .finish_start_action(call_id, false);
             }
-            unsafe { action.fulfill() };
+            unsafe { action.fail() };
         }
-        ActionDecision::Fail => unsafe { action.fail() },
     }
 }
 
@@ -395,13 +445,15 @@ fn defer_call_action(shared: &ProviderShared, action: &CXCallAction, kind: CallA
     };
     // SAFETY: This function is called only from a CallKit delegate on the main queue.
     let main_thread = unsafe { MainThreadMarker::new_unchecked() };
-    if !shared
-        .state
-        .get(main_thread)
-        .borrow()
-        .calls
-        .is_active(call_id)
-    {
+    let actionable = {
+        let state = shared.state.get(main_thread).borrow();
+        if kind == CallActionKind::Start {
+            state.calls.is_starting(call_id)
+        } else {
+            state.calls.is_active(call_id)
+        }
+    };
+    if !actionable {
         if !unsafe { action.isComplete() } {
             unsafe { action.fail() };
         }
@@ -485,8 +537,17 @@ fn resolve_deferred_action(
 
     let mut state = state.borrow_mut();
     let (should_fulfill, expired_actions) = match decision {
-        ActionDecision::Fail => (false, Vec::new()),
+        ActionDecision::Fail => {
+            if pending.kind == CallActionKind::Start {
+                state.calls.finish_start_action(pending.call_id, false);
+            }
+            (false, Vec::new())
+        }
         ActionDecision::Fulfill => match pending.kind {
+            CallActionKind::Start => (
+                state.calls.finish_start_action(pending.call_id, true),
+                Vec::new(),
+            ),
             CallActionKind::Answer => {
                 // The call may have ended while application work was deferred.
                 (state.calls.is_active(pending.call_id), Vec::new())
@@ -519,6 +580,7 @@ fn resolve_deferred_action(
 /// `Sync`.
 pub struct CallProvider {
     provider: Option<Retained<CXProvider>>,
+    call_controller: Option<Retained<CXCallController>>,
     delegate: Option<Retained<ProviderDelegate>>,
     delegate_queue: Option<DispatchRetained<DispatchQueue>>,
     shared: Rc<ProviderShared>,
@@ -582,6 +644,8 @@ impl CallProvider {
         let native_config = native_provider_config(&config)?;
         let provider =
             unsafe { CXProvider::initWithConfiguration(CXProvider::alloc(), &native_config) };
+        // SAFETY: CXCallController's public initializer creates its private serial completion queue.
+        let call_controller = unsafe { CXCallController::new() };
         let state = Arc::new(MainThreadBound::new(
             RefCell::new(ProviderState::default()),
             main_thread,
@@ -601,6 +665,7 @@ impl CallProvider {
 
         Ok(Self {
             provider: Some(provider),
+            call_controller: Some(call_controller),
             delegate: Some(delegate),
             delegate_queue: Some(delegate_queue),
             shared,
@@ -674,6 +739,141 @@ impl CallProvider {
         Ok(())
     }
 
+    /// Request a system-managed start action for one outgoing call.
+    ///
+    /// The call's handle kind and video setting must be supported by this provider. This method
+    /// reserves the call identity before submitting one `CXStartCallAction` transaction. The
+    /// completion runs once asynchronously on the main queue with the transaction request result;
+    /// `Ok(())` means CallKit accepted the transaction, not that an invitation was sent or the
+    /// call connected. CallKit separately delivers `CallProviderEvent::StartRequested` to the
+    /// configured action handler. The app owns signaling and must fulfill or fail that action.
+    pub fn request_outgoing<F>(
+        &self,
+        call: OutgoingCall,
+        completion: F,
+    ) -> Result<(), CallProviderError>
+    where
+        F: FnOnce(Result<(), CallProviderError>) + 'static,
+    {
+        let controller = self
+            .call_controller
+            .as_ref()
+            .ok_or(CallProviderError::ProviderUnavailable)?;
+        if self.provider.is_none() {
+            return Err(CallProviderError::ProviderUnavailable);
+        }
+        call.validate(&self.config)?;
+
+        let uuid = native_uuid(call.id)?;
+        let handle_value = NSString::from_str(&call.handle);
+        let handle = unsafe {
+            CXHandle::initWithType_value(
+                CXHandle::alloc(),
+                native_handle_type(call.handle_kind),
+                &handle_value,
+            )
+        };
+        // SAFETY: CallKit's public start action takes the validated fixed-width UUID and handle.
+        let action = unsafe {
+            CXStartCallAction::initWithCallUUID_handle(CXStartCallAction::alloc(), &uuid, &handle)
+        };
+        // SAFETY: Video is a public CXStartCallAction property, and provider validation above
+        // enforces that the configured provider supports video when requested.
+        unsafe { action.setVideo(call.has_video) };
+
+        let generation = self
+            .shared
+            .state
+            .get(self._main_thread)
+            .borrow_mut()
+            .calls
+            .begin_outgoing(call.id)
+            .map_err(|error| match error {
+                BeginReportError::Duplicate => CallProviderError::DuplicateCallId,
+                BeginReportError::Unavailable => CallProviderError::ProviderUnavailable,
+            })?;
+
+        let callback_context = Arc::new(MainThreadBound::new(
+            OutgoingRequestContext {
+                shared: Rc::clone(&self.shared),
+                call_id: call.id,
+                generation,
+                completion: Rc::new(RefCell::new(Some(Box::new(completion) as ReportCompletion))),
+            },
+            self._main_thread,
+        ));
+        let callback_context = Arc::new(OnceSlot::new(callback_context));
+        let request_block = RcBlock::new(move |native_error: *mut NSError| {
+            let accepted = native_error.is_null();
+            let Some(context) = callback_context.take() else {
+                return;
+            };
+            DispatchQueue::main().exec_async(move || {
+                let _ = catch_unwind(AssertUnwindSafe(|| {
+                    // SAFETY: This closure is submitted to the main dispatch queue.
+                    let main_thread = unsafe { MainThreadMarker::new_unchecked() };
+                    complete_outgoing_request(context.get(main_thread), accepted);
+                }));
+            });
+        });
+        // SAFETY: The controller copies the transaction action and invokes the block on its
+        // private serial completion queue; the one-shot context hands all Rust state access to main.
+        unsafe {
+            controller.requestTransactionWithAction_completion(
+                action.as_super().as_super(),
+                &request_block,
+            )
+        };
+        Ok(())
+    }
+
+    /// Report that an accepted outgoing call has sent its invitation and started connecting.
+    pub fn report_outgoing_started_connecting(
+        &self,
+        call_id: CallId,
+    ) -> Result<(), CallProviderError> {
+        let provider = self
+            .provider
+            .as_ref()
+            .ok_or(CallProviderError::ProviderUnavailable)?;
+        let uuid = native_uuid(call_id)?;
+        if !self
+            .shared
+            .state
+            .get(self._main_thread)
+            .borrow_mut()
+            .calls
+            .report_outgoing_connecting(call_id)
+        {
+            return Err(CallProviderError::InvalidState);
+        }
+        // SAFETY: The registry accepts this transition only after CallKit's start action succeeds.
+        unsafe { provider.reportOutgoingCallWithUUID_startedConnectingAtDate(&uuid, None) };
+        Ok(())
+    }
+
+    /// Report that an outgoing call has connected after its connecting report.
+    pub fn report_outgoing_connected(&self, call_id: CallId) -> Result<(), CallProviderError> {
+        let provider = self
+            .provider
+            .as_ref()
+            .ok_or(CallProviderError::ProviderUnavailable)?;
+        let uuid = native_uuid(call_id)?;
+        if !self
+            .shared
+            .state
+            .get(self._main_thread)
+            .borrow_mut()
+            .calls
+            .report_outgoing_connected(call_id)
+        {
+            return Err(CallProviderError::InvalidState);
+        }
+        // SAFETY: The registry accepts this transition only after a connecting report.
+        unsafe { provider.reportOutgoingCallWithUUID_connectedAtDate(&uuid, None) };
+        Ok(())
+    }
+
     /// Report a call as ended or defer that report until an incoming report completes.
     pub fn end_call(
         &self,
@@ -707,6 +907,7 @@ impl CallProvider {
             }
             EndTransition::Deferred => Ok(EndCallOutcome::DeferredUntilReport),
             EndTransition::AlreadyEnding => Ok(EndCallOutcome::AlreadyEnding),
+            EndTransition::InvalidState => Err(CallProviderError::InvalidState),
             EndTransition::NotFound => Ok(EndCallOutcome::NotFound),
             EndTransition::Unavailable => Err(CallProviderError::ProviderUnavailable),
         }
@@ -731,6 +932,7 @@ impl CallProvider {
         }
         self.delegate.take();
         self.delegate_queue.take();
+        self.call_controller.take();
         self.provider.take();
     }
 }
@@ -852,6 +1054,28 @@ fn invoke_report_completion(
     if let Some(callback) = callback {
         let _ = catch_unwind(AssertUnwindSafe(|| callback(result)));
     }
+}
+
+fn complete_outgoing_request(context: &OutgoingRequestContext, accepted: bool) {
+    // SAFETY: This callback is invoked only after dispatch to the main queue.
+    let main_thread = unsafe { MainThreadMarker::new_unchecked() };
+    let transition = catch_unwind(AssertUnwindSafe(|| {
+        context
+            .shared
+            .state
+            .get(main_thread)
+            .borrow_mut()
+            .calls
+            .outgoing_request_completed(context.call_id, context.generation, accepted)
+    }))
+    .unwrap_or(OutgoingRequestTransition::Stale);
+
+    let result = match transition {
+        OutgoingRequestTransition::Accepted => Ok(()),
+        OutgoingRequestTransition::Rejected => Err(CallProviderError::SystemRejected),
+        OutgoingRequestTransition::Stale => Err(CallProviderError::ProviderUnavailable),
+    };
+    invoke_report_completion(&context.completion, result);
 }
 
 fn complete_incoming_report(context: &ReportCallbackContext, accepted: bool) {

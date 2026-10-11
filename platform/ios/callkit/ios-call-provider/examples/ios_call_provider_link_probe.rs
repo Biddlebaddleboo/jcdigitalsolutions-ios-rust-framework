@@ -2,7 +2,7 @@
 fn main() {
     use ios_call_provider::{
         ActionDecision, CallEndReason, CallHandleKind, CallId, CallProvider, CallProviderConfig,
-        IncomingCall,
+        IncomingCall, OutgoingCall,
     };
     use objc2::MainThreadMarker;
 
@@ -20,6 +20,11 @@ fn main() {
     let call = IncomingCall::new(call_id, CallHandleKind::Generic, "probe");
     let _ = provider.report_incoming(call, |_| {});
     let _ = provider.end_call(call_id, CallEndReason::RemoteEnded);
+    let outgoing_id = CallId::from_bytes([2; 16]);
+    let outgoing = OutgoingCall::new(outgoing_id, CallHandleKind::Generic, "probe");
+    let _ = provider.request_outgoing(outgoing, |_| {});
+    let _ = provider.report_outgoing_started_connecting(outgoing_id);
+    let _ = provider.report_outgoing_connected(outgoing_id);
     provider.invalidate();
 }
 

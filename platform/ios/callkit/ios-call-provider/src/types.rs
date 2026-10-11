@@ -125,6 +125,49 @@ impl IncomingCall {
     }
 }
 
+/// An owned outgoing-call request for one remote party.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct OutgoingCall {
+    pub(crate) id: CallId,
+    pub(crate) handle_kind: CallHandleKind,
+    pub(crate) handle: String,
+    pub(crate) has_video: bool,
+}
+
+impl OutgoingCall {
+    /// Create an outgoing call with a framework call identity and remote handle.
+    pub fn new(id: CallId, handle_kind: CallHandleKind, handle: impl Into<String>) -> Self {
+        Self {
+            id,
+            handle_kind,
+            handle: handle.into(),
+            has_video: false,
+        }
+    }
+
+    /// Mark this call as including video.
+    pub const fn with_video(mut self, has_video: bool) -> Self {
+        self.has_video = has_video;
+        self
+    }
+
+    /// Return this call's framework identity.
+    pub const fn id(&self) -> CallId {
+        self.id
+    }
+
+    #[cfg(any(test, target_os = "ios"))]
+    pub(crate) fn validate(&self, config: &CallProviderConfig) -> Result<(), CallProviderError> {
+        if self.handle.is_empty()
+            || !config.supported_handles.contains(&self.handle_kind)
+            || (self.has_video && !config.supports_video)
+        {
+            return Err(CallProviderError::InvalidInput);
+        }
+        Ok(())
+    }
+}
+
 /// Configuration for one explicitly owned `CXProvider`.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct CallProviderConfig {
@@ -204,6 +247,11 @@ impl CallProviderConfig {
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 #[non_exhaustive]
 pub enum CallProviderEvent {
+    /// The system asks the app to start an outgoing call.
+    StartRequested {
+        /// The framework-owned call identity.
+        call_id: CallId,
+    },
     /// The system asks the app to answer an active call.
     AnswerRequested {
         /// The framework-owned call identity.
@@ -257,7 +305,8 @@ pub(crate) enum CallProviderEventDelivery {
 impl CallProviderEvent {
     pub(crate) const fn delivery(self) -> CallProviderEventDelivery {
         match self {
-            Self::AnswerRequested { .. }
+            Self::StartRequested { .. }
+            | Self::AnswerRequested { .. }
             | Self::EndRequested { .. }
             | Self::MuteRequested { .. }
             | Self::HoldRequested { .. } => CallProviderEventDelivery::Action,
@@ -282,6 +331,8 @@ pub enum ActionDecision {
 /// Kind of CallKit action delivered to a deferred action handler.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum CallActionKind {
+    /// The system asks the app to start an outgoing call.
+    Start,
     /// The system asks the app to answer an active call.
     Answer,
     /// The system asks the app to end an active call.
@@ -302,6 +353,7 @@ impl CallActionKind {
     #[cfg_attr(not(target_os = "ios"), allow(dead_code))]
     pub(crate) const fn provider_event(self, call_id: CallId) -> CallProviderEvent {
         match self {
+            Self::Start => CallProviderEvent::StartRequested { call_id },
             Self::Answer => CallProviderEvent::AnswerRequested { call_id },
             Self::End => CallProviderEvent::EndRequested { call_id },
             Self::SetMuted { is_muted } => CallProviderEvent::MuteRequested { call_id, is_muted },
@@ -441,14 +493,16 @@ pub enum EndCallOutcome {
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 #[non_exhaustive]
 pub enum CallProviderError {
-    /// The provider configuration or incoming-call data is invalid.
+    /// The provider configuration or call data is invalid.
     InvalidInput,
     /// A call with this identity is already owned by the provider.
     DuplicateCallId,
     /// The provider has been invalidated or CallKit reset during the operation.
     ProviderUnavailable,
-    /// The system disallowed the incoming call.
+    /// CallKit rejected an incoming report or outgoing transaction.
     SystemRejected,
+    /// The call is not in a state that supports the requested report or action.
+    InvalidState,
     /// An explicitly requested option is not available on this iOS release.
     UnavailableOption,
     /// A native identifier could not be represented by the framework type.
@@ -538,6 +592,41 @@ mod tests {
     }
 
     #[test]
+    fn outgoing_call_requires_supported_handle_and_video_config() {
+        let config = CallProviderConfig::new("Example");
+        let id = CallId::from_bytes([2; 16]);
+        assert_eq!(
+            OutgoingCall::new(id, CallHandleKind::Generic, "").validate(&config),
+            Err(CallProviderError::InvalidInput)
+        );
+        assert_eq!(
+            OutgoingCall::new(id, CallHandleKind::PhoneNumber, "+15555550100").validate(&config),
+            Err(CallProviderError::InvalidInput)
+        );
+        assert_eq!(
+            OutgoingCall::new(id, CallHandleKind::Generic, "call:2")
+                .with_video(true)
+                .validate(&config),
+            Err(CallProviderError::InvalidInput)
+        );
+        assert!(
+            OutgoingCall::new(id, CallHandleKind::Generic, "call:2")
+                .validate(&config)
+                .is_ok()
+        );
+        assert!(
+            OutgoingCall::new(id, CallHandleKind::PhoneNumber, "+15555550100")
+                .with_video(true)
+                .validate(
+                    &CallProviderConfig::new("Example")
+                        .with_supported_handles(vec![CallHandleKind::PhoneNumber])
+                        .with_video(true)
+                )
+                .is_ok()
+        );
+    }
+
+    #[test]
     fn dropping_unsubmitted_action_completion_submits_fail_once() {
         let (sender, receiver) = std::sync::mpsc::channel();
         drop(CallActionCompletion::new(move |decision| {
@@ -580,6 +669,11 @@ mod tests {
         assert_eq!(request.complete(ActionDecision::Fulfill), Ok(()));
         assert_eq!(receiver.recv().unwrap(), ActionDecision::Fulfill);
         assert!(receiver.try_recv().is_err());
+
+        assert_eq!(
+            CallActionKind::Start.provider_event(call_id),
+            CallProviderEvent::StartRequested { call_id }
+        );
     }
 
     #[test]
@@ -644,6 +738,7 @@ mod tests {
     fn call_action_events_keep_action_delivery() {
         let call_id = CallId::from_bytes([43; 16]);
         for event in [
+            CallProviderEvent::StartRequested { call_id },
             CallProviderEvent::AnswerRequested { call_id },
             CallProviderEvent::EndRequested { call_id },
             CallProviderEvent::MuteRequested {
