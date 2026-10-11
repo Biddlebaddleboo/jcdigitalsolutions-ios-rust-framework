@@ -5,7 +5,7 @@ root=$(CDPATH= cd -- "$(dirname -- "$0")/../../.." && pwd)
 cd "$root"
 mkdir -p target
 
-for tool in awk cargo clang diff find grep nm otool sort vtool xcrun; do
+for tool in awk cargo clang diff find grep nm otool sort strings vtool xcrun; do
     if ! command -v "$tool" >/dev/null 2>&1; then
         echo "$tool is required for the iOS UI geometry link/import check" >&2
         exit 1
@@ -67,6 +67,46 @@ for target in aarch64-apple-ios aarch64-apple-ios-sim; do
     actual_deployment_target=$(awk '$1 == "minos" { print $2; exit }' "$build_info")
     if [ "$actual_deployment_target" != "$deployment_target" ]; then
         echo "$target probe has deployment target ${actual_deployment_target:-unknown}; expected $deployment_target" >&2
+        exit 1
+    fi
+
+    stack_target_dir="target/ios-ui-stack-link-$target"
+    IPHONEOS_DEPLOYMENT_TARGET="$deployment_target" CARGO_TARGET_DIR="$stack_target_dir" \
+        cargo build --locked --release -p ios-ui \
+        --example ios_ui_stack_link_probe --target "$target"
+    stack_binary="$stack_target_dir/$target/release/examples/ios_ui_stack_link_probe"
+    stack_imports="$stack_target_dir/imports.txt"
+    stack_symbols="$stack_target_dir/undefined-symbols.txt"
+    stack_build_info="$stack_target_dir/build-info.txt"
+
+    otool -L "$stack_binary" > "$stack_imports"
+    if ! grep -Fq '/UIKit.framework/UIKit' "$stack_imports"; then
+        echo "$target stack probe does not link UIKit" >&2
+        exit 1
+    fi
+
+    nm -u "$stack_binary" > "$stack_symbols"
+    for symbol in _objc_getClass _objc_msgSend; do
+        if ! grep -Fq "$symbol" "$stack_symbols"; then
+            echo "$target stack probe is missing $symbol" >&2
+            exit 1
+        fi
+    done
+    for symbol in UIStackView 'addArrangedSubview:' 'setAxis:' 'setSpacing:'; do
+        if ! strings "$stack_binary" | grep -Fq "$symbol"; then
+            echo "$target stack probe is missing $symbol" >&2
+            exit 1
+        fi
+    done
+    if grep -Eqi 'swift_|Py[A-Z_]' "$stack_symbols" || grep -Eqi 'swift|python' "$stack_imports"; then
+        echo "unexpected Swift/Python runtime import in $target stack probe" >&2
+        exit 1
+    fi
+
+    vtool -show-build "$stack_binary" > "$stack_build_info"
+    actual_stack_deployment_target=$(awk '$1 == "minos" { print $2; exit }' "$stack_build_info")
+    if [ "$actual_stack_deployment_target" != "$deployment_target" ]; then
+        echo "$target stack probe has deployment target ${actual_stack_deployment_target:-unknown}; expected $deployment_target" >&2
         exit 1
     fi
 done

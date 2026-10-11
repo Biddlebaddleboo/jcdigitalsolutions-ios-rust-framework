@@ -28,6 +28,17 @@ UIKit's `Bool` only. Host tests and the registered profile cover conversion, API
 compilation, and selector linkage. No delegate, callback, keyboard, simulator execution, or physical
 device text-input behavior is claimed
 
+B500 adds a thin `IosStackView` wrapper for UIKit's built-in `UIStackView`, with horizontal or
+vertical axis, finite point spacing, arranged `UIView` insertion, and a typed native escape. UIKit
+owns arrangement of those children; callers still place and size the stack in their parent and keep
+behavior-owning control handles alive. This is not a general layout engine: UIKit applies its native
+stack layout, while this API adds no custom layout engine or parent constraints. Navigation,
+controller/root ownership, virtual tree, and runtime visual claims remain out of scope. Host spacing
+tests cover finite values and reject NaN/infinities. The registered `ios-ui` profile passes 152 checks
+with 0 failures, 0 blocked, and 2 skipped for simulator execution and physical-device proof. Device
+and Simulator compile/link checks verify API use, symbols, imports, and deployment floors only; they
+do not prove runtime visual layout
+
 ## Objective
 
 Provide a small reusable Rust API for native container views, labels, buttons, image views, and

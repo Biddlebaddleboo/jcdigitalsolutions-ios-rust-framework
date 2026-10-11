@@ -4009,8 +4009,12 @@
       "clippy_lib": false,
       "docs": [
         "docs/ios/ui.md",
+        "docs/capabilities/ui.md",
         "docs/capabilities/capability-status.json",
-        "PLAN_IOS_UI.md"
+        "docs/generated/CAPABILITY_STATUS.md",
+        "docs/generated/VALIDATION_PROFILES.md",
+        "PLAN_IOS_UI.md",
+        "PLAN_RIDESHARE_BOT_MIGRATION.md"
       ],
       "expected_imports": [
         "CoreFoundation.framework",
@@ -4464,6 +4468,150 @@
           "text": "UITextField",
           "must_exist": false,
           "message": "UIKit text-field types must not leak into portable framework-ui"
+        },
+        {
+          "path": "platform/ios/ios-ui/src/platform.rs",
+          "text": "pub struct IosStackView",
+          "must_exist": true,
+          "message": "ios-ui must expose a retained UIStackView handle"
+        },
+        {
+          "path": "platform/ios/ios-ui/src/platform.rs",
+          "text": "native: Retained<UIStackView>,",
+          "must_exist": true,
+          "message": "the stack handle must retain UIKit's native UIStackView"
+        },
+        {
+          "path": "platform/ios/ios-ui/src/platform.rs",
+          "text": "pub enum IosStackAxis",
+          "must_exist": true,
+          "message": "stack direction must use a typed public axis"
+        },
+        {
+          "path": "platform/ios/ios-ui/src/platform.rs",
+          "text": "pub fn add_stack_view(",
+          "must_exist": true,
+          "message": "the backend must add a stack to a caller-owned parent"
+        },
+        {
+          "path": "platform/ios/ios-ui/src/platform.rs",
+          "text": "if !is_valid_stack_spacing(spacing)",
+          "must_exist": true,
+          "message": "stack creation and spacing updates must reject non-finite spacing"
+        },
+        {
+          "path": "platform/ios/ios-ui/src/platform.rs",
+          "text": "let native = UIStackView::new(marker);",
+          "must_exist": true,
+          "message": "stack creation must use the proven main-thread marker"
+        },
+        {
+          "path": "platform/ios/ios-ui/src/platform.rs",
+          "text": "UILayoutConstraintAxis::Horizontal",
+          "must_exist": true,
+          "message": "the horizontal axis must map to UIKit's public axis"
+        },
+        {
+          "path": "platform/ios/ios-ui/src/platform.rs",
+          "text": "UILayoutConstraintAxis::Vertical",
+          "must_exist": true,
+          "message": "the vertical axis must map to UIKit's public axis"
+        },
+        {
+          "path": "platform/ios/ios-ui/src/platform.rs",
+          "text": "native.setSpacing(spacing as _);",
+          "must_exist": true,
+          "message": "finite spacing must reach UIKit in native point units"
+        },
+        {
+          "path": "platform/ios/ios-ui/src/platform.rs",
+          "text": "parent.native.addSubview(&native);",
+          "must_exist": true,
+          "message": "stack creation must attach to the caller-owned parent"
+        },
+        {
+          "path": "platform/ios/ios-ui/src/platform.rs",
+          "text": "pub fn add_arranged_subview(&mut self, view: &UIView) -> Result<()>",
+          "must_exist": true,
+          "message": "the stack must accept a native UIView as an arranged child"
+        },
+        {
+          "path": "platform/ios/ios-ui/src/platform.rs",
+          "text": "self.native.addArrangedSubview(view);",
+          "must_exist": true,
+          "message": "arranged-child mutation must call UIKit's native operation"
+        },
+        {
+          "path": "platform/ios/ios-ui/src/platform.rs",
+          "text": "pub fn set_spacing(&mut self, spacing: f64) -> Result<()>",
+          "must_exist": true,
+          "message": "the stack must expose spacing updates"
+        },
+        {
+          "path": "platform/ios/ios-ui/src/platform.rs",
+          "text": "pub fn native_stack_view(&self) -> &UIStackView",
+          "must_exist": true,
+          "message": "the stack handle must expose a typed UIKit escape"
+        },
+        {
+          "path": "platform/ios/ios-ui/src/stack_spacing.rs",
+          "text": "spacing.is_finite()",
+          "must_exist": true,
+          "message": "spacing validation must reject NaN and infinities"
+        },
+        {
+          "path": "platform/ios/ios-ui/src/stack_spacing.rs",
+          "text": "assert!(is_valid_stack_spacing(-2.0));",
+          "must_exist": true,
+          "message": "negative finite spacing must remain valid for UIKit overlap behavior"
+        },
+        {
+          "path": "platform/ios/ios-ui/src/stack_spacing.rs",
+          "text": "fn rejects_non_finite_spacing()",
+          "must_exist": true,
+          "message": "host regressions must reject NaN and positive or negative infinity"
+        },
+        {
+          "path": "platform/ios/ios-ui/src/lib.rs",
+          "text": "IosStackAxis, IosStackView",
+          "must_exist": true,
+          "message": "stack types must be part of the public ios-ui surface"
+        },
+        {
+          "path": "platform/ios/ios-ui/Cargo.toml",
+          "text": "\"UIStackView\"",
+          "must_exist": true,
+          "message": "objc2-ui-kit must enable the typed UIStackView binding"
+        },
+        {
+          "path": "platform/ios/ios-ui/examples/ios_ui_stack_link_probe.rs",
+          "text": "IosStackAxis::Vertical",
+          "must_exist": true,
+          "message": "the device and simulator link probe must compile vertical stack creation"
+        },
+        {
+          "path": "platform/ios/ios-ui/examples/ios_ui_stack_link_probe.rs",
+          "text": "stack.add_arranged_subview(label.native_label())",
+          "must_exist": true,
+          "message": "the link probe must compile arranged-child insertion"
+        },
+        {
+          "path": "platform/ios/ios-ui/check-link-imports.sh",
+          "text": "for symbol in UIStackView 'addArrangedSubview:' 'setAxis:' 'setSpacing:'; do",
+          "must_exist": true,
+          "message": "the link check must inspect UIStackView class and selectors"
+        },
+        {
+          "path": "crates/framework-ui/src/lib.rs",
+          "text": "UIStackView",
+          "must_exist": false,
+          "message": "UIKit stack types must not leak into portable framework-ui"
+        },
+        {
+          "path": "crates/framework-ui/src/lib.rs",
+          "text": "IosStackView",
+          "must_exist": false,
+          "message": "the iOS stack handle must not leak into portable framework-ui"
         }
       ],
       "id": "ios-ui",
@@ -4471,7 +4619,7 @@
       "offline": false,
       "package": "ios-ui",
       "rustdoc_warnings": true,
-      "scoped_files": ["PLAN_IOS_UI.md","crates/framework-ui/src/lib.rs","platform/ios/ios-ui/Cargo.toml","platform/ios/ios-ui/check-image-view-link-imports.sh","platform/ios/ios-ui/check-link-imports.sh","platform/ios/ios-ui/check-text-field-link-imports.sh","platform/ios/ios-ui/check-text-metrics-link-imports.sh","platform/ios/ios-ui/examples/ios_ui_geometry_link_import_probe.rs","platform/ios/ios-ui/examples/ios_ui_image_view_link_probe.rs","platform/ios/ios-ui/examples/ios_ui_text_field_link_probe.rs","platform/ios/ios-ui/examples/ios_ui_text_metrics_link_import_probe.rs","platform/ios/ios-ui/probes/geometry-layout.c","platform/ios/ios-ui/probes/text-metrics-layout.c","platform/ios/ios-ui/src/geometry.rs","platform/ios/ios-ui/src/lib.rs","platform/ios/ios-ui/src/platform.rs","platform/ios/ios-ui/src/text_conversion.rs","platform/ios/ios-ui/src/text_metrics.rs"],
+      "scoped_files": ["PLAN_IOS_UI.md","PLAN_RIDESHARE_BOT_MIGRATION.md","crates/framework-ui/src/lib.rs","docs/capabilities/ui.md","docs/capabilities/capability-status.json","docs/generated/CAPABILITY_STATUS.md","docs/generated/VALIDATION_PROFILES.md","docs/ios/ui.md","platform/ios/ios-ui/Cargo.toml","platform/ios/ios-ui/check-image-view-link-imports.sh","platform/ios/ios-ui/check-link-imports.sh","platform/ios/ios-ui/check-text-field-link-imports.sh","platform/ios/ios-ui/check-text-metrics-link-imports.sh","platform/ios/ios-ui/examples/ios_ui_geometry_link_import_probe.rs","platform/ios/ios-ui/examples/ios_ui_image_view_link_probe.rs","platform/ios/ios-ui/examples/ios_ui_stack_link_probe.rs","platform/ios/ios-ui/examples/ios_ui_text_field_link_probe.rs","platform/ios/ios-ui/examples/ios_ui_text_metrics_link_import_probe.rs","platform/ios/ios-ui/probes/geometry-layout.c","platform/ios/ios-ui/probes/text-metrics-layout.c","platform/ios/ios-ui/src/geometry.rs","platform/ios/ios-ui/src/lib.rs","platform/ios/ios-ui/src/platform.rs","platform/ios/ios-ui/src/stack_spacing.rs","platform/ios/ios-ui/src/text_conversion.rs","platform/ios/ios-ui/src/text_metrics.rs"],
       "shell_scripts": [
         "platform/ios/ios-ui/check-link-imports.sh",
         "platform/ios/ios-ui/check-text-metrics-link-imports.sh",

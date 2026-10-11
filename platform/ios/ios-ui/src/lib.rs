@@ -8,10 +8,15 @@ pub mod geometry;
 #[cfg(target_os = "ios")]
 mod platform;
 #[cfg(any(test, target_os = "ios"))]
+mod stack_spacing;
+#[cfg(any(test, target_os = "ios"))]
 mod text_conversion;
 /// System UI font vertical metrics from CoreText.
 #[cfg(target_os = "ios")]
 pub mod text_metrics;
 
 #[cfg(target_os = "ios")]
-pub use platform::{IosButton, IosImageView, IosLabel, IosTextField, IosUiBackend, IosView};
+pub use platform::{
+    IosButton, IosImageView, IosLabel, IosStackAxis, IosStackView, IosTextField, IosUiBackend,
+    IosView,
+};

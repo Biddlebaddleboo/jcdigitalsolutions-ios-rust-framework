@@ -13,9 +13,11 @@ use objc2::{DefinedClass, MainThreadMarker, MainThreadOnly, Message, define_clas
 use objc2_core_foundation::{CGPoint, CGRect, CGSize};
 use objc2_foundation::{NSObjectProtocol, NSRange, NSString};
 use objc2_ui_kit::{
-    UIButton, UIControlEvents, UIControlState, UIImage, UIImageView, UILabel, UITextField, UIView,
+    UIButton, UIControlEvents, UIControlState, UIImage, UIImageView, UILabel,
+    UILayoutConstraintAxis, UIStackView, UITextField, UIView,
 };
 
+use crate::stack_spacing::is_valid_stack_spacing;
 use crate::text_conversion::{Utf16Error, decode_utf16};
 
 /// A UIKit backend for caller-owned native controls.
@@ -51,6 +53,21 @@ pub struct IosImageView {
 pub struct IosTextField {
     native: Retained<UITextField>,
     _text_field_not_send: PhantomData<Rc<()>>,
+}
+
+/// An iOS-native arranged-subview container backed by UIKit's `UIStackView`.
+pub struct IosStackView {
+    native: Retained<UIStackView>,
+    _not_send: PhantomData<Rc<()>>,
+}
+
+/// The axis UIKit uses to arrange an `IosStackView`'s children.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum IosStackAxis {
+    /// Arrange children left to right.
+    Horizontal,
+    /// Arrange children top to bottom.
+    Vertical,
 }
 
 /// A retained UIKit button and its Rust target/action callback owner.
@@ -111,6 +128,37 @@ impl IosUiBackend {
             _main_thread: main_thread,
             _not_send: PhantomData,
         }
+    }
+
+    /// Adds a UIKit stack view to a caller-owned container.
+    ///
+    /// UIKit arranges the stack's child views along `axis` with `spacing` points between them.
+    /// Any finite spacing is passed to UIKit; negative values can overlap arranged children. This
+    /// configures only the stack's own frame and arranged children; the caller remains responsible
+    /// for placing or resizing the stack in its parent hierarchy.
+    pub fn add_stack_view(
+        &mut self,
+        parent: &mut IosView,
+        frame: Frame,
+        axis: IosStackAxis,
+        spacing: f64,
+    ) -> Result<IosStackView> {
+        if !is_valid_stack_spacing(spacing) {
+            return Err(Error::new(ErrorKind::InvalidInput));
+        }
+        let marker = main_thread_marker()?;
+        let native = UIStackView::new(marker);
+        native.setFrame(native_frame(frame));
+        native.setAxis(match axis {
+            IosStackAxis::Horizontal => UILayoutConstraintAxis::Horizontal,
+            IosStackAxis::Vertical => UILayoutConstraintAxis::Vertical,
+        });
+        native.setSpacing(spacing as _);
+        parent.native.addSubview(&native);
+        Ok(IosStackView {
+            native,
+            _not_send: PhantomData,
+        })
     }
 
     /// Adds a native image view to `parent` with an optional app `UIImage`.
@@ -254,6 +302,34 @@ impl IosTextField {
 
     /// Borrows the native text field for UIKit integration.
     pub fn native_text_field(&self) -> &UITextField {
+        &self.native
+    }
+}
+
+impl IosStackView {
+    /// Adds a native view as an arranged child. UIKit retains and reparents the view.
+    ///
+    /// Keep its `ios-ui` handle alive when it owns behavior such as a button action. This method
+    /// does not change the stack's placement in its parent or add parent constraints.
+    pub fn add_arranged_subview(&mut self, view: &UIView) -> Result<()> {
+        let _stack_thread = main_thread_marker()?;
+        self.native.addArrangedSubview(view);
+        Ok(())
+    }
+
+    /// Sets the spacing between arranged children in UIKit points.
+    /// Negative finite values can overlap arranged children.
+    pub fn set_spacing(&mut self, spacing: f64) -> Result<()> {
+        if !is_valid_stack_spacing(spacing) {
+            return Err(Error::new(ErrorKind::InvalidInput));
+        }
+        let _stack_thread = main_thread_marker()?;
+        self.native.setSpacing(spacing as _);
+        Ok(())
+    }
+
+    /// Borrows the native stack view for caller-owned UIKit layout and integration.
+    pub fn native_stack_view(&self) -> &UIStackView {
         &self.native
     }
 }

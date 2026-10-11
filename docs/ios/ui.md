@@ -34,6 +34,31 @@ borrowed typed UIKit references as
 integration escape hatches. Any direct native mutation remains subject to UIKit's main-thread and
 ownership rules
 
+## Native stack composition
+
+`IosUiBackend::add_stack_view` adds a `UIStackView` child to a caller-owned `IosView`. Choose a
+horizontal or vertical `IosStackAxis`; spacing is expressed in UIKit points and must be finite.
+Finite negative spacing is passed through to UIKit and can overlap arranged children.
+`IosStackView::add_arranged_subview` passes a native `UIView` to UIKit, which retains and reparents
+it as an arranged child. The `ios-ui` control handle remains caller-owned; keep an `IosButton` handle
+alive for as long as its action should remain active. `set_spacing` updates UIKit's spacing, and
+`native_stack_view` exposes the native stack for app-owned UIKit integration.
+
+UIKit arranges only the stack's child views. The caller remains responsible for placing and resizing
+the stack in its parent; this API adds no custom constraint engine, screen/root ownership, navigation,
+or virtual view tree. Static checks do not establish visual layout behavior at runtime
+
+```rust
+let mut stack = backend.add_stack_view(
+    &mut parent,
+    stack_frame,
+    IosStackAxis::Vertical,
+    8.0,
+)?;
+let title = backend.add_label(&mut parent, child_frame, "Settings")?;
+stack.add_arranged_subview(title.native_label())?;
+```
+
 ## Single-line text input
 
 `IosUiBackend::add_text_field` adds a caller-owned `UITextField` child with optional initial text and

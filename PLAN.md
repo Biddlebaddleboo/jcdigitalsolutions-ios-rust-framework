@@ -314,6 +314,10 @@ B496 adds an explicit lazy Always request and an iOS-only background-enabled con
 
 B498 adds an opt-in `ios-call-provider` package for incoming-call reports, end reports, and synchronous answer/end/reset actions using public CallKit APIs. It owns a main-queue delegate, fixed-width `CallId`, pending/active call lifecycle, reset generations, and one-shot async report completion; it does not add outgoing transactions, PushKit/APNs, audio, or UIKit background-task ownership. The registered profile passed 61 checks with 0 FAIL, 0 BLOCKED, and 2 runtime SKIPPED; Simulator execution and physical-device behavior remain unverified. See [PLAN_RIDESHARE_BOT_MIGRATION.md](PLAN_RIDESHARE_BOT_MIGRATION.md)
 
+### B500 — UIKit stack composition (row 003)
+
+B500 adds `IosStackView` over public `UIStackView`, with typed horizontal/vertical axis, finite point spacing (including UIKit's valid negative overlap spacing), arranged-view insertion, and a typed UIKit escape. UIKit owns child arrangement; callers own the stack's parent placement. The registered `ios-ui` profile passed 152 checks with 0 FAIL, 0 BLOCKED, and 2 runtime SKIPPED. Simulator execution and physical-device visual behavior remain unverified; see [PLAN_IOS_UI.md](PLAN_IOS_UI.md)
+
 ## Active work selection and limits
 
 1. Inspect the canonical capability status/owner, the relevant family plan, then the named workstream plan and exact files/symbols. Do not scan the entire planning corpus or treat every existing plan as pending work.

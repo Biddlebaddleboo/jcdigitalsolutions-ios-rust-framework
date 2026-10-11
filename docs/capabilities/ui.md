@@ -35,7 +35,9 @@ platform-specific object type
 
 The UIKit implementation is a separate `ios-ui` crate. Its `IosUiBackend` needs a typed
 `ios_runtime::main_thread::MainThread` proof. See the [iOS UI guide](../ios/ui.md) for its
-main-thread, callback, handle-lifetime, and UIKit escape-hatch rules
+main-thread, callback, handle-lifetime, and UIKit escape-hatch rules. The iOS extension also exposes
+UIKit's native `UIStackView` for vertical or horizontal arranged-subview composition; this adds no
+portable layout contract or custom layout engine
 
 This is not a full UI framework. Navigation, scenes, general presentation, layout, accessibility,
 virtual views, and application/window lifecycle are outside this contract. The portable
