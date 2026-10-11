@@ -90,7 +90,6 @@ impl HomeKitIdentifyFuture {
         }
 
         use block2::RcBlock;
-        use objc2::Message;
         use objc2::rc::autoreleasepool;
         use objc2_foundation::NSError;
         use std::panic::{AssertUnwindSafe, catch_unwind};

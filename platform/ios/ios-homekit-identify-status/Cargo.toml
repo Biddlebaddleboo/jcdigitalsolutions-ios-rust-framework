@@ -10,6 +10,7 @@ description = "Host-supplied HomeKit accessory identify support and operation fo
 [target.'cfg(all(target_os = "ios", not(target_abi = "macabi")))'.dependencies]
 block2 = { workspace = true, features = ["alloc"] }
 objc2 = { workspace = true, features = ["std"] }
+objc2-foundation = { workspace = true, features = ["NSError", "NSString"] }
 objc2-home-kit = { version = "=0.3.2", default-features = false, features = ["HMAccessory", "block2"] }
 
 [[example]]

@@ -2470,6 +2470,12 @@
           "text": "block2 = { workspace = true, features = [\"alloc\"] }"
         },
         {
+          "message": "HomeKit NSError callback types require direct Foundation bindings",
+          "must_exist": true,
+          "path": "platform/ios/ios-homekit-identify-status/Cargo.toml",
+          "text": "objc2-foundation = { workspace = true, features = [\"NSError\", \"NSString\"] }"
+        },
+        {
           "message": "linked HomeKit probe must retain the typed identify selector",
           "must_exist": true,
           "path": "platform/ios/ios-homekit-identify-status/check-link-imports.sh",
