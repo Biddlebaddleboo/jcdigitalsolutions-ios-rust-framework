@@ -1,0 +1,20 @@
+[package]
+name = "ios-microphone-pcm-stream"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "Authorized live iOS microphone PCM input"
+
+[dependencies]
+framework-media-authorization = { path = "../../../crates/framework-media-authorization", version = "0.1.0" }
+
+[target.'cfg(target_os = "ios")'.dependencies]
+block2 = { workspace = true }
+ios-media-authorization = { path = "../ios-media-authorization", version = "0.1.0" }
+objc2 = { workspace = true }
+objc2-avf-audio = { workspace = true, features = ["AVAudioBuffer", "AVAudioEngine", "AVAudioFormat", "AVAudioIONode", "AVAudioNode", "AVAudioTime", "AVAudioTypes", "block2"] }
+
+[lints]
+workspace = true

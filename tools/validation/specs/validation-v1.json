@@ -63,6 +63,14 @@
     [
       "ios-photos",
       "framework-photos"
+    ],
+    [
+      "ios-microphone-pcm-stream",
+      "framework-media-authorization"
+    ],
+    [
+      "ios-microphone-pcm-stream",
+      "ios-media-authorization"
     ]
   ],
   "pilots": [
@@ -306,6 +314,212 @@
       ],
       "source_dirs": [
         "platform/ios/ios-microphone-recorder"
+      ],
+      "targets": [
+        {
+          "minimum_os": "10.0",
+          "sdk": "iphoneos",
+          "triple": "aarch64-apple-ios"
+        },
+        {
+          "minimum_os": "14.0",
+          "sdk": "iphonesimulator",
+          "triple": "aarch64-apple-ios-sim"
+        }
+      ]
+    },
+    {
+      "abi_scripts": [
+        "platform/ios/ios-microphone-pcm-stream/check-link-imports.sh"
+      ],
+      "abi_targets": [
+        {
+          "minimum_os": "10.0",
+          "sdk": "iphoneos",
+          "triple": "aarch64-apple-ios"
+        },
+        {
+          "minimum_os": "14.0",
+          "sdk": "iphonesimulator",
+          "triple": "aarch64-apple-ios-sim"
+        }
+      ],
+      "adapters": [],
+      "cargo_tree": false,
+      "check_script": "platform/ios/ios-microphone-pcm-stream/check-link-imports.sh",
+      "clippy_all_targets": true,
+      "clippy_lib": false,
+      "docs": [
+        "docs/capabilities/capability-status.json",
+        "docs/ios/microphone-pcm-stream.md",
+        "PLAN.md"
+      ],
+      "expected_imports": [
+        "AVFoundation.framework",
+        "Foundation.framework",
+        "objc_msgSend"
+      ],
+      "fmt_all": false,
+      "guards": [
+        {
+          "message": "stream creation must read existing microphone authorization",
+          "must_exist": true,
+          "path": "platform/ios/ios-microphone-pcm-stream/src/lib.rs",
+          "text": "IosMediaAuthorization::authorization_status("
+        },
+        {
+          "message": "capture must fail closed unless microphone authorization is Authorized",
+          "must_exist": true,
+          "path": "platform/ios/ios-microphone-pcm-stream/src/lib.rs",
+          "text": "matches!(status, MediaAuthorizationStatus::Authorized)"
+        },
+        {
+          "message": "stream start must recheck microphone authorization",
+          "must_exist": true,
+          "path": "platform/ios/ios-microphone-pcm-stream/src/lib.rs",
+          "text": "pub fn start(&mut self) -> Result<PcmInputFormat, MicrophoneStreamError>"
+        },
+        {
+          "message": "the engine path must enforce its iOS 8 public API floor",
+          "must_exist": true,
+          "path": "platform/ios/ios-microphone-pcm-stream/src/lib.rs",
+          "text": "objc2::available!(ios = 8.0, ..)"
+        },
+        {
+          "message": "the stream must read the input node native output format",
+          "must_exist": true,
+          "path": "platform/ios/ios-microphone-pcm-stream/src/lib.rs",
+          "text": "input.outputFormatForBus(0)"
+        },
+        {
+          "message": "the stream must fail closed for non-Float32 native input",
+          "must_exist": true,
+          "path": "platform/ios/ios-microphone-pcm-stream/src/lib.rs",
+          "text": "native_format.commonFormat() == AVAudioCommonFormat::PCMFormatFloat32"
+        },
+        {
+          "message": "tap format must be the unconverted native input format",
+          "must_exist": true,
+          "path": "platform/ios/ios-microphone-pcm-stream/src/lib.rs",
+          "text": "Some(&native_format)"
+        },
+        {
+          "message": "the engine must install a public input-node tap",
+          "must_exist": true,
+          "path": "platform/ios/ios-microphone-pcm-stream/src/lib.rs",
+          "text": "input.installTapOnBus_bufferSize_format_block("
+        },
+        {
+          "message": "the tap callback must inspect the live buffer format and stride",
+          "must_exist": true,
+          "path": "platform/ios/ios-microphone-pcm-stream/src/lib.rs",
+          "text": "native_buffer.stride()"
+        },
+        {
+          "message": "the tap callback must latch a changed format for the consumer",
+          "must_exist": true,
+          "path": "platform/ios/ios-microphone-pcm-stream/src/lib.rs",
+          "text": "self.callback_error.store(true, Ordering::Relaxed)"
+        },
+        {
+          "message": "ring overflow must drop a whole tap block and count its frames",
+          "must_exist": true,
+          "path": "platform/ios/ios-microphone-pcm-stream/src/lib.rs",
+          "text": "if frames > self.capacity_frames - queued"
+        },
+        {
+          "message": "dropped-frame count must saturate without a lock",
+          "must_exist": true,
+          "path": "platform/ios/ios-microphone-pcm-stream/src/lib.rs",
+          "text": "current.saturating_add(u64::from(frames))"
+        },
+        {
+          "message": "panic must not unwind across the Objective-C tap callback",
+          "must_exist": true,
+          "path": "platform/ios/ios-microphone-pcm-stream/src/lib.rs",
+          "text": "catch_unwind(AssertUnwindSafe("
+        },
+        {
+          "message": "stop and drop must remove the engine tap",
+          "must_exist": true,
+          "path": "platform/ios/ios-microphone-pcm-stream/src/lib.rs",
+          "text": "input.removeTapOnBus(0)"
+        },
+        {
+          "message": "the stream must explicitly remain local-thread-only",
+          "must_exist": true,
+          "path": "platform/ios/ios-microphone-pcm-stream/src/lib.rs",
+          "text": "_not_send_or_sync: PhantomData<Rc<()>>"
+        },
+        {
+          "message": "stream drop must stop and release native capture",
+          "must_exist": true,
+          "path": "platform/ios/ios-microphone-pcm-stream/src/lib.rs",
+          "text": "impl Drop for IosMicrophonePcmStream"
+        },
+        {
+          "message": "live capture must not request microphone permission",
+          "must_exist": false,
+          "path": "platform/ios/ios-microphone-pcm-stream/src/lib.rs",
+          "text": "IosMediaAuthorization::request"
+        },
+        {
+          "message": "live capture must not invoke the microphone permission prompt",
+          "must_exist": false,
+          "path": "platform/ios/ios-microphone-pcm-stream/src/lib.rs",
+          "text": "requestAccessForMediaType_completionHandler"
+        },
+        {
+          "message": "live capture must not access or mutate AVAudioSession",
+          "must_exist": false,
+          "path": "platform/ios/ios-microphone-pcm-stream/src/lib.rs",
+          "text": "AVAudioSession::sharedInstance"
+        },
+        {
+          "message": "live capture must not change the shared session category",
+          "must_exist": false,
+          "path": "platform/ios/ios-microphone-pcm-stream/src/lib.rs",
+          "text": "setCategory_mode_options_error"
+        },
+        {
+          "message": "live capture must not activate or deactivate the shared session",
+          "must_exist": false,
+          "path": "platform/ios/ios-microphone-pcm-stream/src/lib.rs",
+          "text": "setActive_error"
+        },
+        {
+          "message": "the native binding must not enable AVAudioSession APIs",
+          "must_exist": false,
+          "path": "platform/ios/ios-microphone-pcm-stream/Cargo.toml",
+          "text": "\"AVAudioSession\""
+        }
+      ],
+      "id": "ios-microphone-pcm-stream",
+      "manifest": "platform/ios/ios-microphone-pcm-stream/Cargo.toml",
+      "offline": false,
+      "package": "ios-microphone-pcm-stream",
+      "rustdoc_warnings": false,
+      "scoped_files": [
+        "Cargo.lock",
+        "platform/ios/ios-microphone-pcm-stream/Cargo.toml",
+        "platform/ios/ios-microphone-pcm-stream/check-link-imports.sh",
+        "platform/ios/ios-microphone-pcm-stream/examples/microphone_pcm_stream_link_probe.rs",
+        "platform/ios/ios-microphone-pcm-stream/src/lib.rs",
+        "platform/ios/ios-media-authorization/src/lib.rs",
+        "platform/ios/ios-media-authorization/src/platform.rs",
+        "platform/ios/ios-media-authorization/src/status.rs",
+        "crates/framework-media-authorization/src/lib.rs",
+        "docs/capabilities/capability-status.json",
+        "docs/generated/VALIDATION_PROFILES.md",
+        "docs/ios/microphone-pcm-stream.md",
+        "PLAN.md",
+        "tools/validation/specs/validation-v1.json"
+      ],
+      "shell_scripts": [
+        "platform/ios/ios-microphone-pcm-stream/check-link-imports.sh"
+      ],
+      "source_dirs": [
+        "platform/ios/ios-microphone-pcm-stream"
       ],
       "targets": [
         {
@@ -1651,6 +1865,11 @@
     {
       "path": "platform/ios/ios-microphone-recorder/",
       "node": "ios-microphone-recorder",
+      "global": false
+    },
+    {
+      "path": "platform/ios/ios-microphone-pcm-stream/",
+      "node": "ios-microphone-pcm-stream",
       "global": false
     },
     {
