@@ -29,7 +29,9 @@ use crate::text_policy::{KeyboardHint, TextFieldCallback, input_traits, invoke_t
 use crate::toggle_policy::invoke_toggle_callback;
 
 mod activity_indicator;
+mod disclosure_group;
 pub use activity_indicator::IosActivityIndicator;
+pub use disclosure_group::IosDisclosureGroup;
 
 /// A UIKit backend for caller-owned native controls.
 ///

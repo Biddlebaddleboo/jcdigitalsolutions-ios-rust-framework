@@ -1,9 +1,9 @@
 # iOS Native UI Controls
 
 `ios-ui` implements the portable `framework-ui` contract with public UIKit bindings. It creates a
-native `UIView`, adds native `UILabel`, `UIButton`, `UIImageView`, `UIScrollView`, and single-line
-`UITextField` children, and supports synchronous label, button, image, scroll-host, and field
-operations. `Frame` maps to
+native `UIView`, adds native `UILabel`, `UIButton`, `UIImageView`, `UIScrollView`, `UIStackView`, and
+single-line `UITextField` children, and supports synchronous label, button, image, scroll-host,
+field, and disclosure-group operations. `Frame` maps to
 `CGRect` in the parent view's local coordinate system; its logical units are UIKit points
 
 ## Main-thread and ownership rules
@@ -236,12 +236,48 @@ text-field fixture checks `UITextField`, nullable text/placeholder selectors, bo
 selectors, the view-scoped `endEditing:` selector, and the same target floors. Link passes are not
 runtime image display, visual proof, keyboard behavior, or text-input proof
 
+## Native disclosure group
+
+`IosUiBackend::add_disclosure_group` adds a `UIStackView` with a native 44-point `UIButton` header
+and a caller-owned `UIView` content host. The supplied `Frame` is the expanded group size and must
+be at least 44 points high; shorter frames return `InvalidInput`. The content host receives the
+remaining height and can accept existing labels, fields, and controls through the standard backend
+methods. `IosDisclosureGroup::set_expanded` hides or shows the content, updates the native frame,
+and changes the button's visual chevron without invoking the user callback. A user tap commits the
+new state before a synchronous callback. The handle owns its Rust target, callback, and native
+objects; it is `!Send`/`!Sync`, and dropping it unregisters only its own target/action
+
+The header exposes its title as the UIKit accessibility label and `Expanded` or `Collapsed` as the
+accessibility value. This is a narrow state description on the native button, not a general
+accessibility tree or accessibility framework. Add the disclosure stack as an arranged subview of a
+caller-owned vertical `UIStackView` when following content should reflow on collapse; otherwise the
+caller owns sibling layout. The device and Simulator link fixture checks public UIKit classes,
+selectors, Objective-C linkage, and the iOS 12.0 / iOS 14.0 deployment floors. It does not execute
+the probe or prove visual, VoiceOver, or runtime callback behavior
+
+```rust
+let mut disclosure = backend.add_disclosure_group(
+    &mut parent,
+    expanded_frame,
+    "Raw Status",
+    false,
+    |expanded| { let _ = expanded; },
+)?;
+let _label = backend.add_label(
+    disclosure.content_view_mut(),
+    content_frame,
+    raw_status,
+)?;
+disclosure.set_expanded(true)?;
+```
+
 ## Scope and evidence
 
 This crate is a partial native-control backend, not a view hierarchy runtime. It does not own an
 application, window, controller, scene, navigation stack, modal presenter, or layout engine. It
-does not implement accessibility metadata, animations, gestures, tables, collections, multi-line
-editing, delegates, keyboard management, or SwiftUI. The existing `ios-minimal` example demonstrates a separate app-entry vertical slice;
+does not implement a general accessibility model, animations, gestures, tables, collections,
+multi-line editing, delegates, keyboard management, or SwiftUI. The disclosure header's accessible
+expanded state is the narrow exception described above. The existing `ios-minimal` example demonstrates a separate app-entry vertical slice;
 this crate does not alter that example
 
 Portable no-std compilation passed in the recorded validation. That record reports seven portable

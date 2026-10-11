@@ -2,6 +2,8 @@
 #![deny(unsafe_op_in_unsafe_fn)]
 #![doc = "A bounded native UIKit view and control backend for iOS."]
 
+#[cfg(any(test, target_os = "ios"))]
+mod disclosure_policy;
 /// Bounded CoreGraphics geometry operations over portable frames.
 #[cfg(target_os = "ios")]
 pub mod geometry;
@@ -25,6 +27,8 @@ mod toggle_policy;
 
 #[cfg(target_os = "ios")]
 pub use platform::IosActivityIndicator;
+#[cfg(target_os = "ios")]
+pub use platform::IosDisclosureGroup;
 #[cfg(target_os = "ios")]
 pub use platform::{
     IosButton, IosImageView, IosLabel, IosScrollView, IosStackAxis, IosStackView, IosTextField,

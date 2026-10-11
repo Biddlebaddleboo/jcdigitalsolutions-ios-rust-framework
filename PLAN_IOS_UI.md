@@ -46,6 +46,13 @@ be mixed, Auto Layout setup is one-shot, and host policy tests cover invalid tra
 registered device and Simulator link probes check public guides, anchors, and activation selectors;
 they do not prove runtime constraint resolution, scrolling, or visual layout
 
+B525 adds `IosDisclosureGroup` over native `UIStackView`, `UIButton`, and `UIView`. Its 44-point
+header reports the title and `Expanded` / `Collapsed` through UIKit accessibility, owns a
+main-thread-only synchronous callback, and toggles caller-owned content. Programmatic state updates
+are silent; callbacks reuse the existing panic/reentrancy containment. Host policy tests cover
+header-height rejection and idempotent state updates. Device / Simulator link checks are the only
+native evidence; they do not prove VoiceOver, visual reflow, or live callback behavior
+
 ## Objective
 
 Provide a small reusable Rust API for native container views, labels, buttons, image views, and
@@ -108,7 +115,8 @@ Root owns workspace, lockfile, docs-index, capability-matrix, and CI integration
 - Permit access to the typed native view/control references for integration with caller-owned
   UIKit controllers. Do not own a controller, window, scene, app delegate, or view hierarchy root
 - No Swift source, global framework registry/runtime, generic navigation, modal presentation,
-  scene management, auto-layout engine, accessibility system, or virtual view tree
+  scene management, custom layout engine, general accessibility system, or virtual view tree.
+  B525 adds only the UIKit disclosure header's label and expanded/collapsed accessibility value
 
 ## Documentation and tests
 
@@ -118,7 +126,8 @@ Root owns workspace, lockfile, docs-index, capability-matrix, and CI integration
   simulate UIKit action delivery or claim live UI behavior
 - Mark this as a minimal native-control slice. Text fields add no delegate, callback, keyboard, or
   runtime text-input contract. The crate does not claim navigation, scene lifecycle, general
-  presentation, layout, accessibility, or parity with a complete UI framework
+  presentation, custom layout, a general accessibility system, or parity with a complete UI
+  framework. B525's native accessibility state is a single-control exception
 
 ## Validation and handoff
 
