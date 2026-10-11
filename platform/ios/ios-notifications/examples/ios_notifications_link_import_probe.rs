@@ -5,6 +5,8 @@ use framework_notifications::{
     Notification, NotificationBackend, NotificationContent, NotificationId, NotificationTrigger,
 };
 #[cfg(target_os = "ios")]
+use ios_notifications::IosNotificationAuthorizationOptions;
+#[cfg(target_os = "ios")]
 use ios_notifications::IosNotificationsBackend;
 
 #[cfg(target_os = "ios")]
@@ -24,6 +26,13 @@ fn main() {
         backend.notification_settings_surface_raw_values(),
     ));
     core::mem::drop(core::hint::black_box(backend.request_authorization()));
+    core::mem::drop(core::hint::black_box(
+        backend.request_authorization_with_options(
+            IosNotificationAuthorizationOptions::ALERT
+                | IosNotificationAuthorizationOptions::BADGE
+                | IosNotificationAuthorizationOptions::SOUND,
+        ),
+    ));
     core::mem::drop(core::hint::black_box(backend.pending_request_count()));
 
     if let Ok(identifier) = NotificationId::new(String::from("link-probe")) {

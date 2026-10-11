@@ -1,3 +1,4 @@
+use crate::authorization::{DEFAULT_AUTHORIZATION_OPTIONS, IosNotificationAuthorizationOptions};
 use crate::conversion::{
     UtcDateComponents, authorization_state_from_native, utc_trigger_components,
 };
@@ -82,7 +83,8 @@ pub type IosNotificationSettingsSurfaceRawValuesFuture =
     IosNotificationsFuture<IosNotificationSettingsSurfaceRawValues, ()>;
 
 /// iOS authorization-request future.
-pub type IosRequestAuthorizationFuture = IosNotificationsFuture<AuthorizationState, ()>;
+pub type IosRequestAuthorizationFuture =
+    IosNotificationsFuture<AuthorizationState, IosNotificationAuthorizationOptions>;
 
 /// iOS notification-schedule future.
 pub type IosScheduleFuture = IosNotificationsFuture<(), Notification>;
@@ -245,6 +247,17 @@ impl IosNotificationsBackend {
             start_notification_settings_surface_raw_values,
         )
     }
+
+    /// Request selected alert, badge, and sound authorization options.
+    ///
+    /// The prompt-capable native call starts only when the returned future is first polled. The
+    /// options do not include critical, provisional, or remote-notification authorization.
+    pub fn request_authorization_with_options(
+        &mut self,
+        options: IosNotificationAuthorizationOptions,
+    ) -> IosRequestAuthorizationFuture {
+        IosNotificationsFuture::new(&self.center, options, start_request_authorization)
+    }
 }
 
 impl Default for IosNotificationsBackend {
@@ -273,7 +286,11 @@ impl NotificationBackend for IosNotificationsBackend {
         Self: 'a;
 
     fn request_authorization<'a>(&'a mut self) -> Self::RequestAuthorizationFuture<'a> {
-        IosNotificationsFuture::new(&self.center, (), start_request_authorization)
+        IosNotificationsFuture::new(
+            &self.center,
+            DEFAULT_AUTHORIZATION_OPTIONS,
+            start_request_authorization,
+        )
     }
 
     type ScheduleFuture<'a>
@@ -437,7 +454,7 @@ fn start_notification_settings_surface_raw_values(
 
 fn start_request_authorization(
     center: Retained<UNUserNotificationCenter>,
-    (): (),
+    options: IosNotificationAuthorizationOptions,
     completion: Completion<AuthorizationState>,
 ) {
     let query_center = center.clone();
@@ -482,8 +499,17 @@ fn start_request_authorization(
         }
     });
     // The prompt-capable native call is reached only after the Rust future is first polled.
-    center
-        .requestAuthorizationWithOptions_completionHandler(UNAuthorizationOptions::Alert, &handler);
+    let mut native_options = UNAuthorizationOptions::empty();
+    if options.requests_alert() {
+        native_options |= UNAuthorizationOptions::Alert;
+    }
+    if options.requests_badge() {
+        native_options |= UNAuthorizationOptions::Badge;
+    }
+    if options.requests_sound() {
+        native_options |= UNAuthorizationOptions::Sound;
+    }
+    center.requestAuthorizationWithOptions_completionHandler(native_options, &handler);
 }
 
 fn start_schedule(

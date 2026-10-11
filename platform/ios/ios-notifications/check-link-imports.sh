@@ -17,6 +17,10 @@ if ! grep -Fq 'backend.pending_request_count()' "$probe_source"; then
     echo "iOS notifications link probe must retain the pending-request count API call" >&2
     exit 1
 fi
+if ! grep -Fq 'backend.request_authorization_with_options(' "$probe_source"; then
+    echo "iOS notifications link probe must retain the explicit authorization-options API call" >&2
+    exit 1
+fi
 if ! grep -Fq 'backend.authorization_status_raw_value()' "$probe_source"; then
     echo "iOS notifications link probe must retain the raw authorization-status API call" >&2
     exit 1

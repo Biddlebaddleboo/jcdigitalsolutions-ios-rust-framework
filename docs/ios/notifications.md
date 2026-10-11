@@ -47,8 +47,15 @@ Native `Authorized`, `Provisional`, and `Ephemeral` map to portable `Authorized`
 loses the provisional/temporary distinction and does not imply that banners, lock-screen display,
 or sound are enabled. `UserNotifications` has no `Restricted` authorization status, so that portable
 state is not synthesized; unknown native raw values map to `Unknown`. The backend does not request
-provisional authorization. It asks only for alerts because D3 models title/body text and has no
-sound or badge fields.
+provisional authorization. The portable `request_authorization()` asks only for alerts because D3
+models title/body text and has no sound or badge fields.
+
+The iOS-only `IosNotificationsBackend::request_authorization_with_options` accepts a
+`IosNotificationAuthorizationOptions` value. Combine `ALERT`, `BADGE`, and `SOUND` with `|` to
+choose the requested interactions. This call uses the same callback and result path as the portable
+method, and its native prompt starts only when the returned future is first polled. The portable
+method remains alert-only. The options do not expose critical or provisional authorization and do
+not register for remote notifications.
 
 B86 extends B4 with the iOS-only `IosNotificationsBackend::authorization_status_raw_value` future.
 It returns the raw signed `NSInteger` from `UNNotificationSettings.authorizationStatus` without
