@@ -30,6 +30,27 @@ ios-rust-validate generate-reports --workspace-root "$PWD" --check
 
 These generated pages summarize declarations, **not** observed runtime PASS or iPhone behavior; keep authored narrative, architecture and historical investigations unchanged. `--check` is an output-staleness check, not evidence of compiler or device correctness. Unsupported command on a historic binary means the installation has not been upgraded, not that the YAML is invalid.
 
+### Optional installed crate generation
+
+Normal API work uses Rust directly. For a **new crate** only when a reviewed recipe fits, the separately installed `ios-rust-generate` can bootstrap files; it is **not** installed by this repository's `tools/install-tools.sh` (which installs `ios-rust-build` and `ios-rust-validate`). Never access private tooling source or checkout paths from an ordinary framework session.
+
+```sh
+command -v ios-rust-generate
+ios-rust-generate --version --format json
+ios-rust-generate recipes --format json
+```
+
+The recipe listing includes each recipe's `required_spec` and `example_spec`. Copy the matching `example_spec` into a **temporary local JSON file**, edit the API fields to fit the planned crate, and use the actual installed interface:
+
+```sh
+ios-rust-generate generate --workspace-root "$PWD" \
+  --recipe stateless --crate ios-example \
+  --spec /tmp/ios-example-spec.json --dry-run --format json
+# After reviewing the dry-run output, remove --dry-run to publish.
+```
+
+The example command requires a valid edited JSON specification; no API-specific fields are inferred from a crate name alone. Do not force a specialized API into an unsuitable recipe; use ordinary Cargo/Rust instead, without requesting generator enhancements. Generated source, Cargo files, tests and docs are handed off after creation and may be edited normally; later generation must not overwrite, recreate, or delete handed-off files. Proposal JSON is non-authoritative. Generated native and ABI scaffolding stays **BLOCKED** until real compiler/link/runtime evidence and registered validation pass. Installation identity must be verified; if the binary is absent or incompatible, do not substitute an unverified executable.
+
 ### Validator-first Codex acceptance
 
 For every new or materially expanded capability, inspect the existing profile with `--list` and `--explain ID`. Create or extend the genuine Rust tests, native `check.sh` fixtures, C/C++ ABI checks, Swift compiler oracles and link/import checks required for its contract. Where schema v1 permits, **register required checks and exact inputs/dependencies** in `tools/validation/specs/validation-v1.json` and execute them using `--capability ID`. Use `--changed EXPLICIT_BASE` or broader coverage when shared inputs change.
