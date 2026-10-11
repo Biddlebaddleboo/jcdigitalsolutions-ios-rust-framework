@@ -7,11 +7,15 @@ use framework_core::{Availability, Result};
 use ios_runtime::main_thread::MainThread;
 use objc2::MainThreadMarker;
 use objc2::rc::Retained;
+use objc2::rc::autoreleasepool;
 use objc2::runtime::{AnyObject, ProtocolObject};
-use objc2_foundation::{NSNotification, NSNotificationCenter, NSObjectProtocol, NSOperationQueue};
+use objc2_foundation::{
+    NSDictionary, NSNotification, NSNotificationCenter, NSObjectProtocol, NSOperationQueue, NSURL,
+};
 use objc2_ui_kit::{
     UIApplication, UIApplicationDidBecomeActiveNotification,
-    UIApplicationDidEnterBackgroundNotification, UIApplicationWillEnterForegroundNotification,
+    UIApplicationDidEnterBackgroundNotification, UIApplicationOpenExternalURLOptionsKey,
+    UIApplicationOpenSettingsURLString, UIApplicationWillEnterForegroundNotification,
     UIApplicationWillResignActiveNotification, UIApplicationWillTerminateNotification,
 };
 use std::ptr::NonNull;
@@ -20,6 +24,31 @@ use std::sync::{Arc, Mutex, PoisonError};
 type ObserverToken = Retained<ProtocolObject<dyn NSObjectProtocol>>;
 type ObserverSet = ObserverOwner<Retained<NSNotificationCenter>, ObserverToken, 5>;
 type ObserverBlock = dyn Fn(NonNull<NSNotification>);
+
+/// Requests that UIKit open the current application's Settings page.
+///
+/// This fire-and-forget action uses UIKit's public `UIApplicationOpenSettingsURLString` and
+/// `UIApplication.openURL:options:completionHandler:` APIs. It must run on the main thread. It
+/// ignores UIKit's asynchronous open result and does not prove that Settings appeared or that the
+/// user changed a setting. If Foundation cannot construct a URL from UIKit's fixed URL string, no
+/// request is issued.
+pub fn open_application_settings(main_thread: MainThread) {
+    autoreleasepool(|_| {
+        // SAFETY: UIKit exports this immutable NSString constant with process lifetime.
+        let settings_url = unsafe { UIApplicationOpenSettingsURLString };
+        let Some(url) = NSURL::URLWithString(settings_url) else {
+            return;
+        };
+        let application = UIApplication::sharedApplication(main_thread.into_objc2());
+        let options =
+            NSDictionary::<UIApplicationOpenExternalURLOptionsKey, AnyObject>::dictionary();
+        // SAFETY: `options` is an empty dictionary with the exact public UIKit key/value types;
+        // no option values or completion block are supplied.
+        unsafe {
+            application.openURL_options_completionHandler(&url, &options, None);
+        }
+    });
+}
 
 /// iOS lifecycle state and nonblocking lifecycle events from public UIKit notifications.
 ///

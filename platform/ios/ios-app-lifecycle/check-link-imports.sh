@@ -48,7 +48,8 @@ for target in aarch64-apple-ios aarch64-apple-ios-sim; do
         UIApplicationWillResignActiveNotification \
         UIApplicationWillEnterForegroundNotification \
         UIApplicationDidEnterBackgroundNotification \
-        UIApplicationWillTerminateNotification
+        UIApplicationWillTerminateNotification \
+        UIApplicationOpenSettingsURLString
     do
         if ! printf '%s\n' "$symbols" | grep -F "$symbol" >/dev/null; then
             printf '%s probe does not import %s\n' "$target" "$symbol" >&2
@@ -56,9 +57,9 @@ for target in aarch64-apple-ios aarch64-apple-ios-sim; do
         fi
     done
     binary_strings=$(strings "$probe")
-    for selector in applicationState addObserverForName:object:queue:usingBlock:; do
+    for selector in applicationState addObserverForName:object:queue:usingBlock: openURL:options:completionHandler:; do
         if ! printf '%s\n' "$binary_strings" | grep -F "$selector" >/dev/null; then
-            printf '%s probe does not reference the %s lifecycle API\n' "$target" "$selector" >&2
+            printf '%s probe does not reference UIKit selector %s\n' "$target" "$selector" >&2
             exit 1
         fi
     done

@@ -15,8 +15,8 @@ framework-core.workspace = true
 block2.workspace = true
 ios-runtime = { path = "../ios-runtime" }
 objc2 = { workspace = true, features = ["std"] }
-objc2-foundation = { workspace = true, features = ["std", "NSNotification", "NSObject", "NSOperation", "NSString", "block2"] }
-objc2-ui-kit = { workspace = true, features = ["std", "UIApplication", "UIResponder"] }
+objc2-foundation = { workspace = true, features = ["std", "NSDictionary", "NSNotification", "NSObject", "NSOperation", "NSString", "NSURL", "block2"] }
+objc2-ui-kit = { workspace = true, features = ["std", "UIApplication", "UIResponder", "block2"] }
 
 [lints]
 workspace = true

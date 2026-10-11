@@ -12,6 +12,10 @@ for symbol in \
     UIApplicationWillEnterForegroundNotification \
     UIApplicationDidEnterBackgroundNotification \
     UIApplicationWillTerminateNotification \
+    UIApplicationOpenSettingsURLString \
+    URLWithString \
+    openURL_options_completionHandler \
+    open_application_settings \
     addObserverForName_object_queue_usingBlock \
     NSOperationQueue::mainQueue \
     ios_runtime::ffi::catch_unwind \

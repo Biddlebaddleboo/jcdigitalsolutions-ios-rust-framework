@@ -24,6 +24,28 @@ Call `state()` for the latest lifecycle state known to the backend. Call `poll_e
 one already-queued event; it never waits. Construction seeds state from
 `UIApplication.applicationState` and does not emit a synthetic initial event.
 
+## Open the current application's Settings page
+
+Call the iOS-only `open_application_settings(main_thread)` action when the app needs to direct a
+user to its own Settings page:
+
+```rust
+use ios_app_lifecycle::open_application_settings;
+use ios_runtime::main_thread::MainThread;
+
+fn show_application_settings(main_thread: MainThread) {
+    open_application_settings(main_thread);
+}
+```
+
+The action constructs a URL from UIKit's public `UIApplicationOpenSettingsURLString` constant and
+calls `UIApplication.openURL:options:completionHandler:` with empty options and no completion. It
+returns immediately and does not report whether UIKit opened Settings or whether the user changed
+a setting. The settings URL constant is available from iOS 8.0; this package's effective device
+deployment minimum is iOS 10.0. Like the lifecycle backend, this UIApplication action is for iOS
+applications and is not app-extension-safe. It does not read notification settings or request
+notification permission.
+
 ## State and event mapping
 
 UIKit's active, inactive, and background application states map to the portable `Foreground`,
@@ -91,6 +113,8 @@ iPhoneOS SDK 26.5
 by Rust 1.94.1 and the iOS 14.0 Simulator minimum. Apple's public references:
 [`UIApplication.applicationState`](https://developer.apple.com/documentation/uikit/uiapplication/applicationstate),
 [`UIApplicationState`](https://developer.apple.com/documentation/uikit/uiapplication/state),
+[`UIApplication.openSettingsURLString`](https://developer.apple.com/documentation/uikit/uiapplication/opensettingsurlstring),
+[`UIApplication.open(_:options:completionHandler:)`](https://developer.apple.com/documentation/uikit/uiapplication/open%28_%3Aoptions%3Acompletionhandler%3A%29),
 [`UIApplicationDidBecomeActiveNotification`](https://developer.apple.com/documentation/uikit/uiapplication/didbecomeactivenotification),
 [`UIApplicationWillEnterForegroundNotification`](https://developer.apple.com/documentation/uikit/uiapplication/willenterforegroundnotification),
 and [`UIApplicationWillTerminateNotification`](https://developer.apple.com/documentation/uikit/uiapplication/willterminatenotification).
