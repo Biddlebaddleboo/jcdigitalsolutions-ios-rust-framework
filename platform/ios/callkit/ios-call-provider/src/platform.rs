@@ -1,4 +1,5 @@
 use std::cell::RefCell;
+use std::collections::HashMap;
 use std::panic::{AssertUnwindSafe, catch_unwind};
 use std::rc::Rc;
 use std::sync::Arc;
@@ -17,18 +18,126 @@ use objc2_call_kit::{
 };
 use objc2_foundation::{NSError, NSNumber, NSObject, NSObjectProtocol, NSSet, NSString, NSUUID};
 
-use crate::registry::{BeginReportError, CallRegistry, EndTransition, OnceSlot, ReportTransition};
+use crate::registry::{
+    BeginReportError, CallRegistry, DeferredActionGate, EndTransition, OnceSlot, ReportTransition,
+};
 use crate::{
-    ActionDecision, CallEndReason, CallHandleKind, CallId, CallProviderConfig, CallProviderError,
-    CallProviderEvent, EndCallOutcome, IncomingCall,
+    ActionDecision, CallActionCompletion, CallActionCompletionError, CallActionKind,
+    CallActionRequest, CallEndReason, CallHandleKind, CallId, CallProviderConfig,
+    CallProviderError, CallProviderEvent, EndCallOutcome, IncomingCall,
 };
 
 type EventHandler = Box<dyn FnMut(CallProviderEvent) -> ActionDecision + 'static>;
+type LifecycleHandler = Box<dyn FnMut(CallProviderEvent) + 'static>;
+type DeferredActionHandler = Box<dyn FnMut(CallActionRequest) + 'static>;
 type ReportCompletion = Box<dyn FnOnce(Result<(), CallProviderError>) + 'static>;
 
 struct ProviderShared {
-    calls: RefCell<CallRegistry>,
-    handler: RefCell<EventHandler>,
+    state: Arc<MainThreadBound<RefCell<ProviderState>>>,
+    handler: RefCell<Option<EventHandler>>,
+    lifecycle_handler: RefCell<Option<LifecycleHandler>>,
+    action_handler: RefCell<Option<DeferredActionHandler>>,
+}
+
+#[derive(Default)]
+struct ProviderState {
+    calls: CallRegistry,
+    pending_actions: PendingActionRegistry,
+}
+
+struct PendingNativeAction {
+    call_id: CallId,
+    kind: CallActionKind,
+    gate: Arc<DeferredActionGate>,
+    native: Retained<CXCallAction>,
+    completed: bool,
+}
+
+impl PendingNativeAction {
+    fn complete(&mut self, fulfill: bool) {
+        if self.completed {
+            return;
+        }
+        if !unsafe { self.native.isComplete() } {
+            self.completed = true;
+            if fulfill {
+                unsafe { self.native.fulfill() };
+            } else {
+                unsafe { self.native.fail() };
+            }
+        } else {
+            self.completed = true;
+        }
+    }
+}
+
+impl Drop for PendingNativeAction {
+    fn drop(&mut self) {
+        let _ = catch_unwind(AssertUnwindSafe(|| {
+            // SAFETY: Pending actions are created, removed, and dropped only on the provider's
+            // main queue because their registry lives in `MainThreadBound` state.
+            if !self.completed && !unsafe { self.native.isComplete() } {
+                self.completed = true;
+                unsafe { self.native.fail() };
+            }
+        }));
+    }
+}
+
+#[derive(Default)]
+struct PendingActionRegistry {
+    actions: HashMap<String, PendingNativeAction>,
+}
+
+impl PendingActionRegistry {
+    fn insert(
+        &mut self,
+        id: String,
+        action: PendingNativeAction,
+    ) -> Result<(), PendingNativeAction> {
+        if self.actions.contains_key(&id) {
+            return Err(action);
+        }
+        self.actions.insert(id, action);
+        Ok(())
+    }
+
+    fn take(&mut self, id: &str, gate: &Arc<DeferredActionGate>) -> Option<PendingNativeAction> {
+        if !self
+            .actions
+            .get(id)
+            .is_some_and(|pending| Arc::ptr_eq(&pending.gate, gate))
+        {
+            return None;
+        }
+        self.actions.remove(id)
+    }
+
+    fn timeout(&mut self, id: &str) -> Option<PendingNativeAction> {
+        self.actions.remove(id).inspect(|pending| {
+            pending.gate.expire();
+        })
+    }
+
+    fn expire_call(&mut self, call_id: CallId) -> Vec<PendingNativeAction> {
+        let ids = self
+            .actions
+            .iter()
+            .filter(|&(_, pending)| pending.call_id == call_id)
+            .map(|(id, _)| id.clone())
+            .collect::<Vec<_>>();
+        ids.into_iter()
+            .filter_map(|id| self.actions.remove(&id))
+            .inspect(|pending| pending.gate.expire())
+            .collect()
+    }
+
+    fn invalidate(&mut self) -> Vec<PendingNativeAction> {
+        std::mem::take(&mut self.actions)
+            .into_values()
+            .inspect(|pending| pending.gate.invalidate_unavailable())
+            .collect()
+    }
 }
 
 struct ReportCallbackContext {
@@ -60,8 +169,16 @@ define_class!(
         #[unsafe(method(providerDidReset:))]
         unsafe fn providerDidReset(&self, _provider: &CXProvider) {
             let _ = catch_unwind(AssertUnwindSafe(|| {
-                self.ivars().shared.calls.borrow_mut().reset();
-                dispatch_event(&self.ivars().shared, CallProviderEvent::ProviderReset);
+                let shared = &self.ivars().shared;
+                // SAFETY: CallKit invokes this delegate on the explicitly selected main queue.
+                let main_thread = unsafe { MainThreadMarker::new_unchecked() };
+                let pending = {
+                    let mut state = shared.state.get(main_thread).borrow_mut();
+                    state.calls.reset();
+                    state.pending_actions.invalidate()
+                };
+                drop(pending);
+                dispatch_lifecycle(shared, CallProviderEvent::ProviderReset);
             }));
         }
 
@@ -73,7 +190,7 @@ define_class!(
         ) {
             let _ = catch_unwind(AssertUnwindSafe(|| {
                 autoreleasepool(|_| {
-                    complete_call_action(&self.ivars().shared, action, ActionKind::Answer);
+                    handle_call_action(&self.ivars().shared, action, CallActionKind::Answer);
                 });
             }));
         }
@@ -86,7 +203,7 @@ define_class!(
         ) {
             let _ = catch_unwind(AssertUnwindSafe(|| {
                 autoreleasepool(|_| {
-                    complete_call_action(&self.ivars().shared, action, ActionKind::End);
+                    handle_call_action(&self.ivars().shared, action, CallActionKind::End);
                 });
             }));
         }
@@ -95,10 +212,21 @@ define_class!(
         unsafe fn provider_timedOutPerformingAction(
             &self,
             _provider: &CXProvider,
-            _action: &CXAction,
+            action: &CXAction,
         ) {
             let _ = catch_unwind(AssertUnwindSafe(|| {
-                dispatch_event(&self.ivars().shared, CallProviderEvent::ActionTimedOut);
+                let shared = &self.ivars().shared;
+                // SAFETY: CallKit invokes this delegate on the explicitly selected main queue.
+                let main_thread = unsafe { MainThreadMarker::new_unchecked() };
+                let action_id = native_action_id(action);
+                let pending = shared
+                    .state
+                    .get(main_thread)
+                    .borrow_mut()
+                    .pending_actions
+                    .timeout(&action_id);
+                drop(pending);
+                dispatch_lifecycle(shared, CallProviderEvent::ActionTimedOut);
             }));
         }
     }
@@ -112,18 +240,31 @@ impl ProviderDelegate {
     }
 }
 
-#[derive(Clone, Copy)]
-enum ActionKind {
-    Answer,
-    End,
-}
-
 fn dispatch_event(shared: &ProviderShared, event: CallProviderEvent) -> ActionDecision {
-    catch_unwind(AssertUnwindSafe(|| (shared.handler.borrow_mut())(event)))
-        .unwrap_or(ActionDecision::Fail)
+    let mut handler = shared.handler.borrow_mut();
+    let Some(handler) = handler.as_mut() else {
+        return ActionDecision::Fail;
+    };
+    catch_unwind(AssertUnwindSafe(|| handler(event))).unwrap_or(ActionDecision::Fail)
 }
 
-fn complete_call_action(shared: &ProviderShared, action: &CXCallAction, kind: ActionKind) {
+fn dispatch_lifecycle(shared: &ProviderShared, event: CallProviderEvent) {
+    if let Some(handler) = shared.handler.borrow_mut().as_mut() {
+        let _ = catch_unwind(AssertUnwindSafe(|| handler(event)));
+    } else if let Some(handler) = shared.lifecycle_handler.borrow_mut().as_mut() {
+        let _ = catch_unwind(AssertUnwindSafe(|| handler(event)));
+    }
+}
+
+fn handle_call_action(shared: &ProviderShared, action: &CXCallAction, kind: CallActionKind) {
+    if shared.handler.borrow().is_some() {
+        complete_call_action(shared, action, kind);
+    } else {
+        defer_call_action(shared, action, kind);
+    }
+}
+
+fn complete_call_action(shared: &ProviderShared, action: &CXCallAction, kind: CallActionKind) {
     let id = unsafe { action.callUUID() };
     let Some(call_id) = call_id_from_native(&id) else {
         if !unsafe { action.isComplete() } {
@@ -131,7 +272,15 @@ fn complete_call_action(shared: &ProviderShared, action: &CXCallAction, kind: Ac
         }
         return;
     };
-    if !shared.calls.borrow().is_active(call_id) {
+    // SAFETY: This callback is invoked by CallKit on the selected main queue.
+    let main_thread = unsafe { MainThreadMarker::new_unchecked() };
+    if !shared
+        .state
+        .get(main_thread)
+        .borrow()
+        .calls
+        .is_active(call_id)
+    {
         if !unsafe { action.isComplete() } {
             unsafe { action.fail() };
         }
@@ -139,8 +288,8 @@ fn complete_call_action(shared: &ProviderShared, action: &CXCallAction, kind: Ac
     }
 
     let event = match kind {
-        ActionKind::Answer => CallProviderEvent::AnswerRequested { call_id },
-        ActionKind::End => CallProviderEvent::EndRequested { call_id },
+        CallActionKind::Answer => CallProviderEvent::AnswerRequested { call_id },
+        CallActionKind::End => CallProviderEvent::EndRequested { call_id },
     };
     let decision = dispatch_event(shared, event);
 
@@ -151,13 +300,141 @@ fn complete_call_action(shared: &ProviderShared, action: &CXCallAction, kind: Ac
     }
     match decision {
         ActionDecision::Fulfill => {
-            if matches!(kind, ActionKind::End) {
-                shared.calls.borrow_mut().finish_end_action(call_id);
+            if matches!(kind, CallActionKind::End) {
+                shared
+                    .state
+                    .get(main_thread)
+                    .borrow_mut()
+                    .calls
+                    .finish_end_action(call_id);
             }
             unsafe { action.fulfill() };
         }
         ActionDecision::Fail => unsafe { action.fail() },
     }
+}
+
+fn defer_call_action(shared: &ProviderShared, action: &CXCallAction, kind: CallActionKind) {
+    let call_uuid = unsafe { action.callUUID() };
+    let Some(call_id) = call_id_from_native(&call_uuid) else {
+        if !unsafe { action.isComplete() } {
+            unsafe { action.fail() };
+        }
+        return;
+    };
+    // SAFETY: This function is called only from a CallKit delegate on the main queue.
+    let main_thread = unsafe { MainThreadMarker::new_unchecked() };
+    if !shared
+        .state
+        .get(main_thread)
+        .borrow()
+        .calls
+        .is_active(call_id)
+    {
+        if !unsafe { action.isComplete() } {
+            unsafe { action.fail() };
+        }
+        return;
+    }
+
+    let action_id = native_action_id(action);
+    let gate = Arc::new(DeferredActionGate::default());
+    let pending = PendingNativeAction {
+        call_id,
+        kind,
+        gate: Arc::clone(&gate),
+        native: objc2::Message::retain(action),
+        completed: false,
+    };
+    let inserted = shared
+        .state
+        .get(main_thread)
+        .borrow_mut()
+        .pending_actions
+        .insert(action_id.clone(), pending);
+    if let Err(pending) = inserted {
+        drop(pending);
+        if !unsafe { action.isComplete() } {
+            unsafe { action.fail() };
+        }
+        return;
+    }
+
+    let state = Arc::downgrade(&shared.state);
+    let completion_gate = Arc::clone(&gate);
+    let completion = CallActionCompletion::new(move |decision| {
+        completion_gate.submit()?;
+        let Some(state) = state.upgrade() else {
+            completion_gate.invalidate_unavailable();
+            return Err(CallActionCompletionError::ProviderUnavailable);
+        };
+        let gate_on_main = Arc::clone(&completion_gate);
+        DispatchQueue::main().exec_async(move || {
+            let _ = catch_unwind(AssertUnwindSafe(|| {
+                // SAFETY: This closure is submitted to the main dispatch queue.
+                let main_thread = unsafe { MainThreadMarker::new_unchecked() };
+                resolve_deferred_action(
+                    state.get(main_thread),
+                    &action_id,
+                    &gate_on_main,
+                    decision,
+                );
+            }));
+        });
+        Ok(())
+    });
+    let request = CallActionRequest::new(call_id, kind, completion);
+    if let Some(handler) = shared.action_handler.borrow_mut().as_mut() {
+        let _ = catch_unwind(AssertUnwindSafe(|| handler(request)));
+    } else {
+        drop(request);
+    }
+}
+
+fn resolve_deferred_action(
+    state: &RefCell<ProviderState>,
+    action_id: &str,
+    gate: &Arc<DeferredActionGate>,
+    decision: ActionDecision,
+) {
+    let mut initial_state = state.borrow_mut();
+    let Some(mut pending) = initial_state.pending_actions.take(action_id, gate) else {
+        gate.expire();
+        return;
+    };
+    if !gate.begin_resolution() {
+        drop(initial_state);
+        return;
+    }
+    drop(initial_state);
+    if unsafe { pending.native.isComplete() } {
+        gate.expire();
+        return;
+    }
+
+    let mut state = state.borrow_mut();
+    let (should_fulfill, expired_actions) = match decision {
+        ActionDecision::Fail => (false, Vec::new()),
+        ActionDecision::Fulfill => match pending.kind {
+            CallActionKind::Answer => {
+                // The call may have ended while application work was deferred.
+                (state.calls.is_active(pending.call_id), Vec::new())
+            }
+            CallActionKind::End => {
+                let ended = state.calls.finish_end_action(pending.call_id);
+                let expired = if ended {
+                    state.pending_actions.expire_call(pending.call_id)
+                } else {
+                    Vec::new()
+                };
+                (ended, expired)
+            }
+        },
+    };
+    drop(state);
+    drop(expired_actions);
+    pending.complete(should_fulfill);
+    let _ = gate.resolve();
 }
 
 /// One explicitly owned CallKit provider.
@@ -189,13 +466,54 @@ impl CallProvider {
     where
         F: FnMut(CallProviderEvent) -> ActionDecision + 'static,
     {
+        Self::with_handlers(main_thread, config, Some(Box::new(handler)), None, None)
+    }
+
+    /// Create a provider whose answer/end actions can resolve after application work completes.
+    ///
+    /// The lifecycle handler receives only `ProviderReset` and `ActionTimedOut`. The action
+    /// handler receives a one-shot request on the main CallKit delegate queue and must return
+    /// promptly. Move the request or its completion to app-owned asynchronous work; this API adds
+    /// no executor or networking policy. Dropping an unsubmitted completion fails the action.
+    pub fn new_with_deferred_actions<L, A>(
+        main_thread: MainThreadMarker,
+        config: CallProviderConfig,
+        lifecycle_handler: L,
+        action_handler: A,
+    ) -> Result<Self, CallProviderError>
+    where
+        L: FnMut(CallProviderEvent) + 'static,
+        A: FnMut(CallActionRequest) + 'static,
+    {
+        Self::with_handlers(
+            main_thread,
+            config,
+            None,
+            Some(Box::new(lifecycle_handler)),
+            Some(Box::new(action_handler)),
+        )
+    }
+
+    fn with_handlers(
+        main_thread: MainThreadMarker,
+        config: CallProviderConfig,
+        handler: Option<EventHandler>,
+        lifecycle_handler: Option<LifecycleHandler>,
+        action_handler: Option<DeferredActionHandler>,
+    ) -> Result<Self, CallProviderError> {
         config.validate()?;
         let native_config = native_provider_config(&config)?;
         let provider =
             unsafe { CXProvider::initWithConfiguration(CXProvider::alloc(), &native_config) };
+        let state = Arc::new(MainThreadBound::new(
+            RefCell::new(ProviderState::default()),
+            main_thread,
+        ));
         let shared = Rc::new(ProviderShared {
-            calls: RefCell::new(CallRegistry::default()),
-            handler: RefCell::new(Box::new(handler)),
+            state,
+            handler: RefCell::new(handler),
+            lifecycle_handler: RefCell::new(lifecycle_handler),
+            action_handler: RefCell::new(action_handler),
         });
         let delegate = ProviderDelegate::new(main_thread, Rc::clone(&shared));
         let delegate_object = ProtocolObject::from_ref(&*delegate);
@@ -236,8 +554,10 @@ impl CallProvider {
         let update = native_call_update(&call);
         let generation = self
             .shared
-            .calls
+            .state
+            .get(self._main_thread)
             .borrow_mut()
+            .calls
             .begin_report(call.id)
             .map_err(|error| match error {
                 BeginReportError::Duplicate => CallProviderError::DuplicateCallId,
@@ -287,8 +607,23 @@ impl CallProvider {
             .provider
             .as_ref()
             .ok_or(CallProviderError::ProviderUnavailable)?;
-        match self.shared.calls.borrow_mut().end(call_id, reason) {
+        let transition = self
+            .shared
+            .state
+            .get(self._main_thread)
+            .borrow_mut()
+            .calls
+            .end(call_id, reason);
+        match transition {
             EndTransition::ReportNow(reason) => {
+                let pending = self
+                    .shared
+                    .state
+                    .get(self._main_thread)
+                    .borrow_mut()
+                    .pending_actions
+                    .expire_call(call_id);
+                drop(pending);
                 let uuid = native_uuid(call_id)?;
                 report_native_end(provider, &uuid, reason);
                 Ok(EndCallOutcome::Reported)
@@ -305,7 +640,11 @@ impl CallProvider {
         if self.provider.is_none() {
             return;
         }
-        self.shared.calls.borrow_mut().invalidate();
+        let mut state = self.shared.state.get(self._main_thread).borrow_mut();
+        state.calls.invalidate();
+        let pending = state.pending_actions.invalidate();
+        drop(state);
+        drop(pending);
         if let Some(provider) = self.provider.as_ref() {
             // SAFETY: Invalidation is required before provider release; this owner and its
             // MainThreadOnly delegate are both confined to the main thread.
@@ -403,6 +742,10 @@ fn native_uuid(id: CallId) -> Result<Retained<NSUUID>, CallProviderError> {
     NSUUID::from_string(&value).ok_or(CallProviderError::NativeConversionFailed)
 }
 
+fn native_action_id(action: &CXAction) -> String {
+    unsafe { action.UUID() }.UUIDString().to_string()
+}
+
 fn call_id_from_native(uuid: &NSUUID) -> Option<CallId> {
     let value = uuid.UUIDString().to_string();
     CallId::from_uuid_string(&value)
@@ -435,12 +778,16 @@ fn invoke_report_completion(
 }
 
 fn complete_incoming_report(context: &ReportCallbackContext, accepted: bool) {
+    // SAFETY: This callback is invoked only after dispatch to the main queue.
+    let main_thread = unsafe { MainThreadMarker::new_unchecked() };
     let transition = catch_unwind(AssertUnwindSafe(|| {
-        context.shared.calls.borrow_mut().report_completed(
-            context.call_id,
-            context.generation,
-            accepted,
-        )
+        context
+            .shared
+            .state
+            .get(main_thread)
+            .borrow_mut()
+            .calls
+            .report_completed(context.call_id, context.generation, accepted)
     }))
     .unwrap_or(ReportTransition::Stale);
 

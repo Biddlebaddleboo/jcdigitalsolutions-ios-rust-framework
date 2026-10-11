@@ -1,7 +1,8 @@
 use std::collections::HashMap;
 use std::sync::Mutex;
+use std::sync::atomic::{AtomicU8, Ordering};
 
-use crate::{CallEndReason, CallId};
+use crate::{CallActionCompletionError, CallEndReason, CallId};
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 enum CallPhase {
@@ -43,6 +44,78 @@ pub(crate) struct CallRegistry {
 /// One-shot handoff for a native completion that may arrive on any queue.
 pub(crate) struct OnceSlot<T> {
     value: Mutex<Option<T>>,
+}
+
+const ACTION_PENDING: u8 = 0;
+const ACTION_QUEUED: u8 = 1;
+const ACTION_RESOLVING: u8 = 2;
+const ACTION_RESOLVED: u8 = 3;
+const ACTION_EXPIRED: u8 = 4;
+const ACTION_UNAVAILABLE: u8 = 5;
+
+/// Thread-safe one-shot gate; native action access remains in the main-thread registry.
+#[derive(Default)]
+pub(crate) struct DeferredActionGate(AtomicU8);
+
+impl DeferredActionGate {
+    pub(crate) fn submit(&self) -> Result<(), CallActionCompletionError> {
+        match self.0.compare_exchange(
+            ACTION_PENDING,
+            ACTION_QUEUED,
+            Ordering::AcqRel,
+            Ordering::Acquire,
+        ) {
+            Ok(_) => Ok(()),
+            Err(ACTION_EXPIRED) => Err(CallActionCompletionError::Expired),
+            Err(ACTION_UNAVAILABLE) => Err(CallActionCompletionError::ProviderUnavailable),
+            Err(_) => Err(CallActionCompletionError::AlreadyCompleted),
+        }
+    }
+
+    pub(crate) fn begin_resolution(&self) -> bool {
+        self.0
+            .compare_exchange(
+                ACTION_QUEUED,
+                ACTION_RESOLVING,
+                Ordering::AcqRel,
+                Ordering::Acquire,
+            )
+            .is_ok()
+    }
+
+    pub(crate) fn resolve(&self) -> bool {
+        self.0
+            .compare_exchange(
+                ACTION_RESOLVING,
+                ACTION_RESOLVED,
+                Ordering::AcqRel,
+                Ordering::Acquire,
+            )
+            .is_ok()
+    }
+
+    pub(crate) fn expire(&self) {
+        self.terminate(ACTION_EXPIRED);
+    }
+
+    pub(crate) fn invalidate_unavailable(&self) {
+        self.terminate(ACTION_UNAVAILABLE);
+    }
+
+    fn terminate(&self, terminal: u8) {
+        let mut current = self.0.load(Ordering::Acquire);
+        while matches!(current, ACTION_PENDING | ACTION_QUEUED | ACTION_RESOLVING) {
+            match self.0.compare_exchange_weak(
+                current,
+                terminal,
+                Ordering::AcqRel,
+                Ordering::Acquire,
+            ) {
+                Ok(_) => return,
+                Err(next) => current = next,
+            }
+        }
+    }
 }
 
 impl<T> OnceSlot<T> {
@@ -331,5 +404,115 @@ mod tests {
             1
         );
         assert_eq!(context.take(), None);
+    }
+
+    #[test]
+    fn deferred_action_has_one_queued_resolution() {
+        let gate = DeferredActionGate::default();
+        assert_eq!(gate.submit(), Ok(()));
+        assert_eq!(
+            gate.submit(),
+            Err(CallActionCompletionError::AlreadyCompleted)
+        );
+        assert!(gate.begin_resolution());
+        assert!(gate.resolve());
+        assert!(!gate.begin_resolution());
+        assert_eq!(
+            gate.submit(),
+            Err(CallActionCompletionError::AlreadyCompleted)
+        );
+    }
+
+    #[test]
+    fn timeout_rejects_pending_and_queued_late_results() {
+        let pending = DeferredActionGate::default();
+        pending.expire();
+        assert_eq!(pending.submit(), Err(CallActionCompletionError::Expired));
+
+        let queued = DeferredActionGate::default();
+        assert_eq!(queued.submit(), Ok(()));
+        queued.expire();
+        assert!(!queued.begin_resolution());
+        assert_eq!(queued.submit(), Err(CallActionCompletionError::Expired));
+    }
+
+    #[test]
+    fn provider_reset_rejects_pending_late_results() {
+        let gate = DeferredActionGate::default();
+        gate.invalidate_unavailable();
+        assert_eq!(
+            gate.submit(),
+            Err(CallActionCompletionError::ProviderUnavailable)
+        );
+    }
+
+    #[test]
+    fn provider_invalidation_rejects_queued_late_results() {
+        let gate = DeferredActionGate::default();
+        assert_eq!(gate.submit(), Ok(()));
+        gate.invalidate_unavailable();
+        assert!(!gate.begin_resolution());
+        assert_eq!(
+            gate.submit(),
+            Err(CallActionCompletionError::ProviderUnavailable)
+        );
+    }
+
+    #[test]
+    fn call_end_expires_queued_action_before_resolution() {
+        let mut calls = CallRegistry::default();
+        let generation = calls.begin_report(id(11)).unwrap();
+        assert_eq!(
+            calls.report_completed(id(11), generation, true),
+            ReportTransition::Accepted
+        );
+        let gate = DeferredActionGate::default();
+        assert_eq!(gate.submit(), Ok(()));
+        assert!(calls.finish_end_action(id(11)));
+        gate.expire();
+        assert!(!gate.begin_resolution());
+        assert_eq!(gate.submit(), Err(CallActionCompletionError::Expired));
+        assert!(!calls.finish_end_action(id(11)));
+    }
+
+    #[test]
+    fn provider_drop_invalidates_a_queued_action() {
+        let gate = DeferredActionGate::default();
+        assert_eq!(gate.submit(), Ok(()));
+        gate.invalidate_unavailable();
+        assert!(!gate.begin_resolution());
+        assert_eq!(
+            gate.submit(),
+            Err(CallActionCompletionError::ProviderUnavailable)
+        );
+    }
+
+    #[test]
+    fn concurrent_deferred_results_claim_one_resolution() {
+        let gate = Arc::new(DeferredActionGate::default());
+        let barrier = Arc::new(Barrier::new(3));
+        let threads = (0..2)
+            .map(|_| {
+                let gate = Arc::clone(&gate);
+                let barrier = Arc::clone(&barrier);
+                thread::spawn(move || {
+                    barrier.wait();
+                    gate.submit()
+                })
+            })
+            .collect::<Vec<_>>();
+        barrier.wait();
+        let results = threads
+            .into_iter()
+            .map(|thread| thread.join().expect("completion thread must finish"))
+            .collect::<Vec<_>>();
+        assert_eq!(results.iter().filter(|result| result.is_ok()).count(), 1);
+        assert_eq!(
+            results
+                .iter()
+                .filter(|result| { **result == Err(CallActionCompletionError::AlreadyCompleted) })
+                .count(),
+            1
+        );
     }
 }

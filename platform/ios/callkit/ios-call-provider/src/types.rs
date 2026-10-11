@@ -1,5 +1,6 @@
 #[cfg(any(test, target_os = "ios"))]
 use std::fmt::Write;
+use std::panic::{AssertUnwindSafe, catch_unwind};
 use std::string::String;
 use std::vec;
 use std::vec::Vec;
@@ -228,6 +229,114 @@ pub enum ActionDecision {
     Fail,
 }
 
+/// Kind of CallKit action delivered to a deferred action handler.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum CallActionKind {
+    /// The system asks the app to answer an active call.
+    Answer,
+    /// The system asks the app to end an active call.
+    End,
+}
+
+/// A bounded error from a deferred CallKit action completion.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum CallActionCompletionError {
+    /// CallKit timed out the action or the call ended before resolution.
+    Expired,
+    /// The provider reset or was invalidated before resolution.
+    ProviderUnavailable,
+    /// The action was already submitted or completed.
+    AlreadyCompleted,
+}
+
+type ActionSubmitter =
+    Box<dyn FnOnce(ActionDecision) -> Result<(), CallActionCompletionError> + Send + 'static>;
+
+/// One-shot action resolution that can move to a worker thread.
+///
+/// Dropping this value submits `ActionDecision::Fail` unless the action was already submitted.
+/// Native CallKit objects remain owned by the provider and are resolved on the main queue.
+#[must_use = "drop the completion to fail the CallKit action, or submit a decision"]
+pub struct CallActionCompletion {
+    submitter: Option<ActionSubmitter>,
+}
+
+impl CallActionCompletion {
+    #[cfg_attr(not(target_os = "ios"), allow(dead_code))]
+    pub(crate) fn new<F>(submitter: F) -> Self
+    where
+        F: FnOnce(ActionDecision) -> Result<(), CallActionCompletionError> + Send + 'static,
+    {
+        Self {
+            submitter: Some(Box::new(submitter)),
+        }
+    }
+
+    /// Submit a decision for main-queue resolution.
+    ///
+    /// `Ok(())` means the decision was queued while the action remained pending. CallKit may
+    /// still time out or the provider may reset before the queued resolution runs.
+    pub fn complete(mut self, decision: ActionDecision) -> Result<(), CallActionCompletionError> {
+        let submitter = self
+            .submitter
+            .take()
+            .ok_or(CallActionCompletionError::AlreadyCompleted)?;
+        catch_unwind(AssertUnwindSafe(|| submitter(decision)))
+            .unwrap_or(Err(CallActionCompletionError::ProviderUnavailable))
+    }
+}
+
+impl Drop for CallActionCompletion {
+    fn drop(&mut self) {
+        if let Some(submitter) = self.submitter.take() {
+            let _ = catch_unwind(AssertUnwindSafe(|| submitter(ActionDecision::Fail)));
+        }
+    }
+}
+
+/// A CallKit answer/end request with a one-shot deferred completion.
+#[must_use = "resolve the request or move its completion to work that will resolve it"]
+pub struct CallActionRequest {
+    call_id: CallId,
+    kind: CallActionKind,
+    completion: CallActionCompletion,
+}
+
+impl CallActionRequest {
+    #[cfg_attr(not(target_os = "ios"), allow(dead_code))]
+    pub(crate) const fn new(
+        call_id: CallId,
+        kind: CallActionKind,
+        completion: CallActionCompletion,
+    ) -> Self {
+        Self {
+            call_id,
+            kind,
+            completion,
+        }
+    }
+
+    /// Return the framework-owned call identity.
+    pub const fn call_id(&self) -> CallId {
+        self.call_id
+    }
+
+    /// Return whether the request asks to answer or end the call.
+    pub const fn kind(&self) -> CallActionKind {
+        self.kind
+    }
+
+    /// Move the one-shot completion to a worker or future.
+    pub fn into_completion(self) -> CallActionCompletion {
+        self.completion
+    }
+
+    /// Submit a decision for main-queue resolution.
+    pub fn complete(self, decision: ActionDecision) -> Result<(), CallActionCompletionError> {
+        self.completion.complete(decision)
+    }
+}
+
 /// Reason to report a call as ended.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum CallEndReason {
@@ -354,5 +463,50 @@ mod tests {
                 .validate(&config)
                 .is_ok()
         );
+    }
+
+    #[test]
+    fn dropping_unsubmitted_action_completion_submits_fail_once() {
+        let (sender, receiver) = std::sync::mpsc::channel();
+        drop(CallActionCompletion::new(move |decision| {
+            sender.send(decision).unwrap();
+            Ok(())
+        }));
+        assert_eq!(receiver.recv().unwrap(), ActionDecision::Fail);
+        assert!(receiver.try_recv().is_err());
+    }
+
+    #[test]
+    fn action_completion_contains_backend_panics() {
+        let completion = CallActionCompletion::new(|_| -> Result<(), CallActionCompletionError> {
+            panic!("completion backend panic")
+        });
+        assert_eq!(
+            completion.complete(ActionDecision::Fulfill),
+            Err(CallActionCompletionError::ProviderUnavailable)
+        );
+    }
+
+    #[test]
+    fn deferred_action_request_is_send_and_exposes_framework_identity() {
+        fn assert_send<T: Send>() {}
+        assert_send::<CallActionCompletion>();
+        assert_send::<CallActionRequest>();
+
+        let call_id = CallId::from_bytes([12; 16]);
+        let (sender, receiver) = std::sync::mpsc::channel();
+        let request = CallActionRequest::new(
+            call_id,
+            CallActionKind::Answer,
+            CallActionCompletion::new(move |decision| {
+                sender.send(decision).unwrap();
+                Ok(())
+            }),
+        );
+        assert_eq!(request.call_id(), call_id);
+        assert_eq!(request.kind(), CallActionKind::Answer);
+        assert_eq!(request.complete(ActionDecision::Fulfill), Ok(()));
+        assert_eq!(receiver.recv().unwrap(), ActionDecision::Fulfill);
+        assert!(receiver.try_recv().is_err());
     }
 }

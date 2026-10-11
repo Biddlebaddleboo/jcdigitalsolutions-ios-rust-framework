@@ -310,9 +310,15 @@ B495 adds `IosCameraCaptureSession::custom_exposure_range()` and `set_custom_exp
 
 B496 adds an explicit lazy Always request and an iOS-only background-enabled continuous session on the existing `ios-location` backend. The session requires current Always authorization and a verified `UIBackgroundModes` array containing `location` before the fatal-risk setter; typed options expose public activity, automatic-pause, and optional iOS 11+ indicator hints. Each location batch refreshes authorization, reports a downgrade as a nonterminal permission error, and suppresses fixes below Always; drop retains detach/stop cleanup. The registered `ios-location-updates` profile passed 40 checks with 0 FAIL, 0 BLOCKED, and 2 runtime SKIPPED at snapshot `ff1baf94cc4e1fbbe4c11cea92330365ded7e847a14a0baf8c094e249b0670c3`. Simulator execution and physical-device behavior remain unverified; see [PLAN_IOS_LOCATION.md](PLAN_IOS_LOCATION.md)
 
-### B498 — CallKit incoming provider and actions (row 084)
+### B498 — CallKit incoming provider and actions (row 083)
 
 B498 adds an opt-in `ios-call-provider` package for incoming-call reports, end reports, and synchronous answer/end/reset actions using public CallKit APIs. It owns a main-queue delegate, fixed-width `CallId`, pending/active call lifecycle, reset generations, and one-shot async report completion; it does not add outgoing transactions, PushKit/APNs, audio, or UIKit background-task ownership. The registered profile passed 61 checks with 0 FAIL, 0 BLOCKED, and 2 runtime SKIPPED; Simulator execution and physical-device behavior remain unverified. See [PLAN_RIDESHARE_BOT_MIGRATION.md](PLAN_RIDESHARE_BOT_MIGRATION.md)
+
+### B514 — deferred CallKit answer/end actions (row 083)
+
+B514 adds `CallProvider::new_with_deferred_actions` with separate lifecycle and action handlers, plus a move-only `CallActionRequest` and `CallActionCompletion` for app-owned async work. `CallProvider::new` keeps its immediate callback contract. The provider retains native actions only in main-thread state; timeout, reset, invalidation, call end, and drop make late results fail with the documented error. Host regressions cover one-shot completion, drop-to-fail, timeout, reset, invalidation, call end, provider drop, and concurrent submission
+
+The installed validator command `ios-rust-validate --workspace-root "$PWD" --spec "$PWD/tools/validation/specs/validation-v1.json" --capability ios-call-provider` passed 61 checks with 0 FAIL, 0 BLOCKED, and 2 SKIPPED at snapshot `4ebcfbf1ad880d849df8381c39b3b46ba62b691ab24ff0bcab1bcac8b83a17c4`. Host tests plus device/Simulator target checks, Clippy, Rustdoc, and link/import checks passed; the skips are Simulator execution and physical-device proof, so live CallKit behavior remains unverified
 
 ### B500 — UIKit stack composition (row 003)
 

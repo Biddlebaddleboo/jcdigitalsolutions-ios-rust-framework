@@ -2637,7 +2637,7 @@
       "portable_contract_note": "No portable facade for this capability is included; this slice is iOS-only.",
       "ios_implementation_class": "B",
       "implementation_status": "partial",
-      "status_reason": "D76/B72 provides a synchronous CXCallObserver snapshot; B498 adds a Rust-owned CXProvider for incoming and ended-call reports plus answer/end/reset actions. The provider's callback and state contract uses an explicitly retained main queue and one-shot completion handoff. Outgoing-call transactions, PushKit/APNs, audio, microphone I/O, app identity/ACK policy, and UIKit background-task ownership remain outside this crate.",
+      "status_reason": "D76/B72 provides a synchronous CXCallObserver snapshot; B498 adds a Rust-owned CXProvider for incoming and ended-call reports plus answer/end/reset actions, and B514 adds opt-in deferred answer/end completion for app-owned asynchronous work. Native actions remain main-thread-bound and one-shot. Outgoing-call transactions, PushKit/APNs, audio, microphone I/O, app identity/ACK policy, and UIKit background-task ownership remain outside this crate.",
       "minimum_ios_version": "10.0",
       "required_frameworks": [
         "CallKit",
@@ -2648,7 +2648,7 @@
       "entitlements": [],
       "device_only_restrictions": [],
       "swift_abi_requirement": false,
-      "metadata_verification": "B498 uses public CXProvider, CXProviderConfiguration, CXCallUpdate, CXHandle, and CXProviderDelegate APIs through objc2-call-kit 0.3.2. Device/Simulator targets remain iOS 10.0/14.0; registered link probes inspect CallKit, Foundation, libSystem.B.dylib, and libobjc.A.dylib plus provider/action selectors. Simulator and physical-device runtime behavior is not claimed.",
+      "metadata_verification": "B498/B514 use public CXProvider, CXProviderConfiguration, CXCallUpdate, CXHandle, CXAction, and CXProviderDelegate APIs through objc2-call-kit 0.3.2. Device/Simulator targets remain iOS 10.0/14.0; registered link probes inspect CallKit, Foundation, libSystem.B.dylib, and libobjc.A.dylib plus provider/action selectors. Simulator and physical-device runtime behavior is not claimed.",
       "parity_status": "not_tested_live_call_observation_or_Apple_parity",
       "performance_status": "not_measured",
       "native_escape_handle_available": false,

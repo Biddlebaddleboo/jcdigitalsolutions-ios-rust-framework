@@ -5,9 +5,25 @@ import sys
 
 ADAPTER_ID = "call-provider-main-queue-contract"
 CAPABILITY_ID = "ios-call-provider"
-SOURCE_PATH = "platform/ios/callkit/ios-call-provider/src/platform.rs"
+SOURCE_PATHS = (
+ "platform/ios/callkit/ios-call-provider/src/platform.rs",
+)
 SPEC_PATH = "tools/validation/specs/validation-v1.json"
-INPUTS = {SOURCE_PATH, SPEC_PATH}
+INPUTS = {*SOURCE_PATHS, SPEC_PATH}
+DEFERRED_ACTION_CONTRACTS = (
+ (SOURCE_PATHS[0], "Self::with_handlers(main_thread, config, Some(Box::new(handler)), None, None)"),
+ (SOURCE_PATHS[0], "pub fn new_with_deferred_actions<L, A>("),
+ (SOURCE_PATHS[0], "None,\n            Some(Box::new(lifecycle_handler)),\n            Some(Box::new(action_handler)),"),
+ (SOURCE_PATHS[0], "if shared.handler.borrow().is_some() {\n        complete_call_action(shared, action, kind);\n    } else {"),
+ (SOURCE_PATHS[0], "impl Drop for PendingNativeAction {"),
+ (SOURCE_PATHS[0], "completion_gate.submit()?;"),
+ (SOURCE_PATHS[0], ".timeout(&action_id);"),
+ (SOURCE_PATHS[0], "state.pending_actions.invalidate();"),
+ (SOURCE_PATHS[0], "state.pending_actions.expire_call(pending.call_id)"),
+ (SOURCE_PATHS[0], "if !gate.begin_resolution() {\n        drop(initial_state);\n        return;\n    }"),
+ (SOURCE_PATHS[0], "if !self.completed && !unsafe { self.native.isComplete() } {\n                self.completed = true;\n                unsafe { self.native.fail() };"),
+ (SOURCE_PATHS[0], "resolve_deferred_action(\n                    state.get(main_thread),"),
+)
 
 
 def emit(status, detail):
@@ -43,30 +59,33 @@ def source_guards(spec_text):
  if len(pilots) != 1 or pilots[0].get("package") != CAPABILITY_ID:
   raise ValueError("registered CallKit provider profile is missing or ambiguous")
  guards = [
-  item.get("text")
+  (item.get("path"), item.get("text"))
   for item in pilots[0].get("guards", [])
-  if item.get("path") == SOURCE_PATH and item.get("must_exist") is True
+  if item.get("path") in SOURCE_PATHS and item.get("must_exist") is True
  ]
- if not guards or any(not isinstance(text, str) or not text for text in guards):
+ if not guards or any(
+  path not in SOURCE_PATHS or not isinstance(text, str) or not text
+  for path, text in guards
+ ):
   raise ValueError("registered CallKit source guards are missing or invalid")
- return guards
+ return guards + list(DEFERRED_ACTION_CONTRACTS)
 
 
-def contract_holds(source, guards):
- return all(source.count(text) == 1 for text in guards)
+def contract_holds(sources, guards):
+ return all(sources[path].count(text) > 0 for path, text in guards)
 
 
 def main():
  try:
   sources = inputs(json.load(sys.stdin))
-  source = sources[SOURCE_PATH]
   guards = source_guards(sources[SPEC_PATH])
-  if not contract_holds(source, guards):
+  if not contract_holds(sources, guards):
    emit("FAIL", "CallKit source does not satisfy every registered required-source guard")
    return
-  for index, text in enumerate(guards, start=1):
-   mutated = source.replace(text, "", 1)
-   if mutated == source or contract_holds(mutated, guards):
+  for index, (path, text) in enumerate(guards, start=1):
+   mutated = dict(sources)
+   mutated[path] = mutated[path].replace(text, "")
+   if mutated[path] == sources[path] or contract_holds(mutated, guards):
     emit("FAIL", f"registered CallKit source-guard mutation {index} was not detected")
     return
   emit("PASS", f"all {len(guards)} registered CallKit source guards hold; each negative mutation was rejected")
