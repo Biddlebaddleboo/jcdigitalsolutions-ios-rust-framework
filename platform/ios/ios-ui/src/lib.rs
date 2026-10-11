@@ -8,6 +8,8 @@ pub mod geometry;
 #[cfg(target_os = "ios")]
 mod platform;
 #[cfg(any(test, target_os = "ios"))]
+mod scroll_policy;
+#[cfg(any(test, target_os = "ios"))]
 mod stack_spacing;
 #[cfg(any(test, target_os = "ios"))]
 mod text_conversion;
@@ -21,6 +23,6 @@ mod toggle_policy;
 
 #[cfg(target_os = "ios")]
 pub use platform::{
-    IosButton, IosImageView, IosLabel, IosStackAxis, IosStackView, IosTextField, IosToggle,
-    IosUiBackend, IosView,
+    IosButton, IosImageView, IosLabel, IosScrollView, IosStackAxis, IosStackView, IosTextField,
+    IosToggle, IosUiBackend, IosView,
 };

@@ -110,6 +110,46 @@ for target in aarch64-apple-ios aarch64-apple-ios-sim; do
         exit 1
     fi
 
+    scroll_target_dir="target/ios-ui-scroll-link-$target"
+    IPHONEOS_DEPLOYMENT_TARGET="$deployment_target" CARGO_TARGET_DIR="$scroll_target_dir" \
+        cargo build --locked --release -p ios-ui \
+        --example ios_ui_scroll_view_link_probe --target "$target"
+    scroll_binary="$scroll_target_dir/$target/release/examples/ios_ui_scroll_view_link_probe"
+    scroll_imports="$scroll_target_dir/imports.txt"
+    scroll_symbols="$scroll_target_dir/undefined-symbols.txt"
+    scroll_build_info="$scroll_target_dir/build-info.txt"
+
+    otool -L "$scroll_binary" > "$scroll_imports"
+    if ! grep -Fq '/UIKit.framework/UIKit' "$scroll_imports"; then
+        echo "$target scroll probe does not link UIKit" >&2
+        exit 1
+    fi
+
+    nm -u "$scroll_binary" > "$scroll_symbols"
+    for symbol in _objc_getClass _objc_msgSend; do
+        if ! grep -Fq "$symbol" "$scroll_symbols"; then
+            echo "$target scroll probe is missing $symbol" >&2
+            exit 1
+        fi
+    done
+    for symbol in UIScrollView 'setContentSize:'; do
+        if ! strings "$scroll_binary" | grep -Fq "$symbol"; then
+            echo "$target scroll probe is missing $symbol" >&2
+            exit 1
+        fi
+    done
+    if grep -Eqi 'swift_|Py[A-Z_]' "$scroll_symbols" || grep -Eqi 'swift|python' "$scroll_imports"; then
+        echo "unexpected Swift/Python runtime import in $target scroll probe" >&2
+        exit 1
+    fi
+
+    vtool -show-build "$scroll_binary" > "$scroll_build_info"
+    actual_scroll_deployment_target=$(awk '$1 == "minos" { print $2; exit }' "$scroll_build_info")
+    if [ "$actual_scroll_deployment_target" != "$deployment_target" ]; then
+        echo "$target scroll probe has deployment target ${actual_scroll_deployment_target:-unknown}; expected $deployment_target" >&2
+        exit 1
+    fi
+
     toggle_target_dir="target/ios-ui-toggle-link-$target"
     IPHONEOS_DEPLOYMENT_TARGET="$deployment_target" CARGO_TARGET_DIR="$toggle_target_dir" \
         cargo build --locked --release -p ios-ui \

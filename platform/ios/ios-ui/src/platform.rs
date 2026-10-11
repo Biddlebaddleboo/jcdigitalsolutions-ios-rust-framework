@@ -17,9 +17,11 @@ use objc2_core_foundation::{CGPoint, CGRect, CGSize};
 use objc2_foundation::{NSObjectProtocol, NSRange, NSString};
 use objc2_ui_kit::{
     UIButton, UIControlEvents, UIControlState, UIImage, UIImageView, UIKeyboardType, UILabel,
-    UILayoutConstraintAxis, UIStackView, UISwitch, UITextField, UITextInputTraits, UIView,
+    UILayoutConstraintAxis, UIScrollView, UIStackView, UISwitch, UITextField, UITextInputTraits,
+    UIView,
 };
 
+use crate::scroll_policy::validated_content_size;
 use crate::stack_spacing::is_valid_stack_spacing;
 use crate::text_conversion::{Utf16Error, decode_utf16};
 use crate::text_policy::{KeyboardHint, TextFieldCallback, input_traits, invoke_text_callback};
@@ -64,6 +66,13 @@ pub struct IosTextField {
 /// An iOS-native arranged-subview container backed by UIKit's `UIStackView`.
 pub struct IosStackView {
     native: Retained<UIStackView>,
+    _not_send: PhantomData<Rc<()>>,
+}
+
+/// A retained UIKit scroll view with an owned content host.
+pub struct IosScrollView {
+    native: Retained<UIScrollView>,
+    content: IosView,
     _not_send: PhantomData<Rc<()>>,
 }
 
@@ -252,6 +261,28 @@ impl IosUiBackend {
         })
     }
 
+    /// Adds a `UIScrollView` and zero-origin content host to `parent`.
+    ///
+    /// Add controls to [`IosScrollView::content_view_mut`] with the existing backend methods, then
+    /// set the total content size. Child placement and content size remain caller-owned.
+    pub fn add_scroll_view(&mut self, parent: &mut IosView, frame: Frame) -> Result<IosScrollView> {
+        let marker = main_thread_marker()?;
+        let native = UIScrollView::new(marker);
+        native.setFrame(native_frame(frame));
+        let content = UIView::new(marker);
+        content.setFrame(CGRect::new(CGPoint::new(0.0, 0.0), CGSize::new(0.0, 0.0)));
+        native.addSubview(&content);
+        parent.native.addSubview(&native);
+        Ok(IosScrollView {
+            native,
+            content: IosView {
+                native: content,
+                _not_send: PhantomData,
+            },
+            _not_send: PhantomData,
+        })
+    }
+
     /// Adds a native image view to `parent` with an optional app `UIImage`.
     ///
     /// The image reference lasts only for this call. `UIImageView.image` owns its non-null value.
@@ -432,6 +463,34 @@ impl IosStackView {
 
     /// Borrows the native stack view for caller-owned UIKit layout and integration.
     pub fn native_stack_view(&self) -> &UIStackView {
+        &self.native
+    }
+}
+
+impl IosScrollView {
+    /// Borrows the content host for insertion through existing `IosUiBackend` methods.
+    pub fn content_view_mut(&mut self) -> &mut IosView {
+        &mut self.content
+    }
+
+    /// Sets the scroll content dimensions in UIKit points without clamping.
+    ///
+    /// Both values must be finite and non-negative. The owned content host is resized at origin
+    /// `(0, 0)` to match UIKit's `contentSize`. The caller remains responsible for positioning
+    /// child views within that host.
+    pub fn set_content_size(&mut self, width: f64, height: f64) -> Result<()> {
+        let (width, height) = validated_content_size(width, height)?;
+        let _scroll_thread = main_thread_marker()?;
+        self.content.native.setFrame(CGRect::new(
+            CGPoint::new(0.0, 0.0),
+            CGSize::new(width, height),
+        ));
+        self.native.setContentSize(CGSize::new(width, height));
+        Ok(())
+    }
+
+    /// Borrows the native scroll view for caller-owned UIKit integration.
+    pub fn native_scroll_view(&self) -> &UIScrollView {
         &self.native
     }
 }

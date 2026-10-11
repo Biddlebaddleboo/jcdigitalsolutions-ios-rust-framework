@@ -1,8 +1,9 @@
 # iOS Native UI Controls
 
 `ios-ui` implements the portable `framework-ui` contract with public UIKit bindings. It creates a
-native `UIView`, adds native `UILabel`, `UIButton`, `UIImageView`, and single-line `UITextField`
-children, and supports synchronous label, button, image, and field operations. `Frame` maps to
+native `UIView`, adds native `UILabel`, `UIButton`, `UIImageView`, `UIScrollView`, and single-line
+`UITextField` children, and supports synchronous label, button, image, scroll-host, and field
+operations. `Frame` maps to
 `CGRect` in the parent view's local coordinate system; its logical units are UIKit points
 
 ## Main-thread and ownership rules
@@ -10,9 +11,9 @@ children, and supports synchronous label, button, image, and field operations. `
 - Construct `IosUiBackend` with `ios_runtime::main_thread::MainThread`; all UIKit creation and
   updates require the main thread. A failed runtime main-thread proof returns
   `framework_core::ErrorKind::Unavailable`. Backend and handle values are `!Send`/`!Sync`
-- `IosView`, `IosLabel`, `IosButton`, `IosImageView`, and `IosTextField` retain their native UIKit
-  objects. The caller owns hierarchy placement and must attach `IosView::native_view()` to a
-  caller-owned controller or parent view
+- `IosView`, `IosLabel`, `IosButton`, `IosImageView`, `IosScrollView`, and `IosTextField` retain
+  their native UIKit objects. The caller owns hierarchy placement and must attach
+  `IosView::native_view()` to a caller-owned controller or parent view
 - UIKit retains added child views in its native hierarchy. The Rust `IosButton` handle also owns
   the Rust `NSObject` target and action callback. Keep that handle alive while the button action
   should remain active; dropping it unregisters its target/action and releases Rust callback
@@ -58,6 +59,33 @@ let mut stack = backend.add_stack_view(
 let title = backend.add_label(&mut parent, child_frame, "Settings")?;
 stack.add_arranged_subview(title.native_label())?;
 ```
+
+## Native scrolling
+
+`IosUiBackend::add_scroll_view` adds a public UIKit `UIScrollView` and an owned zero-origin `UIView`
+content host to a caller-owned parent. Add labels, fields, stacks, and other existing controls to
+`IosScrollView::content_view_mut()` through the same backend methods used for other `IosView`
+values. `set_content_size(width, height)` accepts finite non-negative UIKit point dimensions only;
+it returns `InvalidInput` for negative or non-finite values and does not clamp accepted values. It
+sets both the content host frame at `(0, 0)` and UIKit `contentSize` to the exact dimensions. The
+caller positions child views and chooses the total content size. `native_scroll_view` exposes a
+typed UIKit escape. All creation and mutation require the main thread, and the retained handle is
+`!Send`/`!Sync`
+
+```rust
+let mut scroll = backend.add_scroll_view(&mut parent, scroll_frame)?;
+let title = backend.add_label(
+    scroll.content_view_mut(),
+    child_frame,
+    "Status",
+)?;
+scroll.set_content_size(240.0, 1024.0)?;
+let native_scroll_view = scroll.native_scroll_view();
+```
+
+The native compile/link probe establishes public class and selector linkage for device and Simulator
+targets. It does not establish runtime scrolling, clipping, gesture behavior, indicator behavior, or
+visual layout
 
 ## Single-line text input
 

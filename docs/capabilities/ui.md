@@ -49,3 +49,8 @@ This is not a full UI framework. Navigation, scenes, general presentation, layou
 virtual views, and application/window lifecycle are outside this contract. The portable
 intersection operation is scalar geometry; it does not provide the broader CoreGraphics or
 QuartzCore APIs in capability row 055
+
+The iOS backend also exposes `IosScrollView` over public UIKit `UIScrollView`. It owns a zero-origin
+content host that accepts existing iOS control handles and maps finite non-negative point dimensions
+to the host frame and native `contentSize`. This is an iOS extension only; it adds no portable scroll
+contract or general layout system

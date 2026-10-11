@@ -334,6 +334,10 @@ B503 adds `TextFieldControl` and callback-bearing `UiClient::add_text_field` wit
 
 B504 adds reusable `TextFieldInputMode::{Text, Password, Number, Decimal}` and `UiClient::add_text_field_with_mode`, preserving old plain-text methods. The iOS backend applies public `UITextInputTraits` secure entry and default / number / decimal keyboard hints before attaching the field; modes do not parse or rewrite text, and creation does not emit an edit callback. Submit/return handling, app-state observation, route wiring, and live keyboard or secure-rendering behavior remain incomplete or unverified
 
+### B505 — native iOS scroll host (row 003)
+
+B505 adds `IosScrollView` over public `UIScrollView` with a retained zero-origin `IosView` content host, existing backend control insertion, exact finite non-negative content sizing, and a typed native escape. Host regressions cover error classification and unclamped dimensions; device/Simulator compile-link checks establish class and selector linkage only, not runtime scrolling, clipping, gestures, indicators, or visual layout
+
 ## Active work selection and limits
 
 1. Inspect the canonical capability status/owner, the relevant family plan, then the named workstream plan and exact files/symbols. Do not scan the entire planning corpus or treat every existing plan as pending work.
