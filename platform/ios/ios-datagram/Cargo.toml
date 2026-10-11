@@ -1,0 +1,15 @@
+[package]
+name = "ios-datagram"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "Rust-native IPv4 UDP sessions through public iOS BSD sockets"
+
+[dependencies]
+framework-datagram = { path = "../../../crates/framework-datagram" }
+libc.workspace = true
+
+[lints]
+workspace = true

@@ -839,29 +839,33 @@
       "capability": "low-level network connection/listener where appropriate",
       "crate_module": [
         "framework-connection",
-        "ios-connection"
+        "ios-connection",
+        "framework-datagram",
+        "ios-datagram"
       ],
       "crate_module_status": "portable_contract_and_ios_backend_partial",
       "portability_class": "portable_with_platform_extensions",
       "portable_contract_status": "partial",
-      "portable_contract_note": "framework-connection defines bounded outbound TLS-over-TCP byte-stream values; listeners, UDP, and Bonjour are excluded.",
+      "portable_contract_note": "framework-connection defines bounded outbound TLS-over-TCP byte-stream values; framework-datagram defines owned IPv4 UDP datagrams with explicit receive bounds and cancellation. Neither contract includes TCP listeners, multicast membership, or Bonjour.",
       "ios_implementation_class": "B",
       "implementation_status": "partial",
-      "status_reason": "B24 implements one bounded outbound TLS-over-TCP byte stream; listeners, UDP, Bonjour, HTTP, and WebKit are excluded.",
+      "status_reason": "B24 implements one bounded outbound TLS-over-TCP byte stream. B497 adds app-owned IPv4 UDP bind/send/receive with source endpoints, finite/nonblocking waits, raw native errors, explicit cancellation and close; multicast groups, peer discovery, TCP listeners, and application protocols remain excluded.",
       "minimum_ios_version": "12.0",
       "required_frameworks": [
         "Network"
       ],
       "required_permissions": [
-        "Local Network access for local-network destinations on iOS 14+ only"
+        "Local Network access for outgoing local-network TCP/UDP unicast on iOS 14+; incoming UDP unicast alone does not trigger this check"
       ],
       "required_info_plist_keys": [
         "NSLocalNetworkUsageDescription"
       ],
-      "entitlements": [],
+      "entitlements": [
+        "com.apple.developer.networking.multicast for apps that use broadcast or multicast traffic; B497 defaults broadcast off and does not implement multicast"
+      ],
       "device_only_restrictions": [],
       "swift_abi_requirement": false,
-      "metadata_verification": "PLAN_IOS_CONNECTION.md verifies the selected Network.framework APIs from iOS 12.0; outbound TCP to local-network addresses on iOS 14+ requires host Local Network authorization and NSLocalNetworkUsageDescription; no listener, Bonjour, or multicast entitlement is included.",
+      "metadata_verification": "PLAN_IOS_CONNECTION.md verifies the selected Network.framework APIs from iOS 12.0. B497 uses public POSIX IPv4 socket calls at iOS 12.0 / Simulator 14.0 and imports libSystem.B.dylib plus the public libiconv.2.dylib emitted by the workspace libc crate on iOS; the link probe has no undefined iconv symbols. TN3179 states BSD sockets share Local Network privacy: outgoing local-network UDP unicast requires access, incoming UDP unicast alone does not, and broadcast/multicast traffic requires com.apple.developer.networking.multicast; direct local-network use requires NSLocalNetworkUsageDescription. Target link checks do not prove live delivery, privacy prompts, or entitlement behavior.",
       "parity_status": "not_tested_live_behavior_or_Apple_parity",
       "performance_status": "not_measured",
       "native_escape_handle_available": false,

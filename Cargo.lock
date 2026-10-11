@@ -204,6 +204,10 @@ name = "framework-data"
 version = "0.1.0"
 
 [[package]]
+name = "framework-datagram"
+version = "0.1.0"
+
+[[package]]
 name = "framework-device-integrity"
 version = "0.1.0"
 
@@ -646,6 +650,14 @@ version = "0.1.0"
 dependencies = [
  "framework-data",
  "objc2-core-foundation",
+]
+
+[[package]]
+name = "ios-datagram"
+version = "0.1.0"
+dependencies = [
+ "framework-datagram",
+ "libc",
 ]
 
 [[package]]

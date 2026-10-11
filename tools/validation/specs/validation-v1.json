@@ -111,9 +111,110 @@
     [
       "ios-sharing",
       "ios-runtime"
-    ]
+    ],
+["ios-microphone-pcm-recorder","ios-media-authorization"],["ios-datagram","framework-datagram"]
   ],
   "pilots": [
+    {
+      "abi_scripts": [
+        "platform/ios/ios-datagram/check-link-imports.sh"
+      ],
+      "abi_targets": [{"minimum_os":"12.0","sdk":"iphoneos","triple":"aarch64-apple-ios"},{"minimum_os":"14.0","sdk":"iphonesimulator","triple":"aarch64-apple-ios-sim"}],
+      "adapters": [],
+      "cargo_tree": false,
+      "check_script": "platform/ios/ios-datagram/check-link-imports.sh",
+      "clippy_all_targets": true,
+      "clippy_lib": false,
+      "docs": [
+        "docs/ios/datagram.md",
+        "docs/capabilities/capability-status.json",
+        "PLAN_RIDESHARE_BOT_MIGRATION.md"
+      ],
+      "expected_imports": [
+        "libSystem.B.dylib",
+        "libiconv.2.dylib"
+      ],
+      "fmt_all": false,
+      "guards": [
+        {
+          "message": "socket reuse must be configured before bind",
+          "must_exist": true,
+          "path": "platform/ios/ios-datagram/src/socket.rs",
+          "text": "set_socket_option(&socket, libc::SO_REUSEADDR"
+        },
+        {
+          "message": "broadcast stays an explicit socket option",
+          "must_exist": true,
+          "path": "platform/ios/ios-datagram/src/socket.rs",
+          "text": "set_socket_option(&socket, libc::SO_BROADCAST"
+        },
+        {
+          "message": "receive cancellation uses a pollable wake descriptor",
+          "must_exist": true,
+          "path": "platform/ios/ios-datagram/src/socket.rs",
+          "text": "libc::poll"
+        },
+        {
+          "message": "native failures preserve errno",
+          "must_exist": true,
+          "path": "platform/ios/ios-datagram/src/socket.rs",
+          "text": "DatagramError::NativeErrno"
+        },
+        {
+          "message": "oversized receives reject rather than truncate",
+          "must_exist": true,
+          "path": "platform/ios/ios-datagram/src/socket.rs",
+          "text": "receive_bound_detects_truncation_instead_of_returning_partial_data"
+        },
+        {
+          "message": "timeout, nonblocking, and errno regression stays registered",
+          "must_exist": true,
+          "path": "platform/ios/ios-datagram/src/socket.rs",
+          "text": "nonblocking_timeout_and_native_errno_are_distinct"
+        },
+        {
+          "message": "cancel leaves the socket usable",
+          "must_exist": true,
+          "path": "platform/ios/ios-datagram/src/socket.rs",
+          "text": "cancel_wakes_only_the_current_receive_and_socket_remains_usable"
+        },
+        {
+          "message": "close wakes waiters and rejects later calls",
+          "must_exist": true,
+          "path": "platform/ios/ios-datagram/src/socket.rs",
+          "text": "close_wakes_waiter_is_idempotent_and_rejects_later_calls"
+        },
+        {
+          "message": "portable core remains no_std",
+          "must_exist": true,
+          "path": "crates/framework-datagram/src/lib.rs",
+          "text": "#![no_std]"
+        }
+      ],
+      "id": "ios-datagram",
+      "manifest": "platform/ios/ios-datagram/Cargo.toml",
+      "offline": true,
+      "package": "ios-datagram",
+      "rustdoc_warnings": true,
+      "scoped_files": [
+        "PLAN_RIDESHARE_BOT_MIGRATION.md",
+        "crates/framework-datagram/Cargo.toml",
+        "crates/framework-datagram/src/lib.rs",
+        "platform/ios/ios-datagram/Cargo.toml",
+        "platform/ios/ios-datagram/check-link-imports.sh",
+        "platform/ios/ios-datagram/examples/link_probe.rs",
+        "platform/ios/ios-datagram/src/lib.rs",
+        "platform/ios/ios-datagram/src/socket.rs"
+      ],
+      "shell_scripts": [
+        "platform/ios/ios-datagram/check-link-imports.sh"
+      ],
+      "source_dirs": [
+        "crates/framework-datagram",
+        "platform/ios/ios-datagram"
+      ],
+      "targets": [{"minimum_os":"12.0","sdk":"iphoneos","triple":"aarch64-apple-ios"},{"minimum_os":"14.0","sdk":"iphonesimulator","triple":"aarch64-apple-ios-sim"}]
+    },
     {
       "abi_scripts": [
         "platform/ios/ios-app-lifecycle/check-link-imports.sh"
@@ -179,21 +280,17 @@
       "package": "ios-app-lifecycle",
       "rustdoc_warnings": false,
       "scoped_files": [
-        "Cargo.lock",
         "platform/ios/ios-app-lifecycle/Cargo.toml",
-        "platform/ios/ios-app-lifecycle/check.sh",
         "platform/ios/ios-app-lifecycle/check-link-imports.sh",
         "platform/ios/ios-app-lifecycle/check-surface.sh",
+        "platform/ios/ios-app-lifecycle/check.sh",
         "platform/ios/ios-app-lifecycle/examples/link_probe.rs",
         "platform/ios/ios-app-lifecycle/src/lib.rs",
-        "platform/ios/ios-app-lifecycle/src/platform.rs",
-        "platform/ios/ios-app-lifecycle/src/queue.rs",
         "platform/ios/ios-app-lifecycle/src/mapping.rs",
         "platform/ios/ios-app-lifecycle/src/observers.rs",
-        "docs/capabilities/capability-status.json",
-        "docs/ios/app-lifecycle.md",
-        "tools/validation/adapters/check_ios_app_lifecycle.py",
-        "tools/validation/specs/validation-v1.json"
+        "platform/ios/ios-app-lifecycle/src/platform.rs",
+        "platform/ios/ios-app-lifecycle/src/queue.rs",
+        "tools/validation/adapters/check_ios_app_lifecycle.py"
       ],
       "shell_scripts": [
         "platform/ios/ios-app-lifecycle/check.sh",
@@ -334,20 +431,11 @@
       "package": "ios-microphone-recorder",
       "rustdoc_warnings": false,
       "scoped_files": [
-        "Cargo.lock",
+        "PLAN.md",
         "platform/ios/ios-microphone-recorder/Cargo.toml",
         "platform/ios/ios-microphone-recorder/check-link-imports.sh",
         "platform/ios/ios-microphone-recorder/examples/microphone_recorder_link_probe.rs",
-        "platform/ios/ios-microphone-recorder/src/lib.rs",
-        "platform/ios/ios-media-authorization/src/lib.rs",
-        "platform/ios/ios-media-authorization/src/platform.rs",
-        "platform/ios/ios-media-authorization/src/status.rs",
-        "crates/framework-media-authorization/src/lib.rs",
-        "docs/capabilities/capability-status.json",
-        "docs/generated/VALIDATION_PROFILES.md",
-        "docs/ios/microphone-recorder.md",
-        "PLAN.md",
-        "tools/validation/specs/validation-v1.json"
+        "platform/ios/ios-microphone-recorder/src/lib.rs"
       ],
       "shell_scripts": [
         "platform/ios/ios-microphone-recorder/check-link-imports.sh"
@@ -744,20 +832,11 @@
       "package": "ios-microphone-pcm-stream",
       "rustdoc_warnings": false,
       "scoped_files": [
-        "Cargo.lock",
+        "PLAN.md",
         "platform/ios/ios-microphone-pcm-stream/Cargo.toml",
         "platform/ios/ios-microphone-pcm-stream/check-link-imports.sh",
         "platform/ios/ios-microphone-pcm-stream/examples/microphone_pcm_stream_link_probe.rs",
-        "platform/ios/ios-microphone-pcm-stream/src/lib.rs",
-        "platform/ios/ios-media-authorization/src/lib.rs",
-        "platform/ios/ios-media-authorization/src/platform.rs",
-        "platform/ios/ios-media-authorization/src/status.rs",
-        "crates/framework-media-authorization/src/lib.rs",
-        "docs/capabilities/capability-status.json",
-        "docs/generated/VALIDATION_PROFILES.md",
-        "docs/ios/microphone-pcm-stream.md",
-        "PLAN.md",
-        "tools/validation/specs/validation-v1.json"
+        "platform/ios/ios-microphone-pcm-stream/src/lib.rs"
       ],
       "shell_scripts": [
         "platform/ios/ios-microphone-pcm-stream/check-link-imports.sh"
@@ -822,23 +901,17 @@
       "package": "ios-app-scenes",
       "rustdoc_warnings": false,
       "scoped_files": [
-        "Cargo.lock",
-        "platform/ios/ios-app-scenes/Cargo.toml",
-        "platform/ios/ios-app-scenes/README.md",
-        "platform/ios/ios-app-scenes/check.sh",
-        "platform/ios/ios-app-scenes/check-link-imports.sh",
-        "platform/ios/ios-app-scenes/examples/link_check.rs",
-        "platform/ios/ios-app-scenes/src/backend.rs",
-        "platform/ios/ios-app-scenes/src/lib.rs",
-        "docs/ios/app-scenes.md",
-        "docs/ios/app-lifecycle.md",
-        "docs/capabilities/capability-status.json",
-        "docs/capabilities/README.md",
         "PLAN.md",
         "PLAN_CAPABILITIES_APPLICATION_LIFECYCLE.md",
         "PLAN_IOS_SCENE_SNAPSHOT.md",
         "PLAN_VALIDATION_IOS_SCENE_SNAPSHOT.md",
-        "tools/validation/specs/validation-v1.json"
+        "platform/ios/ios-app-scenes/Cargo.toml",
+        "platform/ios/ios-app-scenes/README.md",
+        "platform/ios/ios-app-scenes/check-link-imports.sh",
+        "platform/ios/ios-app-scenes/check.sh",
+        "platform/ios/ios-app-scenes/examples/link_check.rs",
+        "platform/ios/ios-app-scenes/src/backend.rs",
+        "platform/ios/ios-app-scenes/src/lib.rs"
       ],
       "shell_scripts": [
         "platform/ios/ios-app-scenes/check.sh",
@@ -927,27 +1000,22 @@
       "package": "ios-media-authorization",
       "rustdoc_warnings": false,
       "scoped_files": [
-        "Cargo.lock",
+        "PLAN.md",
+        "PLAN_CAPABILITIES_MEDIA_AUTHORIZATION.md",
+        "PLAN_IOS_MEDIA_AUTHORIZATION.md",
+        "PLAN_IOS_NATIVE.md",
         "crates/framework-media-authorization/src/lib.rs",
         "platform/ios/ios-media-authorization/Cargo.toml",
-        "platform/ios/ios-media-authorization/check.sh",
-        "platform/ios/ios-media-authorization/check-surface.sh",
         "platform/ios/ios-media-authorization/check-link-imports.sh",
+        "platform/ios/ios-media-authorization/check-surface.sh",
+        "platform/ios/ios-media-authorization/check.sh",
         "platform/ios/ios-media-authorization/examples/media_authorization_link_probe.rs",
         "platform/ios/ios-media-authorization/src/lib.rs",
         "platform/ios/ios-media-authorization/src/operation.rs",
         "platform/ios/ios-media-authorization/src/platform.rs",
         "platform/ios/ios-media-authorization/src/request.rs",
         "platform/ios/ios-media-authorization/src/status.rs",
-        "docs/capabilities/media-authorization.md",
-        "docs/capabilities/capability-status.json",
-        "docs/ios/media-authorization.md",
-        "PLAN.md",
-        "PLAN_CAPABILITIES_MEDIA_AUTHORIZATION.md",
-        "PLAN_IOS_MEDIA_AUTHORIZATION.md",
-        "PLAN_IOS_NATIVE.md",
-        "tools/validation/adapters/check_media_authorization.py",
-        "tools/validation/specs/validation-v1.json"
+        "tools/validation/adapters/check_media_authorization.py"
       ],
       "shell_scripts": [
         "platform/ios/ios-media-authorization/check.sh",
@@ -2519,21 +2587,14 @@
       "package": "ios-camera-capture-session",
       "rustdoc_warnings": false,
       "scoped_files": [
-        "Cargo.lock",
+        "PLAN.md",
+        "PLAN_IOS_CAMERA_CAPTURE_SESSION.md",
         "crates/framework-media-authorization/Cargo.toml",
-        "crates/framework-media-authorization/src/lib.rs",
         "platform/ios/ios-camera-capture-session/Cargo.toml",
         "platform/ios/ios-camera-capture-session/check-link-imports.sh",
         "platform/ios/ios-camera-capture-session/examples/camera_capture_link_probe.rs",
         "platform/ios/ios-camera-capture-session/src/lib.rs",
-        "platform/ios/ios-media-authorization/Cargo.toml",
-        "platform/ios/ios-media-authorization/src/lib.rs",
-        "platform/ios/ios-media-authorization/src/platform.rs",
-        "platform/ios/ios-media-authorization/src/status.rs",
-        "docs/capabilities/capability-status.json",
-        "PLAN.md",
-        "PLAN_IOS_CAMERA_CAPTURE_SESSION.md",
-        "tools/validation/specs/validation-v1.json"
+        "platform/ios/ios-media-authorization/Cargo.toml"
       ],
       "shell_scripts": [
         "platform/ios/ios-camera-capture-session/check-link-imports.sh"
@@ -2680,19 +2741,14 @@
       "package": "ios-homekit-identify-status",
       "rustdoc_warnings": false,
       "scoped_files": [
-        "Cargo.lock",
-        "platform/ios/ios-homekit-identify-status/src/lib.rs",
-        "platform/ios/ios-homekit-identify-status/Cargo.toml",
-        "platform/ios/ios-homekit-identify-status/check.sh",
-        "platform/ios/ios-homekit-identify-status/check-link-imports.sh",
-        "platform/ios/ios-homekit-identify-status/examples/homekit_identify_link_probe.rs",
-        "docs/ios/homekit-identify-status.md",
-        "PLAN_CAPABILITIES_HOMEKIT.md",
         "PLAN.md",
-        "docs/capabilities/capability-status.json",
-        "docs/generated/CAPABILITY_STATUS.md",
-        "tools/validation/adapters/check_homekit_contract.py",
-        "tools/validation/specs/validation-v1.json"
+        "PLAN_CAPABILITIES_HOMEKIT.md",
+        "platform/ios/ios-homekit-identify-status/Cargo.toml",
+        "platform/ios/ios-homekit-identify-status/check-link-imports.sh",
+        "platform/ios/ios-homekit-identify-status/check.sh",
+        "platform/ios/ios-homekit-identify-status/examples/homekit_identify_link_probe.rs",
+        "platform/ios/ios-homekit-identify-status/src/lib.rs",
+        "tools/validation/adapters/check_homekit_contract.py"
       ],
       "shell_scripts": [
         "platform/ios/ios-homekit-identify-status/check.sh",
@@ -2768,17 +2824,16 @@
       "package": "ios-photogrammetry-status",
       "rustdoc_warnings": true,
       "scoped_files": [
+        "PLAN_CAPABILITIES_REALITYKIT.md",
         "interop/swift-abi-core/include/swift_abi_runtime.h",
         "platform/ios/ios-photogrammetry-status/Cargo.toml",
-        "platform/ios/ios-photogrammetry-status/check.sh",
-        "platform/ios/ios-photogrammetry-status/check-swiftcall.sh",
-        "platform/ios/ios-photogrammetry-status/check-link-imports.sh",
-        "platform/ios/ios-photogrammetry-status/src/lib.rs",
-        "platform/ios/ios-photogrammetry-status/native/photogrammetry_status.c",
         "platform/ios/ios-photogrammetry-status/build.rs",
+        "platform/ios/ios-photogrammetry-status/check-link-imports.sh",
+        "platform/ios/ios-photogrammetry-status/check-swiftcall.sh",
+        "platform/ios/ios-photogrammetry-status/check.sh",
         "platform/ios/ios-photogrammetry-status/examples/photogrammetry_status_link_probe.rs",
-        "PLAN_CAPABILITIES_REALITYKIT.md",
-        "docs/ios/photogrammetry-status.md"
+        "platform/ios/ios-photogrammetry-status/native/photogrammetry_status.c",
+        "platform/ios/ios-photogrammetry-status/src/lib.rs"
       ],
       "shell_scripts": [
         "platform/ios/ios-photogrammetry-status/check.sh",
@@ -2848,18 +2903,17 @@
       "package": "ios-alarmkit-status",
       "rustdoc_warnings": true,
       "scoped_files": [
-        "interop/swift-abi-core/include/swift_abi_runtime.h",
+        ".github/workflows/ci.yml",
         "PLAN_CAPABILITIES_ALARMKIT.md",
         "PLAN_SWIFT_ABI.md",
-        "docs/ios/alarmkit-status.md",
-        ".github/workflows/ci.yml",
+        "interop/swift-abi-core/include/swift_abi_runtime.h",
         "platform/ios/ios-alarmkit-status/Cargo.toml",
         "platform/ios/ios-alarmkit-status/build.rs",
-        "platform/ios/ios-alarmkit-status/check.sh",
         "platform/ios/ios-alarmkit-status/check-link-imports.sh",
+        "platform/ios/ios-alarmkit-status/check.sh",
+        "platform/ios/ios-alarmkit-status/examples/alarmkit_status_link_probe.rs",
         "platform/ios/ios-alarmkit-status/native/alarmkit_status.c",
-        "platform/ios/ios-alarmkit-status/src/lib.rs",
-        "platform/ios/ios-alarmkit-status/examples/alarmkit_status_link_probe.rs"
+        "platform/ios/ios-alarmkit-status/src/lib.rs"
       ],
       "shell_scripts": [
         "platform/ios/ios-alarmkit-status/check.sh",
@@ -3105,18 +3159,17 @@
       "package": "ios-activitykit-status",
       "rustdoc_warnings": true,
       "scoped_files": [
-        "interop/swift-abi-core/include/swift_abi_runtime.h",
         "PLAN_CAPABILITIES_ACTIVITYKIT.md",
+        "interop/swift-abi-core/include/swift_abi_runtime.h",
         "platform/ios/ios-activitykit-status/Cargo.toml",
         "platform/ios/ios-activitykit-status/README.md",
-        "platform/ios/ios-activitykit-status/check.sh",
-        "platform/ios/ios-activitykit-status/scripts/check-swiftcall.sh",
-        "platform/ios/ios-activitykit-status/scripts/check-link-imports.sh",
-        "platform/ios/ios-activitykit-status/src/lib.rs",
-        "platform/ios/ios-activitykit-status/native/activitykit_status.c",
         "platform/ios/ios-activitykit-status/build.rs",
+        "platform/ios/ios-activitykit-status/check.sh",
         "platform/ios/ios-activitykit-status/examples/activitykit_status_link_probe.rs",
-        "docs/ios/activitykit-status.md"
+        "platform/ios/ios-activitykit-status/native/activitykit_status.c",
+        "platform/ios/ios-activitykit-status/scripts/check-link-imports.sh",
+        "platform/ios/ios-activitykit-status/scripts/check-swiftcall.sh",
+        "platform/ios/ios-activitykit-status/src/lib.rs"
       ],
       "shell_scripts": [
         "platform/ios/ios-activitykit-status/check.sh",
@@ -3462,24 +3515,20 @@
       "package": "ios-photos",
       "rustdoc_warnings": false,
       "scoped_files": [
-        "Cargo.lock",
+        "PLAN.md",
         "crates/framework-photos/Cargo.toml",
         "crates/framework-photos/src/lib.rs",
         "platform/ios/ios-photos/Cargo.toml",
         "platform/ios/ios-photos/check-link-imports.sh",
         "platform/ios/ios-photos/examples/ios_photos_link_import_probe.rs",
         "platform/ios/ios-photos/examples/photos_api_floor.m",
-        "platform/ios/ios-photos/src/import.rs",
         "platform/ios/ios-photos/src/fetch.rs",
+        "platform/ios/ios-photos/src/import.rs",
         "platform/ios/ios-photos/src/lib.rs",
         "platform/ios/ios-photos/src/operation.rs",
         "platform/ios/ios-photos/src/platform.rs",
         "platform/ios/ios-photos/src/save.rs",
-        "platform/ios/ios-photos/src/status.rs",
-        "docs/capabilities/capability-status.json",
-        "docs/ios/photos.md",
-        "PLAN.md",
-        "tools/validation/specs/validation-v1.json"
+        "platform/ios/ios-photos/src/status.rs"
       ],
       "shell_scripts": [
         "platform/ios/ios-photos/check-link-imports.sh"
@@ -3847,21 +3896,14 @@
       "package": "ios-playback",
       "rustdoc_warnings": false,
       "scoped_files": [
-        "Cargo.lock",
-        "platform/ios/ios-playback/Cargo.toml",
-        "platform/ios/ios-playback/check.sh",
-        "platform/ios/ios-playback/check-link-imports.sh",
-        "platform/ios/ios-playback/examples/ios_playback_link_probe.rs",
-        "platform/ios/ios-playback/src/lib.rs",
-        "docs/capabilities/capability-status.json",
-        "docs/capabilities/playback.md",
-        "docs/generated/CAPABILITY_STATUS.md",
-        "docs/generated/VALIDATION_PROFILES.md",
-        "docs/ios/playback.md",
-        "platform/ios/ios-playback/README.md",
         "PLAN.md",
         "PLAN_IOS_PLAYBACK.md",
-        "tools/validation/specs/validation-v1.json"
+        "platform/ios/ios-playback/Cargo.toml",
+        "platform/ios/ios-playback/README.md",
+        "platform/ios/ios-playback/check-link-imports.sh",
+        "platform/ios/ios-playback/check.sh",
+        "platform/ios/ios-playback/examples/ios_playback_link_probe.rs",
+        "platform/ios/ios-playback/src/lib.rs"
       ],
       "shell_scripts": [
         "platform/ios/ios-playback/check.sh",
@@ -4807,7 +4849,8 @@
       "package": "ios-contacts",
       "rustdoc_warnings": true,
       "scoped_files": [
-        "Cargo.lock",
+        "PLAN.md",
+        "PLAN_IOS_CONTACTS.md",
         "crates/framework-contacts/Cargo.toml",
         "crates/framework-contacts/src/lib.rs",
         "platform/ios/ios-contacts/Cargo.toml",
@@ -4815,27 +4858,21 @@
         "platform/ios/ios-contacts/examples/ios_contacts_fetch_link_probe.rs",
         "platform/ios/ios-contacts/scripts/check-link-imports.sh",
         "platform/ios/ios-contacts/src/conversion.rs",
-        "platform/ios/ios-contacts/src/fetch.rs",
-        "platform/ios/ios-contacts/src/search.rs",
         "platform/ios/ios-contacts/src/create.rs",
         "platform/ios/ios-contacts/src/delete.rs",
-        "platform/ios/ios-contacts/src/snapshot.rs",
-        "platform/ios/ios-contacts/src/lib.rs",
-        "platform/ios/ios-contacts/src/platform.rs",
-        "platform/ios/ios-contacts/src/operation.rs",
-        "docs/capabilities/contacts.md",
-        "docs/capabilities/capability-status.json",
-        "docs/ios/contacts.md",
-        "PLAN_IOS_CONTACTS.md",
-        "PLAN.md",
-        "tools/validation/specs/validation-v1.json",
-        "platform/ios/ios-contacts/src/update.rs",
-        "platform/ios/ios-contacts/tests/update_contract.rs",
-        "platform/ios/ios-contacts/tests/delete_contract.rs",
         "platform/ios/ios-contacts/src/export.rs",
-        "platform/ios/ios-contacts/tests/export_contract.rs",
+        "platform/ios/ios-contacts/src/fetch.rs",
+        "platform/ios/ios-contacts/src/lib.rs",
+        "platform/ios/ios-contacts/src/operation.rs",
+        "platform/ios/ios-contacts/src/platform.rs",
+        "platform/ios/ios-contacts/src/search.rs",
+        "platform/ios/ios-contacts/src/snapshot.rs",
         "platform/ios/ios-contacts/src/thumbnail.rs",
-        "platform/ios/ios-contacts/tests/thumbnail_contract.rs"
+        "platform/ios/ios-contacts/src/update.rs",
+        "platform/ios/ios-contacts/tests/delete_contract.rs",
+        "platform/ios/ios-contacts/tests/export_contract.rs",
+        "platform/ios/ios-contacts/tests/thumbnail_contract.rs",
+        "platform/ios/ios-contacts/tests/update_contract.rs"
       ],
       "shell_scripts": [
         "platform/ios/ios-contacts/scripts/check-link-imports.sh"
@@ -5531,34 +5568,27 @@
       "package": "ios-calendar",
       "rustdoc_warnings": true,
       "scoped_files": [
-        "Cargo.lock",
+        "PLAN.md",
+        "PLAN_IOS_CALENDAR.md",
+        "PLAN_VALIDATION_IOS_CALENDAR.md",
         "crates/framework-calendar/Cargo.toml",
         "crates/framework-calendar/src/lib.rs",
+        "crates/framework-calendar/src/reminder_status.rs",
         "platform/ios/ios-calendar/Cargo.toml",
-        "platform/ios/ios-calendar/check.sh",
         "platform/ios/ios-calendar/check-link-imports.sh",
+        "platform/ios/ios-calendar/check.sh",
         "platform/ios/ios-calendar/src/conversion.rs",
         "platform/ios/ios-calendar/src/event_create.rs",
         "platform/ios/ios-calendar/src/event_delete.rs",
         "platform/ios/ios-calendar/src/event_query.rs",
-        "platform/ios/ios-calendar/src/lib.rs",
         "platform/ios/ios-calendar/src/event_update.rs",
+        "platform/ios/ios-calendar/src/lib.rs",
         "platform/ios/ios-calendar/src/platform.rs",
+        "platform/ios/ios-calendar/src/reminder_create.rs",
         "platform/ios/ios-calendar/tests/event_create_contract.rs",
         "platform/ios/ios-calendar/tests/event_delete_contract.rs",
         "platform/ios/ios-calendar/tests/event_update_contract.rs",
-        "docs/capabilities/capability-status.json",
-        "docs/capabilities/calendar.md",
-        "docs/generated/CAPABILITY_STATUS.md",
-        "docs/generated/VALIDATION_PROFILES.md",
-        "docs/ios/calendar.md",
-        "PLAN.md",
-        "PLAN_IOS_CALENDAR.md",
-        "PLAN_VALIDATION_IOS_CALENDAR.md",
-        "tools/validation/specs/validation-v1.json",
-        "platform/ios/ios-calendar/src/reminder_create.rs",
-        "platform/ios/ios-calendar/tests/reminder_create_contract.rs",
-        "crates/framework-calendar/src/reminder_status.rs"
+        "platform/ios/ios-calendar/tests/reminder_create_contract.rs"
       ],
       "shell_scripts": [
         "platform/ios/ios-calendar/check.sh",
@@ -5651,7 +5681,7 @@
       "package": "ios-location",
       "rustdoc_warnings": false,
       "scoped_files": [
-        "Cargo.lock",
+        "PLAN_IOS_LOCATION.md",
         "crates/framework-location/src/lib.rs",
         "platform/ios/ios-location/Cargo.toml",
         "platform/ios/ios-location/check-link-imports.sh",
@@ -5660,11 +5690,7 @@
         "platform/ios/ios-location/src/lib.rs",
         "platform/ios/ios-location/src/operation.rs",
         "platform/ios/ios-location/src/platform.rs",
-        "platform/ios/ios-location/tests/portable_updates.rs",
-        "docs/capabilities/capability-status.json",
-        "docs/ios/location.md",
-        "PLAN_IOS_LOCATION.md",
-        "tools/validation/specs/validation-v1.json"
+        "platform/ios/ios-location/tests/portable_updates.rs"
       ],
       "shell_scripts": [
         "platform/ios/ios-location/check-link-imports.sh"
@@ -6174,29 +6200,24 @@
       "package": "ios-ui",
       "rustdoc_warnings": true,
       "scoped_files": [
+        "PLAN_IOS_UI.md",
         "crates/framework-ui/src/lib.rs",
         "platform/ios/ios-ui/Cargo.toml",
-        "platform/ios/ios-ui/src/lib.rs",
-        "platform/ios/ios-ui/src/platform.rs",
-        "platform/ios/ios-ui/src/geometry.rs",
-        "platform/ios/ios-ui/src/text_conversion.rs",
-        "platform/ios/ios-ui/src/text_metrics.rs",
-        "platform/ios/ios-ui/check-link-imports.sh",
-        "platform/ios/ios-ui/check-text-metrics-link-imports.sh",
         "platform/ios/ios-ui/check-image-view-link-imports.sh",
+        "platform/ios/ios-ui/check-link-imports.sh",
         "platform/ios/ios-ui/check-text-field-link-imports.sh",
+        "platform/ios/ios-ui/check-text-metrics-link-imports.sh",
         "platform/ios/ios-ui/examples/ios_ui_geometry_link_import_probe.rs",
-        "platform/ios/ios-ui/examples/ios_ui_text_metrics_link_import_probe.rs",
         "platform/ios/ios-ui/examples/ios_ui_image_view_link_probe.rs",
         "platform/ios/ios-ui/examples/ios_ui_text_field_link_probe.rs",
+        "platform/ios/ios-ui/examples/ios_ui_text_metrics_link_import_probe.rs",
         "platform/ios/ios-ui/probes/geometry-layout.c",
         "platform/ios/ios-ui/probes/text-metrics-layout.c",
-        "docs/ios/ui.md",
-        "docs/capabilities/capability-status.json",
-        "docs/generated/CAPABILITY_STATUS.md",
-        "docs/generated/VALIDATION_PROFILES.md",
-        "PLAN_IOS_UI.md",
-        "tools/validation/specs/validation-v1.json"
+        "platform/ios/ios-ui/src/geometry.rs",
+        "platform/ios/ios-ui/src/lib.rs",
+        "platform/ios/ios-ui/src/platform.rs",
+        "platform/ios/ios-ui/src/text_conversion.rs",
+        "platform/ios/ios-ui/src/text_metrics.rs"
       ],
       "shell_scripts": [
         "platform/ios/ios-ui/check-link-imports.sh",
@@ -6329,19 +6350,13 @@
       "package": "ios-sharing",
       "rustdoc_warnings": true,
       "scoped_files": [
-        "Cargo.lock",
+        "PLAN.md",
         "crates/framework-sharing/src/lib.rs",
         "platform/ios/ios-sharing/Cargo.toml",
         "platform/ios/ios-sharing/check-clipboard-link-imports.sh",
         "platform/ios/ios-sharing/examples/clipboard_link_check.rs",
         "platform/ios/ios-sharing/src/lib.rs",
-        "platform/ios/ios-sharing/src/platform.rs",
-        "docs/capabilities/capability-status.json",
-        "docs/generated/CAPABILITY_STATUS.md",
-        "docs/generated/VALIDATION_PROFILES.md",
-        "docs/ios/sharing.md",
-        "PLAN.md",
-        "tools/validation/specs/validation-v1.json"
+        "platform/ios/ios-sharing/src/platform.rs"
       ],
       "shell_scripts": [
         "platform/ios/ios-sharing/check-clipboard-link-imports.sh"
@@ -6529,6 +6544,16 @@
     {
       "path": "platform/ios/ios-ui/",
       "node": "ios-ui",
+      "global": false
+    },
+    {
+      "path": "crates/framework-datagram/",
+      "node": "framework-datagram",
+      "global": false
+    },
+    {
+      "path": "platform/ios/ios-datagram/",
+      "node": "ios-datagram",
       "global": false
     }
   ]

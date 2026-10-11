@@ -1,0 +1,13 @@
+[package]
+name = "framework-datagram"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "Portable IPv4 UDP datagram values and a static backend contract"
+
+[dependencies]
+
+[lints]
+workspace = true
