@@ -244,6 +244,10 @@ B475 adds `IosCameraCaptureSession::set_zoom_factor(f64)` for its already select
 
 B476 adds `IosCameraCaptureSession::set_focus(IosCameraFocusMode, Option<NormalizedFocusPoint>)` for its already selected device. Auto focuses once, ContinuousAuto continues automatic focus, and Locked holds the current lens position; a point with Locked is rejected. Finite normalized points use AVFoundation's inclusive `[0.0, 1.0]` image-coordinate range; mode/point support checks precede the lock, then the requested point precedes the mode under the existing RAII unlock guard. Host regressions and registered iOS device/Simulator compile/link selector checks do not prove autofocus, orientation mapping, Simulator execution, or physical-device behavior; see [PLAN_IOS_CAMERA_CAPTURE_SESSION.md](PLAN_IOS_CAMERA_CAPTURE_SESSION.md)
 
+### B477 — foreground Core Location update sessions (row 037)
+
+B477 adds a statically dispatched portable foreground-update session and iOS `CLLocationManager.startUpdatingLocation()` backend, requiring existing foreground-capable authorization without prompting. Callback batches enter a bounded 16-event FIFO; oldest-event overflow is reported by a saturating `missed_before` count, and per-read cancellation is distinct from dropping the session, which detaches its delegate and stops updates. The registered profile passed 39 checks with 2 runtime skips on the rebased source snapshot; live location delivery, permission UI, and suspended-app behavior remain unverified; see [PLAN_IOS_LOCATION.md](PLAN_IOS_LOCATION.md)
+
 ## Active work selection and limits
 
 1. Inspect the canonical capability status/owner, the relevant family plan, then the named workstream plan and exact files/symbols. Do not scan the entire planning corpus or treat every existing plan as pending work.

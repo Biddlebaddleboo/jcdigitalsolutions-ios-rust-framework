@@ -45,24 +45,29 @@ system warning when services are disabled; current Apple docs say location attem
 report an error. This audit did not query a live device or verify `requestLocation()` warning
 behavior, so B5 makes no runtime claim here.
 
+B477 adds a distinct foreground continuous-location session without changing B5's one-shot
+`Location::current()` contract. `Location::updates()` requires current foreground-capable
+authorization and never prompts; its statically dispatched session owns a Core Location manager
+and retained delegate until drop. The native callback array is copied oldest-to-newest into a fixed
+16-event queue; overflow evicts oldest events and reports a saturating missed count on the next
+event. Delegate errors remain nonterminal, dropping one wait preserves the session, and dropping
+the session detaches the delegate and stops updates. Host tests cover authorization/no-prompt,
+error-then-fix delivery, queue order, overflow accounting, wait cancellation, and teardown. Device
+and Simulator compile/link checks establish static target evidence only; live authorization,
+location delivery, and suspended-app behavior remain unverified
+
 Row `037-sensors-connectivity-location-geofencing-significant-change-where-supported` remains
-partial beyond B5/F15's one-shot current-location surface. `PLAN.md` lists the portable location
-crate and iOS backend but has no scoped geofencing or significant-change task. D4 explicitly
-excludes both, and the current Rust API has no region value, transition event, or event lifecycle.
-Adding only Rust types would leave the shared contract undefined for region geometry,
-permission scope, platform limits, registration replacement/persistence, event delivery across
-app suspension or termination, and per-region cancellation. These are contract decisions, not a
-bounded backend plumbing gap; do not extend B5/F15 or claim these operations until a separate plan
-defines their portable semantics and iOS policy. Existing compile, feature-tree, and link/import
-checks establish only the one-shot API boundary and do not validate monitoring behavior. The link
-gate now also guards the B5 Rust source/example call surface against continuous, region,
-significant-change, visit, heading, beacon-ranging, Always-authorization, temporary-accuracy, and
-background-location APIs. This source check does not constrain calls through the borrowed native
-manager escape and does not close row 037's partial status. This guard was added after the recorded
-link/import run; only its shell syntax and source predicates are checked in this follow-up, not the
-full gate that builds Release probes. It also confines the sole `requestWhenInUseAuthorization()`
-call to the explicit authorization-request path and confirms the one-shot current-request path stays
-prompt-free.
+partial after B477 because geofencing, significant-change monitoring, and background delivery are
+not implemented. The existing portable plans have no bounded geofencing or significant-change
+contract: region geometry, permission scope, platform limits, registration replacement or
+persistence, delivery across suspension or termination, and cancellation all need a separate
+product contract. Do not extend B5 or B477 to claim those operations without that plan. The
+registered B477 profile keeps the exact Core Location binding feature set and device/Simulator
+link-import checks; its source guard permits only the B477 `startUpdatingLocation()` call, keeps
+`requestLocation()` in B5's current-request path, and keeps the sole
+`requestWhenInUseAuthorization()` call in the explicit request path. Negative source fixtures
+check these selector scopes and existing prohibited APIs. The guard constrains repository Rust
+source only; calls through the B5 borrowed native manager escape remain outside the contract
 
 ## Objective
 

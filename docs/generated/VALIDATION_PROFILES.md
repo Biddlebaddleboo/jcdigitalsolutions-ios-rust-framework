@@ -20,6 +20,7 @@ The following are configured validation profiles, not claims that every gate pas
 | ios-playback | ios-playback | 2 | 1 | 0 | False |
 | ios-contacts-fetch | ios-contacts | 2 | 1 | 0 | False |
 | ios-calendar | ios-calendar | 2 | 1 | 0 | False |
+| ios-location-updates | ios-location | 2 | 1 | 0 | False |
 
 
 ## Inspect actual gates

@@ -1,7 +1,7 @@
 #![no_std]
 #![forbid(unsafe_code)]
 #![deny(missing_docs)]
-#![doc = "Portable values and a static backend contract for one-shot location requests."]
+#![doc = "Portable location values and statically selected one-shot and foreground-update contracts."]
 
 use core::future::Future;
 use framework_core::{Availability, Error, ErrorKind, PlatformErrorCode};
@@ -260,6 +260,79 @@ pub trait LocationBackend {
     fn current<'a>(&'a mut self, request: LocationRequest) -> Self::CurrentFuture<'a>;
 }
 
+/// The kind of event delivered by a foreground location-update session.
+#[derive(Clone, Copy, Debug, PartialEq)]
+#[non_exhaustive]
+pub enum LocationUpdateKind {
+    /// One location fix reported by the backend.
+    Fix(LocationFix),
+    /// One nonterminal backend error event; the session remains active until it is dropped.
+    Error(LocationError),
+}
+
+/// One event from a foreground location-update session.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct LocationUpdate {
+    kind: LocationUpdateKind,
+    missed_before: u64,
+}
+
+impl LocationUpdate {
+    /// Creates an event and records how many earlier queued events the backend omitted.
+    ///
+    /// Backends without a bounded event queue should pass zero. A nonzero value makes any
+    /// coalescing or overflow visible to the caller.
+    pub const fn new(kind: LocationUpdateKind, missed_before: u64) -> Self {
+        Self {
+            kind,
+            missed_before,
+        }
+    }
+
+    /// Returns the location fix or nonterminal error represented by this event.
+    pub const fn kind(self) -> LocationUpdateKind {
+        self.kind
+    }
+
+    /// Returns the saturating count of earlier events omitted before this event.
+    pub const fn missed_before(self) -> u64 {
+        self.missed_before
+    }
+}
+
+/// A caller-owned session that yields foreground location events until dropped.
+pub trait LocationUpdateSession {
+    /// The future type for one event read.
+    type NextUpdateFuture<'a>: Future<Output = LocationUpdate> + 'a
+    where
+        Self: 'a;
+
+    /// Waits for one location or error event without ending the session.
+    ///
+    /// Dropping this future cancels only this wait. The session and native location service remain
+    /// active until the session itself is dropped.
+    fn next_update<'a>(&'a mut self) -> Self::NextUpdateFuture<'a>;
+}
+
+/// A statically selected backend for caller-owned foreground location-update sessions.
+pub trait LocationUpdatesBackend: LocationBackend {
+    /// The session type for an active foreground update service.
+    type UpdateSession<'a>: LocationUpdateSession + 'a
+    where
+        Self: 'a;
+
+    /// Starts foreground location updates only when current authorization permits them.
+    ///
+    /// This operation never requests authorization. The caller must use the backend's explicit
+    /// authorization API first when needed. A returned session owns the update service until it
+    /// is dropped; it does not promise delivery while the application is suspended or in the
+    /// background.
+    fn start_updates<'a>(
+        &'a mut self,
+        request: LocationRequest,
+    ) -> Result<Self::UpdateSession<'a>, LocationError>;
+}
+
 /// A thin facade over caller-owned, statically selected location-backend state.
 pub struct Location<B> {
     backend: B,
@@ -295,6 +368,21 @@ impl<B: LocationBackend> Location<B> {
         request: LocationRequest,
     ) -> Result<LocationFix, LocationError> {
         self.backend.current(request).await
+    }
+
+    /// Starts a separate foreground update session through the selected backend.
+    ///
+    /// The backend must already report an authorization state that permits foreground location.
+    /// This method never prompts. The returned session exclusively borrows this facade's backend
+    /// until it is dropped.
+    pub fn updates<'a>(
+        &'a mut self,
+        request: LocationRequest,
+    ) -> Result<<B as LocationUpdatesBackend>::UpdateSession<'a>, LocationError>
+    where
+        B: LocationUpdatesBackend,
+    {
+        self.backend.start_updates(request)
     }
 
     /// Borrows the backend for platform-specific controls or native escape hatches.
