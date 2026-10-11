@@ -1,10 +1,10 @@
-# Portable Contacts authorization and read
+# Portable Contacts authorization, read, and add-only create
 
-`framework-contacts` defines a portable authorization contract and separate optional read-only
-extensions for one-record fetch and bounded name search. It exposes no ContactsUI type or picker,
-and does not enumerate all contacts or mutate the store. Existing `ContactsBackend` implementors
-need not implement either operation; a backend opts in through `ContactsFetchBackend` or
-`ContactsSearchBackend`.
+`framework-contacts` defines a portable authorization contract and separate optional extensions
+for one-record fetch, bounded name search, and add-only creation. It exposes no ContactsUI type or
+picker, does not enumerate all contacts, and never edits or deletes an existing record. Existing
+`ContactsBackend` implementors need not implement these operations; a backend opts in through
+`ContactsFetchBackend`, `ContactsSearchBackend`, or `ContactsCreateBackend`.
 
 ## Authorization states
 
@@ -83,3 +83,45 @@ The host app still supplies `NSContactsUsageDescription`; the crate adds no exec
 Host tests and iOS device/Simulator compile-link checks do not prove live matching, Limited
 visibility, native callback stop delivery, or device runtime behavior. See Apple's
 [`predicateForContacts(matchingName:)`](https://developer.apple.com/documentation/contacts/cncontact/predicateforcontacts%28matchingname%3A%29).
+
+## Add one new record
+
+`Contacts<B>::create_contact(&ContactDraft)` delegates to the separate add-only
+`ContactsCreateBackend`. The Rust-owned draft contains given/family names, organization, and
+optional-label phone/email values. At least one data value must be non-empty; empty phone/email
+values are invalid. The backend receives label options and string values unchanged, without
+trimming or locale-specific format validation.
+
+The operation is synchronous and may block on Contacts I/O. It rechecks authorization for every
+valid draft, never prompts, and proceeds only for `Authorized` or `Limited`. Apple documents that
+under Limited access an app can create contacts and automatically access the contacts it creates;
+Limited still does not grant access to other contacts outside the user-selected set. The iOS
+backend uses one public `CNMutableContact` and one `CNSaveRequest.addContact` call with a nil
+container identifier, which Apple documents as the default container. It does not fetch a
+container, update/delete any existing record, or return an identifier: the native add/save methods
+do not document a dependable post-save identifier result. A native failure is `Backend` with a
+representable platform error code; if a fresh status query finds permission no longer allows the
+operation, it is `AuthorizationRequired(status)` instead.
+
+```rust,ignore
+use framework_contacts::{ContactDraft, ContactLabeledValue, Contacts};
+use ios_contacts::IosContactsBackend;
+
+fn add_contact() -> Result<(), framework_contacts::ContactsError> {
+    let draft = ContactDraft {
+        given_name: String::from("Ada"),
+        email_addresses: vec![ContactLabeledValue {
+            label: Some(String::from("work")),
+            value: String::from("ada@example.test"),
+        }],
+        ..ContactDraft::default()
+    };
+    Contacts::new(IosContactsBackend::new()).create_contact(&draft)
+}
+```
+
+Contacts writes are synchronous; avoid latency-sensitive UI contexts. The host app owns its
+`Info.plist` and must include `NSContactsUsageDescription`; the framework adds no prompt, executor,
+UI, entitlement, or app metadata. Static host tests and device/Simulator compile/link checks do not
+prove an actual save, Limited-access behavior, default-container selection, or a returned local
+identifier.

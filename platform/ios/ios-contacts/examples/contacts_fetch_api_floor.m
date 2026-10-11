@@ -37,3 +37,21 @@ void contacts_name_search_api_floor(CNContactStore *store, NSString *name) {
     (void)succeeded;
     (void)error;
 }
+
+void contacts_create_api_floor(CNContactStore *store) {
+    CNMutableContact *contact = [CNMutableContact new];
+    contact.givenName = @"Ada";
+    contact.phoneNumbers = @[
+        [CNLabeledValue labeledValueWithLabel:nil
+                                        value:[CNPhoneNumber phoneNumberWithStringValue:@"+1 555 0100"]],
+    ];
+    contact.emailAddresses = @[
+        [CNLabeledValue labeledValueWithLabel:@"work" value:@"ada@example.test"],
+    ];
+    CNSaveRequest *request = [CNSaveRequest new];
+    [request addContact:contact toContainerWithIdentifier:nil];
+    NSError *error = nil;
+    BOOL succeeded = [store executeSaveRequest:request error:&error];
+    (void)succeeded;
+    (void)error;
+}

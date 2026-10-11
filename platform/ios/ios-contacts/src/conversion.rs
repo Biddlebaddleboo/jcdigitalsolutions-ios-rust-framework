@@ -1,4 +1,4 @@
-use framework_contacts::{ContactsAuthorization, ContactsError};
+use framework_contacts::{ContactDraft, ContactLabeledValue, ContactsAuthorization, ContactsError};
 use framework_core::{Error, ErrorKind, PlatformErrorCode};
 
 /// Maps native Contacts authorization raw values to the portable status without merging limited access.
@@ -114,6 +114,55 @@ pub(crate) fn search_error_from_native(
         return error;
     }
     error_from_native(native_error_code.unwrap_or(0))
+}
+
+/// Rejects empty drafts and empty phone/email values before creating a native record.
+pub(crate) fn validate_contact_draft(draft: &ContactDraft) -> Result<(), ContactsError> {
+    if draft
+        .phone_numbers
+        .iter()
+        .any(|value| value.value.is_empty())
+        || draft
+            .email_addresses
+            .iter()
+            .any(|value| value.value.is_empty())
+        || (draft.given_name.is_empty()
+            && draft.family_name.is_empty()
+            && draft.organization_name.is_empty()
+            && draft.phone_numbers.is_empty()
+            && draft.email_addresses.is_empty())
+    {
+        Err(ContactsError::InvalidContactDraft)
+    } else {
+        Ok(())
+    }
+}
+
+/// Returns the exact optional label and value sent to `CNLabeledValue`.
+pub(crate) fn contact_value_parts(value: &ContactLabeledValue) -> (Option<&str>, &str) {
+    (value.label.as_deref(), value.value.as_str())
+}
+
+/// Requires an authorization state that permits add-only Contacts work.
+pub(crate) const fn create_authorization_error(
+    status: ContactsAuthorization,
+) -> Option<ContactsError> {
+    if status.is_full_access() || matches!(status, ContactsAuthorization::Limited) {
+        None
+    } else {
+        Some(ContactsError::AuthorizationRequired(status))
+    }
+}
+
+/// Maps a save failure after the backend re-queries current authorization.
+pub(crate) fn create_error_from_native(
+    status: ContactsAuthorization,
+    native_error_code: isize,
+) -> ContactsError {
+    match create_authorization_error(status) {
+        Some(error) => error,
+        None => error_from_native(native_error_code),
+    }
 }
 
 #[cfg(test)]
@@ -319,5 +368,95 @@ mod tests {
         assert_eq!(contact.phone_numbers[1].value, "+1 555 0101");
         assert_eq!(contact.email_addresses[0].label.as_deref(), Some("work"));
         assert_eq!(contact.email_addresses[0].value, "ada@example.test");
+    }
+
+    #[test]
+    fn create_draft_validation_rejects_empty_record_and_empty_labeled_values() {
+        assert_eq!(
+            validate_contact_draft(&ContactDraft::default()),
+            Err(ContactsError::InvalidContactDraft)
+        );
+        let empty_phone = ContactDraft {
+            given_name: String::from("Ada"),
+            phone_numbers: vec![ContactLabeledValue {
+                label: None,
+                value: String::new(),
+            }],
+            ..ContactDraft::default()
+        };
+        assert_eq!(
+            validate_contact_draft(&empty_phone),
+            Err(ContactsError::InvalidContactDraft)
+        );
+        let empty_email = ContactDraft {
+            email_addresses: vec![ContactLabeledValue {
+                label: Some(String::from("work")),
+                value: String::new(),
+            }],
+            ..ContactDraft::default()
+        };
+        assert_eq!(
+            validate_contact_draft(&empty_email),
+            Err(ContactsError::InvalidContactDraft)
+        );
+    }
+
+    #[test]
+    fn create_draft_validation_preserves_valid_unicode_values() {
+        let draft = ContactDraft {
+            given_name: String::from("山田 太郎"),
+            phone_numbers: vec![ContactLabeledValue {
+                label: Some(String::from("_$!<Mobile>!$_")),
+                value: String::from("+81 90 1234 5678"),
+            }],
+            ..ContactDraft::default()
+        };
+        assert_eq!(validate_contact_draft(&draft), Ok(()));
+        assert_eq!(
+            contact_value_parts(&draft.phone_numbers[0]),
+            (Some("_$!<Mobile>!$_"), "+81 90 1234 5678")
+        );
+        let unlabeled_email = ContactLabeledValue {
+            label: None,
+            value: String::from("zoe@example.test"),
+        };
+        assert_eq!(
+            contact_value_parts(&unlabeled_email),
+            (None, "zoe@example.test")
+        );
+    }
+
+    #[test]
+    fn create_authorization_accepts_only_full_or_limited_access() {
+        for status in [
+            ContactsAuthorization::Unknown,
+            ContactsAuthorization::NotDetermined,
+            ContactsAuthorization::Restricted,
+            ContactsAuthorization::Denied,
+        ] {
+            assert_eq!(
+                create_authorization_error(status),
+                Some(ContactsError::AuthorizationRequired(status))
+            );
+        }
+        assert_eq!(
+            create_authorization_error(ContactsAuthorization::Authorized),
+            None
+        );
+        assert_eq!(
+            create_authorization_error(ContactsAuthorization::Limited),
+            None
+        );
+    }
+
+    #[test]
+    fn create_error_rechecks_authorization_and_preserves_native_code() {
+        assert_eq!(
+            create_error_from_native(ContactsAuthorization::Denied, -42),
+            ContactsError::AuthorizationRequired(ContactsAuthorization::Denied)
+        );
+        let error = create_error_from_native(ContactsAuthorization::Authorized, -42);
+        assert_eq!(error.kind(), ErrorKind::Platform);
+        assert_eq!(error.platform_code().unwrap().get(), -42);
     }
 }

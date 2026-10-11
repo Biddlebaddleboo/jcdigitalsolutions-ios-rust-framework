@@ -2514,10 +2514,106 @@
           "text": "ContactsUI"
         },
         {
-          "message": "the Contacts binding must not enable mutation features",
-          "must_exist": false,
+          "message": "the Contacts binding must enable only the required add-only mutable-contact APIs",
+          "must_exist": true,
           "path": "platform/ios/ios-contacts/Cargo.toml",
-          "text": "CNMutableContact"
+          "text": "\"CNMutableContact\", \"CNSaveRequest\""
+        },
+        {
+          "message": "contact creation must remain a separate source-compatible backend extension",
+          "must_exist": true,
+          "path": "crates/framework-contacts/src/lib.rs",
+          "text": "pub trait ContactsCreateBackend: ContactsBackend"
+        },
+        {
+          "message": "the portable create draft must use owned Rust fields and shared labeled values",
+          "must_exist": true,
+          "path": "crates/framework-contacts/src/lib.rs",
+          "text": "pub struct ContactDraft"
+        },
+        {
+          "message": "the public facade must expose add-only contact creation",
+          "must_exist": true,
+          "path": "crates/framework-contacts/src/lib.rs",
+          "text": "pub fn create_contact(&self, draft: &ContactDraft) -> Result<(), ContactsError>"
+        },
+        {
+          "message": "creation must validate the full draft before native work",
+          "must_exist": true,
+          "path": "platform/ios/ios-contacts/src/create.rs",
+          "text": "validate_contact_draft(draft)?;"
+        },
+        {
+          "message": "creation must accept exactly full or public Limited access",
+          "must_exist": true,
+          "path": "platform/ios/ios-contacts/src/conversion.rs",
+          "text": "status.is_full_access() || matches!(status, ContactsAuthorization::Limited)"
+        },
+        {
+          "message": "creation must check current authorization without prompting",
+          "must_exist": true,
+          "path": "platform/ios/ios-contacts/src/create.rs",
+          "text": "native_authorization_status()"
+        },
+        {
+          "message": "creation must use one public add-contact request in the default container",
+          "must_exist": true,
+          "path": "platform/ios/ios-contacts/src/create.rs",
+          "text": "request.addContact_toContainerWithIdentifier(&contact, None)"
+        },
+        {
+          "message": "creation must execute the add request and preserve native failure mapping",
+          "must_exist": true,
+          "path": "platform/ios/ios-contacts/src/create.rs",
+          "text": "executeSaveRequest_error(&request)"
+        },
+        {
+          "message": "failed creation must recheck authorization before native error mapping",
+          "must_exist": true,
+          "path": "platform/ios/ios-contacts/src/create.rs",
+          "text": "create_error_from_native(current_status, error.code())"
+        },
+        {
+          "message": "creation must map phone/email labels and values without normalization",
+          "must_exist": true,
+          "path": "platform/ios/ios-contacts/src/create.rs",
+          "text": "contact_value_parts(value)"
+        },
+        {
+          "message": "phone values must use the public Contacts phone wrapper",
+          "must_exist": true,
+          "path": "platform/ios/ios-contacts/src/create.rs",
+          "text": "CNPhoneNumber::phoneNumberWithStringValue(&number)"
+        },
+        {
+          "message": "creation must never prompt for authorization",
+          "must_exist": false,
+          "path": "platform/ios/ios-contacts/src/create.rs",
+          "text": "requestAccessForEntityType_completionHandler"
+        },
+        {
+          "message": "creation must never update an existing contact",
+          "must_exist": false,
+          "path": "platform/ios/ios-contacts/src/create.rs",
+          "text": "updateContact"
+        },
+        {
+          "message": "creation must never delete an existing contact",
+          "must_exist": false,
+          "path": "platform/ios/ios-contacts/src/create.rs",
+          "text": "deleteContact"
+        },
+        {
+          "message": "creation must not mutate groups",
+          "must_exist": false,
+          "path": "platform/ios/ios-contacts/src/create.rs",
+          "text": "addGroup"
+        },
+        {
+          "message": "creation must not present ContactsUI or picker APIs",
+          "must_exist": false,
+          "path": "platform/ios/ios-contacts/src/create.rs",
+          "text": "ContactsUI"
         },
         {
           "message": "the portable contract must remain no_std with alloc-owned values",
@@ -2680,6 +2776,7 @@
         "platform/ios/ios-contacts/src/conversion.rs",
         "platform/ios/ios-contacts/src/fetch.rs",
         "platform/ios/ios-contacts/src/search.rs",
+        "platform/ios/ios-contacts/src/create.rs",
         "platform/ios/ios-contacts/src/snapshot.rs",
         "platform/ios/ios-contacts/src/lib.rs",
         "platform/ios/ios-contacts/src/platform.rs",

@@ -52,7 +52,9 @@ pub enum ContactsError {
     InvalidIdentifier,
     /// The supplied name search query is empty or contains a NUL character.
     InvalidSearchQuery,
-    /// The current authorization state does not permit contact-data access.
+    /// The supplied contact draft has no useful data or contains an empty phone/email value.
+    InvalidContactDraft,
+    /// The current authorization state does not permit this Contacts operation.
     AuthorizationRequired(ContactsAuthorization),
     /// No accessible contact matches the supplied local identifier.
     NotFound,
@@ -64,7 +66,9 @@ impl ContactsError {
     /// Returns the stable portable error category.
     pub const fn kind(self) -> ErrorKind {
         match self {
-            Self::InvalidIdentifier | Self::InvalidSearchQuery => ErrorKind::InvalidInput,
+            Self::InvalidIdentifier | Self::InvalidSearchQuery | Self::InvalidContactDraft => {
+                ErrorKind::InvalidInput
+            }
             Self::AuthorizationRequired(
                 ContactsAuthorization::Denied | ContactsAuthorization::Restricted,
             ) => ErrorKind::PermissionDenied,
@@ -80,6 +84,7 @@ impl ContactsError {
             Self::Backend(error) => error.platform_code(),
             Self::InvalidIdentifier
             | Self::InvalidSearchQuery
+            | Self::InvalidContactDraft
             | Self::AuthorizationRequired(_)
             | Self::NotFound => None,
         }
@@ -114,6 +119,24 @@ pub struct ContactLabeledValue {
     pub label: Option<String>,
     /// The phone number or email address value.
     pub value: String,
+}
+
+/// Rust-owned fields for one new contact record.
+///
+/// At least one name, organization, phone, or email value must be non-empty. Phone/email values
+/// may use an optional native label; values are passed to the selected backend unchanged.
+#[derive(Clone, Debug, Default, Eq, PartialEq)]
+pub struct ContactDraft {
+    /// The new contact's given name, or empty when not supplied.
+    pub given_name: String,
+    /// The new contact's family name, or empty when not supplied.
+    pub family_name: String,
+    /// The new contact's organization, or empty when not supplied.
+    pub organization_name: String,
+    /// Labeled phone values in caller order.
+    pub phone_numbers: Vec<ContactLabeledValue>,
+    /// Labeled email values in caller order.
+    pub email_addresses: Vec<ContactLabeledValue>,
 }
 
 /// A statically selected backend for Contacts authorization status and request operations.
@@ -176,6 +199,16 @@ pub trait ContactsSearchBackend: ContactsBackend {
     ) -> Result<Vec<Contact>, ContactsError>;
 }
 
+/// An add-only extension for backends that can create one new contact record.
+///
+/// Implementations must validate the draft, re-check authorization without prompting, permit
+/// only `Authorized` or `Limited`, and add one new record without updating or deleting existing
+/// records. This separate trait keeps existing [`ContactsBackend`] implementors source-compatible.
+pub trait ContactsCreateBackend: ContactsBackend {
+    /// Adds one new record from owned Rust values and returns no platform identifier.
+    fn create_contact(&self, draft: &ContactDraft) -> Result<(), ContactsError>;
+}
+
 /// A thin facade over caller-owned, statically selected Contacts backend state.
 pub struct Contacts<B> {
     backend: B,
@@ -218,6 +251,13 @@ impl<B: ContactsSearchBackend> Contacts<B> {
         max_results: u32,
     ) -> Result<Vec<Contact>, ContactsError> {
         self.backend.search_contacts_by_name(query, max_results)
+    }
+}
+
+impl<B: ContactsCreateBackend> Contacts<B> {
+    /// Adds one new contact without prompting or changing an existing record.
+    pub fn create_contact(&self, draft: &ContactDraft) -> Result<(), ContactsError> {
+        self.backend.create_contact(draft)
     }
 }
 
@@ -272,6 +312,16 @@ mod tests {
             FakeRequestFuture {
                 backend: self,
                 completed: false,
+            }
+        }
+    }
+
+    impl ContactsCreateBackend for FakeBackend {
+        fn create_contact(&self, draft: &ContactDraft) -> Result<(), ContactsError> {
+            if draft.given_name.is_empty() {
+                Err(ContactsError::InvalidContactDraft)
+            } else {
+                Ok(())
             }
         }
     }
@@ -356,6 +406,54 @@ mod tests {
         assert_eq!(
             ContactsError::AuthorizationRequired(ContactsAuthorization::Limited).platform_code(),
             None
+        );
+        assert_eq!(
+            ContactsError::InvalidContactDraft.kind(),
+            ErrorKind::InvalidInput
+        );
+        assert_eq!(ContactsError::InvalidContactDraft.platform_code(), None);
+    }
+
+    #[test]
+    fn contact_draft_owns_values_and_preserves_optional_labels() {
+        let draft = ContactDraft {
+            given_name: String::from("Zoë"),
+            family_name: String::new(),
+            organization_name: String::new(),
+            phone_numbers: vec![ContactLabeledValue {
+                label: Some(String::from("_$!<Mobile>!$_")),
+                value: String::from("+1 555 0100"),
+            }],
+            email_addresses: vec![ContactLabeledValue {
+                label: None,
+                value: String::from("zoe@example.test"),
+            }],
+        };
+
+        assert_eq!(draft.given_name, "Zoë");
+        assert_eq!(
+            draft.phone_numbers[0].label.as_deref(),
+            Some("_$!<Mobile>!$_")
+        );
+        assert_eq!(draft.phone_numbers[0].value, "+1 555 0100");
+        assert_eq!(draft.email_addresses[0].label, None);
+        assert_eq!(draft.email_addresses[0].value, "zoe@example.test");
+    }
+
+    #[test]
+    fn create_extension_is_opt_in_and_facade_forwards_owned_draft() {
+        let contacts = Contacts::new(FakeBackend {
+            status: ContactsAuthorization::Authorized,
+            requests: Rc::new(Cell::new(0)),
+        });
+        let draft = ContactDraft {
+            given_name: String::from("Ada"),
+            ..ContactDraft::default()
+        };
+        assert_eq!(contacts.create_contact(&draft), Ok(()));
+        assert_eq!(
+            contacts.create_contact(&ContactDraft::default()),
+            Err(ContactsError::InvalidContactDraft)
         );
     }
 

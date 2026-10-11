@@ -1,10 +1,10 @@
 # iOS Contacts authorization
 
 `ios-contacts` implements the portable [`framework-contacts`](../capabilities/contacts.md)
-authorization and read contract through public Contacts APIs. It can query status, explicitly
-request access, fetch a caller-selected record by local identifier, and search names with a
-caller-supplied result cap. It does not fetch the whole store, edit contacts, present ContactsUI,
-or provide a picker or button.
+authorization, read, and add-only create contract through public Contacts APIs. It can query status,
+explicitly request access, fetch one caller-selected record, search names with a caller-supplied
+result cap, and create exactly one new contact. It does not fetch the whole store, edit or delete an
+existing contact, present ContactsUI, or provide a picker or button.
 
 ```rust,ignore
 use framework_contacts::{Contacts, ContactsAuthorization};
@@ -119,6 +119,50 @@ iOS 10.0 for device and iOS 14.0 for Simulator. Apple API references:
 [`predicateForContacts(matchingName:)`](https://developer.apple.com/documentation/contacts/cncontact/predicateforcontacts%28matchingname%3A%29) and
 [`enumerateContacts(with:usingBlock:)`](https://developer.apple.com/documentation/contacts/cncontactstore/enumeratecontacts%28with%3Ausingblock%3A%29?language=objc).
 
+## Add one contact
+
+After access already exists, create one new record from Rust-owned values:
+
+```rust,ignore
+use framework_contacts::{ContactDraft, ContactLabeledValue, Contacts};
+use ios_contacts::IosContactsBackend;
+
+fn add_contact() -> Result<(), framework_contacts::ContactsError> {
+    let draft = ContactDraft {
+        given_name: String::from("Ada"),
+        phone_numbers: vec![ContactLabeledValue {
+            label: Some(String::from("_$!<Mobile>!$_")),
+            value: String::from("+1 555 0100"),
+        }],
+        ..ContactDraft::default()
+    };
+    Contacts::new(IosContactsBackend::new()).create_contact(&draft)
+}
+```
+
+The synchronous create call validates before native work, rechecks authorization, proceeds only
+for `Authorized` or `Limited`, and never requests permission. Apple's current Contacts guide states
+that an app with Limited access can create contacts and automatically access records it creates;
+access to other existing records remains limited to the user's selected set. It creates a public
+`CNMutableContact`, maps optional phone/email labels and their text values unchanged, and executes
+one `CNSaveRequest.addContact:toContainerWithIdentifier:` with a nil identifier for the default
+container. It never updates or deletes an existing record. Empty drafts and empty phone/email values
+return `InvalidContactDraft`; phone and email syntax is left to Contacts rather than guessed by the
+portable contract.
+
+The API returns `Result<(), ContactsError>` and does not claim a local identifier: the public add
+and save methods do not document a dependable post-save identifier result. Native save failures
+map to `Backend` with a representable `NSError.code()`; if re-query shows access was revoked, the
+error is `AuthorizationRequired(status)`. The host app owns its `Info.plist` and must provide
+`NSContactsUsageDescription`. Contacts I/O is synchronous, so keep this operation off latency-
+sensitive UI paths. The required Contacts APIs are available from iOS 9.0 in the installed SDK;
+registered device and Simulator floors remain iOS 10.0 and iOS 14.0. Static checks do not prove a
+live save, Limited-access create behavior, container choice, or a returned identifier.
+
+Apple references: [`Accessing the contact store`](https://developer.apple.com/documentation/contacts/accessing-the-contact-store),
+[`add(_:toContainerWithIdentifier:)`](https://developer.apple.com/documentation/contacts/cnsaverequest/add%28_%3Atocontainerwithidentifier%3A%29-7eut4),
+and [`NSContactsUsageDescription`](https://developer.apple.com/documentation/bundleresources/information-property-list/nscontactsusagedescription?changes=_1&language=objc).
+
 `fetch_contact` is synchronous, and a Contacts store read can block. Avoid calling it from a
 latency-sensitive UI context when the read may take time. The crate does not add a hidden executor;
 the application decides where to perform the read.
@@ -132,14 +176,15 @@ live contact-data fetch.
 
 The iOS-only adapter uses `objc2-contacts` 0.3.2 with default features disabled and only its
 `CNContact`, `CNContactStore`, `CNContact_Predicates`, `CNContactFetchRequest`, `CNFetchRequest`,
-`CNLabeledValue`, `CNPhoneNumber`, `CNError`, and `block2` features, plus `objc2`, Foundation
-`NSArray`, `NSError`, and `NSString`, and `block2`. No ContactsUI, mutation, or unrelated binding
-features are enabled. The portable crate exposes no binding types. The single-record and name
-search APIs are available from iOS 9.0; Limited authorization itself was introduced in iOS 18.0.
+`CNMutableContact`, `CNSaveRequest`, `CNLabeledValue`, `CNPhoneNumber`, `CNError`, and `block2`
+features, plus `objc2`, Foundation `NSArray`, `NSError`, and `NSString`, and `block2`. The mutable
+binding features are used only for the explicit add-only API; update and delete selectors are not
+called. The portable crate exposes no binding types. Fetch, search, and create APIs are available
+from iOS 9.0; Limited authorization itself was introduced in iOS 18.0.
 Rust 1.94.1 sets iOS 10.0 as its minimum supported device deployment target, so the registered
 device and Simulator link checks use floors iOS 10.0 and iOS 14.0, respectively. They verify public
-Contacts/Foundation imports and deployment metadata, but do not execute the probe. No Swift
-source, UI framework, or private API is added.
+Contacts/Foundation imports, create/fetch/search selectors, and deployment metadata, but do not
+execute the probe. No Swift source, UI framework, or private API is added.
 
 References: [Apple CNContactStore](https://developer.apple.com/documentation/contacts/cncontactstore),
 [Apple Limited authorization](https://developer.apple.com/documentation/contacts/cnauthorizationstatus/limited?language=objc),

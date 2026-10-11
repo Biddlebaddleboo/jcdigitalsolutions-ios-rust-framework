@@ -61,3 +61,22 @@ unbounded all-contact array. The installed Xcode 26.6 / iPhoneOS 26.5 SDK and pi
 `objc2-contacts` 0.3.2 expose the needed APIs from iOS 9.0; registered device and Simulator floors
 remain iOS 10.0 and iOS 14.0. Host tests and static compile/link gates do not prove live matching,
 Limited visibility, native stop delivery, permission UI, or device runtime behavior.
+
+## Additive increment B469 — add one new contact
+
+B469 adds a separate source-compatible `ContactsCreateBackend` and `Contacts::create_contact`
+operation over a portable Rust-owned `ContactDraft`. It creates exactly one record through public
+`CNMutableContact` and `CNSaveRequest` APIs; it never updates or deletes an existing record. Each
+valid request rechecks status without prompting and accepts only `Authorized` or `Limited`. Apple's
+current Contacts access guide explicitly states that a Limited-access app can create contacts and
+automatically access the contacts it creates; Limited access does not expose other contacts outside
+the user's selected set. The request passes a nil container identifier, which Apple documents as
+the default container. The synchronous operation returns no identifier because the public add and
+save methods do not document a dependable post-save identifier result. It rejects an empty draft or
+an empty phone/email value, preserves optional labels and supplied text, does not enforce phone or
+email syntax, and maps native save errors to the platform category/code unless a fresh authorization
+query shows access no longer permits the operation. The app supplies `NSContactsUsageDescription`.
+The installed Xcode 26.6 / iPhoneOS 26.5 SDK headers and `objc2-contacts` 0.3.2 bindings expose the
+required add APIs from iOS 9.0; registered deployment floors remain iOS 10.0 device and iOS 14.0
+Simulator. Host tests and device/Simulator compile-link checks do not prove a live save, Limited
+create behavior, default-container selection, permission UI, or an identifier result.

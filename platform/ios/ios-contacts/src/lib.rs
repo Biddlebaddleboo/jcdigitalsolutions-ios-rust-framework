@@ -16,6 +16,9 @@ mod fetch;
 mod search;
 
 #[cfg(target_os = "ios")]
+mod create;
+
+#[cfg(target_os = "ios")]
 mod snapshot;
 
 #[cfg(target_os = "ios")]

@@ -49,14 +49,35 @@ for target in aarch64-apple-ios aarch64-apple-ios-sim; do
         printf '%s probe does not import objc_msgSend\n' "$target" >&2
         exit 1
     }
+    printf '%s\n' "$symbols" | grep -F objc_getClass >/dev/null || {
+        printf '%s probe does not import objc_getClass for public Contacts class lookup\n' "$target" >&2
+        exit 1
+    }
     binary_strings=$(strings "$binary")
+    for class in CNMutableContact CNSaveRequest; do
+        printf '%s\n' "$binary_strings" | grep -Fx "$class" >/dev/null || {
+            printf '%s probe does not reference the public Contacts runtime class name %s\n' "$target" "$class" >&2
+            exit 1
+        }
+    done
     printf '%s\n' "$binary_strings" | grep -F 'unifiedContactWithIdentifier:keysToFetch:error:' >/dev/null || {
         printf '%s probe does not link the public single-contact fetch selector\n' "$target" >&2
         exit 1
     }
-    for selector in 'predicateForContactsMatchingName:' 'enumerateContactsWithFetchRequest:error:usingBlock:'; do
+    for selector in \
+        'predicateForContactsMatchingName:' \
+        'enumerateContactsWithFetchRequest:error:usingBlock:' \
+        'addContact:toContainerWithIdentifier:' \
+        'executeSaveRequest:error:' \
+        'phoneNumberWithStringValue:' \
+        'labeledValueWithLabel:value:' \
+        'setGivenName:' \
+        'setFamilyName:' \
+        'setOrganizationName:' \
+        'setPhoneNumbers:' \
+        'setEmailAddresses:'; do
         printf '%s\n' "$binary_strings" | grep -F "$selector" >/dev/null || {
-            printf '%s probe does not link the public Contacts search selector %s\n' "$target" "$selector" >&2
+            printf '%s probe does not link the public Contacts selector %s\n' "$target" "$selector" >&2
             exit 1
         }
     done
