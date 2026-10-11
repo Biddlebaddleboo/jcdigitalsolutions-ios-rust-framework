@@ -3,6 +3,8 @@
 #![doc = "A bounded native UIKit view and control backend for iOS."]
 
 #[cfg(any(test, target_os = "ios"))]
+mod context_menu_policy;
+#[cfg(any(test, target_os = "ios"))]
 mod disclosure_policy;
 /// Bounded CoreGraphics geometry operations over portable frames.
 #[cfg(target_os = "ios")]
@@ -46,5 +48,7 @@ pub use platform::{
     IosButton, IosImageView, IosLabel, IosScrollView, IosStackAxis, IosStackView, IosTextField,
     IosToggle, IosUiBackend, IosView,
 };
+#[cfg(target_os = "ios")]
+pub use platform::{IosContextMenu, IosContextMenuAction};
 #[cfg(target_os = "ios")]
 pub use platform::{IosListRow, IosListView};

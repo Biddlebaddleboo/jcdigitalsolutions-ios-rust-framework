@@ -92,4 +92,47 @@ for target in aarch64-apple-ios aarch64-apple-ios-sim; do
     fi
     printf '%s UITableView reuse and selection selectors verified at iOS %s; probe not executed\n' \
         "$target" "$deployment_target"
+
+    context_menu_target_dir="target/ios-ui-context-menu-link-$target"
+    IPHONEOS_DEPLOYMENT_TARGET="$deployment_target" CARGO_TARGET_DIR="$context_menu_target_dir" \
+        cargo build --locked --offline --release -p ios-ui \
+        --example ios_ui_context_menu_link_probe --target "$target"
+    context_menu_binary="$context_menu_target_dir/$target/release/examples/ios_ui_context_menu_link_probe"
+    context_menu_imports=$(otool -L "$context_menu_binary")
+    printf '%s\n' "$context_menu_imports" | grep -F '/UIKit.framework/UIKit' >/dev/null || {
+        echo "$target context-menu probe does not link UIKit" >&2
+        exit 1
+    }
+    context_menu_symbols=$(nm -u "$context_menu_binary")
+    context_menu_strings=$(strings "$context_menu_binary")
+    for symbol in objc_getClass objc_msgSend; do
+        printf '%s\n' "$context_menu_symbols" | grep -F "$symbol" >/dev/null || {
+            echo "$target context-menu probe is missing Objective-C symbol $symbol" >&2
+            exit 1
+        }
+    done
+    for symbol in UIContextMenuInteraction UIContextMenuInteractionDelegate UIAction UIMenu \
+        'initWithDelegate:' 'contextMenuInteraction:configurationForMenuAtLocation:' \
+        'configurationWithIdentifier:previewProvider:actionProvider:' \
+        'actionWithTitle:image:identifier:handler:' 'addInteraction:' 'removeInteraction:'; do
+        printf '%s\n' "$context_menu_strings" | grep -F "$symbol" >/dev/null || {
+            echo "$target context-menu probe is missing UIKit class or selector $symbol" >&2
+            exit 1
+        }
+    done
+    if printf '%s\n' "$context_menu_symbols" "$context_menu_imports" | grep -Eqi 'swift_|Py[A-Z_]|swift|python'; then
+        echo "unexpected Swift/Python runtime import in $target context-menu probe" >&2
+        exit 1
+    fi
+    context_menu_deployment_target=$(vtool -show-build "$context_menu_binary" | awk '$1 == "minos" { print $2; exit }')
+    if [ "$context_menu_deployment_target" != "$deployment_target" ]; then
+        echo "$target context-menu probe has deployment target ${context_menu_deployment_target:-unknown}; expected $deployment_target" >&2
+        exit 1
+    fi
+    grep -F 'objc2::available!(ios = 13.0, ..)' platform/ios/ios-ui/src/platform/context_menu.rs >/dev/null || {
+        echo "$target context-menu probe is missing its runtime iOS 13 availability guard" >&2
+        exit 1
+    }
+    printf '%s UIContextMenuInteraction selectors and iOS 13 runtime guard verified at iOS %s; probe not executed\n' \
+        "$target" "$deployment_target"
 done
