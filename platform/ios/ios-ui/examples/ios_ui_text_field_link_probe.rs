@@ -28,6 +28,21 @@ fn main() {
     let _ = field.request_first_responder();
     let _ = field.resign_first_responder();
     let _ = field.native_text_field();
+
+    let mut ui = framework_ui::UiClient::new(backend);
+    let Ok(mut callback_parent) = ui.create_view(frame) else {
+        return;
+    };
+    let Ok(callback_field) = ui.add_text_field(
+        &mut callback_parent,
+        frame,
+        Some("A\0😀"),
+        Some("Hint"),
+        |_| {},
+    ) else {
+        return;
+    };
+    let _ = callback_field.native_text_field();
 }
 
 #[cfg(not(target_os = "ios"))]

@@ -16,5 +16,8 @@ objc2-core-foundation = { workspace = true, features = ["CFCGTypes"] }
 objc2-foundation = { workspace = true, features = ["NSRange", "NSString"] }
 objc2-ui-kit = { workspace = true, features = ["std", "UIButton", "UIControl", "UIImage", "UIImageView", "UILabel", "UIStackView", "UISwitch", "UITextField", "UIResponder", "UIView", "objc2-core-foundation"] }
 
+[dev-dependencies]
+framework-core.workspace = true
+
 [lints]
 workspace = true

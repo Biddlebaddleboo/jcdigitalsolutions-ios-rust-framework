@@ -3,7 +3,10 @@
 #![deny(missing_docs)]
 #![doc = "Portable frame values and a static contract for native UI controls."]
 
+use alloc::string::String;
 use framework_core::{Error, ErrorKind, Result};
+
+extern crate alloc;
 
 #[cfg(test)]
 extern crate std;
@@ -202,7 +205,16 @@ pub trait ToggleControl {
     fn set_state(&mut self, on: bool) -> Result<()>;
 }
 
-/// A compile-time-selected backend for a native container view, label, button, and toggle.
+/// A mutable single-line text field returned by a [`UiBackend`].
+pub trait TextFieldControl {
+    /// Returns an owned snapshot of the current text, preserving `None` versus `Some("")`.
+    fn text(&self) -> Result<Option<String>>;
+
+    /// Replaces or clears the field text without invoking its user-edit callback.
+    fn set_text(&mut self, text: Option<&str>) -> Result<()>;
+}
+
+/// A compile-time-selected backend for a native container view and controls.
 ///
 /// The contract starts no process service, event loop, executor, or global registration. Each
 /// method is synchronous. Backends document their native thread and callback behavior.
@@ -215,6 +227,8 @@ pub trait UiBackend {
     type Button: ButtonControl;
     /// The mutable boolean toggle handle chosen by the backend.
     type Toggle: ToggleControl;
+    /// The mutable text-field handle chosen by the backend.
+    type TextField: TextFieldControl;
 
     /// Creates a native container view with the supplied frame.
     fn create_view(&mut self, frame: Frame) -> Result<Self::View>;
@@ -262,6 +276,26 @@ pub trait UiBackend {
     ) -> Result<Self::Toggle>
     where
         F: FnMut(bool) + 'static;
+
+    /// Creates and attaches a native single-line text field with an owned edit callback.
+    ///
+    /// The callback runs after a user/native edit and receives a fresh owned text snapshot for
+    /// that event. `None` and `Some("")` remain distinct; malformed native text is reported as
+    /// `Err` instead of being replaced. Programmatic [`TextFieldControl::set_text`] calls must
+    /// not invoke the callback. The backend owns `action` if it returns `Ok`; dropping the
+    /// returned handle ends callback ownership. If this method returns `Err`, it consumes and
+    /// drops `action`. Callback thread, reentrancy, and panic behavior are backend-defined; the
+    /// callback need not be `Send`.
+    fn add_text_field<F>(
+        &mut self,
+        parent: &mut Self::View,
+        frame: Frame,
+        initial_text: Option<&str>,
+        placeholder: Option<&str>,
+        action: F,
+    ) -> Result<Self::TextField>
+    where
+        F: FnMut(Result<Option<String>>) + 'static;
 }
 
 /// A thin facade over caller-owned, statically selected native UI backend state.
@@ -316,6 +350,22 @@ impl<B: UiBackend> UiClient<B> {
         F: FnMut(bool) + 'static,
     {
         self.backend.add_toggle(parent, frame, initial_on, action)
+    }
+
+    /// Creates and attaches a native text field with an owned user-edit callback.
+    pub fn add_text_field<F>(
+        &mut self,
+        parent: &mut B::View,
+        frame: Frame,
+        initial_text: Option<&str>,
+        placeholder: Option<&str>,
+        action: F,
+    ) -> Result<B::TextField>
+    where
+        F: FnMut(Result<Option<String>>) + 'static,
+    {
+        self.backend
+            .add_text_field(parent, frame, initial_text, placeholder, action)
     }
 
     /// Borrows the explicitly supplied backend.
@@ -389,6 +439,30 @@ mod tests {
         }
     }
 
+    struct TestTextField {
+        text: Option<String>,
+        placeholder: Option<String>,
+        action: Box<dyn FnMut(Result<Option<String>>)>,
+    }
+
+    impl TestTextField {
+        fn user_edit(&mut self, text: Option<&str>) {
+            self.text = text.map(String::from);
+            (self.action)(Ok(self.text.clone()));
+        }
+    }
+
+    impl TextFieldControl for TestTextField {
+        fn text(&self) -> Result<Option<String>> {
+            Ok(self.text.clone())
+        }
+
+        fn set_text(&mut self, text: Option<&str>) -> Result<()> {
+            self.text = text.map(String::from);
+            Ok(())
+        }
+    }
+
     struct TestBackend;
 
     impl UiBackend for TestBackend {
@@ -396,6 +470,7 @@ mod tests {
         type Label = TestLabel;
         type Button = TestButton;
         type Toggle = TestToggle;
+        type TextField = TestTextField;
 
         fn create_view(&mut self, frame: Frame) -> Result<Self::View> {
             Ok(TestView(frame))
@@ -435,6 +510,24 @@ mod tests {
         {
             Ok(TestToggle {
                 on: initial_on,
+                action: Box::new(action),
+            })
+        }
+
+        fn add_text_field<F>(
+            &mut self,
+            _parent: &mut Self::View,
+            _frame: Frame,
+            initial_text: Option<&str>,
+            placeholder: Option<&str>,
+            action: F,
+        ) -> Result<Self::TextField>
+        where
+            F: FnMut(Result<Option<String>>) + 'static,
+        {
+            Ok(TestTextField {
+                text: initial_text.map(String::from),
+                placeholder: placeholder.map(String::from),
                 action: Box::new(action),
             })
         }
@@ -591,6 +684,69 @@ mod tests {
         toggle.user_change(true);
         toggle.user_change(false);
         assert_eq!(*values.borrow(), [true, false]);
+    }
+
+    #[test]
+    fn text_field_preserves_initial_nil_and_empty_text() {
+        let mut ui = UiClient::new(TestBackend);
+        let frame = Frame::new(0.0, 0.0, 120.0, 32.0).unwrap();
+        let mut view = ui.create_view(frame).unwrap();
+        let nil = ui
+            .add_text_field(&mut view, frame, None, Some("Name"), |_| {})
+            .unwrap();
+        let empty = ui
+            .add_text_field(&mut view, frame, Some(""), None, |_| {})
+            .unwrap();
+
+        assert_eq!(nil.text(), Ok(None));
+        assert_eq!(nil.placeholder.as_deref(), Some("Name"));
+        assert_eq!(empty.text(), Ok(Some(String::new())));
+        assert_eq!(empty.placeholder, None);
+    }
+
+    #[test]
+    fn text_field_programmatic_changes_are_silent() {
+        let calls = std::rc::Rc::new(std::cell::Cell::new(0));
+        let action_calls = calls.clone();
+        let mut ui = UiClient::new(TestBackend);
+        let frame = Frame::new(0.0, 0.0, 120.0, 32.0).unwrap();
+        let mut view = ui.create_view(frame).unwrap();
+        let mut field = ui
+            .add_text_field(&mut view, frame, None, None, move |_| {
+                action_calls.set(action_calls.get() + 1);
+            })
+            .unwrap();
+
+        field.set_text(Some("programmatic")).unwrap();
+        field.set_text(None).unwrap();
+        assert_eq!(field.text(), Ok(None));
+        assert_eq!(calls.get(), 0);
+    }
+
+    #[test]
+    fn text_field_callback_receives_owned_exact_edit_snapshots() {
+        let snapshots = std::rc::Rc::new(std::cell::RefCell::new(std::vec::Vec::new()));
+        let action_snapshots = snapshots.clone();
+        let mut ui = UiClient::new(TestBackend);
+        let frame = Frame::new(0.0, 0.0, 120.0, 32.0).unwrap();
+        let mut view = ui.create_view(frame).unwrap();
+        let mut field = ui
+            .add_text_field(&mut view, frame, None, None, move |value| {
+                action_snapshots.borrow_mut().push(value);
+            })
+            .unwrap();
+
+        field.user_edit(Some("A\0😀"));
+        field.user_edit(Some(""));
+        field.user_edit(None);
+        assert_eq!(
+            *snapshots.borrow(),
+            [
+                Ok(Some(String::from("A\0😀"))),
+                Ok(Some(String::new())),
+                Ok(None)
+            ]
+        );
     }
 
     #[test]

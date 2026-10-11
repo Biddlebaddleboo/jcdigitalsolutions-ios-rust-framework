@@ -42,7 +42,8 @@ for target in aarch64-apple-ios aarch64-apple-ios-sim; do
         exit 1
     }
     for selector in 'setText:' 'text' 'setPlaceholder:' 'placeholder' \
-        'becomeFirstResponder' 'resignFirstResponder'; do
+        'becomeFirstResponder' 'resignFirstResponder' 'textFieldChanged:' \
+        'removeTarget:action:forControlEvents:'; do
         printf '%s\n' "$binary_strings" | grep -F "$selector" >/dev/null || {
             echo "$target text-field probe is missing the $selector selector" >&2
             exit 1

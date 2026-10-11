@@ -15,6 +15,8 @@ mod text_conversion;
 #[cfg(target_os = "ios")]
 pub mod text_metrics;
 #[cfg(any(test, target_os = "ios"))]
+mod text_policy;
+#[cfg(any(test, target_os = "ios"))]
 mod toggle_policy;
 
 #[cfg(target_os = "ios")]

@@ -71,7 +71,7 @@ are preserved. No UTF-8 C-string conversion is used
 `request_first_responder` and `resign_first_responder` return UIKit's `Bool` result. These values do
 not prove keyboard visibility or text-input runtime behavior. The handle is retained and
 `!Send`/`!Sync`; all operations require the current main thread. This slice adds no delegate,
-callback, keyboard management, controller/window ownership, or runtime UI proof
+keyboard management, controller/window ownership, or runtime UI proof
 
 ```rust
 let mut field = backend.add_text_field(&mut parent, frame, None, Some("Name"))?;
@@ -79,6 +79,20 @@ field.set_text(Some("Ada"))?;
 let text: Option<String> = field.text()?;
 let accepted = field.request_first_responder()?;
 ```
+
+`framework_ui::TextFieldControl` and `UiClient::add_text_field` add a portable user-edit callback.
+Each callback receives `Result<Option<String>>` with a fresh owned snapshot for that event; `None`
+and `Some("")` remain distinct, and embedded NUL and supplementary Unicode values are preserved.
+Malformed native UTF-16 reaches the callback as `InvalidInput`, never replacement text. Calling
+`set_text` is programmatic and must not invoke the callback
+
+On iOS the callback uses public `UITextField` target/action for
+`UIControlEvents::EditingChanged`, synchronously on UIKit's main thread. The callback is not
+`Send`; panics are caught before returning through Objective-C and reentrant calls while the same
+`FnMut` is active are ignored. The returned `IosTextField` handle retains the target and unregisters
+only its exact selector and event on drop, even if the parent still retains the native field. The
+existing `IosUiBackend::add_text_field` no-callback API remains available. Host tests and device /
+Simulator compile-link checks do not prove live keyboard input or callback delivery
 
 ## Boolean toggle
 

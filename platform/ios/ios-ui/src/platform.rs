@@ -4,7 +4,9 @@ use core::ptr::NonNull;
 use std::rc::Rc;
 
 use framework_core::{Error, ErrorKind, Result};
-use framework_ui::{ButtonControl, Frame, LabelControl, ToggleControl, UiBackend};
+use framework_ui::{
+    ButtonControl, Frame, LabelControl, TextFieldControl, ToggleControl, UiBackend,
+};
 use ios_runtime::ffi::catch_unwind;
 use ios_runtime::main_thread::MainThread;
 use objc2::rc::{Retained, autoreleasepool};
@@ -19,6 +21,7 @@ use objc2_ui_kit::{
 
 use crate::stack_spacing::is_valid_stack_spacing;
 use crate::text_conversion::{Utf16Error, decode_utf16};
+use crate::text_policy::{TextFieldCallback, invoke_text_callback};
 use crate::toggle_policy::invoke_toggle_callback;
 
 /// A UIKit backend for caller-owned native controls.
@@ -53,6 +56,7 @@ pub struct IosImageView {
 /// A retained UIKit single-line text field.
 pub struct IosTextField {
     native: Retained<UITextField>,
+    _target: Option<Retained<TextFieldTarget>>,
     _text_field_not_send: PhantomData<Rc<()>>,
 }
 
@@ -135,6 +139,43 @@ impl ButtonTarget {
 
 struct ToggleTargetState {
     callback: RefCell<Box<dyn FnMut(bool)>>,
+}
+
+struct TextFieldTargetState {
+    callback: RefCell<TextFieldCallback>,
+}
+
+define_class!(
+    // SAFETY:
+    // - NSObject has no subclassing requirements.
+    // - TextFieldTarget does not implement Drop.
+    #[unsafe(super(NSObject))]
+    #[thread_kind = MainThreadOnly]
+    #[name = "JcdIosUiTextFieldTarget"]
+    #[ivars = TextFieldTargetState]
+    struct TextFieldTarget;
+
+    impl TextFieldTarget {
+        #[unsafe(method(textFieldChanged:))]
+        fn text_field_changed(&self, sender: &UITextField) {
+            let _keep_alive = self.retain();
+            let text = sender.text().as_deref().map(native_string_to_rust).transpose();
+            invoke_text_callback(&self.ivars().callback, text);
+        }
+    }
+
+    // SAFETY: NSObjectProtocol adds no required methods, and NSObject supplies its implementation.
+    unsafe impl NSObjectProtocol for TextFieldTarget {}
+);
+
+impl TextFieldTarget {
+    fn with_action(mtm: MainThreadMarker, action: TextFieldCallback) -> Retained<Self> {
+        let this = Self::alloc(mtm).set_ivars(TextFieldTargetState {
+            callback: RefCell::new(action),
+        });
+        // SAFETY: `this` is a fresh NSObject subclass allocation and NSObject's `init` is valid.
+        unsafe { msg_send![super(this), init] }
+    }
 }
 
 define_class!(
@@ -254,6 +295,7 @@ impl IosUiBackend {
         parent.native.addSubview(&native);
         Ok(IosTextField {
             native,
+            _target: None,
             _text_field_not_send: PhantomData,
         })
     }
@@ -355,6 +397,16 @@ impl IosTextField {
     }
 }
 
+impl TextFieldControl for IosTextField {
+    fn text(&self) -> Result<Option<String>> {
+        IosTextField::text(self)
+    }
+
+    fn set_text(&mut self, text: Option<&str>) -> Result<()> {
+        IosTextField::set_text(self, text)
+    }
+}
+
 impl IosStackView {
     /// Adds a native view as an arranged child. UIKit retains and reparents the view.
     ///
@@ -438,6 +490,22 @@ impl Drop for IosToggle {
     }
 }
 
+impl Drop for IosTextField {
+    fn drop(&mut self) {
+        if let Some(target) = &self._target {
+            // SAFETY: this main-thread-only handle removes only its exact retained target, selector,
+            // and EditingChanged event before releasing callback ownership.
+            unsafe {
+                self.native.removeTarget_action_forControlEvents(
+                    Some(&**target),
+                    Some(sel!(textFieldChanged:)),
+                    UIControlEvents::EditingChanged,
+                );
+            }
+        }
+    }
+}
+
 impl Drop for IosButton {
     fn drop(&mut self) {
         // SAFETY: the button handle is main-thread-only, and the target is the exact retained
@@ -480,6 +548,7 @@ impl UiBackend for IosUiBackend {
     type Label = IosLabel;
     type Button = IosButton;
     type Toggle = IosToggle;
+    type TextField = IosTextField;
 
     fn create_view(&mut self, frame: Frame) -> Result<Self::View> {
         let marker = main_thread_marker()?;
@@ -575,6 +644,44 @@ impl UiBackend for IosUiBackend {
             native,
             _target: target,
             _not_send: PhantomData,
+        })
+    }
+
+    fn add_text_field<F>(
+        &mut self,
+        parent: &mut Self::View,
+        frame: Frame,
+        initial_text: Option<&str>,
+        placeholder: Option<&str>,
+        action: F,
+    ) -> Result<Self::TextField>
+    where
+        F: FnMut(Result<Option<String>>) + 'static,
+    {
+        let marker = main_thread_marker()?;
+        let native = UITextField::new(marker);
+        native.setFrame(native_frame(frame));
+        autoreleasepool(|_| {
+            let text = initial_text.map(NSString::from_str);
+            native.setText(text.as_deref());
+            let placeholder = placeholder.map(NSString::from_str);
+            native.setPlaceholder(placeholder.as_deref());
+        });
+        let target = TextFieldTarget::with_action(marker, Box::new(action));
+        // SAFETY: `target` is retained by IosTextField and implements the exact selector registered
+        // for UIControlEvents::EditingChanged.
+        unsafe {
+            native.addTarget_action_forControlEvents(
+                Some(&*target),
+                sel!(textFieldChanged:),
+                UIControlEvents::EditingChanged,
+            );
+        }
+        parent.native.addSubview(&native);
+        Ok(IosTextField {
+            native,
+            _target: Some(target),
+            _text_field_not_send: PhantomData,
         })
     }
 }

@@ -326,6 +326,10 @@ B501 adds `ios-navigation` with a generic `IosScreenController`, optional UTF-8 
 
 B502 adds a no-std `ToggleControl` and callback-bearing `UiBackend::add_toggle` contract, plus main-thread `IosToggle` over public UIKit `UISwitch`. Programmatic state updates do not send `ValueChanged`; the retained target reports the new state synchronously, catches callback panics, ignores reentrant mutable borrows, and unregisters its exact action on handle drop. Registered host tests and device/Simulator compile-link checks do not prove live switch interaction or animation
 
+### B503 — portable text-edit callbacks (row 003)
+
+B503 adds `TextFieldControl` and callback-bearing `UiClient::add_text_field` with fresh owned `Result<Option<String>>` snapshots. iOS forwards public `UITextField` `EditingChanged` events, preserves strict UTF-16 errors and nil/empty distinctions, contains panics/reentry, and removes its exact target on drop; secure entry, keyboard policy, state observation, and live input remain incomplete
+
 ## Active work selection and limits
 
 1. Inspect the canonical capability status/owner, the relevant family plan, then the named workstream plan and exact files/symbols. Do not scan the entire planning corpus or treat every existing plan as pending work.
