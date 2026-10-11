@@ -877,6 +877,22 @@ pub enum TorchControlError {
     ConfigurationLockFailed,
 }
 
+/// Failure to set zoom on the session's selected camera
+#[cfg(any(target_os = "ios", test))]
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum ZoomControlError {
+    /// The session graph has no configured video device
+    NoSelectedCamera,
+    /// The requested zoom factor is not finite
+    InvalidZoomFactor,
+    /// The requested factor is outside the supported inclusive range
+    ZoomFactorOutOfRange,
+    /// AVFoundation reported an invalid active-format zoom range
+    InvalidSupportedRange,
+    /// AVFoundation could not lock the selected camera for configuration
+    ConfigurationLockFailed,
+}
+
 #[cfg(any(target_os = "ios", test))]
 struct UnlockDeviceConfiguration<F: FnOnce()>(Option<F>);
 
@@ -911,6 +927,39 @@ fn configure_torch_enabled(
     lock().map_err(|()| TorchControlError::ConfigurationLockFailed)?;
     let unlock = UnlockDeviceConfiguration(Some(unlock));
     set_mode(enabled);
+    drop(unlock);
+    Ok(())
+}
+
+#[cfg(any(target_os = "ios", test))]
+fn require_selected_camera<T>(device: Option<T>) -> Result<T, ZoomControlError> {
+    device.ok_or(ZoomControlError::NoSelectedCamera)
+}
+
+#[cfg(any(target_os = "ios", test))]
+fn configure_video_zoom_factor(
+    factor: f64,
+    supported_max: impl FnOnce() -> f64,
+    lock: impl FnOnce() -> Result<(), ()>,
+    set_factor: impl FnOnce(f64),
+    unlock: impl FnOnce(),
+) -> Result<(), ZoomControlError> {
+    if !factor.is_finite() {
+        return Err(ZoomControlError::InvalidZoomFactor);
+    }
+    if factor < 1.0 {
+        return Err(ZoomControlError::ZoomFactorOutOfRange);
+    }
+    lock().map_err(|()| ZoomControlError::ConfigurationLockFailed)?;
+    let unlock = UnlockDeviceConfiguration(Some(unlock));
+    let supported_max = supported_max();
+    if !supported_max.is_finite() || supported_max < 1.0 {
+        return Err(ZoomControlError::InvalidSupportedRange);
+    }
+    if factor > supported_max {
+        return Err(ZoomControlError::ZoomFactorOutOfRange);
+    }
+    set_factor(factor);
     drop(unlock);
     Ok(())
 }
@@ -1144,6 +1193,44 @@ impl IosCameraCaptureSession {
                     })
                 },
                 // SAFETY: configure_torch_enabled invokes this only after a successful matching lock.
+                || unsafe { device.unlockForConfiguration() },
+            );
+        });
+        result
+    }
+
+    /// Set an exact zoom factor on the session's already selected camera
+    ///
+    /// The finite factor must be within the active format's inclusive range from `1.0` through
+    /// `videoMaxZoomFactor`. This operation runs on the session queue, acquires the device
+    /// configuration lock, and returns an error instead of clamping an unsupported value. It does
+    /// not enumerate or explicitly switch devices, request authorization, or change session or
+    /// audio policy. AVFoundation applies the factor immediately; this method does not ramp zoom.
+    pub fn set_zoom_factor(&self, factor: f64) -> Result<(), ZoomControlError> {
+        let graph = Arc::clone(&self.graph);
+        let mut result = Err(ZoomControlError::NoSelectedCamera);
+        self.queue.exec_sync(|| {
+            let graph = graph
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner);
+            let Ok(device) = require_selected_camera(graph.device.as_ref()) else {
+                return;
+            };
+            result = configure_video_zoom_factor(
+                factor,
+                // SAFETY: The selected device remains retained under the graph mutex, its
+                // configuration lock is held, and the iOS 10.0 floor exceeds this iOS 7.0 API.
+                || {
+                    let active_format = unsafe { device.activeFormat() };
+                    unsafe { active_format.videoMaxZoomFactor() }
+                },
+                // SAFETY: The selected device remains retained under the graph mutex for this
+                // serialized operation; lockForConfiguration is public AVFoundation API.
+                || unsafe { device.lockForConfiguration().map_err(|_| ()) },
+                // SAFETY: The validated factor lies within the active format's public range and
+                // the matching device configuration lock is held.
+                |factor| unsafe { device.setVideoZoomFactor(factor) },
+                // SAFETY: configure_video_zoom_factor invokes this only after a successful lock.
                 || unsafe { device.unlockForConfiguration() },
             );
         });
@@ -1713,10 +1800,12 @@ mod tests {
     use super::{
         CameraCaptureError, IosCameraPosition, MediaAuthorizationStatus, MovieRecordingState,
         PhotoCaptureError, PhotoCaptureResult, TorchControlError, VideoFrameStreamError,
-        VideoFrameStreamState, VideoRecordingError, VideoRecordingResult, configure_torch_enabled,
-        drop_video_frame_callback_safely, invoke_video_frame_callback, may_create_device_input,
-        photo_request_error, require_camera_at_position, settle_movie_result, settle_photo_result,
-        take_photo_completion, take_video_completion, validate_movie_destination,
+        VideoFrameStreamState, VideoRecordingError, VideoRecordingResult, ZoomControlError,
+        configure_torch_enabled, configure_video_zoom_factor, drop_video_frame_callback_safely,
+        invoke_video_frame_callback, may_create_device_input, photo_request_error,
+        require_camera_at_position, require_selected_camera, settle_movie_result,
+        settle_photo_result, take_photo_completion, take_video_completion,
+        validate_movie_destination,
     };
     use std::cell::RefCell;
     use std::path::PathBuf;
@@ -1894,6 +1983,136 @@ mod tests {
                     Ok(())
                 },
                 |_| panic!("simulated mode-set panic"),
+                || events.borrow_mut().push("unlock"),
+            )
+        }));
+        assert!(result.is_err());
+        assert_eq!(*events.borrow(), ["lock", "unlock"]);
+    }
+
+    #[test]
+    fn zoom_control_requires_a_selected_camera() {
+        assert_eq!(require_selected_camera(Some(17_u8)), Ok(17));
+        assert_eq!(
+            require_selected_camera::<u8>(None),
+            Err(ZoomControlError::NoSelectedCamera)
+        );
+    }
+
+    #[test]
+    fn zoom_control_rejects_nonfinite_and_below_minimum_factors_without_native_calls() {
+        for factor in [f64::NAN, f64::INFINITY, f64::NEG_INFINITY] {
+            assert_eq!(
+                configure_video_zoom_factor(
+                    factor,
+                    || panic!("range must not be read for a non-finite factor"),
+                    || panic!("device must not be locked for a non-finite factor"),
+                    |_| panic!("non-finite factor must not be set"),
+                    || panic!("device was not locked"),
+                ),
+                Err(ZoomControlError::InvalidZoomFactor)
+            );
+        }
+        assert_eq!(
+            configure_video_zoom_factor(
+                0.5,
+                || panic!("range must not be read below the known minimum"),
+                || panic!("device must not be locked below the known minimum"),
+                |_| panic!("below-minimum factor must not be set"),
+                || panic!("device was not locked"),
+            ),
+            Err(ZoomControlError::ZoomFactorOutOfRange)
+        );
+    }
+
+    #[test]
+    fn zoom_control_rejects_supported_range_and_lock_errors() {
+        let events = RefCell::new(Vec::new());
+        assert_eq!(
+            configure_video_zoom_factor(
+                2.0,
+                || {
+                    events.borrow_mut().push("range");
+                    1.0
+                },
+                || {
+                    events.borrow_mut().push("lock");
+                    Ok(())
+                },
+                |_| panic!("factor must not be set above the maximum"),
+                || events.borrow_mut().push("unlock"),
+            ),
+            Err(ZoomControlError::ZoomFactorOutOfRange)
+        );
+        assert_eq!(*events.borrow(), ["lock", "range", "unlock"]);
+
+        let events = RefCell::new(Vec::new());
+        assert_eq!(
+            configure_video_zoom_factor(
+                2.0,
+                || panic!("range must not be read after a failed lock"),
+                || {
+                    events.borrow_mut().push("lock");
+                    Err(())
+                },
+                |_| panic!("factor must not be set after a failed lock"),
+                || panic!("unlock is only valid after acquiring the lock"),
+            ),
+            Err(ZoomControlError::ConfigurationLockFailed)
+        );
+        assert_eq!(*events.borrow(), ["lock"]);
+
+        for invalid_max in [f64::NAN, f64::INFINITY, 0.5] {
+            assert_eq!(
+                configure_video_zoom_factor(
+                    1.0,
+                    || invalid_max,
+                    || Ok(()),
+                    |_| panic!("invalid device range must not be used"),
+                    || {},
+                ),
+                Err(ZoomControlError::InvalidSupportedRange)
+            );
+        }
+    }
+
+    #[test]
+    fn zoom_control_sets_exact_factor_between_lock_and_unlock() {
+        for factor in [1.0, 2.5, 5.0] {
+            let events = RefCell::new(Vec::new());
+            assert_eq!(
+                configure_video_zoom_factor(
+                    factor,
+                    || {
+                        events.borrow_mut().push("range");
+                        5.0
+                    },
+                    || {
+                        events.borrow_mut().push("lock");
+                        Ok(())
+                    },
+                    |requested| {
+                        assert_eq!(requested, factor);
+                        events.borrow_mut().push("set");
+                    },
+                    || events.borrow_mut().push("unlock"),
+                ),
+                Ok(())
+            );
+            assert_eq!(*events.borrow(), ["lock", "range", "set", "unlock"]);
+        }
+
+        let events = RefCell::new(Vec::new());
+        let factor = 2.5;
+        let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            configure_video_zoom_factor(
+                factor,
+                || 5.0,
+                || {
+                    events.borrow_mut().push("lock");
+                    Ok(())
+                },
+                |_| panic!("simulated zoom-set panic"),
                 || events.borrow_mut().push("unlock"),
             )
         }));

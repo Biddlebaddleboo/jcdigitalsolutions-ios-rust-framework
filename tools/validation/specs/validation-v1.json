@@ -1361,6 +1361,96 @@
           "must_exist": true,
           "path": "platform/ios/ios-camera-capture-session/src/lib.rs",
           "text": "AVCaptureTorchMode::Off"
+        },
+        {
+          "message": "zoom control must expose an additive selected-device factor setter",
+          "must_exist": true,
+          "path": "platform/ios/ios-camera-capture-session/src/lib.rs",
+          "text": "pub fn set_zoom_factor(&self, factor: f64) -> Result<(), ZoomControlError>"
+        },
+        {
+          "message": "zoom control must reject non-finite requests before native access",
+          "must_exist": true,
+          "path": "platform/ios/ios-camera-capture-session/src/lib.rs",
+          "text": "if !factor.is_finite()"
+        },
+        {
+          "message": "zoom control must validate the active format's public maximum",
+          "must_exist": true,
+          "path": "platform/ios/ios-camera-capture-session/src/lib.rs",
+          "text": "device.activeFormat()"
+        },
+        {
+          "message": "zoom control must use the selected active format's videoMaxZoomFactor",
+          "must_exist": true,
+          "path": "platform/ios/ios-camera-capture-session/src/lib.rs",
+          "text": "active_format.videoMaxZoomFactor()"
+        },
+        {
+          "message": "zoom control must reject values below 1.0 or above the supported maximum without clamping",
+          "must_exist": true,
+          "path": "platform/ios/ios-camera-capture-session/src/lib.rs",
+          "text": "ZoomControlError::ZoomFactorOutOfRange"
+        },
+        {
+          "message": "zoom control must reject requests below the public 1.0 minimum",
+          "must_exist": true,
+          "path": "platform/ios/ios-camera-capture-session/src/lib.rs",
+          "text": "if factor < 1.0"
+        },
+        {
+          "message": "zoom control must reject requests above the active-format maximum",
+          "must_exist": true,
+          "path": "platform/ios/ios-camera-capture-session/src/lib.rs",
+          "text": "if factor > supported_max"
+        },
+        {
+          "message": "zoom control must reject invalid device maximums instead of passing them to AVFoundation",
+          "must_exist": true,
+          "path": "platform/ios/ios-camera-capture-session/src/lib.rs",
+          "text": "!supported_max.is_finite() || supported_max < 1.0"
+        },
+        {
+          "message": "zoom control must set the exact validated factor through the public property setter",
+          "must_exist": true,
+          "path": "platform/ios/ios-camera-capture-session/src/lib.rs",
+          "text": "device.setVideoZoomFactor(factor)"
+        },
+        {
+          "message": "zoom control must acquire the public device configuration lock",
+          "must_exist": true,
+          "path": "platform/ios/ios-camera-capture-session/src/lib.rs",
+          "text": "device.lockForConfiguration()"
+        },
+        {
+          "message": "zoom control must release configuration through the shared drop guard",
+          "must_exist": true,
+          "path": "platform/ios/ios-camera-capture-session/src/lib.rs",
+          "text": "let unlock = UnlockDeviceConfiguration(Some(unlock))"
+        },
+        {
+          "message": "zoom control must not use the iOS 11-only available zoom bound",
+          "must_exist": false,
+          "path": "platform/ios/ios-camera-capture-session/src/lib.rs",
+          "text": "maxAvailableVideoZoomFactor"
+        },
+        {
+          "message": "zoom control must not use the iOS 11-only minimum available zoom bound",
+          "must_exist": false,
+          "path": "platform/ios/ios-camera-capture-session/src/lib.rs",
+          "text": "minAvailableVideoZoomFactor"
+        },
+        {
+          "message": "zoom control must not ramp zoom",
+          "must_exist": false,
+          "path": "platform/ios/ios-camera-capture-session/src/lib.rs",
+          "text": "rampToVideoZoomFactor:withRate:"
+        },
+        {
+          "message": "zoom control must not change the selected active format",
+          "must_exist": false,
+          "path": "platform/ios/ios-camera-capture-session/src/lib.rs",
+          "text": "setActiveFormat"
         }
       ],
       "id": "ios-camera-capture-session",

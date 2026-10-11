@@ -36,8 +36,9 @@ The existing iOS adapter remains read-only: on iOS 15.0 and later it constructs
 `SNClassifySoundRequest` with `SNClassifierIdentifierVersion1`, returns `false` on construction
 failure, and returns `true` only when `knownClassifications()` is nonempty. It creates no analyzer,
 supplies no audio, accesses no microphone, and requests no permission. Older iOS releases and
-non-iOS targets return `false`. No D17, B46, iOS adapter implementation, or canonical matrix change
-was made.
+non-iOS targets return `false`. No D17, B46, or iOS adapter implementation change was made. The
+orchestrator corrected row 053's portable crate owner from `framework-audio` to `framework-media`
+in commit `92b7c0b`; the row remains partial.
 
 `PATH="$PWD/target/ios-rust-tools/bin:$PATH" sh platform/ios/ios-sound-analysis/check.sh` passed
 with exit code 0 on Xcode 26.6 (17F113), iOS SDK 26.5, and Rust/Cargo 1.94.1. It covered formatting;

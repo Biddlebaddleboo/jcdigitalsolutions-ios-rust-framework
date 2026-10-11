@@ -20,6 +20,7 @@ objc2-av-foundation = { workspace = true, features = [
     "AVCaptureFileOutput",
     "AVCapturePhotoOutput",
     "AVCaptureDevice",
+    "objc2-core-foundation",
     "AVCaptureInput",
     "AVCaptureSession",
     "AVCaptureVideoDataOutput",

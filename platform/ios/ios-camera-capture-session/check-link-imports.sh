@@ -77,6 +77,9 @@ for target in aarch64-apple-ios aarch64-apple-ios-sim; do
         lockForConfiguration: \
         setTorchMode: \
         unlockForConfiguration \
+        activeFormat \
+        videoMaxZoomFactor \
+        setVideoZoomFactor: \
         canAddInput: \
         addInput: \
         layerWithSession: \

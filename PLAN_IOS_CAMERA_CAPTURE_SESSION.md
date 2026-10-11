@@ -48,7 +48,7 @@ Add an iOS camera session for capability row 046. The session uses the existing 
 ## Exclusions
 
 - Photo capture, movie recording, audio capture, output objects, sample buffers, frame callbacks, and image processing
-- Camera enumeration/selection, switching, torch level control, zoom, focus, orientation policy, session notifications, and recovery policy; B473 adds only explicit torch on/off control
+- Camera enumeration/selection, explicit switching, torch level control, focus, orientation policy, session notifications, and recovery policy; B473 adds torch on/off and B475 adds an immediate selected-device zoom factor
 - Authorization requests or UI initiated by the capture crate
 - Portable camera-session API, C ABI, Python binding, or Swift shim
 
@@ -84,3 +84,13 @@ B473 adds `IosCameraCaptureSession::set_torch_enabled(bool)` for the device alre
 - A drop guard unlocks after every successful lock, including an unwind path. No authorization request, device enumeration/switching, session activation/configuration change, audio-session mutation, private selector, or Swift source is added.
 - Host regressions cover no-torch, unsupported-mode, unavailable-enable, lock-failure, successful lock/set/unlock order, unavailable disable, and unlock on unwind. The registered link probe requires `hasTorch`, `isTorchAvailable`, `isTorchModeSupported:`, `lockForConfiguration:`, `setTorchMode:`, and `unlockForConfiguration` on both existing targets.
 - Host tests and device/Simulator compilation/link checks validate deterministic logic and the public ABI boundary only. Actual torch availability, mode changes, illumination, Simulator execution, and physical-device runtime behavior remain unverified.
+
+## B475: selected-camera video zoom control
+
+B475 adds `IosCameraCaptureSession::set_zoom_factor(f64)` for the device already retained by the capture graph. The iOS 26.5 `AVCaptureDevice.h` declares `videoZoomFactor`, `activeFormat`, and `AVCaptureDeviceFormat.videoMaxZoomFactor` from iOS 7.0; the existing iOS 10.0 device and iOS 14.0 Simulator floors exceed these APIs. The `minAvailableVideoZoomFactor` and `maxAvailableVideoZoomFactor` properties are iOS 11.0, so the implementation does not use them. Apple documents the setter's valid range as `1.0` through the active format's `videoMaxZoomFactor`; this graph does not enable depth-data delivery.
+
+- The call runs synchronously on the existing session queue, requires the existing selected device, and locks the device before reading its active-format maximum and setting the factor.
+- Non-finite and out-of-range factors return typed errors. A valid request is applied exactly; the implementation does not clamp or ramp. `UnlockDeviceConfiguration` releases the lock after success, range failure, invalid native bounds, or unwinding.
+- The installed `objc2-av-foundation` 0.3.2 binding exposes `activeFormat`, `videoMaxZoomFactor`, and `setVideoZoomFactor:` with the `objc2-core-foundation` feature. No new crate dependency is added.
+- Host regressions cover missing device, non-finite and lower/upper-bound errors, invalid device bounds, lock failure, exact set order, and unlock on range failure/unwind. The registered device and Simulator link probe retains the zoom selectors.
+- Static tests and links do not prove live zoom changes, automatic device behavior, Simulator execution, or physical-device behavior.

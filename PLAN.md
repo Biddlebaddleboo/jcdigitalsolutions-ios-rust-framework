@@ -2,6 +2,10 @@
 
 ## Authority and baseline
 
+## Current standing objective and supersession
+
+The user’s standing objective is to continue implementing feasible public Apple APIs autonomously, including new bounded workstream IDs when needed. This supersedes older checkpoint clauses below that ask for workstream selection, prohibit successor IDs, or stop after a blocked/empty queue. Keep historical decisions and no-go constraints intact; B436 remains blocked without materially new supported ABI evidence. Stop only when no feasible independent increment remains or a genuine architectural, safety, repository-wide, or out-of-scope decision blocks all useful work.
+
 Repository: `Biddlebaddleboo/jcdigitalsolutions-ios-rust-framework`; branch: `main`. Planning audit baseline: `f3b14892a560da05a086caf9e6d30a0c9beda25e`. **Before execution, verify the current remote `main` SHA and reconcile any relevant changes.** This file supersedes the former infrastructure-only stop instruction; it does not authorize indiscriminate implementation of every historical `PLAN_*.md` file.
 
 ## Objective and current state
@@ -120,20 +124,20 @@ Current `main` run [38069843265](https://github.com/Biddlebaddleboo/jcdigitalsol
 - Later commits through the current planning baseline implemented/reorganized R1/R2 tooling and planning documentation; their presence is not evidence of new completed end-user capability work. R1/R2 tooling is completed; do not rebuild it. Preserve valid R3 interop residuals as separate, explicitly justified work.
 - The canonical active state is **current `main` code + tests + `docs/capabilities/capability-status.json` + surviving targeted plans**, not the age or filename of a plan. At this checkpoint the manifest reports 98 partial and 16 unsupported rows out of 114, not 98 completed capabilities. These counts must be reverified before changing the manifest.
 
-### Mandatory one-time resume reconciliation (before implementing the next API)
+### Historical one-time resume reconciliation (standing objective supersedes selection stops)
 
 1. Fetch and fast-forward to current remote `main`; record its full SHA. Confirm pinned `ios-rust-build` / `ios-rust-validate` installation and that `AGENTS.md` and `docs/SHARED_TOOLING.md` are in force. Do **not** fetch historical shared engine source.
 2. Read this plan, the current capability manifest, `PLAN_CAPABILITIES.md`, `PLAN_IOS_NATIVE.md`, `PLAN_BINDINGS.md`, and `PLAN_VALIDATION.md`. Use the last API commit only as a chronological checkpoint: inspect its changed paths and associated B/D/F/G decisions if needed to resolve whether work was already integrated. Do not indiscriminately load historical `PLAN_*.md` files.
 3. Build an **active residual queue** from currently incomplete requirements in the canonical manifest and their surviving targeted plans. Include relevant foundation, native iOS, C ABI, compiler/Swift ABI, validation, and performance dependencies. For each eligible item record: unchanged workstream ID, exact plan and starting symbols, current code/test evidence, unmet criteria, prerequisite IDs, write owner, required Apple host/device evidence, and `ready` / `blocked` state. Treat `research_closed`, completed one-off slices and no-go outcomes as constraints, not automatic implementation candidates. Never infer completion from a matching crate or status getter.
-4. Select the **earliest ready existing workstream in its recorded prerequisite/plan order**, with preference to closing a useful existing capability contract over inventing an unrelated scalar snapshot. If the original sequence cannot be reconstructed unambiguously, or two independent candidates have no established priority, **record the ambiguity and request selection**; do not invent a next B number. If all remaining candidates are blocked, report their prerequisites and stop rather than changing unrelated APIs.
+4. Select the next highest-value feasible independent increment from latest `main`, the canonical capability registry, and relevant targeted plans. The current standing objective authorizes new bounded workstreams; allocate the next unused greater ID when needed. Do not halt solely because a historical sequence is ambiguous, an older family has no successor, or another capability is blocked.
 5. Start only the selected bounded workstream and its **necessary, explicitly owned prerequisite tasks**. Use isolated worktrees for parallel-safe independent scopes; serialize shared files. Before code changes, check its targeted plan against current source and tests; do not reimplement already integrated slices. Existing user authorization to continue the residual API plan does not override specific no-go, security, Apple SDK, or device validation gates.
 
 ### Execution and checkpoint update after each integration
 
 - Follow `AGENTS.md` and `docs/SHARED_TOOLING.md`: add a declarative validator profile only for genuinely unregistered work, preserve package-local and compiler/link/ABI gates until parity is proved, and never treat skipped physical-device evidence as a pass.
 - Require the executor to report existing workstream ID, source file/symbol changes, tests and failures, limitations, final diff, and implementation commit SHA. Integrate in prerequisite order, recheck remote `main`, and rerun affected cross-workstream tests.
-- Recompute which requirements remain open from current code/tests and update their targeted plans, docs and manifest as appropriate. Record the most recent completed implementation SHA and the next **reconciled** ready workstream in this checkpoint before the next implementation cycle; do not automatically advance from a partial result or a blocked task.
-- Continue only within the user-authorized remaining scope, and stop on ambiguous priority, architectural contradiction, unauthorised expansion, tool-engine defects, or missing mandatory evidence. Engine defects use sanitized `BUG_REPORT_*.md` and separate maintenance.
+- Recompute open requirements from current code/tests and update only affected plans, docs and manifest. Record each integrated SHA and validation evidence, then automatically select the next feasible independent workstream; partial or blocked capabilities do not halt unrelated work.
+- Continue within the user-authorized standing objective. Stop only when no feasible increment remains, a genuine architectural/safety/repository-wide blocker prevents useful work, or a required decision is outside that authorization. Engine defects use sanitized `BUG_REPORT_*.md` and separate maintenance.
 
 ### Current resume state
 
@@ -220,11 +224,27 @@ B470 adds `available_input_ports()` to `ios-microphone-pcm-stream`, copying the 
 
 B471 adds a source-compatible `ContactsUpdateBackend` and Rust-owned `ContactUpdate` patch for one caller-selected local identifier. `None` preserves a field; an empty `Some` string or phone/email vector clears it; a nonempty labeled-value vector replaces that full list. The iOS path validates before I/O, rechecks status without prompting, accepts only `Authorized` or `Limited`, fetches one unified contact with the existing common keys, makes a retained public mutable copy, changes only supplied fields, and executes one `CNSaveRequest.updateContact:`. It does not create, delete, batch, or refetch. Apple limits Limited-access edits to contacts it has granted the app; a missing/stale Contacts-domain code 200 maps to `NotFound`, while a fresh denied/restricted/unknown status wins over native save errors. Xcode 26.6 / iPhoneOS 26.5 headers and objc2-contacts 0.3.2 expose the APIs from iOS 9.0; registered floors remain iOS 10 device and iOS 14 Simulator. Host tests and target compile/link checks do not prove live edits, Limited selection, or concurrent-store behavior; see [PLAN_IOS_CONTACTS.md](PLAN_IOS_CONTACTS.md).
 
+### B472 — preferred microphone input selection (row 047)
+
+Commit `a1b5bb7` adds `select_input_port(uid)`, matching an exact UID in the host session’s current available inputs before calling public `setPreferredInput:error:`. It leaves session policy and permission to the host. The registered profile passed 73 checks with 2 runtime skips; active route change and capture remain unverified.
+
+### B473 — selected-camera torch control (row 046)
+
+Commit `b7594bf` adds exact on/off control for the retained selected camera, with mode/availability errors and configuration unlock on success or unwind. The registered profile passed 109 checks with 2 runtime skips; torch availability and illumination remain unverified.
+
+### B474 — delete one selected Contacts record (row 069)
+
+Commit `1b9fac5` adds a source-compatible delete extension that validates one caller ID, rechecks Authorized/Limited access, fetches only the identifier, and executes one public save request. The registered profile passed 152 checks with 2 runtime skips; a forbidden-enumeration mutation was caught. Live deletion and Limited-access behavior remain unverified.
+
+### B475 — selected-camera video zoom control (row 046)
+
+B475 adds `IosCameraCaptureSession::set_zoom_factor(f64)` for its already selected device. The public iOS 7.0 `videoZoomFactor`, `activeFormat`, and `videoMaxZoomFactor` APIs are below the existing iOS 10 device / iOS 14 Simulator floors; the newer iOS 11 min/max-available properties are not used. The setter validates a finite request in the inclusive `[1.0, activeFormat.videoMaxZoomFactor]` range under the configuration lock, applies the exact value without clamping or ramping, and always unlocks after a successful lock. Host regressions and registered device/Simulator selector checks do not prove live zoom behavior; see [PLAN_IOS_CAMERA_CAPTURE_SESSION.md](PLAN_IOS_CAMERA_CAPTURE_SESSION.md).
+
 ## Active work selection and limits
 
 1. Inspect the canonical capability status/owner, the relevant family plan, then the named workstream plan and exact files/symbols. Do not scan the entire planning corpus or treat every existing plan as pending work.
 2. Classify the selected requirement against current implementation, tests and historical recorded decision: `complete`, `partial`, `blocked`, `superseded`, `not_started`, or `research_closed`. A prior `no-go` is a constraint, not an invitation to invent an implementation.
-3. Implement only user-authorized remaining work. Select only the next reconciled ready workstream using the API resume checkpoint procedure; do not invent new workstreams or extend beyond the approved residual scope. Deferred work is preserved, not canceled.
+3. Follow the current standing objective: after each integration, select the next bounded, independent, feasible public Apple API increment from latest `main`, the canonical capability registry, and its targeted plan. Allocate the next unused greater workstream ID when needed; do not stop because a historical queue has no successor or one capability is blocked. Preserve all architectural and no-go constraints.
 4. Existing P/R/A/B/C/D/F/G identifiers and all capability IDs are permanent; never renumber, recycle or use retired gaps. For future workstreams allocate the next unused greater ID in its original series after consulting history.
 5. Plans specifying a past source baseline must be reconciled to latest `main` before writing. Outdated commands do not override working architecture.
 
@@ -257,7 +277,7 @@ Minimize overlapping writes. If shared interfaces or files are required, assign 
 
 Each assigned plan must name: exact starting files and symbols; verified current implementation; objective and remaining acceptance criteria; owned write surface and read-only dependencies; explicit non-goals; invariants around errors, ownership, async completion, cancellation, idempotency, security and persistence **where relevant**; host/Apple version limits; declarative validation entries and any custom adapters; real device/simulator evidence requirements; deterministic regression tests; exact commands; and an auditable final diff checklist. Preserve historical evidence/decisions as linked read-only references instead of flooding the routine executor context.
 
-Before integration: verify current `main`, use isolated worktrees for parallel-safe tasks, require each executor to report changed paths, SHA, tests, skips, deviations and open assumptions, then integrate in dependency order. Re-run affected validation and independent ABI/consumer checks. Resolve plan contradictions centrally. Audit the final diff against the entire assigned contract. Remove temporary planning handoff files after implementation when that is the established workflow; do not delete durable history without evidence-backed retirement. **Do not initiate additional API work beyond specifically authorized workstreams.**
+Before integration: verify current `main`, use isolated worktrees for parallel-safe tasks, require each executor to report changed paths, SHA, tests, skips, deviations and open assumptions, then integrate in dependency order. Re-run affected validation and independent ABI/consumer checks. Resolve plan contradictions centrally. Audit the final diff against the entire assigned contract. Remove temporary planning handoff files after implementation when that is the established workflow; do not delete durable history without evidence-backed retirement. **Continue successive bounded API workstreams authorized by the current standing objective until no feasible increment remains; do not broaden into unrelated release or tooling-engine work.**
 
 ## Final review checklist
 
