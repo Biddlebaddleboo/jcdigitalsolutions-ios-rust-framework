@@ -1251,6 +1251,7 @@ dependencies = [
 name = "ios-ui"
 version = "0.1.0"
 dependencies = [
+ "block2",
  "framework-core",
  "framework-ui",
  "ios-runtime",

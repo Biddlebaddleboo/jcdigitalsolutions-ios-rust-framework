@@ -61,3 +61,9 @@ to the host frame and native `contentSize`. Its optional intrinsic vertical mode
 `contentLayoutGuide` and `frameLayoutGuide`; a one-shot `IosStackView` helper pins native stack edges
 to a caller-owned parent so UIKit can size arranged dashboard content. This is an iOS extension only;
 it adds no portable scroll contract or general layout system
+
+The iOS backend also exposes a fixed-action `IosContextMenu` over public
+`UIContextMenuInteraction`. It requires iOS 13 at runtime while preserving the crate's iOS 12
+compile floor, and its handle removes the exact interaction on drop when the weakly held parent
+still exists. This UIKit-only menu adds no portable menu contract, dynamic state binding, or
+declarative view composition

@@ -77,6 +77,13 @@ host regressions and Device/Simulator link probes; those do not establish live r
 scrolling, or accessibility behavior. This is a reusable native list primitive, not a declarative
 SwiftUI `List` or state-observation system
 
+B537 adds `IosContextMenuAction` and a fixed UIKit `IosContextMenu` over public
+`UIContextMenuInteraction`, with unique stable IDs, owned nonempty titles, main-thread selection,
+panic/reentry containment, and exact interaction removal on drop. It requires iOS 13 at runtime
+while preserving the crate's iOS 12 compile floor. The registered profile covers host policy
+regressions and Device/Simulator link probes; menu display and selection behavior remain
+runtime-unverified. This does not add SwiftUI context-menu composition or clipboard policy
+
 ## Objective
 
 Provide a small reusable Rust API for native container views, labels, buttons, image views, and

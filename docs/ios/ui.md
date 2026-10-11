@@ -2,8 +2,9 @@
 
 `ios-ui` implements the portable `framework-ui` contract with public UIKit bindings. It creates a
 native `UIView`, adds native `UILabel`, `UIButton`, `UIImageView`, `UIScrollView`, `UIStackView`,
-`UITableView`, and single-line `UITextField` children, and supports synchronous label, button,
-image, scroll-host, field, disclosure-group, and reusable-list operations. `Frame` maps to
+`UITableView`, `UIContextMenuInteraction`, and single-line `UITextField` children, and supports
+synchronous label, button, image, scroll-host, field, disclosure-group, reusable-list, and fixed
+context-menu operations. `Frame` maps to
 `CGRect` in the parent view's local coordinate system; its logical units are UIKit points
 
 ## Main-thread and ownership rules
@@ -104,6 +105,26 @@ bindings, automatic observation, or declarative view tree. Host regressions cove
 transactional replacement, panic containment, and callback reentry. Device/Simulator compile-link
 checks verify UIKit symbols and deployment floors only; they do not establish live row rendering,
 selection, scrolling, or accessibility behavior
+
+## Fixed UIKit context menus
+
+`IosUiBackend::add_context_menu` attaches a `UIContextMenuInteraction` to a caller-owned `UIView`
+with an owned, fixed list of `IosContextMenuAction { id, title }` values. IDs must be unique and
+titles nonempty; invalid input returns `InvalidInput` before attachment. The selection callback
+receives the selected `u64` ID synchronously on UIKit's main thread. Panics are caught before the
+Objective-C callback returns, and reentry while the `FnMut` callback is borrowed is ignored
+
+Context menus require iOS 13.0. The package retains its iOS 12.0 compile floor; on iOS 12 the
+runtime availability guard returns `Unavailable` before creating or attaching an interaction.
+`IosContextMenu` retains the interaction and delegate target, holds only a weak parent reference,
+and on drop disables callbacks and removes that exact interaction if the parent still exists. Keep
+the handle alive while its menu should remain active; `native_interaction` is a typed UIKit escape
+
+This is a fixed native menu, not SwiftUI `.contextMenu`: it has no dynamic action replacement,
+custom preview, bindings, or state observation. Action meaning and operations such as copying text
+remain app-owned. Host regressions cover invalid menus/IDs, action identity, callback panic, and
+reentry. Device/Simulator link probes verify selectors and deployment floors but do not establish
+menu presentation, selection, or runtime behavior
 
 ## Native scrolling
 

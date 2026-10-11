@@ -394,6 +394,10 @@ B535 adds owned string-to-string user-info entries to `NotificationResponse`, ex
 
 B536 adds default-on `audio-session-events` to `ios-call-provider`. Its typed `AudioSessionActivated` and `AudioSessionDeactivated` lifecycle events expose CallKit's public provider delegate callbacks without exposing or configuring `AVAudioSession`, changing audio policy, or performing media I/O. The optional AVFoundation binding is absent with `--no-default-features`. The integrated `ios-call-provider` profile passed 65 checks with 0 FAIL, 0 BLOCKED, and 2 runtime SKIPPED at snapshot `3c716fcc4cbbb6d8ccb7a82eebebdec1613aabbb591bafc14e15f8c39d0296c3`; Simulator execution and physical-device behavior remain unverified.
 
+### B537 — fixed UIKit context menus (row 003)
+
+B537 adds fixed `IosContextMenuAction` snapshots and an `IosContextMenu` handle over public UIKit `UIContextMenuInteraction`. IDs are unique `u64` values, titles are owned and nonempty, selection callbacks run synchronously on main, callback panics/reentry are contained, and drop removes the exact interaction if its weak parent still exists. The API returns `Unavailable` below iOS 13 while the crate retains its iOS 12 compile floor. The integrated `ios-ui` profile passed 267 checks with 0 FAIL, 0 BLOCKED, and 2 runtime SKIPPED at snapshot `23ceab9c2a97f7439f0c9a95efcb2385f14fcd14cbcd45e03da56be69e83b514`. Runtime menu presentation and selection remain unverified; this is not SwiftUI context-menu composition or clipboard policy.
+
 ## Active work selection and limits
 
 1. Inspect the canonical capability status/owner, the relevant family plan, then the named workstream plan and exact files/symbols. Do not scan the entire planning corpus or treat every existing plan as pending work.
