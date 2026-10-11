@@ -9,8 +9,14 @@ description = "Small Objective-C runtime adapters for Rust-owned iOS application
 
 [features]
 dispatch = ["dep:dispatch2"]
+dispatch-timer = ["dispatch", "dep:block2", "dispatch2/block2"]
+
+[[example]]
+name = "repeating_timer_link_probe"
+required-features = ["dispatch-timer"]
 
 [target.'cfg(target_os = "ios")'.dependencies]
+block2 = { workspace = true, features = ["alloc"], optional = true }
 dispatch2 = { workspace = true, features = ["alloc"], optional = true }
 objc2 = { workspace = true, features = ["std"] }
 

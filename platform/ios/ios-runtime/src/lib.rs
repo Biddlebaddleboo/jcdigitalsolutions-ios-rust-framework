@@ -11,3 +11,7 @@
 pub mod dispatch;
 pub mod ffi;
 pub mod main_thread;
+#[cfg(feature = "dispatch-timer")]
+pub mod repeating_timer;
+#[cfg(feature = "dispatch-timer")]
+mod timer_policy;
