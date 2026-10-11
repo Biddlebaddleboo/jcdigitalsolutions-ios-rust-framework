@@ -148,9 +148,20 @@ attaching the field: `Text` uses the default keyboard without secure entry, `Pas
 entry with the default keyboard, and `Number` / `Decimal` select `UIKeyboardType::NumberPad` /
 `DecimalPad`. These modes are hints, not numeric parsers or validators; initial and edited values
 remain exact text, and creating a field does not emit an edit callback. Other backends may return
-`Unsupported` for modes they do not implement. No submit/return handling, autoformatting, keyboard
-management, or application state is added. Host regressions and device / Simulator compile-link
-checks do not prove live keyboard selection, secure rendering, or callback delivery
+`Unsupported` for modes they do not implement
+
+`TextFieldControl::set_submit_action` and `UiClient::set_submit_action` install or replace a
+submit callback. iOS uses the public `UIControlEvents::EditingDidEndOnExit` event and passes a new
+strict UTF-16 text snapshot, preserving nil and empty text; malformed UTF-16 reaches the callback
+as `InvalidInput`. The callback runs synchronously on the main thread, is not `Send`, and uses the
+same panic-containment and reentrancy policy as the edit callback. The field handle retains the
+separate submit target and removes only its `textFieldSubmitted:` action on drop. Replacing an
+action while it is active returns `Unavailable` and leaves it unchanged
+
+Submit handling does not change the keyboard's Return key, resign first responder, or manage
+application state. Number and decimal keyboards may not expose a Return key and therefore may not
+emit this event. Host regressions and device / Simulator compile-link checks do not prove live
+keyboard selection, secure rendering, Return-key presentation, or callback delivery
 
 ## Boolean toggle
 

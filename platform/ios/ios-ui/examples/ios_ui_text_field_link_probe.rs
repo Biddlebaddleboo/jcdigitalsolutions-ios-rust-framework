@@ -34,7 +34,7 @@ fn main() {
     let Ok(mut callback_parent) = ui.create_view(frame) else {
         return;
     };
-    let Ok(callback_field) = ui.add_text_field(
+    let Ok(mut callback_field) = ui.add_text_field(
         &mut callback_parent,
         frame,
         Some("A\0😀"),
@@ -43,6 +43,9 @@ fn main() {
     ) else {
         return;
     };
+    let _ = ui.set_submit_action(&mut callback_field, |value| {
+        let _ = value;
+    });
     let _ = callback_field.native_text_field();
 
     for input_mode in [

@@ -37,6 +37,11 @@ These are input/keyboard hints only: they do not parse, validate, or format text
 `add_text_field` remains plain text, and backends that do not implement non-`Text` modes return
 `Unsupported`
 
+`TextFieldControl::set_submit_action` replaces the callback for a native submit event. The callback
+receives a fresh owned `Result<Option<String>>` snapshot; `None` and `Some("")` remain distinct.
+Backends that cannot report submit events return `Unsupported` and drop the new callback without
+changing a prior action. Event source, thread, panic, and reentrancy behavior remain backend-defined
+
 ## iOS extension
 
 The UIKit implementation is a separate `ios-ui` crate. Its `IosUiBackend` needs a typed

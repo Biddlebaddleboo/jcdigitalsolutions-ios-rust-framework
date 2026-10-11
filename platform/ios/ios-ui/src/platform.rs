@@ -61,6 +61,7 @@ pub struct IosImageView {
 pub struct IosTextField {
     native: Retained<UITextField>,
     _target: Option<Retained<TextFieldTarget>>,
+    _submit_target: Option<Retained<TextFieldSubmitTarget>>,
     _text_field_not_send: PhantomData<Rc<()>>,
 }
 
@@ -184,6 +185,43 @@ define_class!(
 impl TextFieldTarget {
     fn with_action(mtm: MainThreadMarker, action: TextFieldCallback) -> Retained<Self> {
         let this = Self::alloc(mtm).set_ivars(TextFieldTargetState {
+            callback: RefCell::new(action),
+        });
+        // SAFETY: `this` is a fresh NSObject subclass allocation and NSObject's `init` is valid.
+        unsafe { msg_send![super(this), init] }
+    }
+}
+
+struct TextFieldSubmitTargetState {
+    callback: RefCell<TextFieldCallback>,
+}
+
+define_class!(
+    // SAFETY:
+    // - NSObject has no subclassing requirements.
+    // - TextFieldSubmitTarget does not implement Drop.
+    #[unsafe(super(NSObject))]
+    #[thread_kind = MainThreadOnly]
+    #[name = "JcdIosUiTextFieldSubmitTarget"]
+    #[ivars = TextFieldSubmitTargetState]
+    struct TextFieldSubmitTarget;
+
+    impl TextFieldSubmitTarget {
+        #[unsafe(method(textFieldSubmitted:))]
+        fn text_field_submitted(&self, sender: &UITextField) {
+            let _keep_alive = self.retain();
+            let text = sender.text().as_deref().map(native_string_to_rust).transpose();
+            invoke_text_callback(&self.ivars().callback, text);
+        }
+    }
+
+    // SAFETY: NSObjectProtocol adds no required methods, and NSObject supplies its implementation.
+    unsafe impl NSObjectProtocol for TextFieldSubmitTarget {}
+);
+
+impl TextFieldSubmitTarget {
+    fn with_action(mtm: MainThreadMarker, action: TextFieldCallback) -> Retained<Self> {
+        let this = Self::alloc(mtm).set_ivars(TextFieldSubmitTargetState {
             callback: RefCell::new(action),
         });
         // SAFETY: `this` is a fresh NSObject subclass allocation and NSObject's `init` is valid.
@@ -333,6 +371,7 @@ impl IosUiBackend {
         Ok(IosTextField {
             native,
             _target: None,
+            _submit_target: None,
             _text_field_not_send: PhantomData,
         })
     }
@@ -441,6 +480,42 @@ impl IosTextField {
         Ok(self.native.resignFirstResponder())
     }
 
+    /// Replaces the action invoked by UIKit's `EditingDidEndOnExit` event.
+    ///
+    /// The callback receives a fresh strict UTF-16 snapshot of the current field text. It runs
+    /// synchronously on the main thread; panics are contained and reentrant calls are ignored.
+    /// This does not change the Return key or force the field to resign first-responder status.
+    /// Keyboards without a Return key may not emit this event. Replacing an action while it is
+    /// executing returns `Unavailable` and preserves the current action.
+    pub fn set_submit_action<F>(&mut self, action: F) -> Result<()>
+    where
+        F: FnMut(Result<Option<String>>) + 'static,
+    {
+        let marker = main_thread_marker()?;
+        if let Some(target) = self._submit_target.as_ref() {
+            let mut callback = target
+                .ivars()
+                .callback
+                .try_borrow_mut()
+                .map_err(|_| Error::new(ErrorKind::Unavailable))?;
+            *callback = Box::new(action);
+            return Ok(());
+        }
+
+        let target = TextFieldSubmitTarget::with_action(marker, Box::new(action));
+        // SAFETY: `target` is retained by this field handle and implements the exact selector
+        // registered for UIControlEvents::EditingDidEndOnExit.
+        unsafe {
+            self.native.addTarget_action_forControlEvents(
+                Some(&*target),
+                sel!(textFieldSubmitted:),
+                UIControlEvents::EditingDidEndOnExit,
+            );
+        }
+        self._submit_target = Some(target);
+        Ok(())
+    }
+
     /// Borrows the native text field for UIKit integration.
     pub fn native_text_field(&self) -> &UITextField {
         &self.native
@@ -454,6 +529,13 @@ impl TextFieldControl for IosTextField {
 
     fn set_text(&mut self, text: Option<&str>) -> Result<()> {
         IosTextField::set_text(self, text)
+    }
+
+    fn set_submit_action<F>(&mut self, action: F) -> Result<()>
+    where
+        F: FnMut(Result<Option<String>>) + 'static,
+    {
+        IosTextField::set_submit_action(self, action)
     }
 }
 
@@ -675,6 +757,17 @@ impl Drop for IosTextField {
                 );
             }
         }
+        if let Some(target) = &self._submit_target {
+            // SAFETY: this main-thread-only handle removes only its exact retained submit target,
+            // selector, and EditingDidEndOnExit event before callback release.
+            unsafe {
+                self.native.removeTarget_action_forControlEvents(
+                    Some(&**target),
+                    Some(sel!(textFieldSubmitted:)),
+                    UIControlEvents::EditingDidEndOnExit,
+                );
+            }
+        }
     }
 }
 
@@ -882,6 +975,7 @@ impl UiBackend for IosUiBackend {
         Ok(IosTextField {
             native,
             _target: Some(target),
+            _submit_target: None,
             _text_field_not_send: PhantomData,
         })
     }

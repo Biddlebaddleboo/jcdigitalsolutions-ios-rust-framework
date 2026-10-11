@@ -212,6 +212,21 @@ pub trait TextFieldControl {
 
     /// Replaces or clears the field text without invoking its user-edit callback.
     fn set_text(&mut self, text: Option<&str>) -> Result<()>;
+
+    /// Replaces the action invoked when the native field submits its current value.
+    ///
+    /// On success, the field owns `action` until replacement or handle drop. A submit event passes
+    /// a fresh owned snapshot, preserving `None` versus `Some("")`; malformed native text is
+    /// reported as `Err`. Callback thread, reentrancy, panic, and native submit-event semantics are
+    /// backend-defined. If unsupported or otherwise unavailable, the backend consumes and drops
+    /// `action`, returns an error, and keeps any prior action unchanged.
+    fn set_submit_action<F>(&mut self, action: F) -> Result<()>
+    where
+        F: FnMut(Result<Option<String>>) + 'static,
+    {
+        drop(action);
+        Err(Error::new(ErrorKind::Unsupported))
+    }
 }
 
 /// Semantic input and keyboard hints for a native single-line text field.
@@ -429,6 +444,14 @@ impl<B: UiBackend> UiClient<B> {
             placeholder,
             action,
         )
+    }
+
+    /// Replaces the action invoked when `field` receives a native submit event.
+    pub fn set_submit_action<F>(&mut self, field: &mut B::TextField, action: F) -> Result<()>
+    where
+        F: FnMut(Result<Option<String>>) + 'static,
+    {
+        field.set_submit_action(action)
     }
 
     /// Borrows the explicitly supplied backend.

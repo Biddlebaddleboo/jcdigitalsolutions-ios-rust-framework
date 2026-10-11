@@ -63,12 +63,20 @@ mod tests {
         input_mode: TextFieldInputMode,
         text: Option<String>,
         action: Box<dyn FnMut(Result<Option<String>>)>,
+        submit_action: Option<TextFieldCallback>,
     }
 
     impl ModeField {
         fn user_edit(&mut self, text: Option<&str>) {
             self.text = text.map(String::from);
             (self.action)(Ok(self.text.clone()));
+        }
+
+        fn user_submit(&mut self, text: Option<&str>) {
+            self.text = text.map(String::from);
+            if let Some(action) = &mut self.submit_action {
+                action(Ok(self.text.clone()));
+            }
         }
     }
 
@@ -79,6 +87,14 @@ mod tests {
 
         fn set_text(&mut self, text: Option<&str>) -> Result<()> {
             self.text = text.map(String::from);
+            Ok(())
+        }
+
+        fn set_submit_action<F>(&mut self, action: F) -> Result<()>
+        where
+            F: FnMut(Result<Option<String>>) + 'static,
+        {
+            self.submit_action = Some(Box::new(action));
             Ok(())
         }
     }
@@ -104,6 +120,16 @@ mod tests {
         }
 
         fn set_state(&mut self, _on: bool) -> Result<()> {
+            Err(Error::new(ErrorKind::Unsupported))
+        }
+    }
+
+    impl TextFieldControl for UnsupportedControl {
+        fn text(&self) -> Result<Option<String>> {
+            Ok(None)
+        }
+
+        fn set_text(&mut self, _text: Option<&str>) -> Result<()> {
             Err(Error::new(ErrorKind::Unsupported))
         }
     }
@@ -195,6 +221,7 @@ mod tests {
                 input_mode,
                 text: initial_text.map(String::from),
                 action: Box::new(action),
+                submit_action: None,
             })
         }
     }
@@ -250,6 +277,59 @@ mod tests {
             input_traits(TextFieldInputMode::Decimal),
             (false, KeyboardHint::DecimalPad)
         );
+    }
+
+    #[test]
+    fn submit_action_receives_owned_nil_empty_and_unicode_snapshots() {
+        let snapshots = Rc::new(RefCell::new(std::vec::Vec::new()));
+        let action_snapshots = snapshots.clone();
+        let mut ui = UiClient::new(ModeBackend);
+        let frame = Frame::new(0.0, 0.0, 120.0, 32.0).unwrap();
+        let mut parent = ui.create_view(frame).unwrap();
+        let mut field = ui
+            .add_text_field(&mut parent, frame, None, None, |_| {})
+            .unwrap();
+        let replaced_calls = Rc::new(Cell::new(false));
+        let old_action_calls = replaced_calls.clone();
+        ui.set_submit_action(&mut field, move |_| old_action_calls.set(true))
+            .unwrap();
+
+        ui.set_submit_action(&mut field, move |value| {
+            action_snapshots.borrow_mut().push(value);
+        })
+        .unwrap();
+        field.user_submit(Some("A\0😀"));
+        field.user_submit(Some(""));
+        field.user_submit(None);
+        assert_eq!(
+            *snapshots.borrow(),
+            [
+                Ok(Some(String::from("A\0😀"))),
+                Ok(Some(String::new())),
+                Ok(None)
+            ]
+        );
+        assert!(!replaced_calls.get());
+    }
+
+    #[test]
+    fn unsupported_submit_action_is_dropped_and_reported() {
+        struct DropSignal(Rc<Cell<bool>>);
+        impl Drop for DropSignal {
+            fn drop(&mut self) {
+                self.0.set(true);
+            }
+        }
+
+        let dropped = Rc::new(Cell::new(false));
+        let signal = DropSignal(dropped.clone());
+        let mut field = UnsupportedControl;
+        let result = field.set_submit_action(move |_| {
+            let _ = &signal;
+        });
+
+        assert_eq!(result, Err(Error::new(ErrorKind::Unsupported)));
+        assert!(dropped.get());
     }
 
     #[test]

@@ -4,6 +4,18 @@ set -eu
 root=$(CDPATH= cd -- "$(dirname -- "$0")/../../.." && pwd)
 cd "$root"
 
+source_file=platform/ios/ios-ui/src/platform.rs
+for assertion in \
+    '#[unsafe(method(textFieldSubmitted:))]' \
+    'UIControlEvents::EditingDidEndOnExit' \
+    'invoke_text_callback(&self.ivars().callback, text);' \
+    'Some(sel!(textFieldSubmitted:))'; do
+    grep -F "$assertion" "$source_file" >/dev/null || {
+        echo "iOS text-field submit implementation is missing $assertion" >&2
+        exit 1
+    }
+done
+
 for tool in awk cargo grep nm otool strings vtool; do
     if ! command -v "$tool" >/dev/null 2>&1; then
         echo "$tool is required for the iOS UI text-field link check" >&2
@@ -43,7 +55,7 @@ for target in aarch64-apple-ios aarch64-apple-ios-sim; do
     }
     for selector in 'setText:' 'text' 'setPlaceholder:' 'placeholder' \
         'becomeFirstResponder' 'resignFirstResponder' 'setSecureTextEntry:' \
-        'setKeyboardType:' 'textFieldChanged:' 'endEditing:' \
+        'setKeyboardType:' 'textFieldChanged:' 'textFieldSubmitted:' 'endEditing:' \
         'removeTarget:action:forControlEvents:'; do
         printf '%s\n' "$binary_strings" | grep -F "$selector" >/dev/null || {
             echo "$target text-field probe is missing the $selector selector" >&2
