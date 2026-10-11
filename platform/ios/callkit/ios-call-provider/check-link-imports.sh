@@ -55,7 +55,8 @@ for target in aarch64-apple-ios aarch64-apple-ios-sim; do
         'reportNewIncomingCallWithUUID:update:completion:' \
         'reportCallWithUUID:endedAtDate:reason:' 'providerDidReset:' \
         'provider:performAnswerCallAction:' 'provider:performEndCallAction:' \
-        'provider:timedOutPerformingAction:' 'setIncludesCallsInRecents:' invalidate fulfill fail; do
+        'provider:performSetMutedCallAction:' 'provider:performSetHeldCallAction:' \
+        'provider:timedOutPerformingAction:' 'setIncludesCallsInRecents:' isMuted isOnHold invalidate fulfill fail; do
         if ! grep -Fxq "$selector" "$strings_file"; then
             echo "$target probe is missing expected CallKit class/selector string $selector" >&2
             exit 1

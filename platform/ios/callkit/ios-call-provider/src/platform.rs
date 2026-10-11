@@ -11,10 +11,11 @@ use objc2::MainThreadMarker;
 use objc2::MainThreadOnly;
 use objc2::rc::{Retained, Weak, autoreleasepool};
 use objc2::runtime::ProtocolObject;
-use objc2::{AnyThread, DefinedClass, available, define_class, msg_send};
+use objc2::{AnyThread, ClassType, DefinedClass, available, define_class, msg_send};
 use objc2_call_kit::{
     CXAction, CXAnswerCallAction, CXCallAction, CXCallEndedReason, CXCallUpdate, CXEndCallAction,
     CXHandle, CXHandleType, CXProvider, CXProviderConfiguration, CXProviderDelegate,
+    CXSetHeldCallAction, CXSetMutedCallAction,
 };
 use objc2_foundation::{NSError, NSNumber, NSObject, NSObjectProtocol, NSSet, NSString, NSUUID};
 
@@ -208,6 +209,42 @@ define_class!(
             }));
         }
 
+        #[unsafe(method(provider:performSetMutedCallAction:))]
+        unsafe fn provider_performSetMutedCallAction(
+            &self,
+            _provider: &CXProvider,
+            action: &CXSetMutedCallAction,
+        ) {
+            let _ = catch_unwind(AssertUnwindSafe(|| {
+                autoreleasepool(|_| {
+                    let is_muted = unsafe { action.isMuted() };
+                    handle_call_action(
+                        &self.ivars().shared,
+                        action.as_super(),
+                        CallActionKind::SetMuted { is_muted },
+                    );
+                });
+            }));
+        }
+
+        #[unsafe(method(provider:performSetHeldCallAction:))]
+        unsafe fn provider_performSetHeldCallAction(
+            &self,
+            _provider: &CXProvider,
+            action: &CXSetHeldCallAction,
+        ) {
+            let _ = catch_unwind(AssertUnwindSafe(|| {
+                autoreleasepool(|_| {
+                    let is_held = unsafe { action.isOnHold() };
+                    handle_call_action(
+                        &self.ivars().shared,
+                        action.as_super(),
+                        CallActionKind::SetHeld { is_held },
+                    );
+                });
+            }));
+        }
+
         #[unsafe(method(provider:timedOutPerformingAction:))]
         unsafe fn provider_timedOutPerformingAction(
             &self,
@@ -287,10 +324,7 @@ fn complete_call_action(shared: &ProviderShared, action: &CXCallAction, kind: Ca
         return;
     }
 
-    let event = match kind {
-        CallActionKind::Answer => CallProviderEvent::AnswerRequested { call_id },
-        CallActionKind::End => CallProviderEvent::EndRequested { call_id },
-    };
+    let event = kind.provider_event(call_id);
     let decision = dispatch_event(shared, event);
 
     // CallKit may have timed out the action while user code ran. Timed-out actions are already
@@ -429,6 +463,9 @@ fn resolve_deferred_action(
                 };
                 (ended, expired)
             }
+            CallActionKind::SetMuted { .. } | CallActionKind::SetHeld { .. } => {
+                (state.calls.is_active(pending.call_id), Vec::new())
+            }
         },
     };
     drop(state);
@@ -453,7 +490,7 @@ pub struct CallProvider {
 }
 
 impl CallProvider {
-    /// Create a provider on the main thread with an immediate answer/end action handler.
+    /// Create a provider on the main thread with an immediate call-action handler.
     ///
     /// The handler runs synchronously on the CallKit delegate queue, which is the main queue. It
     /// must return promptly and must not wait for network work. For `ProviderReset` and
@@ -469,7 +506,7 @@ impl CallProvider {
         Self::with_handlers(main_thread, config, Some(Box::new(handler)), None, None)
     }
 
-    /// Create a provider whose answer/end actions can resolve after application work completes.
+    /// Create a provider whose call actions can resolve after application work completes.
     ///
     /// The lifecycle handler receives only `ProviderReset` and `ActionTimedOut`. The action
     /// handler receives a one-shot request on the main CallKit delegate queue and must return

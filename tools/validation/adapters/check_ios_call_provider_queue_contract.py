@@ -23,6 +23,12 @@ DEFERRED_ACTION_CONTRACTS = (
  (SOURCE_PATHS[0], "if !gate.begin_resolution() {\n        drop(initial_state);\n        return;\n    }"),
  (SOURCE_PATHS[0], "if !self.completed && !unsafe { self.native.isComplete() } {\n                self.completed = true;\n                unsafe { self.native.fail() };"),
  (SOURCE_PATHS[0], "resolve_deferred_action(\n                    state.get(main_thread),"),
+ (SOURCE_PATHS[0], "#[unsafe(method(provider:performSetMutedCallAction:))]"),
+ (SOURCE_PATHS[0], "let is_muted = unsafe { action.isMuted() };"),
+ (SOURCE_PATHS[0], "handle_call_action(\n                        &self.ivars().shared,\n                        action.as_super(),\n                        CallActionKind::SetMuted { is_muted },\n                    );"),
+ (SOURCE_PATHS[0], "#[unsafe(method(provider:performSetHeldCallAction:))]"),
+ (SOURCE_PATHS[0], "let is_held = unsafe { action.isOnHold() };"),
+ (SOURCE_PATHS[0], "handle_call_action(\n                        &self.ivars().shared,\n                        action.as_super(),\n                        CallActionKind::SetHeld { is_held },\n                    );"),
 )
 
 

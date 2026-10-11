@@ -200,7 +200,7 @@ impl CallProviderConfig {
     }
 }
 
-/// A CallKit action or provider lifecycle event.
+/// A CallKit action request or provider lifecycle event.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 #[non_exhaustive]
 pub enum CallProviderEvent {
@@ -214,13 +214,27 @@ pub enum CallProviderEvent {
         /// The framework-owned call identity.
         call_id: CallId,
     },
+    /// CallKit requests a change to the call's mute state.
+    MuteRequested {
+        /// The framework-owned call identity.
+        call_id: CallId,
+        /// Whether the call should be muted.
+        is_muted: bool,
+    },
+    /// CallKit requests a change to the call's hold state.
+    HoldRequested {
+        /// The framework-owned call identity.
+        call_id: CallId,
+        /// Whether the call should be held.
+        is_held: bool,
+    },
     /// CallKit reset the provider and discarded its current calls.
     ProviderReset,
     /// CallKit timed out an action; that action is already failed and must not be completed again.
     ActionTimedOut,
 }
 
-/// Immediate response to a CallKit answer or end action.
+/// Immediate response to a CallKit call action.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum ActionDecision {
     /// Complete the native action successfully.
@@ -236,6 +250,28 @@ pub enum CallActionKind {
     Answer,
     /// The system asks the app to end an active call.
     End,
+    /// The system requests the specified mute state.
+    SetMuted {
+        /// Whether the call should be muted.
+        is_muted: bool,
+    },
+    /// The system requests the specified hold state.
+    SetHeld {
+        /// Whether the call should be held.
+        is_held: bool,
+    },
+}
+
+impl CallActionKind {
+    #[cfg_attr(not(target_os = "ios"), allow(dead_code))]
+    pub(crate) const fn provider_event(self, call_id: CallId) -> CallProviderEvent {
+        match self {
+            Self::Answer => CallProviderEvent::AnswerRequested { call_id },
+            Self::End => CallProviderEvent::EndRequested { call_id },
+            Self::SetMuted { is_muted } => CallProviderEvent::MuteRequested { call_id, is_muted },
+            Self::SetHeld { is_held } => CallProviderEvent::HoldRequested { call_id, is_held },
+        }
+    }
 }
 
 /// A bounded error from a deferred CallKit action completion.
@@ -294,7 +330,7 @@ impl Drop for CallActionCompletion {
     }
 }
 
-/// A CallKit answer/end request with a one-shot deferred completion.
+/// A CallKit call-action request with a one-shot deferred completion.
 #[must_use = "resolve the request or move its completion to work that will resolve it"]
 pub struct CallActionRequest {
     call_id: CallId,
@@ -321,7 +357,7 @@ impl CallActionRequest {
         self.call_id
     }
 
-    /// Return whether the request asks to answer or end the call.
+    /// Return the requested call action, including mute or hold state.
     pub const fn kind(&self) -> CallActionKind {
         self.kind
     }
@@ -508,5 +544,50 @@ mod tests {
         assert_eq!(request.complete(ActionDecision::Fulfill), Ok(()));
         assert_eq!(receiver.recv().unwrap(), ActionDecision::Fulfill);
         assert!(receiver.try_recv().is_err());
+    }
+
+    #[test]
+    fn mute_and_hold_actions_preserve_requested_state_and_call_identity() {
+        let call_id = CallId::from_bytes([42; 16]);
+        assert_eq!(
+            CallActionKind::SetMuted { is_muted: true }.provider_event(call_id),
+            CallProviderEvent::MuteRequested {
+                call_id,
+                is_muted: true,
+            }
+        );
+        assert_eq!(
+            CallActionKind::SetMuted { is_muted: false }.provider_event(call_id),
+            CallProviderEvent::MuteRequested {
+                call_id,
+                is_muted: false,
+            }
+        );
+        assert_eq!(
+            CallActionKind::SetHeld { is_held: true }.provider_event(call_id),
+            CallProviderEvent::HoldRequested {
+                call_id,
+                is_held: true,
+            }
+        );
+        assert_eq!(
+            CallActionKind::SetHeld { is_held: false }.provider_event(call_id),
+            CallProviderEvent::HoldRequested {
+                call_id,
+                is_held: false,
+            }
+        );
+
+        for kind in [
+            CallActionKind::SetMuted { is_muted: true },
+            CallActionKind::SetMuted { is_muted: false },
+            CallActionKind::SetHeld { is_held: true },
+            CallActionKind::SetHeld { is_held: false },
+        ] {
+            let request =
+                CallActionRequest::new(call_id, kind, CallActionCompletion::new(|_| Ok(())));
+            assert_eq!(request.call_id(), call_id);
+            assert_eq!(request.kind(), kind);
+        }
     }
 }
