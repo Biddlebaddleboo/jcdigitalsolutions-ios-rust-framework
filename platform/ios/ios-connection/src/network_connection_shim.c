@@ -120,61 +120,33 @@ static void release_operation_later(struct framework_operation *operation) {
     });
 }
 
-int32_t framework_connection_start(
+static int32_t activate_connection(
     void *context,
     framework_connection_event_callback_t event_callback,
-    const char *hostname,
-    uint16_t port,
+    nw_connection_t native_connection,
     framework_connection_t **out_connection) {
-    if (context == NULL || event_callback == NULL || hostname == NULL || hostname[0] == '\0'
-        || port == 0 || out_connection == NULL) {
-        return FRAMEWORK_CONNECTION_STATUS_INVALID;
-    }
-    *out_connection = NULL;
-
     framework_connection_t *connection = calloc(1, sizeof(*connection));
     if (connection == NULL) {
+        nw_release(native_connection);
         return FRAMEWORK_CONNECTION_STATUS_RESOURCE_EXHAUSTED;
     }
     if (pthread_mutex_init(&connection->lifecycle_lock, NULL) != 0) {
+        nw_release(native_connection);
         free(connection);
         return FRAMEWORK_CONNECTION_STATUS_RESOURCE_EXHAUSTED;
     }
 
-    char port_text[6];
-    (void)snprintf(port_text, sizeof(port_text), "%u", (unsigned int)port);
-    nw_endpoint_t endpoint = nw_endpoint_create_host(hostname, port_text);
-    nw_parameters_t parameters = nw_parameters_create_secure_tcp(
-        NW_PARAMETERS_DEFAULT_CONFIGURATION,
-        NW_PARAMETERS_DEFAULT_CONFIGURATION);
     connection->callback_queue = dispatch_queue_create(
         "org.jcdigitalsolutions.ios-connection.stream",
         DISPATCH_QUEUE_SERIAL);
-    if (endpoint == NULL || parameters == NULL || connection->callback_queue == NULL) {
-        if (endpoint != NULL) {
-            nw_release(endpoint);
-        }
-        if (parameters != NULL) {
-            nw_release(parameters);
-        }
-        if (connection->callback_queue != NULL) {
-            dispatch_release(connection->callback_queue);
-        }
+    if (connection->callback_queue == NULL) {
+        nw_release(native_connection);
         pthread_mutex_destroy(&connection->lifecycle_lock);
         free(connection);
         return FRAMEWORK_CONNECTION_STATUS_RESOURCE_EXHAUSTED;
     }
 
-    connection->native_connection = nw_connection_create(endpoint, parameters);
-    nw_release(endpoint);
-    nw_release(parameters);
-    if (connection->native_connection == NULL) {
-        dispatch_release(connection->callback_queue);
-        pthread_mutex_destroy(&connection->lifecycle_lock);
-        free(connection);
-        return FRAMEWORK_CONNECTION_STATUS_INVALID;
-    }
-
+    connection->native_connection = native_connection;
     atomic_init(&connection->references, 1);
     connection->context = context;
     connection->event_callback = event_callback;
@@ -243,6 +215,59 @@ int32_t framework_connection_start(
     nw_connection_start(connection->native_connection);
     *out_connection = connection;
     return FRAMEWORK_CONNECTION_STATUS_OK;
+}
+
+int32_t framework_connection_start(
+    void *context,
+    framework_connection_event_callback_t event_callback,
+    const char *hostname,
+    uint16_t port,
+    framework_connection_t **out_connection) {
+    if (context == NULL || event_callback == NULL || hostname == NULL || hostname[0] == '\0'
+        || port == 0 || out_connection == NULL) {
+        return FRAMEWORK_CONNECTION_STATUS_INVALID;
+    }
+    *out_connection = NULL;
+
+    char port_text[6];
+    (void)snprintf(port_text, sizeof(port_text), "%u", (unsigned int)port);
+    nw_endpoint_t endpoint = nw_endpoint_create_host(hostname, port_text);
+    nw_parameters_t parameters = nw_parameters_create_secure_tcp(
+        NW_PARAMETERS_DEFAULT_CONFIGURATION,
+        NW_PARAMETERS_DEFAULT_CONFIGURATION);
+    if (endpoint == NULL || parameters == NULL) {
+        if (endpoint != NULL) {
+            nw_release(endpoint);
+        }
+        if (parameters != NULL) {
+            nw_release(parameters);
+        }
+        return FRAMEWORK_CONNECTION_STATUS_RESOURCE_EXHAUSTED;
+    }
+
+    nw_connection_t native_connection = nw_connection_create(endpoint, parameters);
+    nw_release(endpoint);
+    nw_release(parameters);
+    if (native_connection == NULL) {
+        return FRAMEWORK_CONNECTION_STATUS_INVALID;
+    }
+    return activate_connection(context, event_callback, native_connection, out_connection);
+}
+
+int32_t framework_connection_adopt(
+    void *context,
+    framework_connection_event_callback_t event_callback,
+    void *accepted_native_connection,
+    framework_connection_t **out_connection) {
+    if (context == NULL || event_callback == NULL || accepted_native_connection == NULL
+        || out_connection == NULL) {
+        return FRAMEWORK_CONNECTION_STATUS_INVALID;
+    }
+    *out_connection = NULL;
+
+    nw_connection_t native_connection = (nw_connection_t)accepted_native_connection;
+    nw_retain(native_connection);
+    return activate_connection(context, event_callback, native_connection, out_connection);
 }
 
 static void send_completed(struct framework_operation *operation, nw_error_t error) {

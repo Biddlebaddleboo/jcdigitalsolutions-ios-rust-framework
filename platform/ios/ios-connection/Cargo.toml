@@ -5,7 +5,7 @@ edition.workspace = true
 rust-version.workspace = true
 license.workspace = true
 repository.workspace = true
-description = "Outbound secure TCP streams through public iOS Network.framework APIs"
+description = "TCP streams and listeners through public iOS Network.framework APIs"
 build = "build.rs"
 
 [dependencies]

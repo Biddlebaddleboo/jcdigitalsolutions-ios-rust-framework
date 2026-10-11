@@ -1,7 +1,7 @@
 #![no_std]
 #![forbid(unsafe_code)]
 #![deny(missing_docs)]
-#![doc = "Portable secure TCP byte-stream values and a runtime-neutral static backend contract."]
+#![doc = "Portable TCP byte-stream connections, listeners, and runtime-neutral static backend contracts."]
 
 extern crate alloc;
 
@@ -13,6 +13,9 @@ use core::num::NonZeroU32;
 
 /// Maximum byte length accepted for one send or receive chunk.
 pub const MAX_CHUNK_BYTES: usize = 1_048_576;
+
+/// Maximum accepted TCP streams a listener backend may queue before it rejects new streams.
+pub const MAX_QUEUED_ACCEPTS: usize = 8;
 
 /// An outbound host-and-port endpoint for a secure TCP connection.
 ///
@@ -156,11 +159,13 @@ impl ReadChunk {
     }
 }
 
-/// A statically selected backend for one outbound secure TCP byte stream.
+/// A statically selected backend for one TCP byte stream.
 ///
 /// The backend must not begin native work before the future returned by `connect` is first
 /// polled. `connect` completes only when the connection is ready or fails; waiting/preparing
 /// states may remain pending indefinitely. This contract has no implicit timeout or executor.
+/// A backend returned by [`TcpListenerBackend::accept`] is already connected and is used through
+/// [`AcceptedConnection`]; its `connect` method is not called.
 ///
 /// Operations borrow the backend mutably, so callers cannot overlap send and receive operations
 /// in this first contract. One send or receive is at most [`MAX_CHUNK_BYTES`] bytes; an empty
@@ -209,6 +214,56 @@ pub trait ConnectionBackend {
     fn close<'a>(&'a mut self) -> Self::CloseFuture<'a>;
 
     /// Detaches user-visible operations and requests nonblocking, idempotent whole-stream cancel.
+    fn cancel(&mut self);
+}
+
+/// A backend for a TCP stream already accepted by a listener.
+///
+/// The stream is ready when returned by [`TcpListenerBackend::accept`]. The listener facade does
+/// not call `connect`; implementations must make `send`, `receive`, `close`, and `cancel` usable
+/// on that accepted stream. Transport security is backend-specific and is not implied by this
+/// marker.
+pub trait AcceptedConnectionBackend: ConnectionBackend {}
+
+/// A statically selected TCP listener backend.
+///
+/// Binding begins only when the returned future is first polled. Port zero requests an
+/// OS-selected port; successful bind returns the actual nonzero port after native readiness.
+/// Backends may queue at most [`MAX_QUEUED_ACCEPTS`] accepted streams and must close any additional
+/// streams instead of growing the queue without bound. Dropping an accept future detaches that
+/// operation only; it does not close the listener. `close` waits for native listener cancellation,
+/// and `cancel` is an idempotent nonblocking request. Closing a listener does not close accepted
+/// streams already returned to the caller. TCP transport security is backend-specific and is not
+/// implied by this portable listener contract.
+pub trait TcpListenerBackend {
+    /// The future for binding to a local TCP port.
+    type BindFuture<'a>: Future<Output = Result<NonZeroU16, ConnectionError>> + 'a
+    where
+        Self: 'a;
+
+    /// The future for accepting one ready TCP stream.
+    type AcceptFuture<'a>: Future<Output = Result<Self::AcceptedBackend, ConnectionError>> + 'a
+    where
+        Self: 'a;
+
+    /// The backend for each accepted stream.
+    type AcceptedBackend: AcceptedConnectionBackend;
+
+    /// The future that resolves after asynchronous listener close completes.
+    type CloseFuture<'a>: Future<Output = Result<(), ConnectionError>> + 'a
+    where
+        Self: 'a;
+
+    /// Creates a lazy request to bind `port`, where zero asks the OS to choose a port.
+    fn bind<'a>(&'a mut self, port: u16) -> Self::BindFuture<'a>;
+
+    /// Creates a future for the next accepted stream.
+    fn accept<'a>(&'a mut self) -> Self::AcceptFuture<'a>;
+
+    /// Closes the listener and resolves after its native cancellation boundary.
+    fn close<'a>(&'a mut self) -> Self::CloseFuture<'a>;
+
+    /// Stops accepting new streams without waiting for native cancellation to finish.
     fn cancel(&mut self);
 }
 
@@ -263,6 +318,82 @@ impl<B: ConnectionBackend> Connection<B> {
 }
 
 impl<B: ConnectionBackend> Drop for Connection<B> {
+    fn drop(&mut self) {
+        self.backend.cancel();
+    }
+}
+
+/// A ready TCP stream accepted by a [`TcpListener`].
+///
+/// This facade provides the same bounded send, receive, close, cancellation, and drop semantics
+/// as [`Connection`] without exposing an outbound `connect` operation.
+pub struct AcceptedConnection<B: AcceptedConnectionBackend> {
+    connection: Connection<B>,
+}
+
+impl<B: AcceptedConnectionBackend> AcceptedConnection<B> {
+    fn new(backend: B) -> Self {
+        Self {
+            connection: Connection::new(backend),
+        }
+    }
+
+    /// Sends one byte slice; success is not remote acknowledgement.
+    pub async fn send<'a>(&'a mut self, bytes: &'a [u8]) -> Result<(), ConnectionError> {
+        self.connection.send(bytes).await
+    }
+
+    /// Receives at most the nonzero requested bound into owned bytes.
+    pub async fn receive(&mut self, max_bytes: NonZeroU32) -> Result<ReadChunk, ConnectionError> {
+        self.connection.receive(max_bytes).await
+    }
+
+    /// Closes the accepted stream and waits for its asynchronous cancellation boundary.
+    pub fn close(&mut self) -> B::CloseFuture<'_> {
+        self.connection.close()
+    }
+
+    /// Requests nonblocking cancellation of the accepted stream.
+    pub fn cancel(&mut self) {
+        self.connection.cancel();
+    }
+}
+
+/// A thin facade over caller-owned, statically selected TCP listener state.
+pub struct TcpListener<B: TcpListenerBackend> {
+    backend: B,
+}
+
+impl<B: TcpListenerBackend> TcpListener<B> {
+    /// Creates a listener facade without binding or starting native work.
+    pub const fn new(backend: B) -> Self {
+        Self { backend }
+    }
+
+    /// Binds to `port`; zero asks the OS to choose a port and returns the selected port on ready.
+    pub fn bind(&mut self, port: u16) -> B::BindFuture<'_> {
+        self.backend.bind(port)
+    }
+
+    /// Accepts the next ready stream without an implicit timeout or executor.
+    pub async fn accept(
+        &mut self,
+    ) -> Result<AcceptedConnection<B::AcceptedBackend>, ConnectionError> {
+        self.backend.accept().await.map(AcceptedConnection::new)
+    }
+
+    /// Closes the listener and waits for its asynchronous native cancellation boundary.
+    pub fn close(&mut self) -> B::CloseFuture<'_> {
+        self.backend.close()
+    }
+
+    /// Stops accepting new streams without waiting for native callbacks to finish.
+    pub fn cancel(&mut self) {
+        self.backend.cancel();
+    }
+}
+
+impl<B: TcpListenerBackend> Drop for TcpListener<B> {
     fn drop(&mut self) {
         self.backend.cancel();
     }
@@ -411,6 +542,176 @@ mod tests {
 
         fn cancel(&mut self) {
             self.state.borrow_mut().cancel_count += 1;
+        }
+    }
+
+    impl AcceptedConnectionBackend for FakeBackend {}
+
+    #[derive(Default)]
+    struct FakeListenerState {
+        bind_polls: usize,
+        accept_polls: usize,
+        close_polls: usize,
+        cancel_count: usize,
+        closed: bool,
+        bind_result: Option<Result<NonZeroU16, ConnectionError>>,
+        accepted: VecDeque<FakeBackend>,
+    }
+
+    struct FakeListenerBackend {
+        state: Rc<RefCell<FakeListenerState>>,
+    }
+
+    impl FakeListenerBackend {
+        fn new() -> (Self, Rc<RefCell<FakeListenerState>>) {
+            let state = Rc::new(RefCell::new(FakeListenerState {
+                bind_result: Some(Ok(NonZeroU16::new(47_321).unwrap())),
+                ..FakeListenerState::default()
+            }));
+            (
+                Self {
+                    state: Rc::clone(&state),
+                },
+                state,
+            )
+        }
+
+        fn queue(&mut self, backend: FakeBackend) -> Result<(), FakeBackend> {
+            let mut state = self.state.borrow_mut();
+            if state.accepted.len() == MAX_QUEUED_ACCEPTS {
+                Err(backend)
+            } else {
+                state.accepted.push_back(backend);
+                Ok(())
+            }
+        }
+    }
+
+    enum FakeListenerStep<T> {
+        Pending,
+        Ready(Result<T, ConnectionError>),
+    }
+
+    struct FakeListenerFuture<'a, T> {
+        state: Rc<RefCell<FakeListenerState>>,
+        start: fn(&mut FakeListenerState),
+        poll: fn(&mut FakeListenerState) -> FakeListenerStep<T>,
+        started: bool,
+        finished: bool,
+        _backend: PhantomData<&'a mut FakeListenerBackend>,
+    }
+
+    impl<T> Future for FakeListenerFuture<'_, T> {
+        type Output = Result<T, ConnectionError>;
+
+        fn poll(self: Pin<&mut Self>, _context: &mut Context<'_>) -> Poll<Self::Output> {
+            let this = self.get_mut();
+            if !this.started {
+                (this.start)(&mut this.state.borrow_mut());
+                this.started = true;
+            }
+            if this.finished {
+                return Poll::Ready(Err(ConnectionError::InvalidState));
+            }
+            match (this.poll)(&mut this.state.borrow_mut()) {
+                FakeListenerStep::Pending => Poll::Pending,
+                FakeListenerStep::Ready(result) => {
+                    this.finished = true;
+                    Poll::Ready(result)
+                }
+            }
+        }
+    }
+
+    fn start_bind(state: &mut FakeListenerState) {
+        state.bind_polls += 1;
+    }
+
+    fn poll_bind(state: &mut FakeListenerState) -> FakeListenerStep<NonZeroU16> {
+        FakeListenerStep::Ready(
+            state
+                .bind_result
+                .unwrap_or(Err(ConnectionError::BackendFailure)),
+        )
+    }
+
+    fn start_accept(state: &mut FakeListenerState) {
+        state.accept_polls += 1;
+    }
+
+    fn poll_accept(state: &mut FakeListenerState) -> FakeListenerStep<FakeBackend> {
+        if let Some(backend) = state.accepted.pop_front() {
+            FakeListenerStep::Ready(Ok(backend))
+        } else if state.closed {
+            FakeListenerStep::Ready(Err(ConnectionError::Cancelled))
+        } else {
+            FakeListenerStep::Pending
+        }
+    }
+
+    fn start_close(state: &mut FakeListenerState) {
+        state.close_polls += 1;
+        state.closed = true;
+        discard_queued_accepts(state);
+    }
+
+    fn poll_close(_: &mut FakeListenerState) -> FakeListenerStep<()> {
+        FakeListenerStep::Ready(Ok(()))
+    }
+
+    impl TcpListenerBackend for FakeListenerBackend {
+        type AcceptedBackend = FakeBackend;
+        type BindFuture<'a> = FakeListenerFuture<'a, NonZeroU16>;
+        type AcceptFuture<'a> = FakeListenerFuture<'a, FakeBackend>;
+        type CloseFuture<'a> = FakeListenerFuture<'a, ()>;
+
+        fn bind<'a>(&'a mut self, _port: u16) -> Self::BindFuture<'a> {
+            FakeListenerFuture {
+                state: Rc::clone(&self.state),
+                start: start_bind,
+                poll: poll_bind,
+                started: false,
+                finished: false,
+                _backend: PhantomData,
+            }
+        }
+
+        fn accept<'a>(&'a mut self) -> Self::AcceptFuture<'a> {
+            FakeListenerFuture {
+                state: Rc::clone(&self.state),
+                start: start_accept,
+                poll: poll_accept,
+                started: false,
+                finished: false,
+                _backend: PhantomData,
+            }
+        }
+
+        fn close<'a>(&'a mut self) -> Self::CloseFuture<'a> {
+            FakeListenerFuture {
+                state: Rc::clone(&self.state),
+                start: start_close,
+                poll: poll_close,
+                started: false,
+                finished: false,
+                _backend: PhantomData,
+            }
+        }
+
+        fn cancel(&mut self) {
+            let mut state = self.state.borrow_mut();
+            if state.closed {
+                return;
+            }
+            state.cancel_count += 1;
+            state.closed = true;
+            discard_queued_accepts(&mut state);
+        }
+    }
+
+    fn discard_queued_accepts(state: &mut FakeListenerState) {
+        while let Some(mut backend) = state.accepted.pop_front() {
+            backend.cancel();
         }
     }
 
@@ -573,5 +874,119 @@ mod tests {
         let connection = Connection::new(backend);
         drop(connection);
         assert_eq!(state.borrow().cancel_count, 1);
+    }
+
+    #[test]
+    fn listener_bind_is_lazy_and_returns_os_selected_port() {
+        let (backend, state) = FakeListenerBackend::new();
+        let mut listener = TcpListener::new(backend);
+        let mut bind = Box::pin(listener.bind(0));
+        assert_eq!(state.borrow().bind_polls, 0);
+        assert_eq!(
+            poll_once(bind.as_mut()),
+            Poll::Ready(Ok(NonZeroU16::new(47_321).unwrap()))
+        );
+        assert_eq!(state.borrow().bind_polls, 1);
+    }
+
+    #[test]
+    fn listener_bind_preserves_native_error() {
+        let (backend, state) = FakeListenerBackend::new();
+        let error = ConnectionError::Native(NativeConnectionError::new(3, -9807));
+        state.borrow_mut().bind_result = Some(Err(error));
+        let mut listener = TcpListener::new(backend);
+        let mut bind = Box::pin(listener.bind(443));
+        assert_eq!(poll_once(bind.as_mut()), Poll::Ready(Err(error)));
+        assert_eq!(state.borrow().bind_polls, 1);
+    }
+
+    #[test]
+    fn dropping_pending_accept_keeps_listener_open_and_next_accept_works() {
+        let (backend, state) = FakeListenerBackend::new();
+        let (accepted_backend, accepted_state) = FakeBackend::new();
+        let mut listener = TcpListener::new(backend);
+        let mut pending = Box::pin(listener.accept());
+        assert!(matches!(poll_once(pending.as_mut()), Poll::Pending));
+        drop(pending);
+        assert_eq!(state.borrow().cancel_count, 0);
+
+        assert!(listener.backend.queue(accepted_backend).is_ok());
+        let mut accept = Box::pin(listener.accept());
+        let Poll::Ready(Ok(mut connection)) = poll_once(accept.as_mut()) else {
+            panic!("queued accepted stream is ready");
+        };
+        drop(accept);
+        let mut send = Box::pin(connection.send(b"accepted"));
+        assert_eq!(poll_once(send.as_mut()), Poll::Ready(Ok(())));
+        assert_eq!(accepted_state.borrow().sent, [b"accepted".to_vec()]);
+    }
+
+    #[test]
+    fn accepted_queue_bound_rejects_extra_stream() {
+        let (backend, state) = FakeListenerBackend::new();
+        let mut listener = TcpListener::new(backend);
+        for _ in 0..MAX_QUEUED_ACCEPTS {
+            let (incoming, _) = FakeBackend::new();
+            assert!(listener.backend.queue(incoming).is_ok());
+        }
+        let (rejected, rejected_state) = FakeBackend::new();
+        let Err(rejected) = listener.backend.queue(rejected) else {
+            panic!("full accepted queue rejects another stream");
+        };
+        let mut rejected = rejected;
+        rejected.cancel();
+        drop(rejected);
+        assert_eq!(rejected_state.borrow().cancel_count, 1);
+        assert_eq!(state.borrow().accepted.len(), MAX_QUEUED_ACCEPTS);
+    }
+
+    #[test]
+    fn closing_listener_keeps_returned_stream_owned_and_usable() {
+        let (backend, state) = FakeListenerBackend::new();
+        let (accepted_backend, accepted_state) = FakeBackend::new();
+        let mut listener = TcpListener::new(backend);
+        assert!(listener.backend.queue(accepted_backend).is_ok());
+        let mut accept = Box::pin(listener.accept());
+        let Poll::Ready(Ok(mut accepted)) = poll_once(accept.as_mut()) else {
+            panic!("queued accepted stream is ready");
+        };
+        drop(accept);
+
+        let mut close = Box::pin(listener.close());
+        assert_eq!(poll_once(close.as_mut()), Poll::Ready(Ok(())));
+        drop(close);
+        assert!(state.borrow().closed);
+
+        let mut send = Box::pin(accepted.send(b"still owned"));
+        assert_eq!(poll_once(send.as_mut()), Poll::Ready(Ok(())));
+        assert_eq!(accepted_state.borrow().sent, [b"still owned".to_vec()]);
+        assert_eq!(accepted_state.borrow().cancel_count, 0);
+    }
+
+    #[test]
+    fn listener_close_waits_on_backend_and_drop_is_idempotent() {
+        let (backend, state) = FakeListenerBackend::new();
+        let mut listener = TcpListener::new(backend);
+        let mut close = Box::pin(listener.close());
+        assert_eq!(poll_once(close.as_mut()), Poll::Ready(Ok(())));
+        assert_eq!(state.borrow().close_polls, 1);
+        drop(close);
+        drop(listener);
+        assert_eq!(state.borrow().cancel_count, 0);
+    }
+
+    #[test]
+    fn listener_cancel_is_idempotent_and_closes_unreturned_streams() {
+        let (backend, state) = FakeListenerBackend::new();
+        let (accepted_backend, accepted_state) = FakeBackend::new();
+        let mut listener = TcpListener::new(backend);
+        assert!(listener.backend.queue(accepted_backend).is_ok());
+
+        listener.cancel();
+        listener.cancel();
+        drop(listener);
+
+        assert_eq!(state.borrow().cancel_count, 1);
+        assert_eq!(accepted_state.borrow().cancel_count, 1);
     }
 }

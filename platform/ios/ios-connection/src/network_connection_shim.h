@@ -48,6 +48,11 @@ int32_t framework_connection_start(
     const char *hostname,
     uint16_t port,
     framework_connection_t **connection);
+int32_t framework_connection_adopt(
+    void *context,
+    framework_connection_event_callback_t event_callback,
+    void *native_connection,
+    framework_connection_t **connection);
 int32_t framework_connection_send(
     framework_connection_t *connection,
     uint64_t operation_id,
