@@ -135,4 +135,48 @@ for target in aarch64-apple-ios aarch64-apple-ios-sim; do
     }
     printf '%s UIContextMenuInteraction selectors and iOS 13 runtime guard verified at iOS %s; probe not executed\n' \
         "$target" "$deployment_target"
+
+    selectable_text_target_dir="target/ios-ui-selectable-text-link-$target"
+    IPHONEOS_DEPLOYMENT_TARGET="$deployment_target" CARGO_TARGET_DIR="$selectable_text_target_dir" \
+        cargo build --locked --offline --release -p ios-ui \
+        --example ios_ui_selectable_text_link_probe --target "$target"
+    selectable_text_binary="$selectable_text_target_dir/$target/release/examples/ios_ui_selectable_text_link_probe"
+    selectable_text_imports=$(otool -L "$selectable_text_binary")
+    printf '%s\n' "$selectable_text_imports" | grep -F '/UIKit.framework/UIKit' >/dev/null || {
+        echo "$target selectable-text probe does not link UIKit" >&2
+        exit 1
+    }
+    selectable_text_symbols=$(nm -u "$selectable_text_binary")
+    selectable_text_strings=$(strings "$selectable_text_binary")
+    for symbol in objc_getClass objc_msgSend; do
+        printf '%s\n' "$selectable_text_symbols" | grep -F "$symbol" >/dev/null || {
+            echo "$target selectable-text probe is missing Objective-C symbol $symbol" >&2
+            exit 1
+        }
+    done
+    for symbol in UITextView 'setEditable:' 'setSelectable:' 'setScrollEnabled:' 'setText:' text; do
+        printf '%s\n' "$selectable_text_strings" | grep -F "$symbol" >/dev/null || {
+            echo "$target selectable-text probe is missing UIKit class or selector $symbol" >&2
+            exit 1
+        }
+    done
+    if printf '%s\n' "$selectable_text_symbols" "$selectable_text_imports" | grep -Eqi 'swift_|Py[A-Z_]|swift|python'; then
+        echo "unexpected Swift/Python runtime import in $target selectable-text probe" >&2
+        exit 1
+    fi
+    selectable_text_deployment_target=$(vtool -show-build "$selectable_text_binary" | awk '$1 == "minos" { print $2; exit }')
+    if [ "$selectable_text_deployment_target" != "$deployment_target" ]; then
+        echo "$target selectable-text probe has deployment target ${selectable_text_deployment_target:-unknown}; expected $deployment_target" >&2
+        exit 1
+    fi
+    grep -F 'native.setEditable(false);' platform/ios/ios-ui/src/platform/selectable_text.rs >/dev/null || {
+        echo "$target selectable-text view is missing its read-only policy" >&2
+        exit 1
+    }
+    grep -F 'native.setSelectable(true);' platform/ios/ios-ui/src/platform/selectable_text.rs >/dev/null || {
+        echo "$target selectable-text view is missing its selection policy" >&2
+        exit 1
+    }
+    printf '%s UITextView read-only and selection selectors verified at iOS %s; probe not executed\n' \
+        "$target" "$deployment_target"
 done

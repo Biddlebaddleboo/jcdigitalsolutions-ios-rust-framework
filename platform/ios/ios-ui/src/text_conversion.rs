@@ -46,4 +46,16 @@ mod tests {
             Err(Utf16Error::Invalid)
         );
     }
+
+    #[test]
+    fn selectable_text_snapshot_is_length_aware_and_strict() {
+        assert_eq!(
+            decode_utf16(&[0, b'a' as u16, 0xd83d, 0xde00]).as_deref(),
+            Ok("\0a😀")
+        );
+        assert_eq!(
+            decode_utf16(&[0, b'a' as u16, 0xd800]),
+            Err(Utf16Error::Invalid)
+        );
+    }
 }

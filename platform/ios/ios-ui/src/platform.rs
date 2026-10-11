@@ -34,10 +34,12 @@ mod activity_indicator;
 mod context_menu;
 mod disclosure_group;
 mod list;
+mod selectable_text;
 pub use activity_indicator::IosActivityIndicator;
 pub use context_menu::{IosContextMenu, IosContextMenuAction};
 pub use disclosure_group::IosDisclosureGroup;
 pub use list::{IosListRow, IosListView};
+pub use selectable_text::IosSelectableTextView;
 
 /// A UIKit backend for caller-owned native controls.
 ///
