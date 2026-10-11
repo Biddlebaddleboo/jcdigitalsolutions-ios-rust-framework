@@ -4,7 +4,13 @@ fn main() {
         return;
     }
 
-    use ios_microphone_pcm_stream::IosMicrophonePcmStream;
+    use ios_microphone_pcm_stream::{IosMicrophonePcmStream, available_input_ports};
+
+    if let Ok(input_ports) = available_input_ports() {
+        for input_port in input_ports {
+            std::hint::black_box((input_port.port_type(), input_port.name(), input_port.uid()));
+        }
+    }
 
     let Ok(mut stream) = IosMicrophonePcmStream::new(48_000) else {
         return;

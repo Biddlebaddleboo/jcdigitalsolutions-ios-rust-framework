@@ -1,6 +1,6 @@
 #![deny(missing_docs)]
 #![deny(unsafe_op_in_unsafe_fn)]
-#![doc = "Authorized live iOS microphone PCM input"]
+#![doc = "Authorized live iOS microphone PCM input and read-only input-port snapshots"]
 
 #[cfg(any(target_os = "ios", test))]
 use core::cell::UnsafeCell;
@@ -25,7 +25,7 @@ use objc2::{AnyThread, rc::Retained};
 #[cfg(target_os = "ios")]
 use objc2_avf_audio::{
     AVAudioCommonFormat, AVAudioEngine, AVAudioFormat, AVAudioInputNode, AVAudioNodeTapBlock,
-    AVAudioPCMBuffer, AVAudioTime,
+    AVAudioPCMBuffer, AVAudioSession, AVAudioTime,
 };
 #[cfg(target_os = "ios")]
 use std::panic::{AssertUnwindSafe, catch_unwind};
@@ -89,6 +89,99 @@ impl PcmInputFormat {
     pub const fn channels(self) -> u32 {
         self.channels
     }
+}
+
+/// One owned iOS audio input port description from a point-in-time session snapshot.
+///
+/// Metadata is converted from `NSString` to Rust UTF-8 with the pinned Foundation binding. The
+/// conversion does not normalize well-formed Unicode text, but it does not define lossless handling
+/// for malformed UTF-16; Apple-provided port metadata is expected to be valid Unicode.
+#[derive(Clone, Debug, Eq, PartialEq)]
+#[cfg(any(target_os = "ios", test))]
+pub struct IosAudioInputPort {
+    port_type: String,
+    name: String,
+    uid: String,
+}
+
+#[cfg(any(target_os = "ios", test))]
+impl IosAudioInputPort {
+    /// Returns the system port-type string copied as UTF-8.
+    ///
+    /// Well-formed Unicode text is not normalized.
+    pub fn port_type(&self) -> &str {
+        &self.port_type
+    }
+
+    /// Returns the descriptive name reported by the system.
+    pub fn name(&self) -> &str {
+        &self.name
+    }
+
+    /// Returns the system-assigned identifier for this port snapshot.
+    ///
+    /// The identifier is not promised to persist across reconnects, app launches, hardware changes,
+    /// or operating-system updates.
+    pub fn uid(&self) -> &str {
+        &self.uid
+    }
+}
+
+/// Failure to query input ports on an unsupported iOS version.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[cfg(target_os = "ios")]
+pub enum MicrophoneInputQueryError {
+    /// `AVAudioSession.availableInputs` requires iOS 7.0 or newer.
+    UnsupportedOperatingSystem,
+}
+
+/// Reads one owned snapshot of the host-configured session's available input ports.
+///
+/// The host owns audio-session category, mode, activation, and route policy. This function only
+/// reads `AVAudioSession.availableInputs`; a category that does not support input, such as playback,
+/// can report no ports. The function does not request microphone permission, read authorization,
+/// start audio I/O, mutate session state, or select a route. The returned ports are those currently
+/// reported as available for routing under the session's category and mode, not all physical
+/// devices, the active route, or a guarantee that capture can start. This API is available from
+/// iOS 7.0.
+#[cfg(target_os = "ios")]
+pub fn available_input_ports() -> Result<Vec<IosAudioInputPort>, MicrophoneInputQueryError> {
+    if !objc2::available!(ios = 7.0, ..) {
+        return Err(MicrophoneInputQueryError::UnsupportedOperatingSystem);
+    }
+
+    // SAFETY: sharedInstance returns the documented process-wide AVAudioSession singleton.
+    let session = unsafe { AVAudioSession::sharedInstance() };
+    // SAFETY: availableInputs is a read-only property on the retained shared session.
+    let ports = unsafe { session.availableInputs() };
+    let metadata = ports.map(|ports| {
+        let count = ports.count();
+        (0..count).map(move |index| {
+            let port = ports.objectAtIndex(index);
+            // SAFETY: These read-only getters copy metadata from each retained port description.
+            let port_type = unsafe { port.portType() };
+            let name = unsafe { port.portName() };
+            let uid = unsafe { port.UID() };
+            (port_type.to_string(), name.to_string(), uid.to_string())
+        })
+    });
+    Ok(collect_input_port_snapshot(metadata))
+}
+
+#[cfg(any(target_os = "ios", test))]
+fn collect_input_port_snapshot<I>(metadata: Option<I>) -> Vec<IosAudioInputPort>
+where
+    I: IntoIterator<Item = (String, String, String)>,
+{
+    metadata
+        .into_iter()
+        .flatten()
+        .map(|(port_type, name, uid)| IosAudioInputPort {
+            port_type,
+            name,
+            uid,
+        })
+        .collect()
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -619,8 +712,8 @@ const fn may_stream(status: MediaAuthorizationStatus) -> bool {
 #[cfg(test)]
 mod tests {
     use super::{
-        FrameRing, Lifecycle, MicrophoneStreamError, allocate_storage, may_stream,
-        validate_input_format,
+        FrameRing, Lifecycle, MicrophoneStreamError, allocate_storage, collect_input_port_snapshot,
+        may_stream, validate_input_format,
     };
     use framework_media_authorization::MediaAuthorizationStatus;
     use std::cell::UnsafeCell;
@@ -643,6 +736,41 @@ mod tests {
         assert!(!may_stream(MediaAuthorizationStatus::Denied));
         assert!(may_stream(MediaAuthorizationStatus::Authorized));
         assert!(!may_stream(MediaAuthorizationStatus::Unknown));
+    }
+
+    #[test]
+    fn nil_and_empty_input_port_lists_form_empty_snapshots() {
+        assert!(collect_input_port_snapshot(None::<Vec<(String, String, String)>>).is_empty());
+        assert!(collect_input_port_snapshot(Some(Vec::new())).is_empty());
+    }
+
+    #[test]
+    fn input_port_snapshot_preserves_order_unknown_types_and_exact_metadata() {
+        let decomposed_name = "Cafe\u{301} microphone 🎤".to_owned();
+        let first_uid = "external\0input-1".to_owned();
+        let ports = collect_input_port_snapshot(Some(vec![
+            (
+                "VendorFutureInput".to_owned(),
+                decomposed_name.clone(),
+                first_uid.clone(),
+            ),
+            (
+                "VendorFutureInput".to_owned(),
+                "Built-in microphone".to_owned(),
+                first_uid.clone(),
+            ),
+        ]));
+
+        assert_eq!(ports.len(), 2);
+        assert_eq!(ports[0].port_type(), "VendorFutureInput");
+        assert_eq!(ports[0].name(), decomposed_name);
+        assert_eq!(
+            ports[0].name().as_bytes(),
+            "Cafe\u{301} microphone 🎤".as_bytes()
+        );
+        assert_eq!(ports[0].uid(), first_uid);
+        assert_eq!(ports[1].name(), "Built-in microphone");
+        assert_eq!(ports[1].uid(), "external\0input-1");
     }
 
     #[test]

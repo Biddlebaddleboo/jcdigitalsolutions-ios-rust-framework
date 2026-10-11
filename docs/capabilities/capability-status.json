@@ -1486,7 +1486,7 @@
       "portable_contract_note": "framework-media-authorization defines microphone authorization status and explicit request operations; iOS requests do not create audio I/O or expose samples.",
       "ios_implementation_class": "B",
       "implementation_status": "partial",
-      "status_reason": "B36 provides a non-prompting microphone authorization query; an additive MediaAuthorizationRequester operation explicitly requests microphone permission. B457 adds authorized PCM file recording through AVAudioRecorder. B459 adds one-shot native Float32 live samples through an AVAudioEngine input tap and a bounded polling ring. Device enumeration, route/interruption recovery, live acoustic behavior, and runtime recording/output-file proof remain incomplete or unverified.",
+      "status_reason": "B36 provides a non-prompting microphone authorization query; an additive MediaAuthorizationRequester operation explicitly requests microphone permission. B457 adds authorized PCM file recording through AVAudioRecorder. B459 adds one-shot native Float32 live samples through an AVAudioEngine input tap and a bounded polling ring. B470 adds a read-only snapshot of input ports reported by the host-configured AVAudioSession; it does not enumerate all physical devices or select a route. Route/interruption recovery, live acoustic behavior, and runtime recording/output-file proof remain incomplete or unverified.",
       "minimum_ios_version": "7.0",
       "required_frameworks": [
         "AVFAudio",
@@ -1500,7 +1500,7 @@
       "entitlements": [],
       "device_only_restrictions": null,
       "swift_abi_requirement": false,
-      "metadata_verification": "B457 binds public AVAudioFormat and AVAudioRecorder APIs; B459 binds public AVAudioEngine, AVAudioInputNode, and AVAudioPCMBuffer APIs with pinned objc2-avf-audio 0.3.2. Both require existing Authorized microphone status and leave AVAudioSession policy to the host. NSMicrophoneUsageDescription is required for host permission requests. Device/Simulator compile and link do not verify live capture, recording, or output-file contents at runtime.",
+      "metadata_verification": "B457 binds public AVAudioFormat and AVAudioRecorder APIs; B459 binds public AVAudioEngine, AVAudioInputNode, and AVAudioPCMBuffer APIs; B470 binds read-only AVAudioSession.availableInputs and AVAudioSessionPortDescription metadata through pinned objc2-avf-audio 0.3.2. B457/B459 require existing Authorized microphone status and B470 does not query authorization; all leave AVAudioSession policy to the host. NSMicrophoneUsageDescription is required for host permission requests. Device/Simulator compile and link do not verify live port results, capture, recording, or output-file contents at runtime.",
       "parity_status": "not_tested_live_behavior_or_Apple_parity",
       "performance_status": "not_measured",
       "native_escape_handle_available": false,

@@ -474,6 +474,48 @@
           "text": "impl Drop for IosMicrophonePcmStream"
         },
         {
+          "message": "input-port snapshots must expose the owned Rust API",
+          "must_exist": true,
+          "path": "platform/ios/ios-microphone-pcm-stream/src/lib.rs",
+          "text": "pub fn available_input_ports() -> Result<Vec<IosAudioInputPort>, MicrophoneInputQueryError>"
+        },
+        {
+          "message": "input-port query must enforce the public iOS 7.0 API floor",
+          "must_exist": true,
+          "path": "platform/ios/ios-microphone-pcm-stream/src/lib.rs",
+          "text": "objc2::available!(ios = 7.0, ..)"
+        },
+        {
+          "message": "input-port query must read only the host session availableInputs property",
+          "must_exist": true,
+          "path": "platform/ios/ios-microphone-pcm-stream/src/lib.rs",
+          "text": "session.availableInputs()"
+        },
+        {
+          "message": "input-port snapshots must copy the system port type, name, and UID",
+          "must_exist": true,
+          "path": "platform/ios/ios-microphone-pcm-stream/src/lib.rs",
+          "text": "port.portType()"
+        },
+        {
+          "message": "input-port snapshots must copy the descriptive port name",
+          "must_exist": true,
+          "path": "platform/ios/ios-microphone-pcm-stream/src/lib.rs",
+          "text": "port.portName()"
+        },
+        {
+          "message": "input-port snapshots must copy the port UID",
+          "must_exist": true,
+          "path": "platform/ios/ios-microphone-pcm-stream/src/lib.rs",
+          "text": "port.UID()"
+        },
+        {
+          "message": "input-port snapshots must own their copied Rust strings",
+          "must_exist": true,
+          "path": "platform/ios/ios-microphone-pcm-stream/src/lib.rs",
+          "text": "(port_type.to_string(), name.to_string(), uid.to_string())"
+        },
+        {
           "message": "live capture must not request microphone permission",
           "must_exist": false,
           "path": "platform/ios/ios-microphone-pcm-stream/src/lib.rs",
@@ -486,28 +528,64 @@
           "text": "requestAccessForMediaType_completionHandler"
         },
         {
-          "message": "live capture must not access or mutate AVAudioSession",
+          "message": "the input-port snapshot and stream must not invoke a permission prompt",
           "must_exist": false,
           "path": "platform/ios/ios-microphone-pcm-stream/src/lib.rs",
-          "text": "AVAudioSession::sharedInstance"
+          "text": "requestRecordPermission"
         },
         {
-          "message": "live capture must not change the shared session category",
+          "message": "the input-port query may read AVAudioSession but must not set its category",
           "must_exist": false,
           "path": "platform/ios/ios-microphone-pcm-stream/src/lib.rs",
-          "text": "setCategory_mode_options_error"
+          "text": "setCategory"
         },
         {
-          "message": "live capture must not activate or deactivate the shared session",
+          "message": "the input-port query must not set the shared session mode",
           "must_exist": false,
           "path": "platform/ios/ios-microphone-pcm-stream/src/lib.rs",
-          "text": "setActive_error"
+          "text": "setMode"
         },
         {
-          "message": "the native binding must not enable AVAudioSession APIs",
+          "message": "the input-port query must not activate or deactivate the shared session",
           "must_exist": false,
+          "path": "platform/ios/ios-microphone-pcm-stream/src/lib.rs",
+          "text": "setActive"
+        },
+        {
+          "message": "the input-port query must not select a preferred input or route",
+          "must_exist": false,
+          "path": "platform/ios/ios-microphone-pcm-stream/src/lib.rs",
+          "text": "setPreferred"
+        },
+        {
+          "message": "the input-port query must not override audio routing",
+          "must_exist": false,
+          "path": "platform/ios/ios-microphone-pcm-stream/src/lib.rs",
+          "text": "overrideOutputAudioPort"
+        },
+        {
+          "message": "the input-port query must not register session or route observers",
+          "must_exist": false,
+          "path": "platform/ios/ios-microphone-pcm-stream/src/lib.rs",
+          "text": "addObserver"
+        },
+        {
+          "message": "the native binding must enable the AVAudioSession class",
+          "must_exist": true,
           "path": "platform/ios/ios-microphone-pcm-stream/Cargo.toml",
           "text": "\"AVAudioSession\""
+        },
+        {
+          "message": "the native binding must enable public AVAudioSession route descriptions",
+          "must_exist": true,
+          "path": "platform/ios/ios-microphone-pcm-stream/Cargo.toml",
+          "text": "\"AVAudioSessionRoute\""
+        },
+        {
+          "message": "the native binding must enable public AVAudioSession port types",
+          "must_exist": true,
+          "path": "platform/ios/ios-microphone-pcm-stream/Cargo.toml",
+          "text": "\"AVAudioSessionTypes\""
         }
       ],
       "id": "ios-microphone-pcm-stream",

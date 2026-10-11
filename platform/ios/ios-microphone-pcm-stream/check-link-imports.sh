@@ -40,7 +40,13 @@ for target in aarch64-apple-ios aarch64-apple-ios-sim; do
         printf '%s SDK AVFoundation metadata does not depend on AVFAudio\n' "$target" >&2
         exit 1
     fi
-    for class in AVAudioEngine AVAudioInputNode AVAudioPCMBuffer; do
+    for class in \
+        AVAudioEngine \
+        AVAudioInputNode \
+        AVAudioPCMBuffer \
+        AVAudioSession \
+        AVAudioSessionPortDescription
+    do
         if ! grep -F "$class" "$avfaudio_tbd" >/dev/null; then
             printf '%s SDK AVFAudio metadata does not export %s\n' "$target" "$class" >&2
             exit 1
@@ -66,7 +72,7 @@ for target in aarch64-apple-ios aarch64-apple-ios-sim; do
         printf '%s probe does not import objc_msgSend\n' "$target" >&2
         exit 1
     }
-    binary_strings=$(strings "$probe")
+    binary_strings=$(strings -n 3 "$probe")
     for symbol in \
         AVAudioEngine \
         inputNode \
@@ -80,6 +86,11 @@ for target in aarch64-apple-ios aarch64-apple-ios-sim; do
         stop \
         isRunning \
         authorizationStatusForMediaType: \
+        sharedInstance \
+        availableInputs \
+        portType \
+        portName \
+        UID \
         format \
         channelCount \
         isInterleaved \

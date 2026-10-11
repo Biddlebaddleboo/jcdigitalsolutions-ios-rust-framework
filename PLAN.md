@@ -212,6 +212,10 @@ B468 adds a separate `ContactsSearchBackend` extension and `Contacts::search_con
 
 B469 adds an additive `ContactDraft` and `ContactsCreateBackend` operation for one new record through public `CNMutableContact` and a single `CNSaveRequest.addContact:toContainerWithIdentifier:` call. It rechecks current `Authorized` or `Limited` status, never prompts, selects Apple's documented default container with a nil identifier, and never edits or deletes existing records. Apple documents that a Limited app may create and access the records it creates; access to other records stays within the user's selected subset. The synchronous API rejects an empty draft or empty phone/email values, preserves labels/text, and returns no local identifier because the public save methods do not document a dependable post-save ID. Host `NSContactsUsageDescription` remains caller-owned. Static host and device/Simulator compile-link checks do not prove live create behavior, default-container selection, consent, or saved-record identity; see [PLAN_IOS_CONTACTS.md](PLAN_IOS_CONTACTS.md).
 
+### B470 — read-only microphone input-port snapshot (row 047)
+
+B470 adds `available_input_ports()` to `ios-microphone-pcm-stream`, copying the current host session's public `AVAudioSession.availableInputs` port type, name, and UID into Rust-owned strings from iOS 7.0. It preserves native order and entries, maps nil to empty, and does not prompt, query authorization, start I/O, mutate session policy, choose a route, or claim all physical devices; valid Unicode is not normalized, but malformed UTF-16 conversion is not guaranteed lossless. The host remains the sole owner of session setup. The registered host regressions and iOS 10 device / iOS 14 Simulator compile-link checks do not prove live enumeration or runtime capture.
+
 ## Active work selection and limits
 
 1. Inspect the canonical capability status/owner, the relevant family plan, then the named workstream plan and exact files/symbols. Do not scan the entire planning corpus or treat every existing plan as pending work.
