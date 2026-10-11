@@ -11,7 +11,7 @@ The following are configured validation profiles, not claims that every gate pas
 | ios-microphone-pcm-stream | ios-microphone-pcm-stream | 2 | 1 | 0 | False |
 | ios-app-scenes | ios-app-scenes | 2 | 1 | 0 | False |
 | ios-media-authorization | ios-media-authorization | 2 | 1 | 1 | False |
-| ios-camera-capture-session | ios-camera-capture-session | 2 | 1 | 0 | False |
+| ios-camera-capture-session | ios-camera-capture-session | 2 | 1 | 1 | False |
 | ios-homekit-identify-status | ios-homekit-identify-status | 2 | 1 | 1 | False |
 | ios-photogrammetry-status | ios-photogrammetry-status | 3 | 2 | 0 | False |
 | ios-alarmkit-status | ios-alarmkit-status | 2 | 1 | 0 | True |

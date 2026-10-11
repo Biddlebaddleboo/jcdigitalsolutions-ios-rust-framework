@@ -102,6 +102,11 @@ for target in aarch64-apple-ios aarch64-apple-ios-sim; do
         minExposureTargetBias \
         maxExposureTargetBias \
         setExposureTargetBias:completionHandler: \
+        minExposureDuration \
+        maxExposureDuration \
+        minISO \
+        maxISO \
+        setExposureModeCustomWithDuration:ISO:completionHandler: \
         connectionWithMediaType: \
         isVideoOrientationSupported \
         setVideoOrientation: \

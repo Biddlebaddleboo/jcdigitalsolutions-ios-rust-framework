@@ -47,6 +47,10 @@ fn main() {
     ));
     let _ = std::hint::black_box(session.exposure_target_bias_range());
     let _ = std::hint::black_box(session.set_exposure_target_bias(0.0));
+    let _ = std::hint::black_box(session.custom_exposure_range());
+    if let Ok(duration) = framework_media::MediaTime::new(1, 60) {
+        let _ = std::hint::black_box(session.set_custom_exposure(duration, 100.0));
+    }
     let _ = std::hint::black_box(session.set_movie_orientation(
         ios_camera_capture_session::IosCameraVideoOrientation::LandscapeRight,
     ));

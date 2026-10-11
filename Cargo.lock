@@ -569,6 +569,7 @@ name = "ios-camera-capture-session"
 version = "0.1.0"
 dependencies = [
  "dispatch2",
+ "framework-media",
  "framework-media-authorization",
  "ios-media-authorization",
  "objc2",

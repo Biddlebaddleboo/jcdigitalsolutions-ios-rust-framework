@@ -22,6 +22,10 @@
     ],
     [
       "ios-camera-capture-session",
+      "framework-media"
+    ],
+    [
+      "ios-camera-capture-session",
       "ios-media-authorization"
     ],
     [
@@ -1008,7 +1012,23 @@
           "triple": "aarch64-apple-ios-sim"
         }
       ],
-      "adapters": [],
+      "adapters": [
+        {
+          "deadline_seconds": 10,
+          "evidence_type": "source-contract-consistency",
+          "id": "camera-custom-exposure-selector-scope",
+          "input_paths": [
+            "platform/ios/ios-camera-capture-session/src/lib.rs"
+          ],
+          "interpreter": "python3",
+          "minimum_version": "3.9",
+          "required": true,
+          "script": "tools/validation/adapters/check_camera_custom_exposure_scope.py",
+          "stderr_limit_bytes": 4096,
+          "stdout_limit_bytes": 4096,
+          "temporary_space_bytes": 1048576
+        }
+      ],
       "cargo_tree": false,
       "check_script": "platform/ios/ios-camera-capture-session/check-link-imports.sh",
       "clippy_all_targets": true,
@@ -1983,16 +2003,10 @@
           "text": "fn exposure_bias_locks_reads_range_sets_exact_value_without_callback_and_unlocks()"
         },
         {
-          "message": "exposure controls must not add manual custom exposure behavior",
+          "message": "custom mode stays out of public enum",
           "must_exist": false,
           "path": "platform/ios/ios-camera-capture-session/src/lib.rs",
-          "text": "AVCaptureExposureMode::Custom"
-        },
-        {
-          "message": "exposure controls must not set custom ISO or duration",
-          "must_exist": false,
-          "path": "platform/ios/ios-camera-capture-session/src/lib.rs",
-          "text": "setExposureModeCustomWithDuration_ISO_completionHandler"
+          "text": "IosCameraExposureMode::Custom"
         },
         {
           "message": "exposure points must not silently convert preview-layer coordinates",
@@ -2461,6 +2475,42 @@
           "must_exist": false,
           "path": "platform/ios/ios-camera-capture-session/src/lib.rs",
           "text": "setWhiteBalanceModeLockedWithDeviceWhiteBalanceTemperatureAndTintValues"
+        },
+        {
+          "message": "custom setter API present",
+          "must_exist": true,
+          "path": "platform/ios/ios-camera-capture-session/src/lib.rs",
+          "text": "pub fn set_custom_exposure("
+        },
+        {
+          "message": "native custom-mode preflight",
+          "must_exist": true,
+          "path": "platform/ios/ios-camera-capture-session/src/lib.rs",
+          "text": "AVCaptureExposureMode::Custom"
+        },
+        {
+          "message": "format bounds read under lock",
+          "must_exist": true,
+          "path": "platform/ios/ios-camera-capture-session/src/lib.rs",
+          "text": "|| native_custom_exposure_range(device)"
+        },
+        {
+          "message": "native selector uses exact time/ISO and nil handler",
+          "must_exist": true,
+          "path": "platform/ios/ios-camera-capture-session/src/lib.rs",
+          "text": "setExposureModeCustomWithDuration_ISO_completionHandler"
+        },
+        {
+          "message": "range/input negatives present",
+          "must_exist": true,
+          "path": "platform/ios/ios-camera-capture-session/src/lib.rs",
+          "text": "fn custom_exposure_rejects_invalid_range_and_out_of_range_requests_without_set()"
+        },
+        {
+          "message": "lock error/unwind regressions present",
+          "must_exist": true,
+          "path": "platform/ios/ios-camera-capture-session/src/lib.rs",
+          "text": "fn custom_exposure_lock_failure_and_unwind_preserve_unlock_contract()"
         }
       ],
       "id": "ios-camera-capture-session",

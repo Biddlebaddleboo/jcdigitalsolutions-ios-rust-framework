@@ -8,6 +8,7 @@ repository.workspace = true
 description = "Default-camera capture session and preview layer for iOS"
 
 [dependencies]
+framework-media = { path = "../../../crates/framework-media", version = "0.1.0" }
 framework-media-authorization = { path = "../../../crates/framework-media-authorization", version = "0.1.0" }
 
 [target.'cfg(target_os = "ios")'.dependencies]
@@ -26,6 +27,7 @@ objc2-av-foundation = { workspace = true, features = [
     "AVCaptureSession",
     "AVCaptureVideoDataOutput",
     "AVCaptureVideoPreviewLayer",
+    "block2",
     "AVMediaFormat",
     "dispatch2",
     "objc2-core-media",

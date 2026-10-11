@@ -3,6 +3,8 @@
 #![doc = "Default-camera AVFoundation capture and preview for iOS"]
 
 #[cfg(any(target_os = "ios", test))]
+use framework_media::MediaTime;
+#[cfg(any(target_os = "ios", test))]
 use framework_media_authorization::MediaAuthorizationStatus;
 #[cfg(target_os = "ios")]
 use std::ffi::c_void;
@@ -46,7 +48,7 @@ use objc2_av_foundation::{
 #[cfg(target_os = "ios")]
 use objc2_core_foundation::CGPoint;
 #[cfg(target_os = "ios")]
-use objc2_core_media::CMSampleBuffer;
+use objc2_core_media::{CMSampleBuffer, CMTime, CMTimeFlags};
 #[cfg(target_os = "ios")]
 use objc2_foundation::{NSArray, NSError, NSObject, NSObjectProtocol, NSString, NSURL};
 
@@ -1285,6 +1287,20 @@ pub struct IosExposureTargetBiasRange {
     pub maximum: f32,
 }
 
+/// Inclusive custom-exposure bounds for the selected camera's current format
+#[cfg(any(target_os = "ios", test))]
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct IosCustomExposureRange {
+    /// Minimum supported exposure duration as an exact rational number of seconds
+    pub minimum_duration: MediaTime,
+    /// Maximum supported exposure duration as an exact rational number of seconds
+    pub maximum_duration: MediaTime,
+    /// Minimum supported ISO value
+    pub minimum_iso: f32,
+    /// Maximum supported ISO value
+    pub maximum_iso: f32,
+}
+
 /// Failure to configure exposure on the session's selected camera
 #[cfg(any(target_os = "ios", test))]
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -1305,6 +1321,18 @@ pub enum ExposureControlError {
     ExposureBiasOutOfRange,
     /// AVFoundation reported non-finite or reversed exposure target bias bounds
     InvalidSupportedExposureBiasRange,
+    /// The custom exposure duration must be strictly positive
+    InvalidCustomExposureDuration,
+    /// The custom ISO value must be finite and strictly positive
+    InvalidCustomExposureIso,
+    /// The selected camera does not support custom exposure mode
+    CustomExposureModeUnsupported,
+    /// The requested exact duration is outside the active format's inclusive range
+    CustomExposureDurationOutOfRange,
+    /// The requested ISO value is outside the active format's inclusive range
+    CustomExposureIsoOutOfRange,
+    /// AVFoundation reported invalid duration or ISO bounds for its active format
+    InvalidSupportedCustomExposureRange,
     /// AVFoundation could not lock the selected camera for configuration
     ConfigurationLockFailed,
 }
@@ -1507,6 +1535,123 @@ fn exposure_target_bias_range(
         return Err(ExposureControlError::InvalidSupportedExposureBiasRange);
     }
     Ok(IosExposureTargetBiasRange { minimum, maximum })
+}
+
+#[cfg(any(target_os = "ios", test))]
+fn custom_exposure_duration_from_parts(
+    value: i64,
+    timescale: i32,
+    valid: bool,
+    finite: bool,
+    epoch: i64,
+) -> Result<MediaTime, ExposureControlError> {
+    if !valid || !finite || epoch != 0 || value <= 0 {
+        return Err(ExposureControlError::InvalidSupportedCustomExposureRange);
+    }
+    MediaTime::new(value, timescale)
+        .map_err(|_| ExposureControlError::InvalidSupportedCustomExposureRange)
+}
+
+#[cfg(any(target_os = "ios", test))]
+fn custom_exposure_range(
+    minimum_duration: MediaTime,
+    maximum_duration: MediaTime,
+    minimum_iso: f32,
+    maximum_iso: f32,
+) -> Result<IosCustomExposureRange, ExposureControlError> {
+    if minimum_duration.value() <= 0
+        || maximum_duration.value() <= 0
+        || minimum_duration > maximum_duration
+        || !minimum_iso.is_finite()
+        || !maximum_iso.is_finite()
+        || minimum_iso <= 0.0
+        || minimum_iso > maximum_iso
+    {
+        return Err(ExposureControlError::InvalidSupportedCustomExposureRange);
+    }
+    Ok(IosCustomExposureRange {
+        minimum_duration,
+        maximum_duration,
+        minimum_iso,
+        maximum_iso,
+    })
+}
+
+#[cfg(any(target_os = "ios", test))]
+fn configure_custom_exposure(
+    duration: MediaTime,
+    iso: f32,
+    is_supported: impl FnOnce() -> bool,
+    lock: impl FnOnce() -> Result<(), ()>,
+    read_range: impl FnOnce() -> Result<IosCustomExposureRange, ExposureControlError>,
+    set: impl FnOnce(MediaTime, f32),
+    unlock: impl FnOnce(),
+) -> Result<(), ExposureControlError> {
+    if duration.value() <= 0 {
+        return Err(ExposureControlError::InvalidCustomExposureDuration);
+    }
+    if !iso.is_finite() || iso <= 0.0 {
+        return Err(ExposureControlError::InvalidCustomExposureIso);
+    }
+    if !is_supported() {
+        return Err(ExposureControlError::CustomExposureModeUnsupported);
+    }
+    lock().map_err(|()| ExposureControlError::ConfigurationLockFailed)?;
+    let unlock = UnlockDeviceConfiguration(Some(unlock));
+    let range = read_range()?;
+    if duration < range.minimum_duration || duration > range.maximum_duration {
+        return Err(ExposureControlError::CustomExposureDurationOutOfRange);
+    }
+    if iso < range.minimum_iso || iso > range.maximum_iso {
+        return Err(ExposureControlError::CustomExposureIsoOutOfRange);
+    }
+    set(duration, iso);
+    drop(unlock);
+    Ok(())
+}
+
+#[cfg(target_os = "ios")]
+fn native_custom_exposure_range(
+    device: &AVCaptureDevice,
+) -> Result<IosCustomExposureRange, ExposureControlError> {
+    // SAFETY: The caller holds the retained selected device on the capture queue. The returned
+    // format is retained while its public read-only exposure bounds are copied below.
+    let format = unsafe { device.activeFormat() };
+    // SAFETY: These public active-format exposure bounds are available below both package floors.
+    let minimum = unsafe { format.minExposureDuration() };
+    // SAFETY: Same retained-format and public-API conditions as the minimum bound above.
+    let maximum = unsafe { format.maxExposureDuration() };
+    let minimum_iso = unsafe { format.minISO() };
+    let maximum_iso = unsafe { format.maxISO() };
+    let media_time = |time: CMTime| {
+        let value = time.value;
+        let timescale = time.timescale;
+        let flags = time.flags;
+        let epoch = time.epoch;
+        custom_exposure_duration_from_parts(
+            value,
+            timescale,
+            flags.contains(CMTimeFlags::Valid),
+            !flags.intersects(CMTimeFlags::ImpliedValueFlagsMask),
+            epoch,
+        )
+    };
+    custom_exposure_range(
+        media_time(minimum)?,
+        media_time(maximum)?,
+        minimum_iso,
+        maximum_iso,
+    )
+}
+
+#[cfg(target_os = "ios")]
+fn native_custom_exposure_duration(duration: MediaTime) -> CMTime {
+    CMTime {
+        value: duration.value(),
+        timescale: duration.timescale(),
+        flags: CMTimeFlags::Valid,
+        epoch: 0,
+    }
 }
 
 #[cfg(any(target_os = "ios", test))]
@@ -2093,6 +2238,70 @@ impl IosCameraCaptureSession {
             });
         });
         result
+    }
+
+    /// Read the current active format's inclusive custom exposure duration and ISO bounds
+    ///
+    /// The returned `MediaTime` durations preserve AVFoundation's value and timescale exactly.
+    /// This is a point-in-time snapshot; `set_custom_exposure` re-reads the active format while
+    /// holding the device configuration lock. The query does not change exposure mode or settings.
+    pub fn custom_exposure_range(&self) -> Result<IosCustomExposureRange, ExposureControlError> {
+        let graph = Arc::clone(&self.graph);
+        self.run_capture_queue_sync(move || {
+            let graph = graph
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner);
+            with_selected_exposure_camera(graph.device.as_ref(), |device| {
+                native_custom_exposure_range(device)
+            })
+        })
+    }
+
+    /// Request one exact custom exposure duration and ISO on the selected camera
+    ///
+    /// Duration is a strictly positive exact rational number of seconds and ISO is a finite
+    /// positive value. AVFoundation's custom-mode support is checked before the device lock; the
+    /// active format's inclusive bounds are then re-read under that lock. Invalid native ranges
+    /// and out-of-range requests return errors without clamping or mutation. A successful call
+    /// sends a nil completion handler and means only that AVFoundation accepted the request; it
+    /// does not prove that a captured frame used the values. This does not prompt, select a camera,
+    /// change session policy, or alter still-photo quality prioritization.
+    pub fn set_custom_exposure(
+        &self,
+        duration: MediaTime,
+        iso: f32,
+    ) -> Result<(), ExposureControlError> {
+        let graph = Arc::clone(&self.graph);
+        self.run_capture_queue_sync(move || {
+            let graph = graph
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner);
+            with_selected_exposure_camera(graph.device.as_ref(), |device| {
+                configure_custom_exposure(
+                    duration,
+                    iso,
+                    // SAFETY: This public exposure-mode support query precedes the device lock.
+                    || unsafe { device.isExposureModeSupported(AVCaptureExposureMode::Custom) },
+                    // SAFETY: The retained selected device is protected by the graph mutex and
+                    // this operation runs on the session's serial capture queue.
+                    || unsafe { device.lockForConfiguration().map_err(|_| ()) },
+                    // SAFETY: Called only after a successful device lock; activeFormat and its
+                    // duration/ISO limits are public AVFoundation APIs.
+                    || native_custom_exposure_range(device),
+                    // SAFETY: The exact request was validated against the locked active format.
+                    // AVFoundation explicitly permits nil when completion knowledge is not needed.
+                    |duration, iso| unsafe {
+                        device.setExposureModeCustomWithDuration_ISO_completionHandler(
+                            native_custom_exposure_duration(duration),
+                            iso,
+                            None,
+                        )
+                    },
+                    // SAFETY: configure_custom_exposure calls this after one successful lock.
+                    || unsafe { device.unlockForConfiguration() },
+                )
+            })
+        })
     }
 
     /// Read the selected camera's supported exposure target-bias range in EV
@@ -2955,13 +3164,14 @@ mod tests {
     use super::{
         CameraCaptureError, CameraPositionSwitchError, ExposureControlError, FocusControlError,
         IosCameraExposureMode, IosCameraFocusMode, IosCameraPosition, IosCameraVideoOrientation,
-        IosCameraWhiteBalanceMode, MediaAuthorizationStatus, MovieOrientationError,
+        IosCameraWhiteBalanceMode, MediaAuthorizationStatus, MediaTime, MovieOrientationError,
         MovieRecordingState, NormalizedFocusPoint, PhotoCaptureError, PhotoCaptureResult,
         TorchControlError, VideoFrameStreamError, VideoFrameStreamState, VideoRecordingError,
         VideoRecordingResult, WhiteBalanceControlError, ZoomControlError,
-        camera_position_switch_required, configure_exposure, configure_exposure_target_bias,
-        configure_focus, configure_movie_orientation, configure_torch_enabled,
-        configure_video_zoom_factor, configure_white_balance_mode,
+        camera_position_switch_required, configure_custom_exposure, configure_exposure,
+        configure_exposure_target_bias, configure_focus, configure_movie_orientation,
+        configure_torch_enabled, configure_video_zoom_factor, configure_white_balance_mode,
+        custom_exposure_duration_from_parts, custom_exposure_range,
         drop_video_frame_callback_safely, exposure_target_bias_range,
         finish_camera_input_replacement, invoke_video_frame_callback, map_camera_video_orientation,
         may_create_device_input, photo_request_error, prepare_optional_movie_audio,
@@ -2976,6 +3186,10 @@ mod tests {
     use std::path::PathBuf;
     use std::sync::Arc;
     use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
+
+    fn camera_time(value: i64, timescale: i32) -> MediaTime {
+        MediaTime::new(value, timescale).expect("test media time is valid")
+    }
 
     fn unused_movie_path(label: &str) -> PathBuf {
         static NEXT: AtomicUsize = AtomicUsize::new(0);
@@ -4119,6 +4333,289 @@ mod tests {
         }));
         assert!(result.is_err());
         assert_eq!(*events.borrow(), ["lock", "set-point", "unlock"]);
+    }
+
+    #[test]
+    fn custom_exposure_range_preserves_exact_rationals_and_rejects_invalid_native_limits() {
+        let minimum = camera_time(1, 60);
+        let maximum = camera_time(1, 15);
+        let range = custom_exposure_range(minimum, maximum, 50.0, 1600.0).unwrap();
+        assert_eq!(range.minimum_duration.value(), 1);
+        assert_eq!(range.minimum_duration.timescale(), 60);
+        assert_eq!(range.maximum_duration, maximum);
+        assert_eq!(range.minimum_iso, 50.0);
+        assert_eq!(range.maximum_iso, 1600.0);
+        assert!(camera_time(2, 120) >= range.minimum_duration);
+        assert!(camera_time(2, 120) <= range.minimum_duration);
+
+        for (value, timescale, valid, finite, epoch) in [
+            (1, 60, false, true, 0),
+            (1, 60, true, false, 0),
+            (1, 60, true, true, 1),
+            (0, 60, true, true, 0),
+            (-1, 60, true, true, 0),
+            (1, 0, true, true, 0),
+            (1, -60, true, true, 0),
+        ] {
+            assert_eq!(
+                custom_exposure_duration_from_parts(value, timescale, valid, finite, epoch),
+                Err(ExposureControlError::InvalidSupportedCustomExposureRange)
+            );
+        }
+
+        for (minimum_iso, maximum_iso) in [
+            (f32::NAN, 100.0),
+            (50.0, f32::INFINITY),
+            (f32::NEG_INFINITY, 100.0),
+            (0.0, 100.0),
+            (-1.0, 100.0),
+            (100.0, 50.0),
+        ] {
+            assert_eq!(
+                custom_exposure_range(minimum, maximum, minimum_iso, maximum_iso),
+                Err(ExposureControlError::InvalidSupportedCustomExposureRange)
+            );
+        }
+        assert_eq!(
+            custom_exposure_range(maximum, minimum, 50.0, 100.0),
+            Err(ExposureControlError::InvalidSupportedCustomExposureRange)
+        );
+    }
+
+    #[test]
+    fn custom_exposure_rejects_invalid_duration_and_iso_before_native_queries() {
+        for duration in [camera_time(0, 1), camera_time(-1, 1)] {
+            assert_eq!(
+                configure_custom_exposure(
+                    duration,
+                    100.0,
+                    || panic!("invalid duration must precede mode support"),
+                    || panic!("invalid duration must not lock"),
+                    || panic!("invalid duration must not read bounds"),
+                    |_, _| panic!("invalid duration must not set exposure"),
+                    || panic!("device was not locked"),
+                ),
+                Err(ExposureControlError::InvalidCustomExposureDuration)
+            );
+        }
+        for iso in [f32::NAN, f32::INFINITY, f32::NEG_INFINITY, 0.0, -1.0] {
+            assert_eq!(
+                configure_custom_exposure(
+                    camera_time(1, 60),
+                    iso,
+                    || panic!("invalid ISO must precede mode support"),
+                    || panic!("invalid ISO must not lock"),
+                    || panic!("invalid ISO must not read bounds"),
+                    |_, _| panic!("invalid ISO must not set exposure"),
+                    || panic!("device was not locked"),
+                ),
+                Err(ExposureControlError::InvalidCustomExposureIso)
+            );
+        }
+    }
+
+    #[test]
+    fn custom_exposure_requires_a_selected_camera_and_checks_support_before_lock() {
+        assert_eq!(
+            super::with_selected_exposure_camera::<u8, ()>(None, |_| {
+                panic!("missing camera must not query custom exposure support")
+            }),
+            Err(ExposureControlError::NoSelectedCamera)
+        );
+        let events = RefCell::new(Vec::new());
+        assert_eq!(
+            configure_custom_exposure(
+                camera_time(1, 60),
+                100.0,
+                || {
+                    events.borrow_mut().push("support");
+                    false
+                },
+                || {
+                    events.borrow_mut().push("lock");
+                    Ok(())
+                },
+                || panic!("unsupported custom mode must not read bounds"),
+                |_, _| panic!("unsupported custom mode must not set exposure"),
+                || panic!("device was not locked"),
+            ),
+            Err(ExposureControlError::CustomExposureModeUnsupported)
+        );
+        assert_eq!(*events.borrow(), ["support"]);
+    }
+
+    #[test]
+    fn custom_exposure_rejects_invalid_range_and_out_of_range_requests_without_set() {
+        let minimum = camera_time(1, 60);
+        let maximum = camera_time(1, 15);
+        let valid_range = custom_exposure_range(minimum, maximum, 50.0, 1600.0).unwrap();
+
+        for (duration, iso, expected) in [
+            (
+                camera_time(1, 61),
+                100.0,
+                ExposureControlError::CustomExposureDurationOutOfRange,
+            ),
+            (
+                camera_time(1, 60),
+                49.0,
+                ExposureControlError::CustomExposureIsoOutOfRange,
+            ),
+            (
+                camera_time(1, 60),
+                1601.0,
+                ExposureControlError::CustomExposureIsoOutOfRange,
+            ),
+        ] {
+            let events = RefCell::new(Vec::new());
+            assert_eq!(
+                configure_custom_exposure(
+                    duration,
+                    iso,
+                    || {
+                        events.borrow_mut().push("support");
+                        true
+                    },
+                    || {
+                        events.borrow_mut().push("lock");
+                        Ok(())
+                    },
+                    || {
+                        events.borrow_mut().push("read-range");
+                        Ok(valid_range)
+                    },
+                    |_, _| panic!("out-of-range request must not mutate exposure"),
+                    || events.borrow_mut().push("unlock"),
+                ),
+                Err(expected)
+            );
+            assert_eq!(
+                *events.borrow(),
+                ["support", "lock", "read-range", "unlock"]
+            );
+        }
+
+        let events = RefCell::new(Vec::new());
+        assert_eq!(
+            configure_custom_exposure(
+                minimum,
+                100.0,
+                || {
+                    events.borrow_mut().push("support");
+                    true
+                },
+                || {
+                    events.borrow_mut().push("lock");
+                    Ok(())
+                },
+                || {
+                    events.borrow_mut().push("read-range");
+                    Err(ExposureControlError::InvalidSupportedCustomExposureRange)
+                },
+                |_, _| panic!("invalid native bounds must not mutate exposure"),
+                || events.borrow_mut().push("unlock"),
+            ),
+            Err(ExposureControlError::InvalidSupportedCustomExposureRange)
+        );
+        assert_eq!(
+            *events.borrow(),
+            ["support", "lock", "read-range", "unlock"]
+        );
+    }
+
+    #[test]
+    fn custom_exposure_accepts_exact_inclusive_endpoints_in_native_call_order() {
+        let minimum = camera_time(1, 60);
+        let maximum = camera_time(1, 15);
+        let range = custom_exposure_range(minimum, maximum, 50.0, 1600.0).unwrap();
+        for (duration, iso) in [(minimum, 50.0), (maximum, 1600.0)] {
+            let events = RefCell::new(Vec::new());
+            assert_eq!(
+                configure_custom_exposure(
+                    duration,
+                    iso,
+                    || {
+                        events.borrow_mut().push("support");
+                        true
+                    },
+                    || {
+                        events.borrow_mut().push("lock");
+                        Ok(())
+                    },
+                    || {
+                        events.borrow_mut().push("read-range");
+                        Ok(range)
+                    },
+                    |actual_duration, actual_iso| {
+                        assert_eq!(actual_duration, duration);
+                        assert_eq!(actual_iso, iso);
+                        events.borrow_mut().push("set");
+                    },
+                    || events.borrow_mut().push("unlock"),
+                ),
+                Ok(())
+            );
+            assert_eq!(
+                *events.borrow(),
+                ["support", "lock", "read-range", "set", "unlock"]
+            );
+        }
+    }
+
+    #[test]
+    fn custom_exposure_lock_failure_and_unwind_preserve_unlock_contract() {
+        let range =
+            custom_exposure_range(camera_time(1, 60), camera_time(1, 15), 50.0, 1600.0).unwrap();
+        let events = RefCell::new(Vec::new());
+        assert_eq!(
+            configure_custom_exposure(
+                range.minimum_duration,
+                range.minimum_iso,
+                || {
+                    events.borrow_mut().push("support");
+                    true
+                },
+                || {
+                    events.borrow_mut().push("lock");
+                    Err(())
+                },
+                || panic!("failed lock must not read bounds"),
+                |_, _| panic!("failed lock must not set exposure"),
+                || panic!("failed lock must not unlock"),
+            ),
+            Err(ExposureControlError::ConfigurationLockFailed)
+        );
+        assert_eq!(*events.borrow(), ["support", "lock"]);
+
+        let events = RefCell::new(Vec::new());
+        let unwind = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            configure_custom_exposure(
+                range.maximum_duration,
+                range.maximum_iso,
+                || {
+                    events.borrow_mut().push("support");
+                    true
+                },
+                || {
+                    events.borrow_mut().push("lock");
+                    Ok(())
+                },
+                || {
+                    events.borrow_mut().push("read-range");
+                    Ok(range)
+                },
+                |_, _| {
+                    events.borrow_mut().push("set");
+                    panic!("simulated custom-exposure setter panic")
+                },
+                || events.borrow_mut().push("unlock"),
+            )
+        }));
+        assert!(unwind.is_err());
+        assert_eq!(
+            *events.borrow(),
+            ["support", "lock", "read-range", "set", "unlock"]
+        );
     }
 
     #[test]
