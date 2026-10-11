@@ -1,0 +1,26 @@
+# Registered validation profiles
+
+> Generated from `tools/validation/specs/validation-v1.json`. Do not edit manually.
+
+The following are configured validation profiles, not claims that every gate passed.
+
+| Profile | Package | iOS targets | ABI scripts | Adapters | Offline |
+| --- | --- | ---: | ---: | ---: | --- |
+| ios-app-lifecycle | ios-app-lifecycle | 2 | 1 | 1 | False |
+| ios-app-scenes | ios-app-scenes | 2 | 1 | 0 | False |
+| ios-media-authorization | ios-media-authorization | 2 | 1 | 1 | False |
+| ios-camera-capture-session | ios-camera-capture-session | 2 | 1 | 0 | False |
+| ios-homekit-identify-status | ios-homekit-identify-status | 2 | 1 | 1 | False |
+| ios-photogrammetry-status | ios-photogrammetry-status | 3 | 2 | 0 | False |
+| ios-alarmkit-status | ios-alarmkit-status | 2 | 1 | 0 | True |
+| ios-activitykit-status | ios-activitykit-status | 2 | 2 | 0 | False |
+
+
+## Inspect actual gates
+
+```sh
+ios-rust-validate --workspace-root "$PWD" --spec "$PWD/tools/validation/specs/validation-v1.json" --list
+ios-rust-validate --workspace-root "$PWD" --spec "$PWD/tools/validation/specs/validation-v1.json" --explain ios-app-lifecycle
+```
+
+A verified newer validator runs host package tests as registered gates; this inventory does not certify test completion.

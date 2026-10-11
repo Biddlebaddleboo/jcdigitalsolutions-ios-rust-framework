@@ -1439,7 +1439,8 @@
       "crate_module": [
         "framework-media-authorization",
         "ios-media-authorization",
-        "ios-camera-device-status"
+        "ios-camera-device-status",
+        "ios-camera-capture-session"
       ],
       "crate_module_status": "portable_contract_and_ios_backend_partial",
       "portability_class": "portable_with_platform_extensions",
@@ -1447,10 +1448,11 @@
       "portable_contract_note": "framework-media-authorization defines camera authorization status and explicit request operations; iOS requests do not create capture sessions or expose media.",
       "ios_implementation_class": "B",
       "implementation_status": "partial",
-      "status_reason": "B36 provides a non-prompting camera authorization query; an additive MediaAuthorizationRequester operation explicitly requests camera permission. D57/B62 also queries default-video-device presence. No operation creates a capture session or accesses media samples.",
-      "minimum_ios_version": "4.0",
+      "status_reason": "B36 provides a non-prompting camera authorization query; an additive MediaAuthorizationRequester operation explicitly requests camera permission. The D57/B62 default-video-device query itself has an iOS 4.0 floor. B455 implements one authorized default-video input, an AVCaptureSession, and a native preview layer; its registered host, iOS 10.0 device, and iOS 14.0 Simulator gates pass with two checks skipped. Camera use, preview delivery, and runtime behavior remain unverified. Photo/movie/sample output remains out of scope, so the row stays partial.",
+      "minimum_ios_version": "10.0",
       "required_frameworks": [
-        "AVFoundation"
+        "AVFoundation",
+        "QuartzCore"
       ],
       "required_permissions": [],
       "required_info_plist_keys": [
@@ -1459,11 +1461,11 @@
       "entitlements": [],
       "device_only_restrictions": null,
       "swift_abi_requirement": false,
-      "metadata_verification": "PLAN_IOS_CAMERA_DEVICE_STATUS.md verifies the default-video-device query from iOS 4.0; Xcode 26.6 build 17F113 / iOS SDK 26.5 AVCaptureDevice.h declares authorizationStatusForMediaType: and requestAccessForMediaType:completionHandler: from iOS 7.0; the Rust 1.94.1 package checks and ios-media-authorization validator profile pass; no permission prompt or capture ran; NSCameraUsageDescription is required for the explicit request, not the status query.",
+      "metadata_verification": "PLAN_IOS_CAMERA_DEVICE_STATUS.md verifies the D57/B62 default-video-device query from iOS 4.0; Xcode 26.6 build 17F113 / iOS SDK 26.5 AVCaptureDevice.h declares authorizationStatusForMediaType: and requestAccessForMediaType:completionHandler: from iOS 7.0. `ios-rust-validate --workspace-root \"$PWD\" --spec \"$PWD/tools/validation/specs/validation-v1.json\" --capability ios-camera-capture-session` reports 51 PASS, 0 FAIL, 0 BLOCKED, 2 SKIPPED, including the host device_input_requires_granted_camera_authorization test, 17 source guards, and iOS 10.0 device / iOS 14.0 Simulator compile/link checks; no camera runtime, permission prompt, or preview ran. NSCameraUsageDescription is required for authorization/capture; no entitlement is required.",
       "parity_status": "not_tested_live_behavior_or_Apple_parity",
       "performance_status": "not_measured",
-      "native_escape_handle_available": false,
-      "native_escape_handle_note": "No native escape handle is exposed by the capability facade in this row."
+      "native_escape_handle_available": true,
+      "native_escape_handle_note": "B455 exposes a retained AVCaptureVideoPreviewLayer on the main thread for UIKit composition."
     },
     {
       "id": "047-camera-audio-media-microphone-audio-engine-i-o",

@@ -17,6 +17,14 @@
       "framework-media-authorization"
     ],
     [
+      "ios-camera-capture-session",
+      "framework-media-authorization"
+    ],
+    [
+      "ios-camera-capture-session",
+      "ios-media-authorization"
+    ],
+    [
       "ios-activitykit-status",
       "swift-abi-core"
     ],
@@ -363,6 +371,184 @@
           "stdout_limit_bytes": 4096,
           "stderr_limit_bytes": 4096,
           "temporary_space_bytes": 1048576
+        }
+      ]
+    },
+    {
+      "abi_scripts": [
+        "platform/ios/ios-camera-capture-session/check-link-imports.sh"
+      ],
+      "abi_targets": [
+        {
+          "minimum_os": "10.0",
+          "sdk": "iphoneos",
+          "triple": "aarch64-apple-ios"
+        },
+        {
+          "minimum_os": "14.0",
+          "sdk": "iphonesimulator",
+          "triple": "aarch64-apple-ios-sim"
+        }
+      ],
+      "adapters": [],
+      "cargo_tree": false,
+      "check_script": "platform/ios/ios-camera-capture-session/check-link-imports.sh",
+      "clippy_all_targets": true,
+      "clippy_lib": false,
+      "docs": [
+        "docs/capabilities/capability-status.json",
+        "PLAN.md",
+        "PLAN_IOS_CAMERA_CAPTURE_SESSION.md"
+      ],
+      "expected_imports": [
+        "AVFoundation.framework",
+        "Foundation.framework",
+        "QuartzCore.framework",
+        "objc_msgSend"
+      ],
+      "fmt_all": false,
+      "guards": [
+        {
+          "message": "camera authorization must use the existing iOS media-authorization capability",
+          "must_exist": true,
+          "path": "platform/ios/ios-camera-capture-session/src/lib.rs",
+          "text": "IosMediaAuthorization::authorization_status(CaptureMedia::Camera)"
+        },
+        {
+          "message": "capture must fail closed unless portable media authorization is Authorized",
+          "must_exist": true,
+          "path": "platform/ios/ios-camera-capture-session/src/lib.rs",
+          "text": "matches!(status, MediaAuthorizationStatus::Authorized)"
+        },
+        {
+          "message": "capture-session APIs require the iOS 7 authorization-API availability floor",
+          "must_exist": true,
+          "path": "platform/ios/ios-camera-capture-session/src/lib.rs",
+          "text": "objc2::available!(ios = 7.0, ..)"
+        },
+        {
+          "message": "the default video capture device is the supported device scope",
+          "must_exist": true,
+          "path": "platform/ios/ios-camera-capture-session/src/lib.rs",
+          "text": "AVCaptureDevice::defaultDeviceWithMediaType"
+        },
+        {
+          "message": "session input must use the public AVCaptureDeviceInput initializer",
+          "must_exist": true,
+          "path": "platform/ios/ios-camera-capture-session/src/lib.rs",
+          "text": "AVCaptureDeviceInput::deviceInputWithDevice_error"
+        },
+        {
+          "message": "the capability must own an AVFoundation capture session",
+          "must_exist": true,
+          "path": "platform/ios/ios-camera-capture-session/src/lib.rs",
+          "text": "AVCaptureSession::new()"
+        },
+        {
+          "message": "live preview must use the public AVFoundation preview layer",
+          "must_exist": true,
+          "path": "platform/ios/ios-camera-capture-session/src/lib.rs",
+          "text": "AVCaptureVideoPreviewLayer::layerWithSession"
+        },
+        {
+          "message": "capture-session creation must not trigger a camera permission prompt",
+          "must_exist": false,
+          "path": "platform/ios/ios-camera-capture-session/src/lib.rs",
+          "text": "requestAccessForMediaType_completionHandler"
+        },
+        {
+          "message": "photo capture output is outside the camera-session capability",
+          "must_exist": false,
+          "path": "platform/ios/ios-camera-capture-session/src/lib.rs",
+          "text": "AVCapturePhotoOutput"
+        },
+        {
+          "message": "movie recording output is outside the camera-session capability",
+          "must_exist": false,
+          "path": "platform/ios/ios-camera-capture-session/src/lib.rs",
+          "text": "AVCaptureMovieFileOutput"
+        },
+        {
+          "message": "video sample output is outside the camera-session capability",
+          "must_exist": false,
+          "path": "platform/ios/ios-camera-capture-session/src/lib.rs",
+          "text": "AVCaptureVideoDataOutput"
+        },
+        {
+          "message": "sample-buffer access is outside the camera-session capability",
+          "must_exist": false,
+          "path": "platform/ios/ios-camera-capture-session/src/lib.rs",
+          "text": "CMSampleBuffer"
+        },
+        {
+          "message": "audio capture is outside the camera-session capability",
+          "must_exist": false,
+          "path": "platform/ios/ios-camera-capture-session/src/lib.rs",
+          "text": "AVAudioEngine"
+        },
+        {
+          "message": "camera enumeration and selection are outside the default-device capability",
+          "must_exist": false,
+          "path": "platform/ios/ios-camera-capture-session/src/lib.rs",
+          "text": "devicesWithMediaType"
+        },
+        {
+          "message": "device discovery and explicit device-type selection are outside the default-device capability",
+          "must_exist": false,
+          "path": "platform/ios/ios-camera-capture-session/src/lib.rs",
+          "text": "AVCaptureDeviceDiscoverySession"
+        },
+        {
+          "message": "device discovery and explicit device-type selection are outside the default-device capability",
+          "must_exist": false,
+          "path": "platform/ios/ios-camera-capture-session/src/lib.rs",
+          "text": "AVCaptureDeviceType"
+        },
+        {
+          "message": "explicit device-type selection is outside the default-device capability",
+          "must_exist": false,
+          "path": "platform/ios/ios-camera-capture-session/src/lib.rs",
+          "text": "deviceWithType"
+        }
+      ],
+      "id": "ios-camera-capture-session",
+      "manifest": "platform/ios/ios-camera-capture-session/Cargo.toml",
+      "offline": false,
+      "package": "ios-camera-capture-session",
+      "rustdoc_warnings": false,
+      "scoped_files": [
+        "Cargo.lock",
+        "crates/framework-media-authorization/Cargo.toml",
+        "crates/framework-media-authorization/src/lib.rs",
+        "platform/ios/ios-camera-capture-session/Cargo.toml",
+        "platform/ios/ios-camera-capture-session/check-link-imports.sh",
+        "platform/ios/ios-camera-capture-session/examples/camera_capture_link_probe.rs",
+        "platform/ios/ios-camera-capture-session/src/lib.rs",
+        "platform/ios/ios-media-authorization/Cargo.toml",
+        "platform/ios/ios-media-authorization/src/lib.rs",
+        "platform/ios/ios-media-authorization/src/platform.rs",
+        "platform/ios/ios-media-authorization/src/status.rs",
+        "docs/capabilities/capability-status.json",
+        "PLAN.md",
+        "PLAN_IOS_CAMERA_CAPTURE_SESSION.md",
+        "tools/validation/specs/validation-v1.json"
+      ],
+      "shell_scripts": [
+        "platform/ios/ios-camera-capture-session/check-link-imports.sh"
+      ],
+      "source_dirs": [
+        "platform/ios/ios-camera-capture-session"
+      ],
+      "targets": [
+        {
+          "minimum_os": "10.0",
+          "sdk": "iphoneos",
+          "triple": "aarch64-apple-ios"
+        },
+        {
+          "minimum_os": "14.0",
+          "sdk": "iphonesimulator",
+          "triple": "aarch64-apple-ios-sim"
         }
       ]
     },
@@ -980,6 +1166,11 @@
     {
       "path": "platform/ios/ios-media-authorization/",
       "node": "ios-media-authorization",
+      "global": false
+    },
+    {
+      "path": "platform/ios/ios-camera-capture-session/",
+      "node": "ios-camera-capture-session",
       "global": false
     },
     {
