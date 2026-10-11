@@ -1,7 +1,14 @@
+use crate::configuration::{
+    BackgroundModeValue, has_always_usage_descriptions, has_location_background_mode,
+    is_nonempty_string_value, requires_legacy_always_usage_description,
+};
 use crate::conversion::{
-    NativeAccuracy, authorization_from_native, error_from_native, fix_from_native, native_accuracy,
+    NativeAccuracy, UpdateAuthorizationRequirement, authorization_downgraded,
+    authorization_from_native, configuration_error, error_from_native, fix_from_native,
+    native_accuracy, should_request_always_authorization, updates_permitted,
 };
 use crate::operation::{CompletionCell, LocationUpdateQueue};
+use core::cell::Cell;
 use core::future::Future;
 use core::marker::PhantomData;
 use core::pin::Pin;
@@ -12,10 +19,12 @@ use framework_location::{
     LocationUpdate, LocationUpdateKind, LocationUpdateSession, LocationUpdatesBackend,
 };
 use objc2::rc::{Allocated, Retained, autoreleasepool};
-use objc2::runtime::ProtocolObject;
+use objc2::runtime::{AnyObject, ProtocolObject};
 use objc2::{DefinedClass, MainThreadMarker, MainThreadOnly, define_class, msg_send};
-use objc2_core_location::{CLLocation, CLLocationManager, CLLocationManagerDelegate};
-use objc2_foundation::{NSArray, NSDate, NSError, NSObject, NSObjectProtocol};
+use objc2_core_location::{
+    CLActivityType, CLLocation, CLLocationManager, CLLocationManagerDelegate,
+};
+use objc2_foundation::{NSArray, NSBundle, NSDate, NSError, NSObject, NSObjectProtocol, NSString};
 use std::panic::{AssertUnwindSafe, catch_unwind};
 use std::sync::Arc;
 use std::task::Waker;
@@ -38,7 +47,31 @@ enum DelegateState {
     },
     Updates {
         queue: Arc<LocationUpdateQueue>,
+        authorization: UpdateAuthorizationState,
     },
+}
+
+struct UpdateAuthorizationState {
+    requirement: UpdateAuthorizationRequirement,
+    previous: Cell<LocationAuthorization>,
+}
+
+impl UpdateAuthorizationState {
+    fn new(requirement: UpdateAuthorizationRequirement, initial: LocationAuthorization) -> Self {
+        Self {
+            requirement,
+            previous: Cell::new(initial),
+        }
+    }
+
+    fn permits(&self, current: LocationAuthorization) -> bool {
+        updates_permitted(current, self.requirement)
+    }
+
+    fn observe(&self, current: LocationAuthorization) -> bool {
+        let previous = self.previous.replace(current);
+        authorization_downgraded(previous, current, self.requirement)
+    }
 }
 
 define_class!(
@@ -82,7 +115,18 @@ define_class!(
                     .unwrap_or_else(|_| Err(internal_error()));
                     completion.complete(result);
                 }
-                DelegateState::Updates { queue } => {
+                DelegateState::Updates {
+                    queue,
+                    authorization,
+                } => {
+                    let current_authorization =
+                        authorization_from_native(native_authorization_status());
+                    if authorization.observe(current_authorization) {
+                        queue.push_batch([LocationUpdateKind::Error(permission_error())]);
+                    }
+                    if !authorization.permits(current_authorization) {
+                        return;
+                    }
                     let result = catch_unwind(AssertUnwindSafe(|| {
                         autoreleasepool(|_| {
                             if locations.is_empty() {
@@ -125,7 +169,7 @@ define_class!(
                             .unwrap_or_else(|_| internal_error());
                     completion.complete(Err(result));
                 }
-                DelegateState::Updates { queue } => {
+                DelegateState::Updates { queue, .. } => {
                     let result =
                         catch_unwind(AssertUnwindSafe(|| error_from_native(error.code() as i64)))
                             .unwrap_or_else(|_| internal_error());
@@ -182,14 +226,15 @@ impl LocationDelegate {
                 let authorization = authorization_from_native(raw_status);
                 completion.complete(Ok(NativeOutcome::Authorization(authorization)));
             }
-            DelegateState::Updates { queue }
-                if !authorization_from_native(raw_status).allows_foreground() =>
-            {
-                queue.push_batch([LocationUpdateKind::Error(permission_error())]);
+            DelegateState::Updates {
+                queue,
+                authorization,
+            } => {
+                if authorization.observe(authorization_from_native(raw_status)) {
+                    queue.push_batch([LocationUpdateKind::Error(permission_error())]);
+                }
             }
-            DelegateState::RequestAuthorization { .. }
-            | DelegateState::Current { .. }
-            | DelegateState::Updates { .. } => {}
+            DelegateState::RequestAuthorization { .. } | DelegateState::Current { .. } => {}
         }
     }
 }
@@ -223,15 +268,19 @@ pub type IosAuthorizationFuture<'a> = IosLocationFuture<'a, LocationAuthorizatio
 /// iOS foreground-authorization request future.
 pub type IosRequestAuthorizationFuture<'a> = IosLocationFuture<'a, LocationAuthorization>;
 
+/// iOS Always-authorization request future.
+pub type IosRequestAlwaysAuthorizationFuture<'a> = IosLocationFuture<'a, LocationAuthorization>;
+
 /// iOS one-shot current-location future.
 pub type IosCurrentFuture<'a> = IosLocationFuture<'a, LocationFix>;
 
-/// A foreground location-update session that owns its native manager and retained delegate.
+/// A continuous location-update session that owns its native manager and retained delegate.
 ///
 /// The session exclusively borrows its backend and must be used and dropped on the backend's
-/// main thread. It starts only after current authorization permits foreground location; it never
-/// requests permission or enables background updates. Dropping the session detaches callback
-/// state and stops the native location service.
+/// main thread. `LocationUpdatesBackend::start_updates` creates a foreground session without
+/// enabling background delivery. `IosLocationBackend::start_background_updates` requires current
+/// Always authorization and a configured app background mode. Neither operation requests
+/// permission. Dropping the session detaches callback state and stops the native location service.
 pub struct IosLocationUpdates<'a> {
     _backend: &'a mut IosLocationBackend,
     queue: Arc<LocationUpdateQueue>,
@@ -307,6 +356,7 @@ pub struct IosLocationFuture<'a, T> {
 enum Operation {
     Authorization,
     RequestAuthorization,
+    RequestAlwaysAuthorization,
     Current(LocationRequest),
 }
 
@@ -350,6 +400,7 @@ impl<'a, T> IosLocationFuture<'a, T> {
                 )));
             }
             Operation::RequestAuthorization => self.start_authorization_request(),
+            Operation::RequestAlwaysAuthorization => self.start_always_authorization_request(),
             Operation::Current(request) => self.start_current(request),
         }
     }
@@ -369,6 +420,33 @@ impl<'a, T> IosLocationFuture<'a, T> {
         // SAFETY: The backend marker keeps this future on the main thread and the manager was
         // created on that thread with its callback delegate retained by this future.
         unsafe { manager.requestWhenInUseAuthorization() };
+    }
+
+    fn start_always_authorization_request(&mut self) {
+        let status = native_authorization_status();
+        let authorization = authorization_from_native(status);
+        if !should_request_always_authorization(authorization) {
+            self.completion
+                .complete(Ok(NativeOutcome::Authorization(authorization)));
+            return;
+        }
+        if !main_bundle_has_always_usage_descriptions() {
+            self.completion.complete(Err(configuration_error()));
+            return;
+        }
+        let (manager, delegate) = new_operation_objects(
+            self.backend.marker,
+            DelegateState::RequestAuthorization {
+                completion: self.completion.clone(),
+                authorization_baseline: status,
+            },
+        );
+        self.manager = Some(manager);
+        self.delegate = Some(delegate);
+        let manager = self.manager.as_ref().expect("manager set above");
+        // SAFETY: This explicit operation was polled on the backend's main thread, has the
+        // required host usage-description keys, and retains its callback delegate.
+        unsafe { manager.requestAlwaysAuthorization() };
     }
 
     fn start_current(&mut self, request: LocationRequest) {
@@ -467,10 +545,121 @@ pub enum IosAccuracyAuthorization {
     Unknown(isize),
 }
 
+/// Public Core Location activity hints for a continuous update session.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum IosLocationActivityType {
+    /// General location use.
+    Other,
+    /// Road-vehicle navigation.
+    AutomotiveNavigation,
+    /// Walking, running, cycling, or similar fitness activity.
+    Fitness,
+    /// Navigation that does not primarily use a road vehicle.
+    OtherNavigation,
+    /// Airborne activity.
+    Airborne,
+}
+
+impl IosLocationActivityType {
+    fn native(self) -> CLActivityType {
+        match self {
+            Self::Other => CLActivityType::Other,
+            Self::AutomotiveNavigation => CLActivityType::AutomotiveNavigation,
+            Self::Fitness => CLActivityType::Fitness,
+            Self::OtherNavigation => CLActivityType::OtherNavigation,
+            Self::Airborne => CLActivityType::Airborne,
+        }
+    }
+}
+
+/// Configuration hints for an explicitly background-enabled location session.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct IosBackgroundLocationOptions {
+    activity_type: IosLocationActivityType,
+    pauses_automatically: bool,
+    shows_background_indicator: bool,
+}
+
+impl IosBackgroundLocationOptions {
+    /// Creates default options: general activity, automatic pausing, no explicit indicator.
+    pub const fn new() -> Self {
+        Self {
+            activity_type: IosLocationActivityType::Other,
+            pauses_automatically: true,
+            shows_background_indicator: false,
+        }
+    }
+
+    /// Selects the public Core Location activity hint.
+    pub const fn with_activity_type(mut self, activity_type: IosLocationActivityType) -> Self {
+        self.activity_type = activity_type;
+        self
+    }
+
+    /// Selects whether Core Location may automatically pause continuous updates.
+    pub const fn with_automatic_pausing(mut self, enabled: bool) -> Self {
+        self.pauses_automatically = enabled;
+        self
+    }
+
+    /// Requests the iOS 11+ background location indicator when true.
+    pub const fn with_background_indicator(mut self, enabled: bool) -> Self {
+        self.shows_background_indicator = enabled;
+        self
+    }
+}
+
+impl Default for IosBackgroundLocationOptions {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl IosLocationBackend {
     /// Creates the backend on the supplied main-thread/run-loop context.
     pub const fn new(marker: MainThreadMarker) -> Self {
         Self { marker }
+    }
+
+    /// Explicitly requests Always location authorization when the current status allows a request.
+    ///
+    /// The request starts only when this future is first polled. Call it from a meaningful user
+    /// action; it never runs silently. `NotDetermined` and `Foreground` may request a transition,
+    /// and the future completes with the first changed authorization status. A `Background`,
+    /// `Denied`, `Restricted`, or `Unknown` snapshot is returned immediately without another
+    /// prompt. Apple's first grant can be provisional and may later downgrade; inspect subsequent
+    /// authorization changes through an active background session. Missing required usage keys
+    /// return `InvalidInput` before invoking Core Location.
+    pub fn request_always_authorization(&mut self) -> IosRequestAlwaysAuthorizationFuture<'_> {
+        IosLocationFuture::new(
+            self,
+            Operation::RequestAlwaysAuthorization,
+            authorization_result,
+        )
+    }
+
+    /// Starts standard continuous updates with explicit background delivery enabled.
+    ///
+    /// The current authorization must already be `Background`; this method never prompts. The
+    /// host app's main `Info.plist` must contain `UIBackgroundModes` with the exact `location`
+    /// value. The backend checks that configuration before setting
+    /// `allowsBackgroundLocationUpdates`, whose setter would otherwise terminate the process.
+    /// A missing or malformed key returns `InvalidInput`. The configured accuracy remains a
+    /// preference, not a fix guarantee. A later downgrade below Always yields a nonterminal
+    /// `PermissionDenied` event and suppresses fixes until sufficient authorization returns.
+    /// Start the session in the foreground when requesting continuation after the app backgrounds;
+    /// iOS controls actual delivery. Dropping the session detaches its delegate and stops updates.
+    pub fn start_background_updates<'a>(
+        &'a mut self,
+        request: LocationRequest,
+        options: IosBackgroundLocationOptions,
+    ) -> Result<IosLocationUpdates<'a>, LocationError> {
+        start_location_updates(
+            self,
+            request,
+            UpdateAuthorizationRequirement::Background,
+            Some(options),
+        )
     }
 
     /// Reads Core Location's accuracy-authorization snapshot without prompting.
@@ -561,40 +750,91 @@ impl LocationUpdatesBackend for IosLocationBackend {
         &'a mut self,
         request: LocationRequest,
     ) -> Result<Self::UpdateSession<'a>, LocationError> {
-        if !authorization_from_native(native_authorization_status()).allows_foreground() {
-            return Err(permission_error());
-        }
-
-        let queue = Arc::new(LocationUpdateQueue::new());
-        let (manager, delegate) = new_operation_objects(
-            self.marker,
-            DelegateState::Updates {
-                queue: queue.clone(),
-            },
-        );
-        let native_accuracy = match native_accuracy(request.accuracy_target()) {
-            NativeAccuracy::Best => {
-                // SAFETY: Core Location declares this public accuracy constant for iOS.
-                unsafe { objc2_core_location::kCLLocationAccuracyBest }
-            }
-            NativeAccuracy::Meters(meters) => meters,
-        };
-        // SAFETY: The validated portable target is finite, non-negative meters, and the manager
-        // is created on this backend's main-thread/run-loop context.
-        unsafe { manager.setDesiredAccuracy(native_accuracy) };
-        // SAFETY: Current authorization was checked above; the public standard service is started
-        // on the manager's creation thread with a strongly retained delegate and active run loop.
-        unsafe { manager.startUpdatingLocation() };
-
-        let marker = self.marker;
-        Ok(IosLocationUpdates {
-            _backend: self,
-            queue,
-            manager,
-            _delegate: delegate,
-            _main_thread: marker,
-        })
+        start_location_updates(
+            self,
+            request,
+            UpdateAuthorizationRequirement::Foreground,
+            None,
+        )
     }
+}
+
+fn start_location_updates<'a>(
+    backend: &'a mut IosLocationBackend,
+    request: LocationRequest,
+    requirement: UpdateAuthorizationRequirement,
+    background_options: Option<IosBackgroundLocationOptions>,
+) -> Result<IosLocationUpdates<'a>, LocationError> {
+    let authorization = authorization_from_native(native_authorization_status());
+    if !updates_permitted(authorization, requirement) {
+        return Err(permission_error());
+    }
+    match (requirement, background_options) {
+        (UpdateAuthorizationRequirement::Foreground, None) => {}
+        (UpdateAuthorizationRequirement::Background, Some(_)) => {
+            if !main_bundle_has_location_background_mode() {
+                return Err(configuration_error());
+            }
+            if !objc2::available!(ios = 9.0, ..) {
+                return Err(unsupported_error());
+            }
+        }
+        _ => return Err(internal_error()),
+    }
+    if background_options.is_some_and(|options| options.shows_background_indicator)
+        && !objc2::available!(ios = 11.0, ..)
+    {
+        return Err(unsupported_error());
+    }
+
+    let queue = Arc::new(LocationUpdateQueue::new());
+    let (manager, delegate) = new_operation_objects(
+        backend.marker,
+        DelegateState::Updates {
+            queue: queue.clone(),
+            authorization: UpdateAuthorizationState::new(requirement, authorization),
+        },
+    );
+    let native_accuracy = match native_accuracy(request.accuracy_target()) {
+        NativeAccuracy::Best => {
+            // SAFETY: Core Location declares this public accuracy constant for iOS.
+            unsafe { objc2_core_location::kCLLocationAccuracyBest }
+        }
+        NativeAccuracy::Meters(meters) => meters,
+    };
+    // SAFETY: The validated portable target is finite, non-negative meters, and the manager is
+    // created on this backend's main-thread/run-loop context.
+    unsafe { manager.setDesiredAccuracy(native_accuracy) };
+
+    if let Some(options) = background_options {
+        // SAFETY: Core Location's default is no distance threshold; set it explicitly for this
+        // continuous service. The manager is main-thread-bound and its request is valid.
+        unsafe { manager.setDistanceFilter(objc2_core_location::kCLDistanceFilterNone) };
+        // SAFETY: The caller supplied a typed public activity hint and the manager is main-bound.
+        unsafe { manager.setActivityType(options.activity_type.native()) };
+        // SAFETY: The option controls only Core Location's public auto-pause policy.
+        unsafe { manager.setPausesLocationUpdatesAutomatically(options.pauses_automatically) };
+        if options.shows_background_indicator {
+            // SAFETY: The iOS 11 runtime-availability check above precedes this setter.
+            unsafe { manager.setShowsBackgroundLocationIndicator(true) };
+        }
+        // SAFETY: `main_bundle_has_location_background_mode()` passed before this point, current
+        // authorization was checked as Always, and iOS 9 availability was checked above.
+        unsafe { manager.setAllowsBackgroundLocationUpdates(true) };
+    }
+
+    // SAFETY: Authorization and background configuration were preflighted before the service
+    // starts. The retained delegate receives callbacks on the manager's active main run loop.
+    unsafe { manager.startUpdatingLocation() };
+
+    let marker = backend.marker;
+    Ok(IosLocationUpdates {
+        _backend: backend,
+        queue,
+        manager,
+        _delegate: delegate,
+        _main_thread: marker,
+    })
 }
 
 fn authorization_result(outcome: NativeOutcome) -> Result<LocationAuthorization, LocationError> {
@@ -613,6 +853,66 @@ fn current_result(outcome: NativeOutcome) -> Result<LocationFix, LocationError> 
 
 fn permission_error() -> LocationError {
     LocationError::Backend(Error::new(ErrorKind::PermissionDenied))
+}
+
+fn unsupported_error() -> LocationError {
+    LocationError::Backend(Error::new(ErrorKind::Unsupported))
+}
+
+fn main_bundle_has_location_background_mode() -> bool {
+    let bundle = NSBundle::mainBundle();
+    let Some(value) =
+        bundle.objectForInfoDictionaryKey(objc2_foundation::ns_string!("UIBackgroundModes"))
+    else {
+        return false;
+    };
+    let Ok(modes) = value.downcast::<NSArray<AnyObject>>() else {
+        return false;
+    };
+    let entries = (0..modes.len()).map(|index| {
+        let entry = modes.objectAtIndex(index);
+        if entry
+            .downcast_ref::<NSString>()
+            .is_some_and(|value| value.isEqualToString(objc2_foundation::ns_string!("location")))
+        {
+            BackgroundModeValue::Location
+        } else {
+            BackgroundModeValue::Other
+        }
+    });
+    has_location_background_mode(Some(entries))
+}
+
+fn main_bundle_has_always_usage_descriptions() -> bool {
+    has_always_usage_descriptions(
+        main_bundle_has_nonempty_info_string(objc2_foundation::ns_string!(
+            "NSLocationWhenInUseUsageDescription"
+        )),
+        main_bundle_has_nonempty_info_string(objc2_foundation::ns_string!(
+            "NSLocationAlwaysAndWhenInUseUsageDescription"
+        )),
+        main_bundle_has_nonempty_info_string(objc2_foundation::ns_string!(
+            "NSLocationAlwaysUsageDescription"
+        )),
+        main_bundle_requires_legacy_always_usage_description(),
+    )
+}
+
+fn main_bundle_requires_legacy_always_usage_description() -> bool {
+    let bundle = NSBundle::mainBundle();
+    let minimum_version = bundle
+        .objectForInfoDictionaryKey(objc2_foundation::ns_string!("MinimumOSVersion"))
+        .and_then(|value| value.downcast::<NSString>().ok())
+        .map(|value| value.doubleValue());
+    requires_legacy_always_usage_description(minimum_version)
+}
+
+fn main_bundle_has_nonempty_info_string(key: &NSString) -> bool {
+    let bundle = NSBundle::mainBundle();
+    bundle
+        .objectForInfoDictionaryKey(key)
+        .and_then(|value| value.downcast::<NSString>().ok())
+        .is_some_and(|value| is_nonempty_string_value(true, value.length()))
 }
 
 #[allow(deprecated)]

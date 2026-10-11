@@ -4,6 +4,46 @@ use framework_location::{
     LocationTimestamp,
 };
 
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(crate) enum UpdateAuthorizationRequirement {
+    Foreground,
+    Background,
+}
+
+pub(crate) const fn updates_permitted(
+    authorization: LocationAuthorization,
+    requirement: UpdateAuthorizationRequirement,
+) -> bool {
+    match requirement {
+        UpdateAuthorizationRequirement::Foreground => authorization.allows_foreground(),
+        UpdateAuthorizationRequirement::Background => {
+            matches!(authorization, LocationAuthorization::Background)
+        }
+    }
+}
+
+pub(crate) const fn should_request_always_authorization(
+    authorization: LocationAuthorization,
+) -> bool {
+    matches!(
+        authorization,
+        LocationAuthorization::NotDetermined | LocationAuthorization::Foreground
+    )
+}
+
+pub(crate) const fn authorization_downgraded(
+    previous: LocationAuthorization,
+    current: LocationAuthorization,
+    requirement: UpdateAuthorizationRequirement,
+) -> bool {
+    updates_permitted(previous, requirement) && !updates_permitted(current, requirement)
+}
+
+/// Maps an incomplete app-owned Core Location configuration to a portable input error.
+pub(crate) fn configuration_error() -> LocationError {
+    LocationError::Backend(Error::new(ErrorKind::InvalidInput))
+}
+
 /// Maps Core Location authorization raw values to the portable foreground/background state.
 pub(crate) const fn authorization_from_native(value: i32) -> LocationAuthorization {
     match value {
@@ -100,6 +140,67 @@ mod tests {
             LocationAuthorization::Foreground
         );
         assert_eq!(authorization_from_native(5), LocationAuthorization::Unknown);
+    }
+
+    #[test]
+    fn background_updates_require_always_and_report_downgrades() {
+        use UpdateAuthorizationRequirement::{Background, Foreground};
+
+        assert!(updates_permitted(
+            LocationAuthorization::Foreground,
+            Foreground
+        ));
+        assert!(updates_permitted(
+            LocationAuthorization::Background,
+            Foreground
+        ));
+        assert!(!updates_permitted(
+            LocationAuthorization::Foreground,
+            Background
+        ));
+        assert!(updates_permitted(
+            LocationAuthorization::Background,
+            Background
+        ));
+        assert!(authorization_downgraded(
+            LocationAuthorization::Background,
+            LocationAuthorization::Foreground,
+            Background,
+        ));
+        assert!(authorization_downgraded(
+            LocationAuthorization::Background,
+            LocationAuthorization::Denied,
+            Background,
+        ));
+        assert!(!authorization_downgraded(
+            LocationAuthorization::Foreground,
+            LocationAuthorization::Background,
+            Background,
+        ));
+        assert!(!authorization_downgraded(
+            LocationAuthorization::Background,
+            LocationAuthorization::Foreground,
+            Foreground,
+        ));
+        assert_eq!(configuration_error().kind(), ErrorKind::InvalidInput);
+        assert!(should_request_always_authorization(
+            LocationAuthorization::NotDetermined
+        ));
+        assert!(should_request_always_authorization(
+            LocationAuthorization::Foreground
+        ));
+        assert!(!should_request_always_authorization(
+            LocationAuthorization::Background
+        ));
+        assert!(!should_request_always_authorization(
+            LocationAuthorization::Denied
+        ));
+        assert!(!should_request_always_authorization(
+            LocationAuthorization::Restricted
+        ));
+        assert!(!should_request_always_authorization(
+            LocationAuthorization::Unknown
+        ));
     }
 
     #[test]

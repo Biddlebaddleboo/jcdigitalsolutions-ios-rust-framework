@@ -5,7 +5,7 @@ edition.workspace = true
 rust-version.workspace = true
 license.workspace = true
 repository.workspace = true
-description = "One-shot and foreground-update Core Location backend for iOS"
+description = "One-shot and foreground/background Core Location backend for iOS"
 
 [dependencies]
 framework-core.workspace = true
@@ -18,7 +18,13 @@ objc2-core-location = { workspace = true, features = [
     "CLLocationManager",
     "CLLocationManagerDelegate",
 ] }
-objc2-foundation = { workspace = true, features = ["NSArray", "NSDate", "NSObject"] }
+objc2-foundation = { workspace = true, features = [
+    "NSArray",
+    "NSDate",
+    "NSBundle",
+    "NSObject",
+    "NSString",
+] }
 
 [lints]
 workspace = true

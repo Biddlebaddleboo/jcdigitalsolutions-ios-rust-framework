@@ -5,74 +5,26 @@ root=$(CDPATH= cd -- "$(dirname -- "$0")/../../.." && pwd)
 cd "$root"
 mkdir -p target
 
-for tool in awk cargo diff grep nm otool sort; do
+for tool in awk cargo diff grep nm otool python3 sort; do
     if ! command -v "$tool" >/dev/null 2>&1; then
         echo "$tool is required for the iOS location link/import check" >&2
         exit 1
     fi
 done
 
-out_of_scope_apis='startMonitoringForRegion|startMonitoringSignificantLocationChanges|startMonitoringVisits|startUpdatingHeading|startRangingBeacons|allowDeferredLocationUpdates|requestAlwaysAuthorization|requestTemporaryFullAccuracyAuthorization|allowsBackgroundLocationUpdates|showsBackgroundLocationIndicator|CLCircularRegion|CLRegion|CLVisit|CLHeading'
+out_of_scope_apis='startMonitoringForRegion|startMonitoringSignificantLocationChanges|startMonitoringVisits|startUpdatingHeading|startRangingBeacons|allowDeferredLocationUpdates|requestTemporaryFullAccuracyAuthorization|CLCircularRegion|CLRegion|CLVisit|CLHeading'
 if grep -REn "$out_of_scope_apis" platform/ios/ios-location/src platform/ios/ios-location/examples; then
-    echo "out-of-scope Core Location operation in B5 Rust source" >&2
+    echo "out-of-scope Core Location operation in ios-location Rust source" >&2
     exit 1
 fi
 negative_api_source=target/ios-location-negative-out-of-scope.rs
-printf '%s\n' 'unsafe { manager.requestAlwaysAuthorization() };' > "$negative_api_source"
+printf '%s\n' 'unsafe { manager.startMonitoringForRegion(region, desiredAccuracy) };' > "$negative_api_source"
 if ! grep -Eq "$out_of_scope_apis" "$negative_api_source"; then
     echo "B5 prohibited-selector guard failed its negative regression" >&2
     exit 1
 fi
-check_location_operation_scopes() {
-    awk '
-        /fn start_authorization_request\(/ { scope = "authorization" }
-        /fn start_current\(/ { scope = "current" }
-        /fn start_updates/ { scope = "updates" }
-        /fn new_operation_objects\(/ { scope = "" }
-        /fn authorization_result\(/ { scope = "" }
-        /requestWhenInUseAuthorization[[:space:]]*\(/ {
-            authorization_calls++
-            if (scope == "authorization") authorization_request_calls++
-        }
-        /requestLocation[[:space:]]*\(/ {
-            current_calls++
-            if (scope == "current") current_request_calls++
-        }
-        /startUpdatingLocation[[:space:]]*\(/ {
-            update_calls++
-            if (scope == "updates") update_request_calls++
-        }
-        END {
-            exit !(authorization_calls == 1 && authorization_request_calls == 1 && \
-                current_calls == 1 && current_request_calls == 1 && \
-                update_calls == 1 && update_request_calls == 1)
-        }
-    ' "$1"
-}
 location_source=platform/ios/ios-location/src/platform.rs
-if ! check_location_operation_scopes "$location_source"; then
-    echo "B5 prompt/one-shot and B477 continuous-update selectors must stay in their explicit paths" >&2
-    exit 1
-fi
-negative_scope_source=target/ios-location-negative-operation-scope.rs
-sed 's/startUpdatingLocation()/requestLocation()/' "$location_source" > "$negative_scope_source"
-if check_location_operation_scopes "$negative_scope_source"; then
-    echo "B5/B477 operation-scope guard accepted a one-shot selector in the continuous path" >&2
-    exit 1
-fi
-negative_current_source=target/ios-location-negative-current-scope.rs
-awk '/fn start_current\(/ { print; print "        unsafe { manager.startUpdatingLocation() };"; next } { print }' \
-    "$location_source" > "$negative_current_source"
-if check_location_operation_scopes "$negative_current_source"; then
-    echo "B5/B477 operation-scope guard accepted continuous updates in the one-shot path" >&2
-    exit 1
-fi
-if ! grep -q 'requestWhenInUseAuthorization()' "$location_source" ||
-    ! grep -q 'requestLocation()' "$location_source" ||
-    ! grep -q 'startUpdatingLocation()' "$location_source"; then
-    echo "B5/B477 required Core Location operation is missing" >&2
-    exit 1
-fi
+python3 platform/ios/ios-location/check_source_contract.py "$location_source"
 if ! awk '
     /pub fn accuracy_authorization\(/ { accuracy_query_count++; in_accuracy_query = 1 }
     in_accuracy_query {

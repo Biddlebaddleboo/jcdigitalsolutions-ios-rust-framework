@@ -117,3 +117,25 @@ Do not edit the portable D4 crate, root workspace configuration, capability stat
 - Keep `requestWhenInUseAuthorization()` confined to `start_authorization_request`; `start_current` must stay non-prompting
 - Document minimum iOS version only from installed SDK metadata, permission text, authorization-status change and pending behavior, callback/run-loop behavior, location age/accuracy semantics, cancellation, native handles, and live-device test limits
 - Report changed files, commit SHA, exact checks, deviations, and unresolved assumptions
+
+## B496 — Always authorization and background update sessions
+
+B496 extends `ios-location` without changing the portable foreground contract. The explicit,
+lazy `request_always_authorization()` path requests Always only from Not Determined or When In Use;
+already determined, denied, restricted, and unknown states do not trigger another prompt. It checks
+the required usage-description values first. The iOS-only `start_background_updates()` requires
+current Always authorization, checks that the host `Info.plist` has `UIBackgroundModes` containing
+`location` before enabling `allowsBackgroundLocationUpdates`, and accepts typed activity, automatic
+pausing, and optional iOS 11+ indicator hints. Authorization is refreshed before accepting every
+location batch; a downgrade emits a nonterminal permission event and suppresses fixes until Always
+returns. Session drop retains the existing bounded queue, delegate detachment, and stop behavior.
+
+Host regressions cover plist-value parsing, authorization transitions, downgrade handling, and
+`InvalidInput` mapping. Registered negative selector/configuration and availability guards are
+extended. The registered `ios-location-updates` profile passed 40 checks with 0 FAIL, 0 BLOCKED,
+and 2 SKIPPED at snapshot
+`ff1baf94cc4e1fbbe4c11cea92330365ded7e847a14a0baf8c094e249b0670c3`; the skips are Simulator
+execution and physical-device proof. Host tests, format, host/device/Simulator compilation and
+Clippy, device Rustdoc, shell syntax, link/import, documentation, and source guards passed on
+Xcode 26.6 / iOS SDK 26.5. Static checks do not prove live prompts, background callbacks,
+suspension/resumption, or physical-device behavior

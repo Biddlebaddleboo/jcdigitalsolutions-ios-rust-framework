@@ -5657,12 +5657,6 @@
           "text": "pub fn updates"
         },
         {
-          "message": "native update sessions must fail closed unless current authorization permits foreground location",
-          "must_exist": true,
-          "path": "platform/ios/ios-location/src/platform.rs",
-          "text": "if !authorization_from_native(native_authorization_status()).allows_foreground()"
-        },
-        {
           "message": "the native update queue must remain bounded at 16 observable events",
           "must_exist": true,
           "path": "platform/ios/ios-location/src/operation.rs",
@@ -5685,12 +5679,19 @@
         "crates/framework-location/src/lib.rs",
         "platform/ios/ios-location/Cargo.toml",
         "platform/ios/ios-location/check-link-imports.sh",
+        "platform/ios/ios-location/check_source_contract.py",
         "platform/ios/ios-location/examples/ios_location_link_import_probe.rs",
         "platform/ios/ios-location/src/conversion.rs",
+        "platform/ios/ios-location/src/configuration.rs",
         "platform/ios/ios-location/src/lib.rs",
         "platform/ios/ios-location/src/operation.rs",
         "platform/ios/ios-location/src/platform.rs",
-        "platform/ios/ios-location/tests/portable_updates.rs"
+        "platform/ios/ios-location/tests/portable_updates.rs",
+        "docs/capabilities/capability-status.json",
+        "docs/ios/location.md",
+        "PLAN.md",
+        "PLAN_IOS_LOCATION.md",
+        "tools/validation/specs/validation-v1.json"
       ],
       "shell_scripts": [
         "platform/ios/ios-location/check-link-imports.sh"
