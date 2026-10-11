@@ -1295,10 +1295,136 @@
           "text": "path.to_str()"
         },
         {
-          "message": "movie output must remain video-only",
+          "message": "microphone movie capture must require the explicit audio API",
+          "must_exist": true,
+          "path": "platform/ios/ios-camera-capture-session/src/lib.rs",
+          "text": "pub fn start_video_recording_with_audio"
+        },
+        {
+          "message": "the existing movie API must retain video-only behavior",
+          "must_exist": true,
+          "path": "platform/ios/ios-camera-capture-session/src/lib.rs",
+          "text": "self.start_movie_recording(destination, false, completion)"
+        },
+        {
+          "message": "microphone audio must be opt-in for one movie request",
+          "must_exist": true,
+          "path": "platform/ios/ios-camera-capture-session/src/lib.rs",
+          "text": "self.start_movie_recording(destination, true, completion)"
+        },
+        {
+          "message": "microphone status must use the non-prompting authorization query",
+          "must_exist": true,
+          "path": "platform/ios/ios-camera-capture-session/src/lib.rs",
+          "text": "IosMediaAuthorization::authorization_status(CaptureMedia::Microphone)"
+        },
+        {
+          "message": "microphone authorization must be checked before the audio input factory",
+          "must_exist": true,
+          "path": "platform/ios/ios-camera-capture-session/src/lib.rs",
+          "text": "with_authorized_microphone(authorization, || {"
+        },
+        {
+          "message": "microphone input must reject every status except Authorized",
+          "must_exist": true,
+          "path": "platform/ios/ios-camera-capture-session/src/lib.rs",
+          "text": "Err(VideoRecordingError::MicrophoneAuthorizationNotGranted)"
+        },
+        {
+          "message": "microphone movie capture must use the public AVMediaTypeAudio constant",
+          "must_exist": true,
+          "path": "platform/ios/ios-camera-capture-session/src/lib.rs",
+          "text": "unsafe { AVMediaTypeAudio }"
+        },
+        {
+          "message": "microphone capture must use the public audio media type and default device",
+          "must_exist": true,
+          "path": "platform/ios/ios-camera-capture-session/src/lib.rs",
+          "text": "AVCaptureDevice::defaultDeviceWithMediaType(media_type)"
+        },
+        {
+          "message": "microphone input must use the public device-input factory",
+          "must_exist": true,
+          "path": "platform/ios/ios-camera-capture-session/src/lib.rs",
+          "text": "AVCaptureDeviceInput::deviceInputWithDevice_error(&device)"
+        },
+        {
+          "message": "audio setup must distinguish a session-rejected input",
+          "must_exist": true,
+          "path": "platform/ios/ios-camera-capture-session/src/lib.rs",
+          "text": "SessionRejectedAudioInput"
+        },
+        {
+          "message": "audio capture must disable AVFoundation auto-configuration on this capture session",
+          "must_exist": true,
+          "path": "platform/ios/ios-camera-capture-session/src/lib.rs",
+          "text": "setAutomaticallyConfiguresApplicationAudioSession(false)"
+        },
+        {
+          "message": "audio input must be removed from the session during terminal settlement",
+          "must_exist": true,
+          "path": "platform/ios/ios-camera-capture-session/src/lib.rs",
+          "text": "session.removeInput(input)"
+        },
+        {
+          "message": "movie terminal settlement must detach optional audio before completion",
+          "must_exist": true,
+          "path": "platform/ios/ios-camera-capture-session/src/lib.rs",
+          "text": "settle_movie_terminal("
+        },
+        {
+          "message": "callback unwind must use the same terminal audio cleanup",
+          "must_exist": true,
+          "path": "platform/ios/ios-camera-capture-session/src/lib.rs",
+          "text": "Self::enqueue_settlement(payload, true)"
+        },
+        {
+          "message": "unauthorized microphone statuses must not call the input factory",
+          "must_exist": true,
+          "path": "platform/ios/ios-camera-capture-session/src/lib.rs",
+          "text": "fn microphone_input_factory_requires_authorized_status()"
+        },
+        {
+          "message": "the video-only request must not prepare microphone input",
+          "must_exist": true,
+          "path": "platform/ios/ios-camera-capture-session/src/lib.rs",
+          "text": "fn video_only_movie_request_never_prepares_audio_input()"
+        },
+        {
+          "message": "movie settlement must remove the microphone before completion and deferred stop",
+          "must_exist": true,
+          "path": "platform/ios/ios-camera-capture-session/src/lib.rs",
+          "text": "fn movie_terminal_settlement_removes_audio_before_completion_and_deferred_stop()"
+        },
+        {
+          "message": "microphone permission must never be requested by camera capture",
           "must_exist": false,
           "path": "platform/ios/ios-camera-capture-session/src/lib.rs",
-          "text": "AVMediaTypeAudio"
+          "text": "requestAccessForMediaType_completionHandler"
+        },
+        {
+          "message": "device and Simulator link probe must exercise opt-in movie audio",
+          "must_exist": true,
+          "path": "platform/ios/ios-camera-capture-session/examples/camera_capture_link_probe.rs",
+          "text": "session.start_video_recording_with_audio(&movie_path"
+        },
+        {
+          "message": "device and Simulator link gate must retain the capture-session audio policy selector",
+          "must_exist": true,
+          "path": "platform/ios/ios-camera-capture-session/check-link-imports.sh",
+          "text": "setAutomaticallyConfiguresApplicationAudioSession:"
+        },
+        {
+          "message": "device and Simulator link gate must retain microphone input removal",
+          "must_exist": true,
+          "path": "platform/ios/ios-camera-capture-session/check-link-imports.sh",
+          "text": "removeInput:"
+        },
+        {
+          "message": "device and Simulator link gate must verify the imported public audio media-type constant",
+          "must_exist": true,
+          "path": "platform/ios/ios-camera-capture-session/check-link-imports.sh",
+          "text": "grep -F '_AVMediaTypeAudio'"
         },
         {
           "message": "movie output must not add an AVFoundation audio file output",

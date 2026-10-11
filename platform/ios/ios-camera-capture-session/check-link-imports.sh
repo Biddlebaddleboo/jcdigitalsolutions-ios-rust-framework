@@ -58,6 +58,10 @@ for target in aarch64-apple-ios aarch64-apple-ios-sim; do
         printf '%s probe does not import the built-in wide-angle device type\n' "$target" >&2
         exit 1
     }
+    printf '%s\n' "$symbols" | grep -F '_AVMediaTypeAudio' >/dev/null || {
+        printf '%s probe does not import the public audio media-type constant _AVMediaTypeAudio\n' "$target" >&2
+        exit 1
+    }
     binary_strings=$(strings "$probe")
     for symbol in \
         AVCaptureSession \
@@ -91,8 +95,10 @@ for target in aarch64-apple-ios aarch64-apple-ios-sim; do
         minExposureTargetBias \
         maxExposureTargetBias \
         setExposureTargetBias:completionHandler: \
+        setAutomaticallyConfiguresApplicationAudioSession: \
         canAddInput: \
         addInput: \
+        removeInput: \
         layerWithSession: \
         startRunning \
         stopRunning \

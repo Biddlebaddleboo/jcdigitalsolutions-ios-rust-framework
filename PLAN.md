@@ -252,6 +252,10 @@ B477 adds a statically dispatched portable foreground-update session and iOS `CL
 
 B478 adds selected-device automatic/locked exposure modes, an optional normalized exposure point, and finite exact exposure target-bias controls. It reuses `NormalizedFocusPoint`, rejects point requests with Locked, checks device support before locking, sets the point before only the caller-requested supported mode, and validates bias against native inclusive bounds under the configuration lock. The installed validator reports 178 PASS, 0 FAIL, 0 BLOCKED, 2 SKIPPED; device/Simulator compilation and selector linking do not prove runtime metering, preview coordinate mapping, or physical-device behavior. Custom/manual ISO and duration remain outside scope; see [PLAN_IOS_CAMERA_CAPTURE_SESSION.md](PLAN_IOS_CAMERA_CAPTURE_SESSION.md)
 
+### B479 — opt-in microphone audio in camera movie files (rows 046/047)
+
+B479 adds `start_video_recording_with_audio` beside unchanged video-only movie recording. It requires current Authorized microphone status without prompting, attaches the public default audio input only for that movie call, disables AVFoundation auto-configuration on the capture session without changing host audio-session policy, and removes the input at terminal/setup-failure settlement before completion or deferred stop. Host authorization, video-only, and cleanup regressions plus registered device/Simulator selector checks preserve the iOS 10/14 floors. Audio capture, host audio-session compatibility, Simulator execution, and physical-device behavior remain runtime-unverified; see [PLAN_IOS_CAMERA_CAPTURE_SESSION.md](PLAN_IOS_CAMERA_CAPTURE_SESSION.md)
+
 ## Active work selection and limits
 
 1. Inspect the canonical capability status/owner, the relevant family plan, then the named workstream plan and exact files/symbols. Do not scan the entire planning corpus or treat every existing plan as pending work.

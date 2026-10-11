@@ -36,7 +36,8 @@ use objc2_av_foundation::{
     AVCaptureFileOutputRecordingDelegate, AVCaptureFocusMode, AVCaptureMovieFileOutput,
     AVCaptureOutput, AVCapturePhoto, AVCapturePhotoCaptureDelegate, AVCapturePhotoOutput,
     AVCapturePhotoSettings, AVCaptureSession, AVCaptureTorchMode, AVCaptureVideoDataOutput,
-    AVCaptureVideoDataOutputSampleBufferDelegate, AVCaptureVideoPreviewLayer, AVMediaTypeVideo,
+    AVCaptureVideoDataOutputSampleBufferDelegate, AVCaptureVideoPreviewLayer, AVMediaTypeAudio,
+    AVMediaTypeVideo,
 };
 #[cfg(target_os = "ios")]
 use objc2_core_foundation::CGPoint;
@@ -89,6 +90,18 @@ pub enum VideoRecordingError {
     RecordingAlreadyActive,
     /// The session is stopping after a movie-file recording
     SessionStopping,
+    /// The app has not been granted microphone access
+    MicrophoneAuthorizationNotGranted,
+    /// The public AVFoundation audio media-type constant is unavailable
+    AudioMediaTypeUnavailable,
+    /// The system has no default audio capture device
+    NoDefaultMicrophone,
+    /// AVFoundation could not create an input for the selected audio device
+    AudioInputCreationFailed,
+    /// AVFoundation rejected the microphone input for the running session
+    SessionRejectedAudioInput,
+    /// A microphone input remains attached outside an active audio movie request
+    AudioInputAlreadyAttached,
     /// AVFoundation reported a terminal error for the recording
     RecordingFailed,
     /// AVFoundation finalized no nonempty movie file at the requested destination
@@ -761,7 +774,7 @@ impl MovieRecordingDelegateObject {
                 let mut graph_state = graph
                     .lock()
                     .unwrap_or_else(std::sync::PoisonError::into_inner);
-                graph_state.movie_recording.settle_terminal()
+                settle_movie_audio_on_queue(&mut graph_state)
             };
             invoke_video_completion(completion, result);
             if stop_session {
@@ -827,6 +840,58 @@ fn take_photo_completion(
 #[cfg(any(target_os = "ios", test))]
 const fn may_create_device_input(status: MediaAuthorizationStatus) -> bool {
     matches!(status, MediaAuthorizationStatus::Authorized)
+}
+
+#[cfg(any(target_os = "ios", test))]
+fn with_authorized_microphone<T>(
+    status: MediaAuthorizationStatus,
+    create_input: impl FnOnce() -> Result<T, VideoRecordingError>,
+) -> Result<T, VideoRecordingError> {
+    if may_create_device_input(status) {
+        create_input()
+    } else {
+        Err(VideoRecordingError::MicrophoneAuthorizationNotGranted)
+    }
+}
+
+#[cfg(any(target_os = "ios", test))]
+fn prepare_optional_movie_audio(
+    enabled: bool,
+    prepare: impl FnOnce() -> Result<(), VideoRecordingError>,
+) -> Result<(), VideoRecordingError> {
+    if enabled { prepare() } else { Ok(()) }
+}
+
+#[cfg(any(target_os = "ios", test))]
+fn settle_movie_terminal<T>(
+    state: &mut MovieRecordingState,
+    audio_input: &mut Option<T>,
+    remove_input: impl FnOnce(&T),
+) -> bool {
+    if let Some(input) = audio_input.as_ref() {
+        remove_input(input);
+        drop(audio_input.take());
+    }
+    state.settle_terminal()
+}
+
+#[cfg(target_os = "ios")]
+fn settle_movie_audio_on_queue(graph: &mut CaptureGraph) -> bool {
+    let CaptureGraph {
+        session,
+        movie_audio_input,
+        movie_recording,
+        ..
+    } = graph;
+    settle_movie_terminal(movie_recording, movie_audio_input, |input| {
+        // SAFETY: Movie finalization is terminal and all graph changes use the private serial
+        // queue. Remove the opt-in input before completion or deferred session stop.
+        unsafe { session.beginConfiguration() };
+        // SAFETY: This exact input was added after `canAddInput` accepted it.
+        unsafe { session.removeInput(input) };
+        // SAFETY: Every beginConfiguration call is paired with this commit.
+        unsafe { session.commitConfiguration() };
+    })
 }
 
 /// Front- or back-facing built-in wide-angle camera selection for session creation
@@ -1202,6 +1267,7 @@ struct CaptureGraph {
     video_callback_queue: Option<dispatch2::DispatchRetained<DispatchQueue>>,
     video_callback_active: Arc<AtomicBool>,
     video_stream_state: VideoFrameStreamState,
+    movie_audio_input: Option<Retained<AVCaptureDeviceInput>>,
     movie_recording: MovieRecordingState,
 }
 
@@ -1217,8 +1283,9 @@ unsafe impl Send for CaptureGraph {}
 /// An iOS default-camera session with a live preview-layer escape hatch
 ///
 /// Creation requires camera authorization to be granted already and the host app to provide
-/// `NSCameraUsageDescription`. This type does not request permission, record audio, or mutate
-/// shared audio-session state. Create and use it on the main thread. Creation synchronously opens and
+/// `NSCameraUsageDescription`. This type does not request permission or mutate shared audio-session
+/// state. Video-only movie recording is the default; the opt-in audio movie method also requires
+/// current microphone authorization and host-owned audio-session setup. Create and use it on the main thread. Creation synchronously opens and
 /// configures the default video input before returning, so it may block while AVFoundation prepares
 /// the device. Its preview layer can be added to a UIKit view's layer hierarchy. Start and stop
 /// requests run asynchronously on a private serial queue; returning from either method does not
@@ -1305,6 +1372,7 @@ impl IosCameraCaptureSession {
             video_callback_queue: None,
             video_callback_active: Arc::clone(&video_callback_active),
             video_stream_state: VideoFrameStreamState::default(),
+            movie_audio_input: None,
             movie_recording: MovieRecordingState::default(),
         }));
 
@@ -1658,7 +1726,7 @@ impl IosCameraCaptureSession {
     /// terminal recording callback; it receives the finalized destination or a normalized error.
     /// A terminal native error is failure even if AVFoundation marks the file playable. At most
     /// one recording may be active. This operation requires an already authorized and running
-    /// camera session, does not request permission or configure audio, and does not write to Photos.
+    /// camera session, does not request permission or attach microphone input, and does not write to Photos.
     /// `stop_video_recording` requests finalization without deleting a partial file; session
     /// `stop`/drop defers `stopRunning` until finalization completes. UIKit work from completion
     /// must hop to main. Compilation and linking do not prove camera capture, encoding, or playback.
@@ -1670,37 +1738,96 @@ impl IosCameraCaptureSession {
     where
         F: FnOnce(Result<PathBuf, VideoRecordingError>) + Send + 'static,
     {
+        self.start_movie_recording(destination, false, completion)
+    }
+
+    /// Record video and microphone audio to a new QuickTime movie file
+    ///
+    /// This explicit opt-in requires current `Authorized` microphone status and an input-capable
+    /// audio session already configured and activated by the host. It never requests permission
+    /// or calls or changes host-owned audio-session state. AVFoundation's automatic configuration of the
+    /// shared application audio session is disabled on this capture session. The microphone input
+    /// is attached only for this movie request and is removed on the private serial queue at
+    /// terminal settlement, before completion or any deferred session stop. It is absent during
+    /// preview and idle. All destination, completion, and failure semantics match
+    /// [`Self::start_video_recording`].
+    pub fn start_video_recording_with_audio<F>(
+        &self,
+        destination: impl AsRef<Path>,
+        completion: F,
+    ) -> Result<(), VideoRecordingError>
+    where
+        F: FnOnce(Result<PathBuf, VideoRecordingError>) + Send + 'static,
+    {
+        self.start_movie_recording(destination, true, completion)
+    }
+
+    fn start_movie_recording<F>(
+        &self,
+        destination: impl AsRef<Path>,
+        with_audio: bool,
+        completion: F,
+    ) -> Result<(), VideoRecordingError>
+    where
+        F: FnOnce(Result<PathBuf, VideoRecordingError>) + Send + 'static,
+    {
         let destination = validate_movie_destination(destination.as_ref())?;
         let graph = Arc::clone(&self.graph);
         let callback_queue = self.queue.clone();
         self.queue.exec_async(move || {
             let mut completion = Some(Box::new(completion) as VideoRecordingCompletion);
-            let mut delegate_created = false;
+            let mut recording_claimed = false;
+            let mut delegate_for_unwind = None;
             let result = catch_unwind(AssertUnwindSafe(|| {
                 let setup = {
                     let mut graph_state = graph
                         .lock()
                         .unwrap_or_else(std::sync::PoisonError::into_inner);
-                    if graph_state.movie_recording.pending_session_stop {
-                        Err(VideoRecordingError::SessionStopping)
-                    } else if graph_state.movie_recording.active {
-                        Err(VideoRecordingError::RecordingAlreadyActive)
-                    } else if !unsafe { graph_state.session.isRunning() } {
-                        Err(VideoRecordingError::SessionNotRunning)
-                    } else {
-                        match graph_state.movie_output.clone() {
-                            Some(output) => graph_state.movie_recording.begin().map(|()| output),
-                            None => Err(VideoRecordingError::MovieOutputUnavailable),
+                    (|| {
+                        if graph_state.movie_recording.pending_session_stop {
+                            return Err(VideoRecordingError::SessionStopping);
                         }
-                    }
+                        if graph_state.movie_recording.active {
+                            return Err(VideoRecordingError::RecordingAlreadyActive);
+                        }
+                        // SAFETY: Session state is queried on its private serial queue.
+                        if !unsafe { graph_state.session.isRunning() } {
+                            return Err(VideoRecordingError::SessionNotRunning);
+                        }
+                        let output = graph_state
+                            .movie_output
+                            .clone()
+                            .ok_or(VideoRecordingError::MovieOutputUnavailable)?;
+                        graph_state.movie_recording.begin()?;
+                        recording_claimed = true;
+                        prepare_optional_movie_audio(with_audio, || {
+                            configure_movie_audio_input(&mut graph_state)
+                        })?;
+                        Ok(output)
+                    })()
                 };
                 let output = match setup {
                     Ok(output) => output,
                     Err(error) => {
+                        let stop_session = if recording_claimed {
+                            let mut graph_state = graph
+                                .lock()
+                                .unwrap_or_else(std::sync::PoisonError::into_inner);
+                            settle_movie_audio_on_queue(&mut graph_state)
+                        } else {
+                            false
+                        };
                         invoke_video_completion(
                             completion.take().expect("completion is available"),
                             Err(error),
                         );
+                        if stop_session {
+                            let graph_state = graph
+                                .lock()
+                                .unwrap_or_else(std::sync::PoisonError::into_inner);
+                            // SAFETY: Failed setup reached terminal state on the private queue.
+                            unsafe { graph_state.session.stopRunning() };
+                        }
                         return;
                     }
                 };
@@ -1715,7 +1842,7 @@ impl IosCameraCaptureSession {
                     destination,
                     completion.take().expect("completion is available"),
                 );
-                delegate_created = true;
+                delegate_for_unwind = Some(delegate.clone());
                 let protocol_delegate = ProtocolObject::from_ref(&*delegate);
                 // SAFETY: The URL is a file URL made from the validated absolute UTF-8 path, the
                 // session is running, and the delegate self-retains through terminal finalization.
@@ -1727,18 +1854,30 @@ impl IosCameraCaptureSession {
                 };
             }));
             if result.is_err() {
-                if !delegate_created {
-                    let mut graph_state = graph
-                        .lock()
-                        .unwrap_or_else(std::sync::PoisonError::into_inner);
-                    let stop_session = graph_state.movie_recording.settle_terminal();
+                if let Some(delegate) = delegate_for_unwind {
+                    delegate.finish_after_panic();
+                } else if recording_claimed {
+                    let stop_session = {
+                        let mut graph_state = graph
+                            .lock()
+                            .unwrap_or_else(std::sync::PoisonError::into_inner);
+                        settle_movie_audio_on_queue(&mut graph_state)
+                    };
+                    if let Some(completion) = completion.take() {
+                        invoke_video_completion(
+                            completion,
+                            Err(VideoRecordingError::RecordingFailed),
+                        );
+                    }
                     if stop_session {
+                        let graph_state = graph
+                            .lock()
+                            .unwrap_or_else(std::sync::PoisonError::into_inner);
                         // SAFETY: The catch is on the private queue and terminal state now owns
                         // session shutdown if Drop/stop was queued during setup.
                         unsafe { graph_state.session.stopRunning() };
                     }
-                }
-                if let Some(completion) = completion.take() {
+                } else if let Some(completion) = completion.take() {
                     invoke_video_completion(completion, Err(VideoRecordingError::RecordingFailed));
                 }
             }
@@ -2139,6 +2278,48 @@ fn configure_session(
 }
 
 #[cfg(target_os = "ios")]
+fn configure_movie_audio_input(graph: &mut CaptureGraph) -> Result<(), VideoRecordingError> {
+    if graph.movie_audio_input.is_some() {
+        return Err(VideoRecordingError::AudioInputAlreadyAttached);
+    }
+    let authorization = IosMediaAuthorization::authorization_status(CaptureMedia::Microphone);
+    with_authorized_microphone(authorization, || {
+        // SAFETY: AVMediaTypeAudio is a public AVFoundation media-type constant.
+        let media_type =
+            unsafe { AVMediaTypeAudio }.ok_or(VideoRecordingError::AudioMediaTypeUnavailable)?;
+        // SAFETY: This query selects only the public default audio capture device; no enumeration
+        // or device persistence is used.
+        let device = unsafe { AVCaptureDevice::defaultDeviceWithMediaType(media_type) }
+            .ok_or(VideoRecordingError::NoDefaultMicrophone)?;
+        // SAFETY: The current authorization status was checked immediately before this factory;
+        // no permission request is made.
+        let input = unsafe { AVCaptureDeviceInput::deviceInputWithDevice_error(&device) }
+            .map_err(|_| VideoRecordingError::AudioInputCreationFailed)?;
+        // SAFETY: This changes only AVCaptureSession's public auto-configuration policy. It does
+        // not access host audio-session state; the host owns category, mode, activation, and route.
+        unsafe {
+            graph
+                .session
+                .setAutomaticallyConfiguresApplicationAudioSession(false)
+        };
+        // SAFETY: Configuration and graph changes run on the private serial session queue.
+        unsafe { graph.session.beginConfiguration() };
+        let accepted = unsafe { graph.session.canAddInput(&input) };
+        if accepted {
+            // SAFETY: The immediately preceding canAddInput call accepted this exact input.
+            unsafe { graph.session.addInput(&input) };
+        }
+        // SAFETY: Every beginConfiguration call is paired with this commit, including rejection.
+        unsafe { graph.session.commitConfiguration() };
+        if !accepted {
+            return Err(VideoRecordingError::SessionRejectedAudioInput);
+        }
+        graph.movie_audio_input = Some(input);
+        Ok(())
+    })
+}
+
+#[cfg(target_os = "ios")]
 fn enqueue_stop(
     queue: &dispatch2::DispatchRetained<DispatchQueue>,
     graph: &Arc<Mutex<CaptureGraph>>,
@@ -2209,10 +2390,10 @@ mod tests {
         ZoomControlError, configure_exposure, configure_exposure_target_bias, configure_focus,
         configure_torch_enabled, configure_video_zoom_factor, drop_video_frame_callback_safely,
         exposure_target_bias_range, invoke_video_frame_callback, may_create_device_input,
-        photo_request_error, require_camera_at_position, require_selected_camera,
-        require_selected_focus_camera, settle_movie_result, settle_photo_result,
-        take_photo_completion, take_video_completion, validate_movie_destination,
-        with_selected_exposure_camera,
+        photo_request_error, prepare_optional_movie_audio, require_camera_at_position,
+        require_selected_camera, require_selected_focus_camera, settle_movie_result,
+        settle_movie_terminal, settle_photo_result, take_photo_completion, take_video_completion,
+        validate_movie_destination, with_authorized_microphone, with_selected_exposure_camera,
     };
     use std::cell::RefCell;
     use std::path::PathBuf;
@@ -2241,6 +2422,69 @@ mod tests {
         ));
         assert!(!may_create_device_input(MediaAuthorizationStatus::Denied));
         assert!(!may_create_device_input(MediaAuthorizationStatus::Unknown));
+    }
+
+    #[test]
+    fn microphone_input_factory_requires_authorized_status() {
+        for status in [
+            MediaAuthorizationStatus::NotDetermined,
+            MediaAuthorizationStatus::Restricted,
+            MediaAuthorizationStatus::Denied,
+            MediaAuthorizationStatus::Unknown,
+        ] {
+            assert_eq!(
+                with_authorized_microphone::<()>(status, || {
+                    panic!("unauthorized microphone status must not create an input")
+                }),
+                Err(VideoRecordingError::MicrophoneAuthorizationNotGranted)
+            );
+        }
+        assert_eq!(
+            with_authorized_microphone(MediaAuthorizationStatus::Authorized, || Ok(23_u8)),
+            Ok(23)
+        );
+    }
+
+    #[test]
+    fn video_only_movie_request_never_prepares_audio_input() {
+        assert_eq!(
+            prepare_optional_movie_audio(false, || {
+                panic!("video-only movie recording must not attach audio")
+            }),
+            Ok(())
+        );
+        let calls = std::cell::Cell::new(0);
+        assert_eq!(
+            prepare_optional_movie_audio(true, || {
+                calls.set(calls.get() + 1);
+                Ok(())
+            }),
+            Ok(())
+        );
+        assert_eq!(calls.get(), 1);
+    }
+
+    #[test]
+    fn movie_terminal_settlement_removes_audio_before_completion_and_deferred_stop() {
+        let mut state = MovieRecordingState::default();
+        assert_eq!(state.begin(), Ok(()));
+        assert!(state.request_session_stop());
+        let mut audio_input = Some(7_u8);
+        let events = std::cell::RefCell::new(Vec::new());
+        let stop_session = settle_movie_terminal(&mut state, &mut audio_input, |input| {
+            assert_eq!(*input, 7);
+            events.borrow_mut().push("remove-input");
+        });
+        assert!(audio_input.is_none());
+        events.borrow_mut().push("completion");
+        if stop_session {
+            events.borrow_mut().push("stop-session");
+        }
+        assert_eq!(
+            *events.borrow(),
+            ["remove-input", "completion", "stop-session"]
+        );
+        assert!(!state.active);
     }
 
     #[test]

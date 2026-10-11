@@ -46,6 +46,11 @@ fn main() {
     let _ = std::hint::black_box(session.start_video_recording(&movie_path, |result| {
         let _ = std::hint::black_box(result);
     }));
+    let _ = std::hint::black_box(
+        session.start_video_recording_with_audio(&movie_path, |result| {
+            let _ = std::hint::black_box(result);
+        }),
+    );
     session.stop_video_recording();
     let _ = session.start_video_frame_stream(|sample| {
         let _ = std::hint::black_box(sample);
