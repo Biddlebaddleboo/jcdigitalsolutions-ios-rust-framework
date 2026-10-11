@@ -170,6 +170,14 @@ share selectors, excludes the clipboard feature and Swift/Python runtime symbols
 device minos 10.0 and Simulator minos 14.0 with SDK 26.5. The gate is wired in macOS CI; no passing
 workflow run is recorded. No UI or recipient behavior is established.
 
+## User-mediated document export
+
+The opt-in `document-export` feature adds `IosDocumentExportSession` for one local `NSURL` and a caller-owned, live `UIViewController`. It calls Apple's public iOS 14 `UIDocumentPickerViewController.initForExportingURLs_asCopy` API with copy mode. The source file stays app-owned and must remain readable and stable through the terminal callback. UIKit recognizes document types from file extensions such as `.txt` and `.xml`; this API does not configure `UniformTypeIdentifiers`.
+
+Create the session with a typed `MainThread` proof and the live presenter, then call `start` with the source URL and a one-shot callback. A rejected start returns the unconsumed callback for a non-local file URL, invalid presenter, off-main call, or active operation. `Exported` maps only to UIKit's document-picker success delegate event; `Cancelled` maps to its cancellation event. The session retains the exact `NSURL` through that event, then releases it. `cancel` and drop detach the callback but do not dismiss UIKit's picker. A successful `start` does not prove that UI became visible, a provider saved the file, or data reached durable storage. No security-scope access, file coordination, write-back, or provider status is provided.
+
+The feature is disabled by default and does not alter the existing clipboard/share features or their deployment floors. The export API requires iOS 14.0. Registered device and Simulator Release link/import checks verify the public picker selectors, framework imports, and `minos 14.0`; they do not run the picker or prove a save on Simulator or device.
+
 ## Clipboard
 
 `ios-sharing` implements the `framework-sharing::ClipboardBackend` contract with UIKit's systemwide general `UIPasteboard` for plain-text read, write, and clear. The `IosClipboardBackend` also exposes an iOS-only single-image extension; it does not change the portable contract. Clipboard support does not include a share sheet, `UIPasteControl`, named pasteboards, or a general rich-representation API.

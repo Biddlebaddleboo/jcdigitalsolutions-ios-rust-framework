@@ -230,7 +230,7 @@
       "portable_contract_note": "framework-sharing defines outgoing UTF-8 text and URL-text requests with portable completion states; native share UI and other payloads are not covered.",
       "ios_implementation_class": "B",
       "implementation_status": "partial",
-      "status_reason": "ios-sharing presents owned text and URL-text through UIKit UIActivityViewController. It requires iOS 8.0 for the completion handler and popover anchor APIs, plus a caller-supplied live presenter and source view in the same window with an explicit source rectangle. Availability is Unknown; known invalid contexts return bounded errors, but UIKit presentation has no error callback for an unforeseen refusal or race. File URLs are rejected, accepted URL text may be normalized, and no live share UI or recipient delivery is claimed.",
+      "status_reason": "ios-sharing presents owned text and URL-text through UIKit UIActivityViewController. It requires iOS 8.0 for the completion handler and popover anchor APIs, plus a caller-supplied live presenter and source view in the same window with an explicit source rectangle. Availability is Unknown; known invalid contexts return bounded errors, but UIKit presentation has no error callback for an unforeseen refusal or race. File URLs are rejected, accepted URL text may be normalized, and no live share UI or recipient delivery is claimed. B513 adds opt-in `ios-sharing/document-export` with `IosDocumentExportSession`, which asks UIKit to export one local file URL with copy semantics through the public iOS 14 document-picker API. UIKit success/cancel callbacks are the only result evidence; file-provider durability and live UI remain unverified.",
       "minimum_ios_version": "8.0",
       "required_frameworks": [
         "UIKit",
@@ -242,7 +242,7 @@
       "entitlements": [],
       "device_only_restrictions": [],
       "swift_abi_requirement": false,
-      "metadata_verification": "Xcode_26.6_iOS_26.5_headers_verify_UIActivityViewController_completion_handler_and_popover_anchor_iOS_8.0_floor; docs/ios/sharing.md; device/simulator compile, release-link, and import checks only; no live share UI; Xcode_27_baseline_not_met",
+      "metadata_verification": "Xcode_26.6_iOS_26.5_headers_verify_UIActivityViewController_completion_handler_and_popover_anchor_iOS_8.0_floor; docs/ios/sharing.md; device/simulator compile, release-link, and import checks only; no live share UI; Xcode_27_baseline_not_met; Xcode 26.6 / iPhoneOS SDK 26.5 headers and objc2-ui-kit 0.3.2 verify the public export initializer and delegate at iOS 14.0; registered device/Simulator release-link, import, and minos checks only; no runtime UI or file-save proof",
       "parity_status": "not_tested_live_behavior_or_Apple_parity",
       "performance_status": "not_measured",
       "native_escape_handle_available": false,

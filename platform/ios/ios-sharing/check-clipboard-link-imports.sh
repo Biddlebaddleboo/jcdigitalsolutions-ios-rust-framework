@@ -12,6 +12,70 @@ for tool in awk cargo diff grep nm otool sort strings vtool; do
     fi
 done
 
+# This registered profile also proves the opt-in document-export feature uses only public UIKit
+# selectors, remains isolated from clipboard/share features, and declares its iOS 14.0 floor.
+document_export_tree=target/ios-sharing-document-export-feature-tree.txt
+cargo tree --locked -e features -i ios-sharing -p ios-sharing --target aarch64-apple-ios \
+    --no-default-features --features document-export > "$document_export_tree"
+grep -Fq 'ios-sharing feature "document-export"' "$document_export_tree"
+if grep -Eiq 'ios-sharing feature "clipboard"|ios-sharing feature "share"|UIPasteboard|UIActivityViewController|UIActivity' \
+    "$document_export_tree"; then
+    echo "clipboard or share-only APIs leaked into the ios-sharing document-export feature graph" >&2
+    exit 1
+fi
+
+cat > target/ios-sharing-document-export-link-imports-expected.txt <<'IMPORTS'
+Foundation
+UIKit
+libSystem.B.dylib
+libobjc.A.dylib
+IMPORTS
+
+for target in aarch64-apple-ios aarch64-apple-ios-sim; do
+    target_dir="target/ios-sharing-document-export-link-$target-minos-14.0"
+    IPHONEOS_DEPLOYMENT_TARGET=14.0 CARGO_TARGET_DIR="$target_dir" \
+        cargo build --locked --release -p ios-sharing --no-default-features --features document-export \
+            --example document_export_link_check --target "$target"
+    binary="$target_dir/$target/release/examples/document_export_link_check"
+    imports="target/ios-sharing-document-export-link-imports-$target.txt"
+    libraries="target/ios-sharing-document-export-link-libraries-$target.txt"
+    symbols="target/ios-sharing-document-export-link-symbols-$target.txt"
+    strings_file="target/ios-sharing-document-export-link-strings-$target.txt"
+    build_info="target/ios-sharing-document-export-link-build-$target.txt"
+
+    otool -L "$binary" > "$imports"
+    awk 'NR > 1 { path = $1; sub(/^.*\//, "", path); print path }' "$imports" \
+        | LC_ALL=C sort > "$libraries"
+    diff -u target/ios-sharing-document-export-link-imports-expected.txt "$libraries"
+
+    nm -u "$binary" > "$symbols"
+    if grep -Eiq 'UIPasteboard|UIActivityViewController|UIActivity|swift_|Py[A-Z_]' "$symbols"; then
+        echo "unexpected clipboard, share, or language-runtime symbol import in $symbols" >&2
+        exit 1
+    fi
+
+    strings -a "$binary" > "$strings_file"
+    for marker in UIDocumentPickerViewController initForExportingURLs:asCopy: \
+        documentPicker:didPickDocumentsAtURLs: documentPickerWasCancelled: \
+        presentViewController:animated:completion:; do
+        if ! grep -Fq "$marker" "$strings_file"; then
+            echo "missing document-export selector marker $marker in $strings_file" >&2
+            exit 1
+        fi
+    done
+    if grep -Eiq 'UIPasteboard|UIActivityViewController|UIActivity|swift_|Py[A-Z_]' "$strings_file"; then
+        echo "unexpected clipboard, share, or language-runtime string in $strings_file" >&2
+        exit 1
+    fi
+
+    vtool -show-build "$binary" > "$build_info"
+    actual_deployment_target=$(awk '$1 == "minos" { print $2; exit } $1 == "version" { print $2; exit }' "$build_info")
+    if [ "$actual_deployment_target" != "14.0" ]; then
+        echo "$target document-export probe has deployment target ${actual_deployment_target:-unknown}; expected 14.0" >&2
+        exit 1
+    fi
+done
+
 clipboard_source=platform/ios/ios-sharing/src/platform.rs
 if ! awk '
     /pub fn read_image/ { reading = 1 }

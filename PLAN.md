@@ -366,6 +366,12 @@ B511 adds `ios_runtime::dispatch::run_on_main` behind the `ios-runtime/dispatch`
 
 B512 adds `ios_app_lifecycle::open_application_uri(MainThread, &str, completion)` for Foundation-accepted absolute URIs with any nonempty scheme, using public `UIApplication.openURL:options:completionHandler:` and empty options. `OpenApplicationUriError` distinguishes Foundation rejection from a missing scheme; either error issues no request or callback. The `FnOnce(bool)` result is invoked at most once with panic containment. Host foreground and scheme policy remain app-owned; a true result is not proof of launch, content load, or user view. Repository-pinned `ios-rust-tools-0.1.0+2289e6a73257b696f6ae5ecd61ee20fd16ab8b37` reports 38 PASS, 0 FAIL, 0 BLOCKED, and 2 SKIPPED; Simulator execution and physical-device proof remain unverified
 
+### B513 — opt-in document export (row 007)
+
+B513 adds `ios-sharing/document-export`, disabled by default, with `IosDocumentExportSession` for one local `NSURL` and a borrowed live presenter. It uses the public iOS 14 `UIDocumentPickerViewController.initForExportingURLs:asCopy:` API with `asCopy: true`, maps only UIKit success/cancel delegate events, retains the source URL through the terminal callback, and leaves the source file app-owned. Synchronous rejection preserves the one-shot callback; drop/cancel detach it without claiming picker dismissal, provider durability, or file write-back. Existing default features and iOS floors remain unchanged.
+
+The registered `ios-sharing` profile covers default-feature checks plus opt-in device/Simulator iOS 14.0 Release link/import/minos probes. Feature-specific host regressions cover remote-host and relative file-URL rejection, no presenter preflight on invalid input, active-operation rejection, callback preservation, exactly-once terminal events, late-event detach, and panic containment. Static compile/link checks do not prove live picker UI or a file-provider save; row 007 remains partial. Installed validator release `ios-rust-tools-0.1.0+350971094cc3b77191cd6b3d07e01af04d71943d` reported 53 PASS, 0 FAIL, 0 BLOCKED, and 2 SKIPPED for `--capability ios-sharing`; the skipped evidence is runtime-only, and no picker UI or provider save is claimed.
+
 ## Active work selection and limits
 
 1. Inspect the canonical capability status/owner, the relevant family plan, then the named workstream plan and exact files/symbols. Do not scan the entire planning corpus or treat every existing plan as pending work.

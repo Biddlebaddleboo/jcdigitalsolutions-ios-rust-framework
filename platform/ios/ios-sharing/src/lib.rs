@@ -1,13 +1,17 @@
 #![deny(missing_docs)]
 #![deny(unsafe_op_in_unsafe_fn)]
 #![cfg_attr(not(target_os = "ios"), allow(dead_code))]
-#![doc = "Plain-text clipboard access and outgoing system sharing through public iOS UIKit APIs."]
+#![doc = "Clipboard access, outgoing system shares, and opt-in document export through public iOS UIKit APIs."]
 
-#[cfg(any(feature = "clipboard", feature = "share"))]
+#[cfg(any(feature = "clipboard", feature = "share", feature = "document-export"))]
 extern crate alloc;
 
 #[cfg(feature = "clipboard")]
 mod conversion;
+#[cfg(feature = "document-export")]
+mod document_export_state;
+#[cfg(all(test, not(feature = "document-export")))]
+mod document_export_state;
 #[cfg(feature = "clipboard")]
 mod operation;
 #[cfg(feature = "share")]
@@ -15,11 +19,17 @@ mod share_conversion;
 #[cfg(feature = "share")]
 mod share_operation;
 
+#[cfg(all(target_os = "ios", feature = "document-export"))]
+mod document_export;
 #[cfg(all(target_os = "ios", feature = "clipboard"))]
 mod platform;
 #[cfg(all(target_os = "ios", feature = "share"))]
 mod share_platform;
 
+#[cfg(all(target_os = "ios", feature = "document-export"))]
+pub use document_export::{
+    DocumentExportError, DocumentExportResult, DocumentExportStartError, IosDocumentExportSession,
+};
 #[cfg(all(target_os = "ios", feature = "clipboard"))]
 pub use platform::{
     IosClipboardBackend, IosClipboardClearFuture, IosClipboardReadFuture, IosClipboardWriteFuture,

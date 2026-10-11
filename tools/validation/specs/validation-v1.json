@@ -4138,158 +4138,37 @@
       "targets": [{"triple":"aarch64-apple-ios","sdk":"iphoneos","minimum_os":"12.0"},{"triple":"aarch64-apple-ios-sim","sdk":"iphonesimulator","minimum_os":"14.0"}]
     },
     {
-      "abi_scripts": [
-        "platform/ios/ios-sharing/check-clipboard-link-imports.sh"
-      ],
+      "abi_scripts": ["platform/ios/ios-sharing/check-clipboard-link-imports.sh"],
       "abi_targets": [{"minimum_os":"10.0","sdk":"iphoneos","triple":"aarch64-apple-ios"},{"minimum_os":"14.0","sdk":"iphonesimulator","triple":"aarch64-apple-ios-sim"}],
       "adapters": [],
       "cargo_tree": false,
       "check_script": "platform/ios/ios-sharing/check-clipboard-link-imports.sh",
       "clippy_all_targets": true,
       "clippy_lib": false,
-      "docs": [
-        "docs/ios/sharing.md",
-        "docs/capabilities/capability-status.json",
-        "docs/generated/CAPABILITY_STATUS.md",
-        "docs/generated/VALIDATION_PROFILES.md",
-        "PLAN.md"
-      ],
-      "expected_imports": [
-        "Foundation.framework",
-        "UIKit.framework",
-        "libSystem.B.dylib",
-        "libobjc.A.dylib"
-      ],
+      "docs": ["docs/ios/sharing.md","docs/capabilities/capability-status.json","docs/generated/CAPABILITY_STATUS.md","docs/generated/VALIDATION_PROFILES.md","PLAN_RIDESHARE_BOT_MIGRATION.md","PLAN.md"],
+      "expected_imports": ["Foundation.framework","UIKit.framework","libSystem.B.dylib","libobjc.A.dylib"],
       "fmt_all": false,
-      "guards": [
-        {
-          "message": "the iOS clipboard extension must expose a type-only image presence query",
-          "must_exist": true,
-          "path": "platform/ios/ios-sharing/src/platform.rs",
-          "text": "pub fn has_image(&self) -> bool"
-        },
-        {
-          "message": "the iOS clipboard extension must return a retained first-item UIImage",
-          "must_exist": true,
-          "path": "platform/ios/ios-sharing/src/platform.rs",
-          "text": "pub fn read_image(&self) -> Option<Retained<UIImage>>"
-        },
-        {
-          "message": "the iOS clipboard extension must accept a borrowed UIImage for writes",
-          "must_exist": true,
-          "path": "platform/ios/ios-sharing/src/platform.rs",
-          "text": "pub fn write_image(&mut self, image: &UIImage)"
-        },
-        {
-          "message": "image reads must preflight the pasteboard image type",
-          "must_exist": true,
-          "path": "platform/ios/ios-sharing/src/platform.rs",
-          "text": "if !unsafe { self.pasteboard.hasImages() }"
-        },
-        {
-          "message": "image content reads must use the public first-item image property",
-          "must_exist": true,
-          "path": "platform/ios/ios-sharing/src/platform.rs",
-          "text": "unsafe { self.pasteboard.image() }"
-        },
-        {
-          "message": "image writes must use the public UIPasteboard image property",
-          "must_exist": true,
-          "path": "platform/ios/ios-sharing/src/platform.rs",
-          "text": "unsafe { self.pasteboard.setImage(Some(image)) }"
-        },
-        {
-          "message": "UIKit UIImage must remain outside the portable clipboard contract",
-          "must_exist": false,
-          "path": "crates/framework-sharing/src/lib.rs",
-          "text": "UIImage"
-        },
-        {
-          "message": "the portable clipboard crate must not depend on UIKit",
-          "must_exist": false,
-          "path": "crates/framework-sharing/Cargo.toml",
-          "text": "objc2-ui-kit"
-        },
-        {
-          "message": "the single-image extension must not fetch the plural image property",
-          "must_exist": false,
-          "path": "platform/ios/ios-sharing/src/platform.rs",
-          "text": "self.pasteboard.images()"
-        },
-        {
-          "message": "the single-image extension must not set the plural image property",
-          "must_exist": false,
-          "path": "platform/ios/ios-sharing/src/platform.rs",
-          "text": "self.pasteboard.setImages("
-        },
-        {
-          "message": "the clipboard feature must enable the typed UIImage binding",
-          "must_exist": true,
-          "path": "platform/ios/ios-sharing/Cargo.toml",
-          "text": "\"objc2-ui-kit/UIImage\""
-        }
-      ],
+      "guards": [{"message":"the iOS clipboard extension must expose a type-only image presence query","must_exist":true,"path":"platform/ios/ios-sharing/src/platform.rs","text":"pub fn has_image(&self) -> bool"},{"message":"the iOS clipboard extension must return a retained first-item UIImage","must_exist":true,"path":"platform/ios/ios-sharing/src/platform.rs","text":"pub fn read_image(&self) -> Option<Retained<UIImage>>"},{"message":"the iOS clipboard extension must accept a borrowed UIImage for writes","must_exist":true,"path":"platform/ios/ios-sharing/src/platform.rs","text":"pub fn write_image(&mut self, image: &UIImage)"},{"message":"image reads must preflight the pasteboard image type","must_exist":true,"path":"platform/ios/ios-sharing/src/platform.rs","text":"if !unsafe { self.pasteboard.hasImages() }"},{"message":"image content reads must use the public first-item image property","must_exist":true,"path":"platform/ios/ios-sharing/src/platform.rs","text":"unsafe { self.pasteboard.image() }"},{"message":"image writes must use the public UIPasteboard image property","must_exist":true,"path":"platform/ios/ios-sharing/src/platform.rs","text":"unsafe { self.pasteboard.setImage(Some(image)) }"},{"message":"UIKit UIImage must remain outside the portable clipboard contract","must_exist":false,"path":"crates/framework-sharing/src/lib.rs","text":"UIImage"},{"message":"the portable clipboard crate must not depend on UIKit","must_exist":false,"path":"crates/framework-sharing/Cargo.toml","text":"objc2-ui-kit"},{"message":"the single-image extension must not fetch the plural image property","must_exist":false,"path":"platform/ios/ios-sharing/src/platform.rs","text":"self.pasteboard.images()"},{"message":"the single-image extension must not set the plural image property","must_exist":false,"path":"platform/ios/ios-sharing/src/platform.rs","text":"self.pasteboard.setImages("},{"message":"the clipboard feature must enable the typed UIImage binding","must_exist":true,"path":"platform/ios/ios-sharing/Cargo.toml","text":"\"objc2-ui-kit/UIImage\""},{"message":"default export opt-in","must_exist":true,"path":"platform/ios/ios-sharing/Cargo.toml","text":"default = [\"clipboard\", \"share\"]"},{"message":"public copy initializer","must_exist":true,"path":"platform/ios/ios-sharing/src/document_export.rs","text":"UIDocumentPickerViewController::initForExportingURLs_asCopy"},{"message":"source copied, not moved","must_exist":true,"path":"platform/ios/ios-sharing/src/document_export.rs","text":"const EXPORT_AS_COPY: bool = true;"},{"message":"retain NSURL to terminal callback","must_exist":true,"path":"platform/ios/ios-sharing/src/document_export.rs","text":"source_url: RefCell<Option<Retained<NSURL>>>"},{"message":"reject remote-host file URL","must_exist":true,"path":"platform/ios/ios-sharing/src/document_export.rs","text":"source_url.host().is_some_and(|host| host.length() != 0)"},{"message":"remote-host rejection test","must_exist":true,"path":"platform/ios/ios-sharing/src/document_export_state.rs","text":"fn remote_host_file_url_is_not_a_local_export_source()"}],
       "manifest": "platform/ios/ios-sharing/Cargo.toml",
       "offline": false,
       "package": "ios-sharing",
       "rustdoc_warnings": true,
-      "scoped_files": [
-        "PLAN.md",
-        "crates/framework-sharing/src/lib.rs",
-        "platform/ios/ios-sharing/Cargo.toml",
-        "platform/ios/ios-sharing/check-clipboard-link-imports.sh",
-        "platform/ios/ios-sharing/examples/clipboard_link_check.rs",
-        "platform/ios/ios-sharing/src/lib.rs",
-        "platform/ios/ios-sharing/src/platform.rs"
-      ],
-      "shell_scripts": [
-        "platform/ios/ios-sharing/check-clipboard-link-imports.sh"
-      ],
-      "source_dirs": [
-        "crates/framework-sharing",
-        "platform/ios/ios-sharing"
-      ],
+      "scoped_files": ["PLAN.md","PLAN_RIDESHARE_BOT_MIGRATION.md","crates/framework-sharing/src/lib.rs","docs/capabilities/capability-status.json","docs/ios/sharing.md","platform/ios/ios-sharing/Cargo.toml","platform/ios/ios-sharing/check-clipboard-link-imports.sh","platform/ios/ios-sharing/examples/clipboard_link_check.rs","platform/ios/ios-sharing/examples/document_export_link_check.rs","platform/ios/ios-sharing/src/document_export.rs","platform/ios/ios-sharing/src/document_export_state.rs","platform/ios/ios-sharing/src/lib.rs","platform/ios/ios-sharing/src/platform.rs"],
+      "shell_scripts": ["platform/ios/ios-sharing/check-clipboard-link-imports.sh"],
+      "source_dirs": ["crates/framework-sharing","platform/ios/ios-sharing"],
       "targets": [{"minimum_os":"10.0","sdk":"iphoneos","triple":"aarch64-apple-ios"},{"minimum_os":"14.0","sdk":"iphonesimulator","triple":"aarch64-apple-ios-sim"}],
       "id": "ios-sharing"
     },
     {
-      "abi_scripts": [
-        "platform/ios/ios-notification-responses/check-link-imports.sh"
-      ],
+      "abi_scripts": ["platform/ios/ios-notification-responses/check-link-imports.sh"],
       "abi_targets": [{"minimum_os":"10.0","sdk":"iphoneos","triple":"aarch64-apple-ios"},{"minimum_os":"14.0","sdk":"iphonesimulator","triple":"aarch64-apple-ios-sim"}],
-      "adapters": [
-        {
-          "deadline_seconds": 10,
-          "evidence_type": "source-contract-consistency",
-          "id": "foreground-notification-presentation-contract",
-          "input_paths": [
-            "platform/ios/ios-notification-responses/src/lib.rs",
-            "platform/ios/ios-notification-responses/src/platform.rs",
-            "platform/ios/ios-notification-responses/src/presentation.rs"
-          ],
-          "interpreter": "python3",
-          "minimum_version": "3.9",
-          "required": true,
-          "script": "tools/validation/adapters/check_ios_foreground_notification_presentation.py",
-          "stderr_limit_bytes": 4096,
-          "stdout_limit_bytes": 4096,
-          "temporary_space_bytes": 1048576
-        }
-      ],
+      "adapters": [{"deadline_seconds":10,"evidence_type":"source-contract-consistency","id":"foreground-notification-presentation-contract","input_paths":["platform/ios/ios-notification-responses/src/lib.rs","platform/ios/ios-notification-responses/src/platform.rs","platform/ios/ios-notification-responses/src/presentation.rs"],"interpreter":"python3","minimum_version":"3.9","required":true,"script":"tools/validation/adapters/check_ios_foreground_notification_presentation.py","stderr_limit_bytes":4096,"stdout_limit_bytes":4096,"temporary_space_bytes":1048576}],
       "cargo_tree": false,
       "check_script": "platform/ios/ios-notification-responses/check-link-imports.sh",
       "clippy_all_targets": true,
       "clippy_lib": false,
-      "docs": [
-        "docs/ios/notification-responses.md",
-        "docs/capabilities/capability-status.json",
-        "PLAN_IOS_NOTIFICATION_RESPONSES.md"
-      ],
-      "expected_imports": [
-        "Foundation.framework",
-        "UserNotifications.framework",
-        "objc_msgSend"
-      ],
+      "docs": ["docs/ios/notification-responses.md","docs/capabilities/capability-status.json","PLAN_IOS_NOTIFICATION_RESPONSES.md"],
+      "expected_imports": ["Foundation.framework","UserNotifications.framework","objc_msgSend"],
       "fmt_all": false,
       "guards": [],
       "id": "ios-notification-responses",
@@ -4297,23 +4176,9 @@
       "offline": false,
       "package": "ios-notification-responses",
       "rustdoc_warnings": true,
-      "scoped_files": [
-        "platform/ios/ios-notification-responses/Cargo.toml",
-        "platform/ios/ios-notification-responses/check-link-imports.sh",
-        "platform/ios/ios-notification-responses/examples/foreground_presentation_link_probe.rs",
-        "platform/ios/ios-notification-responses/src/lib.rs",
-        "platform/ios/ios-notification-responses/src/platform.rs",
-        "platform/ios/ios-notification-responses/src/presentation.rs",
-        "tools/validation/adapters/check_ios_foreground_notification_presentation.py",
-        "tools/validation/specs/validation-v1.json"
-      ],
-      "shell_scripts": [
-        "platform/ios/ios-notification-responses/check-link-imports.sh"
-      ],
-      "source_dirs": [
-        "crates/framework-notifications",
-        "platform/ios/ios-notification-responses"
-      ],
+      "scoped_files": ["platform/ios/ios-notification-responses/Cargo.toml","platform/ios/ios-notification-responses/check-link-imports.sh","platform/ios/ios-notification-responses/examples/foreground_presentation_link_probe.rs","platform/ios/ios-notification-responses/src/lib.rs","platform/ios/ios-notification-responses/src/platform.rs","platform/ios/ios-notification-responses/src/presentation.rs","tools/validation/adapters/check_ios_foreground_notification_presentation.py","tools/validation/specs/validation-v1.json"],
+      "shell_scripts": ["platform/ios/ios-notification-responses/check-link-imports.sh"],
+      "source_dirs": ["crates/framework-notifications","platform/ios/ios-notification-responses"],
       "targets": [{"minimum_os":"10.0","sdk":"iphoneos","triple":"aarch64-apple-ios"},{"minimum_os":"14.0","sdk":"iphonesimulator","triple":"aarch64-apple-ios-sim"}]
     },
     {

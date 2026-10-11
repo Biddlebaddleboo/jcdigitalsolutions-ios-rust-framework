@@ -54,6 +54,25 @@ share = [
     "objc2-ui-kit/block2",
     "objc2-ui-kit/objc2-core-foundation",
 ]
+document-export = [
+    "dep:ios-runtime",
+    "dep:objc2",
+    "dep:objc2-foundation",
+    "objc2-foundation/NSArray",
+    "objc2-foundation/NSString",
+    "objc2-foundation/NSURL",
+    "dep:objc2-ui-kit",
+    "objc2-ui-kit/UIDocumentPickerViewController",
+    "objc2-ui-kit/UIResponder",
+    "objc2-ui-kit/UIView",
+    "objc2-ui-kit/UIViewController",
+    "objc2-ui-kit/UIWindow",
+    "objc2-ui-kit/block2",
+]
+
+[[example]]
+name = "document_export_link_check"
+required-features = ["document-export"]
 
 [target.'cfg(target_os = "ios")'.dependencies]
 block2 = { workspace = true, features = ["alloc"], optional = true }
