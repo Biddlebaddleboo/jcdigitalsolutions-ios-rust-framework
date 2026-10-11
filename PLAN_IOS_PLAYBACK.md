@@ -55,8 +55,33 @@ pre-iOS-16 main-thread requirement is enforced by `MainThreadMarker` on create, 
 native escape. The existing HDR property remains guarded at iOS 13.4. Validator target floors stay
 at iOS 13.4 for device and iOS 14.0 for Simulator.
 
-No seek/current-time methods are added: portable `framework-media::MediaTime` represents finite
+No seek/current-time methods were added by B463: portable `framework-media::MediaTime` represents finite
 numeric times only, while `AVPlayer` time can be invalid or indefinite. AVPlayer handles codec
 support, readiness, buffering, decoding, and output asynchronously. The host owns the file's
 post-construction lifetime, `AVAudioSession` policy, permission policy, UI, and output attachment.
 The local-file API makes no claim that `play()` began playback or that audio/video output works.
+
+## B466 — asynchronous seek completion (row 048)
+
+B466 adds `IosFilePlayer::seek_to(MediaTime, MainThreadMarker)` with an eagerly started AVPlayer
+seek and a nonblocking `IosPlayerSeekFuture`. `MediaTime` maps to a `CMTime` struct with the exact
+signed numerator, positive timescale, valid flag, and epoch zero. The future borrows its player and
+retains the main-thread marker. Concurrent seeks are allowed; AVPlayer may report an earlier seek
+as `NotCompleted` when superseded. A false completion flag also means there may be no current item,
+so the result does not identify the cause. Drop detaches Rust result/waker state without requesting
+native cancellation. Completion proves only AVPlayer's uninterrupted seek flag, not decoding,
+display, active playback, or output. No current-time/duration query is included.
+
+The public `AVPlayer.seekToTime:completionHandler:` binding requires a sendable block. The block
+captures only an owned `Arc` completion cell, which settles once on any callback thread and catches
+panics before they cross Objective-C. The Rust future remains non-`Send`, borrows `IosFilePlayer`,
+and is therefore valid only while the caller retains the player and main-thread context. The direct
+`objc2-core-media` dependency enables only `CMTime`; `ios-media` is not used because it also enables
+an unrelated AVAudioSession binding. The existing iOS 13.4 device and iOS 14.0 Simulator validation
+floors remain unchanged; the public AVPlayer seek API floor remains iOS 4.0.
+
+Host tests cover exact rational fields, both completion results, single settlement, wake behavior,
+detachment, late callback, and callback/waker panic containment. Device/Simulator compile and
+Release link checks prove the typed ABI shape, direct CoreMedia/AVFoundation imports, selector string,
+and deployment metadata. They do not prove a seek on an item, decoding, displayed output, or live
+playback. Apple API: [AVPlayer.seekToTime:completionHandler:](https://developer.apple.com/documentation/avfoundation/avplayer/seek%28to%3Acompletionhandler%3A%29).

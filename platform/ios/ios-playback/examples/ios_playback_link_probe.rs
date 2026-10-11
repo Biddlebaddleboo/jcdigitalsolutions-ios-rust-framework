@@ -10,6 +10,8 @@ fn main() {
         if let Ok(player) = player {
             player.play(main_thread);
             player.pause(main_thread);
+            let seek = player.seek_to(framework_media::MediaTime::new(3, 2).unwrap(), main_thread);
+            core::hint::black_box(&seek);
             core::hint::black_box(player.as_av_player(main_thread));
         }
     }

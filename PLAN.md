@@ -196,6 +196,10 @@ B464 adds `IosPhotosBackend::fetch_original_photo_bytes` for exactly one caller-
 
 B465 adds finite, ordered `f64` Unix-second ranges and Rust-owned event summaries to `framework-calendar`, plus a synchronous iOS EventKit read on the existing `EKEventStore`. Each read rechecks current authorization and requires `FullAccess`, never prompts, uses the public range predicate and `eventsMatchingPredicate:`, preserves native date precision/all-day flags/null fields, and rejects ranges longer than 1461 days. The registered `ios-calendar` profile covers host regressions, iOS 17 device/Simulator compilation and strict Clippy, Release link/import/deployment checks, docs, and negative source guards. The synchronous read may block and adds no worker or executor; user data, live authorization, Simulator execution, and physical-device behavior remain unverified. B30/D25 history remains authorization-only; see [PLAN_IOS_CALENDAR.md](PLAN_IOS_CALENDAR.md).
 
+### B466 — asynchronous AVPlayer seek (row 048)
+
+B466 adds an exact-rational, asynchronous `IosFilePlayer::seek_to` operation to row 048. Its future is main-thread-bound, borrows the player, and maps `MediaTime` directly to valid `CMTime`; `NotCompleted` intentionally conflates AVPlayer interruption/supersession with no current item. Host state tests and device/Simulator compile/link gates do not prove item readiness, decoded frames, displayed output, or runtime playback; see [PLAN_IOS_PLAYBACK.md](PLAN_IOS_PLAYBACK.md).
+
 ## Active work selection and limits
 
 1. Inspect the canonical capability status/owner, the relevant family plan, then the named workstream plan and exact files/symbols. Do not scan the entire planning corpus or treat every existing plan as pending work.

@@ -995,9 +995,12 @@ dependencies = [
 name = "ios-playback"
 version = "0.1.0"
 dependencies = [
+ "block2",
  "framework-audio",
+ "framework-media",
  "objc2",
  "objc2-av-foundation",
+ "objc2-core-media",
  "objc2-foundation",
 ]
 

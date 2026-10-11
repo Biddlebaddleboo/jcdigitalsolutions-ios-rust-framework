@@ -1,10 +1,16 @@
 # iOS playback capability snapshot
 
-`ios-playback` exposes `IosFilePlayer` for main-thread local-file AVPlayer creation and play/pause.
+`ios-playback` exposes `IosFilePlayer` for main-thread local-file AVPlayer creation, play/pause, and
+asynchronous seek completion.
 It also exposes `hdr_playback_eligibility()`, a separate main-thread query of
 `AVPlayer.eligibleForHDRPlayback`. AVPlayer local-file creation and play/pause are available from
 iOS 4.0; the HDR property remains iOS 13.4+ and returns `None` below its floor. The crate links
-AVFoundation through the typed `objc2-av-foundation` 0.3.2 `AVPlayer` feature.
+AVFoundation through `objc2-av-foundation` 0.3.2 and CoreMedia through `objc2-core-media` 0.3.2.
+
+`seek_to` maps finite `MediaTime` values to exact `CMTime` rationals and returns AVPlayer's
+asynchronous completion result. `NotCompleted` does not distinguish an absent current item from a
+seek interrupted or superseded by another operation. Completion is not proof of a decoded or
+displayed frame; dropping the future detaches Rust result interest without requesting cancellation.
 
 The system reports eligible only when an HDR display is available and the device can play HDR
 content from an appropriate `AVAsset`. The value does not say that a particular asset contains

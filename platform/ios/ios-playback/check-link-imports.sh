@@ -14,6 +14,8 @@ done
 
 cat > target/ios-playback-link-imports-expected.txt <<'IMPORTS'
 AVFoundation
+CoreFoundation
+CoreMedia
 Foundation
 libSystem.B.dylib
 libobjc.A.dylib
@@ -53,6 +55,7 @@ for target in aarch64-apple-ios aarch64-apple-ios-sim; do
     grep -Fq 'playerWithURL:' "$strings_file"
     grep -Fxq 'play' "$strings_file"
     grep -Fxq 'pause' "$strings_file"
+    grep -Fq 'seekToTime:completionHandler:' "$strings_file"
     if grep -Eqi 'availableHDRModes|AVAudio|AVCapture|requestRecordPermission|AVPlayerItem|AVAsset' "$strings_file"; then
         echo "unexpected deprecated HDR, media-operation, or capture selector in $strings_file" >&2
         exit 1

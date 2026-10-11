@@ -77,6 +77,10 @@
       "framework-audio"
     ],
     [
+      "ios-playback",
+      "framework-media"
+    ],
+    [
       "ios-contacts-fetch",
       "framework-contacts"
     ],
@@ -2076,11 +2080,15 @@
       "docs": [
         "docs/capabilities/capability-status.json",
         "docs/capabilities/playback.md",
+        "docs/generated/CAPABILITY_STATUS.md",
+        "docs/generated/VALIDATION_PROFILES.md",
         "docs/ios/playback.md",
         "PLAN_IOS_PLAYBACK.md"
       ],
       "expected_imports": [
         "AVFoundation.framework",
+        "CoreFoundation.framework",
+        "CoreMedia.framework",
         "Foundation.framework",
         "objc_msgSend"
       ],
@@ -2159,6 +2167,108 @@
           "text": "self.player.pause()"
         },
         {
+          "message": "seek is exposed as a public IosFilePlayer method",
+          "must_exist": true,
+          "path": "platform/ios/ios-playback/src/lib.rs",
+          "text": "pub fn seek_to("
+        },
+        {
+          "message": "seek accepts finite portable media time on the main thread",
+          "must_exist": true,
+          "path": "platform/ios/ios-playback/src/lib.rs",
+          "text": "time: MediaTime,"
+        },
+        {
+          "message": "seek requires a main-thread marker",
+          "must_exist": true,
+          "path": "platform/ios/ios-playback/src/lib.rs",
+          "text": "main_thread: objc2::MainThreadMarker"
+        },
+        {
+          "message": "seek uses AVPlayer's public completion-handler method",
+          "must_exist": true,
+          "path": "platform/ios/ios-playback/src/lib.rs",
+          "text": "seekToTime_completionHandler"
+        },
+        {
+          "message": "seek maps MediaTime to a valid epoch-zero CMTime",
+          "must_exist": true,
+          "path": "platform/ios/ios-playback/src/lib.rs",
+          "text": "flags: objc2_core_media::CMTimeFlags::Valid"
+        },
+        {
+          "message": "seek CMTime uses epoch zero",
+          "must_exist": true,
+          "path": "platform/ios/ios-playback/src/lib.rs",
+          "text": "epoch: 0"
+        },
+        {
+          "message": "seek preserves the exact rational numerator and timescale",
+          "must_exist": true,
+          "path": "platform/ios/ios-playback/src/lib.rs",
+          "text": "let (value, timescale) = media_time_parts(time)"
+        },
+        {
+          "message": "seek completion capture is compile-time Send and Sync",
+          "must_exist": true,
+          "path": "platform/ios/ios-playback/src/lib.rs",
+          "text": "assert_seek_handler_send_sync(&callback)"
+        },
+        {
+          "message": "seek callback contains panics",
+          "must_exist": true,
+          "path": "platform/ios/ios-playback/src/lib.rs",
+          "text": "catch_unwind(AssertUnwindSafe(|| cell.complete(seek_outcome(finished))))"
+        },
+        {
+          "message": "seek completion settles only once",
+          "must_exist": true,
+          "path": "platform/ios/ios-playback/src/lib.rs",
+          "text": "if state.completed"
+        },
+        {
+          "message": "seek future borrows its player",
+          "must_exist": true,
+          "path": "platform/ios/ios-playback/src/lib.rs",
+          "text": "_player: &'a IosFilePlayer"
+        },
+        {
+          "message": "seek future retains its main-thread marker",
+          "must_exist": true,
+          "path": "platform/ios/ios-playback/src/lib.rs",
+          "text": "_main_thread: objc2::MainThreadMarker"
+        },
+        {
+          "message": "dropping a seek future detaches Rust completion state",
+          "must_exist": true,
+          "path": "platform/ios/ios-playback/src/lib.rs",
+          "text": "self.cell.detach()"
+        },
+        {
+          "message": "seek does not convert through floating point",
+          "must_exist": false,
+          "path": "platform/ios/ios-playback/src/lib.rs",
+          "text": "as_secs_f64"
+        },
+        {
+          "message": "seek does not construct rounded CMTime through helper calls",
+          "must_exist": false,
+          "path": "platform/ios/ios-playback/src/lib.rs",
+          "text": "CMTimeMake"
+        },
+        {
+          "message": "playback does not expose invalidatable current time",
+          "must_exist": false,
+          "path": "platform/ios/ios-playback/src/lib.rs",
+          "text": "currentTime"
+        },
+        {
+          "message": "playback does not expose invalidatable duration",
+          "must_exist": false,
+          "path": "platform/ios/ios-playback/src/lib.rs",
+          "text": "duration"
+        },
+        {
           "message": "playback does not mutate the host audio session",
           "must_exist": false,
           "path": "platform/ios/ios-playback/src/lib.rs",
@@ -2179,6 +2289,7 @@
         "platform/ios/ios-playback/src/lib.rs",
         "docs/capabilities/capability-status.json",
         "docs/capabilities/playback.md",
+        "docs/generated/CAPABILITY_STATUS.md",
         "docs/generated/VALIDATION_PROFILES.md",
         "docs/ios/playback.md",
         "platform/ios/ios-playback/README.md",
@@ -2636,6 +2747,11 @@
     {
       "path": "crates/framework-audio/",
       "node": "framework-audio",
+      "global": false
+    },
+    {
+      "path": "crates/framework-media/",
+      "node": "framework-media",
       "global": false
     },
     {
