@@ -1,7 +1,7 @@
 #[cfg(target_os = "ios")]
 use ios_runtime::main_thread::MainThread;
 #[cfg(target_os = "ios")]
-use ios_sharing::IosDocumentExportSession;
+use ios_sharing::{IosDocumentExportFile, IosDocumentExportSession};
 #[cfg(target_os = "ios")]
 use objc2::MainThreadMarker;
 #[cfg(target_os = "ios")]
@@ -25,6 +25,9 @@ fn main() {
     // Link-only branch. Do not execute this example; it presents UIKit system UI.
     if core::hint::black_box(false) {
         let _ = session.start(&source, |_| {});
+        let staged = IosDocumentExportFile::from_bytes("ridesharebot-ios-logs.txt", b"log bytes")
+            .expect("static link probe file name and payload are valid");
+        let _ = session.start_staged(staged, |_| {});
     }
 }
 

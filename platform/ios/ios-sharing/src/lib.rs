@@ -28,7 +28,8 @@ mod share_platform;
 
 #[cfg(all(target_os = "ios", feature = "document-export"))]
 pub use document_export::{
-    DocumentExportError, DocumentExportResult, DocumentExportStartError, IosDocumentExportSession,
+    DocumentExportError, DocumentExportFileError, DocumentExportResult, DocumentExportStartError,
+    IosDocumentExportFile, IosDocumentExportSession,
 };
 #[cfg(all(target_os = "ios", feature = "clipboard"))]
 pub use platform::{

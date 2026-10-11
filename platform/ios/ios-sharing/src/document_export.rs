@@ -12,9 +12,11 @@ use objc2_ui_kit::{
     UIDocumentPickerDelegate, UIDocumentPickerViewController, UIView, UIViewController,
 };
 
-use crate::document_export_state::{DocumentExportCompletion, accept_start, is_local_file_url};
+use crate::document_export_state::{
+    DocumentExportCompletion, StagedExportFile, StagedExportLease, accept_start, is_local_file_url,
+};
 pub use crate::document_export_state::{
-    DocumentExportError, DocumentExportResult, DocumentExportStartError,
+    DocumentExportError, DocumentExportFileError, DocumentExportResult, DocumentExportStartError,
 };
 
 const EXPORT_AS_COPY: bool = true;
@@ -35,12 +37,16 @@ pub struct IosDocumentExportSession<'ctx> {
 struct DocumentExportOperation {
     picker: Retained<UIDocumentPickerViewController>,
     completion: DocumentExportCompletion,
+    staged_source: Option<StagedExportLease>,
     _delegate: Retained<DocumentExportDelegate>,
 }
 
 impl Drop for DocumentExportOperation {
     fn drop(&mut self) {
         self.completion.detach();
+        if let Some(staged_source) = &self.staged_source {
+            staged_source.abandon();
+        }
         self.picker.setDelegate(None);
     }
 }
@@ -48,6 +54,7 @@ impl Drop for DocumentExportOperation {
 struct DocumentExportDelegateIvars {
     completion: DocumentExportCompletion,
     source_url: RefCell<Option<Retained<NSURL>>>,
+    staged_source: Option<StagedExportLease>,
 }
 
 define_class!(
@@ -87,10 +94,12 @@ impl DocumentExportDelegate {
         marker: MainThreadMarker,
         completion: DocumentExportCompletion,
         source_url: Retained<NSURL>,
+        staged_source: Option<StagedExportLease>,
     ) -> Retained<Self> {
         let this = Self::alloc(marker).set_ivars(DocumentExportDelegateIvars {
             completion,
             source_url: RefCell::new(Some(source_url)),
+            staged_source,
         });
         // SAFETY: The class derives from NSObject and its ivars are set before NSObject init.
         unsafe { msg_send![super(this), init] }
@@ -103,6 +112,9 @@ impl DocumentExportDelegate {
                 .expect("live document-picker delegate cannot be nil")
         };
         let source_url = self.ivars().source_url.borrow_mut().take();
+        if let Some(staged_source) = &self.ivars().staged_source {
+            staged_source.finish();
+        }
         let _ = catch_unwind(AssertUnwindSafe(|| {
             picker.setDelegate(None);
             self.ivars().completion.complete(result);
@@ -141,6 +153,45 @@ impl<'ctx> IosDocumentExportSession<'ctx> {
     where
         F: FnOnce(DocumentExportResult) + 'static,
     {
+        self.start_source(source_url, None, completion)
+    }
+
+    /// Requests export of staged arbitrary bytes under a caller-selected file name.
+    ///
+    /// Construct [`IosDocumentExportFile`] with `from_bytes` before calling this method; staging
+    /// is synchronous and may be done on a worker thread. The file name extension is the only
+    /// document-type hint passed to UIKit. A rejected start returns the callback and removes the
+    /// consumed staged file. Once accepted, the picker delegate owns the file through its terminal
+    /// callback. If this session is cancelled or dropped first, the staged file is deliberately
+    /// left in the app temporary directory because UIKit may still be reading it; the OS may purge
+    /// it later. This does not prove provider durability or runtime save behavior.
+    pub fn start_staged<F>(
+        &mut self,
+        source: IosDocumentExportFile,
+        completion: F,
+    ) -> Result<(), DocumentExportStartError<F>>
+    where
+        F: FnOnce(DocumentExportResult) + 'static,
+    {
+        let path = source
+            .staged
+            .path()
+            .to_str()
+            .expect("staged export paths are validated as UTF-8");
+        let path = NSString::from_str(path);
+        let source_url = NSURL::fileURLWithPath(&path);
+        self.start_source(&source_url, Some(source.staged), completion)
+    }
+
+    fn start_source<F>(
+        &mut self,
+        source_url: &NSURL,
+        staged_source: Option<StagedExportFile>,
+        completion: F,
+    ) -> Result<(), DocumentExportStartError<F>>
+    where
+        F: FnOnce(DocumentExportResult) + 'static,
+    {
         let local_path_prefix = NSString::from_str("/");
         let source_is_local = is_local_file_url(
             source_url.isFileURL(),
@@ -163,14 +214,20 @@ impl<'ctx> IosDocumentExportSession<'ctx> {
 
         drop(self.active_operation.take());
         // SAFETY: `source_url` is a live borrowed Objective-C object. Retain keeps the exact NSURL
-        // alive through the terminal callback; the source file remains caller-owned and untouched.
+        // alive through the terminal callback; staged-file ownership is held by the shared lease.
         let retained_source = unsafe {
             Retained::retain(source_url as *const NSURL as *mut NSURL)
                 .expect("borrowed source NSURL cannot be nil")
         };
         let urls = NSArray::from_slice(&[retained_source.as_ref()]);
         let callback = DocumentExportCompletion::new(completion);
-        let delegate = DocumentExportDelegate::new(marker, callback.clone(), retained_source);
+        let staged_source = staged_source.map(StagedExportLease::new);
+        let delegate = DocumentExportDelegate::new(
+            marker,
+            callback.clone(),
+            retained_source,
+            staged_source.clone(),
+        );
         let picker = UIDocumentPickerViewController::initForExportingURLs_asCopy(
             UIDocumentPickerViewController::alloc(marker),
             &urls,
@@ -181,6 +238,7 @@ impl<'ctx> IosDocumentExportSession<'ctx> {
         self.active_operation = Some(DocumentExportOperation {
             picker: picker.clone(),
             completion: callback,
+            staged_source,
             _delegate: delegate,
         });
         self.presenter
@@ -219,5 +277,29 @@ impl<'ctx> IosDocumentExportSession<'ctx> {
             return Err(DocumentExportError::InvalidPresenter);
         }
         Ok(())
+    }
+}
+
+/// A validated, app-temporary file staged from caller-owned bytes.
+///
+/// Construction copies the exact bytes synchronously and may run off the UIKit main thread.
+/// Dropping an unsubmitted value removes its temporary file. After accepted picker presentation,
+/// `start_staged` transfers cleanup ownership to the session and delegate.
+pub struct IosDocumentExportFile {
+    staged: StagedExportFile,
+}
+
+impl IosDocumentExportFile {
+    /// Stages `bytes` under `file_name`, preserving every byte including embedded NUL values.
+    ///
+    /// `file_name` must be one nonempty path component other than `.` or `..`; separators, NUL,
+    /// and control characters are rejected. The source is written to a unique directory under the
+    /// app temporary directory with create-new semantics. This synchronous call may write a large
+    /// payload, so callers may construct the value on a worker thread and pass it to the main-thread
+    /// session later.
+    pub fn from_bytes(file_name: &str, bytes: &[u8]) -> Result<Self, DocumentExportFileError> {
+        Ok(Self {
+            staged: StagedExportFile::from_bytes(file_name, bytes)?,
+        })
     }
 }
