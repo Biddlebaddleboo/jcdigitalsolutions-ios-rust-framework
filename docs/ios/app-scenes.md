@@ -1,6 +1,6 @@
 # iOS app scene activity and lifecycle
 
-`ios-app-scenes` provides two independent iOS 13.0 surfaces. B81's synchronous snapshot remains a count-only query; B454 adds an event stream for per-scene lifecycle notifications. Neither changes the portable `framework-app` API.
+`ios-app-scenes` provides three independent iOS 13.0 surfaces. B81's synchronous snapshot remains a count-only query; B454 adds an event stream for per-scene lifecycle notifications; B526 adds current activation-state records keyed by exact session identity. None changes the portable `framework-app` API.
 
 ## B81 activity snapshot
 
@@ -15,6 +15,20 @@ let active_scenes = snapshot.foreground_active_count();
 ```
 
 It returns only counts, makes no atomic cross-scene or after-return guarantee, and does not expose scene identifiers, names, native handles, or callback state. A connected scene can be foreground or background and on or offscreen. An empty set is valid. B81 does not subscribe to notifications or alter the snapshot contract.
+
+## B526 per-scene activation snapshot
+
+Read the current connected window scenes on UIKit's main thread and match each record to later B454 events by session identifier:
+
+```rust,ignore
+let scenes = ios_app_scenes::scene_activation_snapshot(main_thread);
+for scene in scenes {
+    let session_id = scene.session_identifier();
+    let activation = scene.state();
+}
+```
+
+Each record owns the exact UTF-16 code units of `UISceneSession.persistentIdentifier` and one typed `UISceneActivationState` mapping: `Unattached`, `ForegroundActive`, `ForegroundInactive`, `Background`, or `Unknown(raw_value)`. Only connected `UIWindowScene` instances are included; non-window scenes are omitted. The query retains no UIKit object, and order is unspecified. It samples each activation state once in one synchronous main-thread pass; it is not an atomic cross-scene instant and says nothing about state after return. The result supplies initial per-scene state; B454 supplies subsequent notifications. It does not synthesize an initial event or change B454 queue/lifecycle semantics.
 
 ## B454 per-scene lifecycle events
 
@@ -57,4 +71,4 @@ The adapter uses generated `objc2-ui-kit 0.3.2` and `objc2-foundation 0.3.2` bin
 
 Run `sh platform/ios/ios-app-scenes/check.sh` for target, Clippy, rustdoc, and link/import checks; run `cargo +1.94.1 test --locked -p ios-app-scenes` for deterministic host tests. Link/import checks are not runtime proof.
 
-See [PLAN_IOS_SCENE_SNAPSHOT.md](../../PLAN_IOS_SCENE_SNAPSHOT.md) and [PLAN_VALIDATION_IOS_SCENE_SNAPSHOT.md](../../PLAN_VALIDATION_IOS_SCENE_SNAPSHOT.md) for B81's original snapshot scope and validation contract.
+See [PLAN_IOS_SCENE_SNAPSHOT.md](../../PLAN_IOS_SCENE_SNAPSHOT.md) and [PLAN_VALIDATION_IOS_SCENE_SNAPSHOT.md](../../PLAN_VALIDATION_IOS_SCENE_SNAPSHOT.md) for B81's original snapshot scope and the additive B526 contract.

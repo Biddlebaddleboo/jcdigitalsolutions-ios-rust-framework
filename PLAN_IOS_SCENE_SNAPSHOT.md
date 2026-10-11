@@ -2,7 +2,7 @@
 
 ## Status
 
-B81 adds an iOS 13.0 point-in-time scene activity snapshot in `ios-app-scenes`; B454 separately adds per-scene lifecycle events in the same crate. Device and Simulator compile and strict Clippy gates, rustdoc, and both link/import inspections pass on Xcode 26.6 / SDK 26.5 with Rust 1.94.1. The arm64 device probe minos is 13.0; the arm64 Simulator probe minos is 14.0. Both probes were inspected and not executed. Row `001-core-app-ui-application-lifecycle` remains partial because live UIKit notification delivery and runtime behavior remain unverified
+B81 adds an iOS 13.0 point-in-time scene activity snapshot in `ios-app-scenes`; B454 separately adds per-scene lifecycle events; B526 adds an initial per-window-scene activation snapshot keyed by the exact session identifier. B81 remains count-only and B454 event semantics are unchanged. Existing B81/B454 device and Simulator compile, strict Clippy, rustdoc, and link/import evidence is from Xcode 26.6 / SDK 26.5 with Rust 1.94.1; the arm64 device probe minos is 13.0 and the arm64 Simulator probe minos is 14.0. For B526, the registered `ios-app-scenes` snapshot `0c66210187c428b7e01655f8c9063cb5f1ca3ba4b86403d62ae9ceb9a94da8a0` reported 38 PASS, 1 FAIL, 0 BLOCKED, 2 SKIPPED; the sole failure was the added link check's incorrect expectation of a direct Objective-C class symbol. The link check now tests the exact `UIWindowScene` class-name string used by objc2, and the direct device/Simulator link/import script passes. The registered profile rerun is pending. No probe was executed; live UIKit notification delivery, scene values, and runtime behavior remain unverified, so row `001-core-app-ui-application-lifecycle` remains partial
 
 ## Objective
 
@@ -54,3 +54,11 @@ Root's `Cargo.lock` contains the package and dependency records. `sh platform/io
 - Apple docs: [UISceneConfiguration](https://developer.apple.com/documentation/uikit/uisceneconfiguration)
 
 Apple defines a connected scene as in memory and potentially doing active work; it may be foreground or background and onscreen or offscreen. The result therefore reports only state values from a synchronous read pass and makes no cross-scene atomicity claim
+
+## B526 initial per-scene activation snapshot
+
+`scene_activation_snapshot(MainThread) -> Vec<SceneActivationSnapshot>` reads `UIApplication.connectedScenes` once, filters to `UIWindowScene`, then samples each window scene's `activationState` and `session().persistentIdentifier` once. It returns owned `SceneSessionIdentifier` copies and `SceneActivationState` values (`Unattached`, `ForegroundActive`, `ForegroundInactive`, `Background`, or `Unknown(i64)`). The exact UTF-16 identifier is reusable to correlate records with B454 events. It retains no UIKit scene or window; result order is unspecified; non-window scenes are omitted; no atomic cross-scene or after-return guarantee is made. The function requires `MainThread` and uses no permission, entitlement, or app-delegate modification
+
+This supplies an initial state that B454's observer intentionally does not synthesize. B454 remains the subsequent transition source and is not modified by B526. The host maps the four known UIKit activation variants to its desired semantic `ScenePhase`; `Unknown` preserves an unrecognized raw value rather than fabricating a phase
+
+Host policy tests cover all four known UIKit raw values and unknown raw-value preservation, and verify that a scene record pairs an exact UTF-16 session identity with its phase. The device/Simulator link probe retains and inspects the `UIWindowScene` class-name lookup, `connectedScenes`, `activationState`, and `persistentIdentifier` at device iOS 13.0 / Simulator iOS 14.0. Compile and link evidence do not prove live connected-scene values or runtime lifecycle behavior

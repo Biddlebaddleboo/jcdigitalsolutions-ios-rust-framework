@@ -13,7 +13,13 @@ use std::sync::{Mutex, Weak};
 #[cfg(target_os = "ios")]
 use ios_runtime::main_thread::MainThread;
 #[cfg(target_os = "ios")]
-use objc2_ui_kit::{UIApplication, UISceneActivationState};
+use objc2_foundation::{NSRange, NSString};
+#[cfg(target_os = "ios")]
+use objc2_ui_kit::{
+    UIApplication, UISceneActivationState as NativeSceneActivationState, UIWindowScene,
+};
+#[cfg(target_os = "ios")]
+use std::ptr::NonNull;
 
 #[cfg(target_os = "ios")]
 mod backend;
@@ -82,13 +88,13 @@ impl SceneActivitySnapshot {
         self.unknown_state_count
     }
 
-    fn record(&mut self, state: UISceneActivationState) {
+    fn record(&mut self, state: NativeSceneActivationState) {
         self.connected_scene_count += 1;
         match state {
-            UISceneActivationState::Unattached => self.unattached_count += 1,
-            UISceneActivationState::ForegroundActive => self.foreground_active_count += 1,
-            UISceneActivationState::ForegroundInactive => self.foreground_inactive_count += 1,
-            UISceneActivationState::Background => self.background_count += 1,
+            NativeSceneActivationState::Unattached => self.unattached_count += 1,
+            NativeSceneActivationState::ForegroundActive => self.foreground_active_count += 1,
+            NativeSceneActivationState::ForegroundInactive => self.foreground_inactive_count += 1,
+            NativeSceneActivationState::Background => self.background_count += 1,
             _ => self.unknown_state_count += 1,
         }
     }
@@ -108,6 +114,96 @@ pub fn snapshot(main_thread: MainThread) -> SceneActivitySnapshot {
         snapshot.record(scene.activationState());
     }
     snapshot
+}
+
+/// One connected window scene's activation state and exact session identity
+#[cfg(any(target_os = "ios", test))]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct SceneActivationSnapshot {
+    session_identifier: SceneSessionIdentifier,
+    state: SceneActivationState,
+}
+
+#[cfg(any(target_os = "ios", test))]
+impl SceneActivationSnapshot {
+    /// Return the persistent identity for this scene's UIKit session
+    pub const fn session_identifier(&self) -> &SceneSessionIdentifier {
+        &self.session_identifier
+    }
+
+    /// Return the activation state sampled for this scene
+    pub const fn state(&self) -> SceneActivationState {
+        self.state
+    }
+}
+
+/// UIKit activation state for one connected window scene
+#[cfg(any(target_os = "ios", test))]
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum SceneActivationState {
+    /// UIKit reports that the scene is not attached to the app
+    Unattached,
+    /// The scene is in the foreground and active
+    ForegroundActive,
+    /// The scene is in the foreground but inactive
+    ForegroundInactive,
+    /// The scene is in the background
+    Background,
+    /// UIKit returned an activation value unknown to this binding version
+    Unknown(i64),
+}
+
+#[cfg(any(target_os = "ios", test))]
+impl SceneActivationState {
+    fn from_native_value(value: i64) -> Self {
+        match value {
+            -1 => Self::Unattached,
+            0 => Self::ForegroundActive,
+            1 => Self::ForegroundInactive,
+            2 => Self::Background,
+            value => Self::Unknown(value),
+        }
+    }
+}
+
+/// Read current connected `UIWindowScene` activation states on UIKit's main thread
+///
+/// The result owns each session identifier as exact UTF-16 code units and retains no UIKit
+/// scene or window. The read is a synchronous snapshot, not an atomic cross-scene instant or a
+/// guarantee about state after return. Scene order is unspecified; non-window `UIScene` values
+/// are omitted. Use `IosSceneLifecycleEvents` for subsequent transitions
+#[cfg(target_os = "ios")]
+pub fn scene_activation_snapshot(main_thread: MainThread) -> Vec<SceneActivationSnapshot> {
+    let application = UIApplication::sharedApplication(main_thread.into_objc2());
+    let scenes = application.connectedScenes().allObjects();
+    let mut snapshots = Vec::with_capacity(scenes.len());
+    for scene in scenes.iter() {
+        let Some(window_scene) = scene.downcast_ref::<UIWindowScene>() else {
+            continue;
+        };
+        let session = window_scene.session();
+        let identifier = session.persistentIdentifier();
+        let state = window_scene.activationState();
+        snapshots.push(SceneActivationSnapshot {
+            session_identifier: copy_session_identifier(&identifier),
+            state: SceneActivationState::from_native_value(state.0 as i64),
+        });
+    }
+    snapshots
+}
+
+#[cfg(target_os = "ios")]
+pub(crate) fn copy_session_identifier(identifier: &NSString) -> SceneSessionIdentifier {
+    let length = identifier.length();
+    let mut code_units = vec![0_u16; length];
+    if length != 0 {
+        let buffer = NonNull::new(code_units.as_mut_ptr())
+            .expect("a non-empty Vec has a non-null allocation pointer");
+        // SAFETY: the buffer has `length` initialized slots and the range is the full immutable
+        // NSString value measured immediately above.
+        unsafe { identifier.getCharacters_range(buffer, NSRange::new(0, length)) };
+    }
+    SceneSessionIdentifier::from_owned_utf16_code_units(code_units)
 }
 
 #[cfg(any(target_os = "ios", test))]
@@ -365,6 +461,35 @@ mod tests {
         let actual = SCENE_NOTIFICATIONS
             .map(|notification| (notification.constant_name(), notification.event_kind()));
         assert_eq!(actual, cases);
+    }
+
+    #[test]
+    fn activation_state_mapping_preserves_unknown_native_values() {
+        let cases = [
+            (-1, SceneActivationState::Unattached),
+            (0, SceneActivationState::ForegroundActive),
+            (1, SceneActivationState::ForegroundInactive),
+            (2, SceneActivationState::Background),
+            (3, SceneActivationState::Unknown(3)),
+            (-9, SceneActivationState::Unknown(-9)),
+        ];
+        for (native_value, expected) in cases {
+            assert_eq!(
+                SceneActivationState::from_native_value(native_value),
+                expected
+            );
+        }
+    }
+
+    #[test]
+    fn activation_snapshot_keeps_exact_session_identity_with_phase() {
+        let units = [b'A' as u16, 0, b'B' as u16];
+        let snapshot = SceneActivationSnapshot {
+            session_identifier: SceneSessionIdentifier::from_utf16_code_units(&units),
+            state: SceneActivationState::ForegroundInactive,
+        };
+        assert_eq!(snapshot.session_identifier().as_utf16_code_units(), &units);
+        assert_eq!(snapshot.state(), SceneActivationState::ForegroundInactive);
     }
 
     #[test]

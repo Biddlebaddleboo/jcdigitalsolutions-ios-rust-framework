@@ -7,7 +7,6 @@ use objc2::rc::Retained;
 use objc2::runtime::{AnyObject, ProtocolObject};
 use objc2_foundation::{
     NSNotification, NSNotificationCenter, NSNotificationName, NSObjectProtocol, NSOperationQueue,
-    NSRange, NSString,
 };
 use objc2_ui_kit::{
     UIScene, UISceneDidActivateNotification, UISceneDidDisconnectNotification,
@@ -17,7 +16,7 @@ use objc2_ui_kit::{
 
 use crate::{
     EventQueue, NativeSceneNotification, SCENE_NOTIFICATIONS, SceneLifecycleEvent,
-    SceneSessionIdentifier, contain_callback_panic, enqueue_if_live,
+    contain_callback_panic, copy_session_identifier, enqueue_if_live,
 };
 
 fn notification_name(notification: NativeSceneNotification) -> &'static NSNotificationName {
@@ -119,7 +118,7 @@ impl IosSceneLifecycleEvents {
                     };
                     let identifier = scene.session().persistentIdentifier();
                     let event = SceneLifecycleEvent {
-                        session_identifier: copy_identifier(&identifier),
+                        session_identifier: copy_session_identifier(&identifier),
                         kind,
                     };
                     enqueue_if_live(&weak_events, event);
@@ -156,17 +155,4 @@ impl Drop for IosSceneLifecycleEvents {
     fn drop(&mut self) {
         self.observers.remove_all();
     }
-}
-
-fn copy_identifier(identifier: &NSString) -> SceneSessionIdentifier {
-    let length = identifier.length();
-    let mut code_units = vec![0_u16; length];
-    if length != 0 {
-        let buffer = NonNull::new(code_units.as_mut_ptr())
-            .expect("a non-empty Vec has a non-null allocation pointer");
-        // SAFETY: the buffer has `length` initialized slots and the range is the full immutable
-        // NSString value measured immediately above.
-        unsafe { identifier.getCharacters_range(buffer, NSRange::new(0, length)) };
-    }
-    SceneSessionIdentifier::from_owned_utf16_code_units(code_units)
 }

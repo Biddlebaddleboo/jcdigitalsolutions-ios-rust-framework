@@ -43,6 +43,7 @@ for target in aarch64-apple-ios aarch64-apple-ios-sim; do
     grep -Eq '_objc_(msgSend|getClass)' "$symbols"
     grep -Fq 'UIApplication' "$binary_strings"
     grep -Fq 'UIWindow' "$binary_strings"
+    grep -Fxq 'UIWindowScene' "$binary_strings"
     grep -Fq 'connectedScenes' "$binary_strings"
     grep -Fq 'activationState' "$binary_strings"
     for notification in \

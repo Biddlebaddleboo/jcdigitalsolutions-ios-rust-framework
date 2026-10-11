@@ -11,6 +11,19 @@ fn link_scene_window(
 }
 
 #[cfg(target_os = "ios")]
+fn link_scene_activation_snapshot(main_thread: ios_runtime::main_thread::MainThread) {
+    for scene in ios_app_scenes::scene_activation_snapshot(main_thread) {
+        let _ = scene.session_identifier().as_utf16_code_units();
+        let _ = scene.state();
+    }
+}
+
+#[cfg(target_os = "ios")]
+#[used]
+static SCENE_ACTIVATION_SNAPSHOT_LINK: fn(ios_runtime::main_thread::MainThread) =
+    link_scene_activation_snapshot;
+
+#[cfg(target_os = "ios")]
 #[used]
 static SCENE_WINDOW_LINK: fn(
     ios_runtime::main_thread::MainThread,
@@ -22,6 +35,9 @@ static SCENE_WINDOW_LINK: fn(
 fn main() {
     if let Some(main_thread) = ios_runtime::main_thread::MainThread::current() {
         let _ = ios_app_scenes::snapshot(main_thread);
+    }
+    if let Some(main_thread) = ios_runtime::main_thread::MainThread::current() {
+        link_scene_activation_snapshot(main_thread);
     }
     if let Some(main_thread) = ios_runtime::main_thread::MainThread::current() {
         let mut events = ios_app_scenes::IosSceneLifecycleEvents::new(main_thread);
