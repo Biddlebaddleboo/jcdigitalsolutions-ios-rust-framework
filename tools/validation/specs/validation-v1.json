@@ -2327,6 +2327,132 @@
           "must_exist": true,
           "path": "platform/ios/ios-camera-capture-session/check-link-imports.sh",
           "text": "        beginConfiguration \\"
+        },
+        {
+          "message": "selected-camera white balance must expose typed modes",
+          "must_exist": true,
+          "path": "platform/ios/ios-camera-capture-session/src/lib.rs",
+          "text": "pub enum IosCameraWhiteBalanceMode"
+        },
+        {
+          "message": "white-balance Locked must map to the public AVFoundation mode",
+          "must_exist": true,
+          "path": "platform/ios/ios-camera-capture-session/src/lib.rs",
+          "text": "IosCameraWhiteBalanceMode::Locked => AVCaptureWhiteBalanceMode::Locked"
+        },
+        {
+          "message": "one-shot white balance must map to the public AVFoundation mode",
+          "must_exist": true,
+          "path": "platform/ios/ios-camera-capture-session/src/lib.rs",
+          "text": "AVCaptureWhiteBalanceMode::AutoWhiteBalance"
+        },
+        {
+          "message": "continuous white balance must map to the public AVFoundation mode",
+          "must_exist": true,
+          "path": "platform/ios/ios-camera-capture-session/src/lib.rs",
+          "text": "AVCaptureWhiteBalanceMode::ContinuousAutoWhiteBalance"
+        },
+        {
+          "message": "white-balance support query must be exposed for the selected camera",
+          "must_exist": true,
+          "path": "platform/ios/ios-camera-capture-session/src/lib.rs",
+          "text": "pub fn is_white_balance_mode_supported("
+        },
+        {
+          "message": "white-balance mode setter must be exposed for the selected camera",
+          "must_exist": true,
+          "path": "platform/ios/ios-camera-capture-session/src/lib.rs",
+          "text": "pub fn set_white_balance_mode("
+        },
+        {
+          "message": "white-balance operations must use only the retained selected camera",
+          "must_exist": true,
+          "path": "platform/ios/ios-camera-capture-session/src/lib.rs",
+          "text": "with_selected_white_balance_camera(graph.device.as_ref()"
+        },
+        {
+          "message": "white-balance query and setter must serialize with inline capture-queue reentrancy handling",
+          "must_exist": true,
+          "path": "platform/ios/ios-camera-capture-session/src/lib.rs",
+          "text": "self.run_capture_queue_sync(move ||"
+        },
+        {
+          "message": "white-balance operations must report a missing selected camera",
+          "must_exist": true,
+          "path": "platform/ios/ios-camera-capture-session/src/lib.rs",
+          "text": "WhiteBalanceControlError::NoSelectedCamera"
+        },
+        {
+          "message": "white-balance support must be checked before configuration lock",
+          "must_exist": true,
+          "path": "platform/ios/ios-camera-capture-session/src/lib.rs",
+          "text": "if !is_supported(mode)"
+        },
+        {
+          "message": "unsupported white-balance modes must return a typed error",
+          "must_exist": true,
+          "path": "platform/ios/ios-camera-capture-session/src/lib.rs",
+          "text": "WhiteBalanceControlError::WhiteBalanceModeUnsupported"
+        },
+        {
+          "message": "white-balance setter must report configuration-lock failure",
+          "must_exist": true,
+          "path": "platform/ios/ios-camera-capture-session/src/lib.rs",
+          "text": "WhiteBalanceControlError::ConfigurationLockFailed"
+        },
+        {
+          "message": "white-balance setter must release a successful configuration lock on unwind",
+          "must_exist": true,
+          "path": "platform/ios/ios-camera-capture-session/src/lib.rs",
+          "text": "let unlock = UnlockDeviceConfiguration(Some(unlock));"
+        },
+        {
+          "message": "white-balance regressions must cover missing device, unsupported mode, and lock failure",
+          "must_exist": true,
+          "path": "platform/ios/ios-camera-capture-session/src/lib.rs",
+          "text": "fn white_balance_control_requires_a_selected_camera()"
+        },
+        {
+          "message": "white-balance regressions must reject unsupported modes before locking",
+          "must_exist": true,
+          "path": "platform/ios/ios-camera-capture-session/src/lib.rs",
+          "text": "fn white_balance_control_rejects_unsupported_mode_before_lock()"
+        },
+        {
+          "message": "white-balance regressions must check, set, and unlock in order",
+          "must_exist": true,
+          "path": "platform/ios/ios-camera-capture-session/src/lib.rs",
+          "text": "fn white_balance_control_checks_support_then_sets_and_unlocks()"
+        },
+        {
+          "message": "white-balance regressions must unlock after unwind",
+          "must_exist": true,
+          "path": "platform/ios/ios-camera-capture-session/src/lib.rs",
+          "text": "fn white_balance_control_unlocks_after_unwind()"
+        },
+        {
+          "message": "white-balance support and setter APIs must be retained by the device and Simulator link probe",
+          "must_exist": true,
+          "path": "platform/ios/ios-camera-capture-session/examples/camera_capture_link_probe.rs",
+          "text": "session.is_white_balance_mode_supported(mode)"
+        },
+        {
+          "message": "white-balance support and setter selectors must be retained by the native link check",
+          "must_exist": true,
+          "path": "platform/ios/ios-camera-capture-session/check-link-imports.sh",
+          "text": "isWhiteBalanceModeSupported: \\"
+        },
+        {
+          "message": "white balance must not add manual gain control",
+          "must_exist": false,
+          "path": "platform/ios/ios-camera-capture-session/src/lib.rs",
+          "text": "setWhiteBalanceModeLockedWithDeviceWhiteBalanceGains"
+        },
+        {
+          "message": "white balance must not add temperature or tint control",
+          "must_exist": false,
+          "path": "platform/ios/ios-camera-capture-session/src/lib.rs",
+          "text": "setWhiteBalanceModeLockedWithDeviceWhiteBalanceTemperatureAndTintValues"
         }
       ],
       "id": "ios-camera-capture-session",

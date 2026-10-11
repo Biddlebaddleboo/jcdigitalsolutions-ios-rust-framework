@@ -40,8 +40,8 @@ use objc2_av_foundation::{
     AVCaptureFileOutputRecordingDelegate, AVCaptureFocusMode, AVCaptureMovieFileOutput,
     AVCaptureOutput, AVCapturePhoto, AVCapturePhotoCaptureDelegate, AVCapturePhotoOutput,
     AVCapturePhotoSettings, AVCaptureSession, AVCaptureTorchMode, AVCaptureVideoDataOutput,
-    AVCaptureVideoDataOutputSampleBufferDelegate, AVCaptureVideoPreviewLayer, AVMediaTypeAudio,
-    AVMediaTypeVideo,
+    AVCaptureVideoDataOutputSampleBufferDelegate, AVCaptureVideoPreviewLayer,
+    AVCaptureWhiteBalanceMode, AVMediaTypeAudio, AVMediaTypeVideo,
 };
 #[cfg(target_os = "ios")]
 use objc2_core_foundation::CGPoint;
@@ -1239,6 +1239,30 @@ pub enum FocusControlError {
     ConfigurationLockFailed,
 }
 
+/// Public AVFoundation white-balance behavior for the selected camera
+#[cfg(any(target_os = "ios", test))]
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum IosCameraWhiteBalanceMode {
+    /// Hold the current white-balance values
+    Locked,
+    /// Adjust white balance once, then lock the resulting values
+    AutoWhiteBalance,
+    /// Continue to adjust white balance automatically
+    ContinuousAutoWhiteBalance,
+}
+
+/// Failure to query or configure white balance on the session's selected camera
+#[cfg(any(target_os = "ios", test))]
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum WhiteBalanceControlError {
+    /// The session graph has no configured video device
+    NoSelectedCamera,
+    /// The selected camera does not support the requested white-balance mode
+    WhiteBalanceModeUnsupported,
+    /// AVFoundation could not lock the selected camera for configuration
+    ConfigurationLockFailed,
+}
+
 /// Public AVFoundation exposure behavior for the selected camera
 #[cfg(any(target_os = "ios", test))]
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -1438,6 +1462,43 @@ fn configure_exposure(
 }
 
 #[cfg(any(target_os = "ios", test))]
+fn with_selected_white_balance_camera<T, R>(
+    device: Option<T>,
+    operation: impl FnOnce(T) -> Result<R, WhiteBalanceControlError>,
+) -> Result<R, WhiteBalanceControlError> {
+    operation(device.ok_or(WhiteBalanceControlError::NoSelectedCamera)?)
+}
+
+#[cfg(any(target_os = "ios", test))]
+fn configure_white_balance_mode(
+    mode: IosCameraWhiteBalanceMode,
+    is_supported: impl FnOnce(IosCameraWhiteBalanceMode) -> bool,
+    lock: impl FnOnce() -> Result<(), ()>,
+    set_mode: impl FnOnce(IosCameraWhiteBalanceMode),
+    unlock: impl FnOnce(),
+) -> Result<(), WhiteBalanceControlError> {
+    if !is_supported(mode) {
+        return Err(WhiteBalanceControlError::WhiteBalanceModeUnsupported);
+    }
+    lock().map_err(|()| WhiteBalanceControlError::ConfigurationLockFailed)?;
+    let unlock = UnlockDeviceConfiguration(Some(unlock));
+    set_mode(mode);
+    drop(unlock);
+    Ok(())
+}
+
+#[cfg(target_os = "ios")]
+fn native_white_balance_mode(mode: IosCameraWhiteBalanceMode) -> AVCaptureWhiteBalanceMode {
+    match mode {
+        IosCameraWhiteBalanceMode::Locked => AVCaptureWhiteBalanceMode::Locked,
+        IosCameraWhiteBalanceMode::AutoWhiteBalance => AVCaptureWhiteBalanceMode::AutoWhiteBalance,
+        IosCameraWhiteBalanceMode::ContinuousAutoWhiteBalance => {
+            AVCaptureWhiteBalanceMode::ContinuousAutoWhiteBalance
+        }
+    }
+}
+
+#[cfg(any(target_os = "ios", test))]
 fn exposure_target_bias_range(
     minimum: f32,
     maximum: f32,
@@ -1569,6 +1630,29 @@ pub struct IosCameraCaptureSession {
 
 #[cfg(target_os = "ios")]
 impl IosCameraCaptureSession {
+    fn run_capture_queue_sync<T: Send + 'static>(
+        &self,
+        work: impl FnOnce() -> T + Send + 'static,
+    ) -> T {
+        let queue = self.queue.clone();
+        run_on_capture_queue(
+            is_current_capture_queue(&self.queue_key),
+            work,
+            move |work| {
+                let result = Mutex::new(None);
+                queue.exec_sync(|| {
+                    *result
+                        .lock()
+                        .unwrap_or_else(std::sync::PoisonError::into_inner) = Some(work());
+                });
+                result
+                    .into_inner()
+                    .unwrap_or_else(std::sync::PoisonError::into_inner)
+                    .expect("capture queue returns a synchronous result")
+            },
+        )
+    }
+
     /// Create a session for the already-authorized default video capture device
     ///
     /// This call does not show a permission prompt. Request camera authorization through the
@@ -1888,6 +1972,66 @@ impl IosCameraCaptureSession {
             );
         });
         result
+    }
+
+    /// Query whether the selected camera supports a white-balance mode
+    ///
+    /// This read-only query runs on the capture queue and does not acquire the device
+    /// configuration lock. A camera mode may be unavailable on a particular device. Calls from
+    /// this session's capture queue run inline to avoid synchronous queue reentrancy.
+    pub fn is_white_balance_mode_supported(
+        &self,
+        mode: IosCameraWhiteBalanceMode,
+    ) -> Result<bool, WhiteBalanceControlError> {
+        let graph = Arc::clone(&self.graph);
+        self.run_capture_queue_sync(move || {
+            let graph = graph
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner);
+            with_selected_white_balance_camera(graph.device.as_ref(), |device| {
+                // SAFETY: This is a public AVFoundation query on the retained selected device;
+                // the package's iOS 10.0 and Simulator 14.0 floors exceed its iOS 4.0 floor.
+                Ok(unsafe { device.isWhiteBalanceModeSupported(native_white_balance_mode(mode)) })
+            })
+        })
+    }
+
+    /// Set white balance on the session's already selected camera
+    ///
+    /// `Locked` holds the current white balance, `AutoWhiteBalance` adjusts once then locks, and
+    /// `ContinuousAutoWhiteBalance` continues automatic adjustment. Support is checked before the
+    /// device configuration lock; the mode is set under that lock on the serialized capture queue.
+    /// This does not set manual gains or temperature/tint, prompt, switch cameras, or alter session
+    /// or audio policy. Calls from this session's capture queue run inline to avoid synchronous
+    /// queue reentrancy.
+    pub fn set_white_balance_mode(
+        &self,
+        mode: IosCameraWhiteBalanceMode,
+    ) -> Result<(), WhiteBalanceControlError> {
+        let graph = Arc::clone(&self.graph);
+        self.run_capture_queue_sync(move || {
+            let graph = graph
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner);
+            with_selected_white_balance_camera(graph.device.as_ref(), |device| {
+                configure_white_balance_mode(
+                    mode,
+                    // SAFETY: The public support query is available from iOS 4.0 and runs on the
+                    // retained selected device before its configuration lock is acquired.
+                    |mode| unsafe {
+                        device.isWhiteBalanceModeSupported(native_white_balance_mode(mode))
+                    },
+                    // SAFETY: The selected device remains retained under the graph mutex for
+                    // this serialized operation; lockForConfiguration is public AVFoundation API.
+                    || unsafe { device.lockForConfiguration().map_err(|_| ()) },
+                    // SAFETY: The exact requested mode was checked above and the lock is held.
+                    |mode| unsafe { device.setWhiteBalanceMode(native_white_balance_mode(mode)) },
+                    // SAFETY: configure_white_balance_mode invokes this only after a successful
+                    // matching lock.
+                    || unsafe { device.unlockForConfiguration() },
+                )
+            })
+        })
     }
 
     /// Set the selected camera's exposure mode and optional normalized point of interest
@@ -2811,12 +2955,14 @@ mod tests {
     use super::{
         CameraCaptureError, CameraPositionSwitchError, ExposureControlError, FocusControlError,
         IosCameraExposureMode, IosCameraFocusMode, IosCameraPosition, IosCameraVideoOrientation,
-        MediaAuthorizationStatus, MovieOrientationError, MovieRecordingState, NormalizedFocusPoint,
-        PhotoCaptureError, PhotoCaptureResult, TorchControlError, VideoFrameStreamError,
-        VideoFrameStreamState, VideoRecordingError, VideoRecordingResult, ZoomControlError,
+        IosCameraWhiteBalanceMode, MediaAuthorizationStatus, MovieOrientationError,
+        MovieRecordingState, NormalizedFocusPoint, PhotoCaptureError, PhotoCaptureResult,
+        TorchControlError, VideoFrameStreamError, VideoFrameStreamState, VideoRecordingError,
+        VideoRecordingResult, WhiteBalanceControlError, ZoomControlError,
         camera_position_switch_required, configure_exposure, configure_exposure_target_bias,
         configure_focus, configure_movie_orientation, configure_torch_enabled,
-        configure_video_zoom_factor, drop_video_frame_callback_safely, exposure_target_bias_range,
+        configure_video_zoom_factor, configure_white_balance_mode,
+        drop_video_frame_callback_safely, exposure_target_bias_range,
         finish_camera_input_replacement, invoke_video_frame_callback, map_camera_video_orientation,
         may_create_device_input, photo_request_error, prepare_optional_movie_audio,
         replace_camera_session_input, require_camera_at_position, require_selected_camera,
@@ -2824,6 +2970,7 @@ mod tests {
         set_supported_movie_orientation, settle_movie_result, settle_movie_terminal,
         settle_photo_result, take_photo_completion, take_video_completion,
         validate_movie_destination, with_authorized_microphone, with_selected_exposure_camera,
+        with_selected_white_balance_camera,
     };
     use std::cell::RefCell;
     use std::path::PathBuf;
@@ -3698,6 +3845,111 @@ mod tests {
         }));
         assert!(result.is_err());
         assert_eq!(*events.borrow(), ["lock", "set-point", "unlock"]);
+    }
+
+    #[test]
+    fn white_balance_control_requires_a_selected_camera() {
+        assert_eq!(with_selected_white_balance_camera(Some(17_u8), Ok), Ok(17));
+        assert_eq!(
+            with_selected_white_balance_camera::<u8, ()>(None, |_| Ok(())),
+            Err(WhiteBalanceControlError::NoSelectedCamera)
+        );
+    }
+
+    #[test]
+    fn white_balance_control_rejects_unsupported_mode_before_lock() {
+        assert_eq!(
+            configure_white_balance_mode(
+                IosCameraWhiteBalanceMode::ContinuousAutoWhiteBalance,
+                |mode| {
+                    assert_eq!(mode, IosCameraWhiteBalanceMode::ContinuousAutoWhiteBalance);
+                    false
+                },
+                || panic!("unsupported white-balance mode must not lock the device"),
+                |_| panic!("unsupported white-balance mode must not be set"),
+                || panic!("device was not locked"),
+            ),
+            Err(WhiteBalanceControlError::WhiteBalanceModeUnsupported)
+        );
+    }
+
+    #[test]
+    fn white_balance_control_reports_configuration_lock_failure() {
+        let events = RefCell::new(Vec::new());
+        assert_eq!(
+            configure_white_balance_mode(
+                IosCameraWhiteBalanceMode::Locked,
+                |_| {
+                    events.borrow_mut().push("supports");
+                    true
+                },
+                || {
+                    events.borrow_mut().push("lock");
+                    Err(())
+                },
+                |_| panic!("failed device lock must not set white balance"),
+                || panic!("failed device lock must not unlock"),
+            ),
+            Err(WhiteBalanceControlError::ConfigurationLockFailed)
+        );
+        assert_eq!(*events.borrow(), ["supports", "lock"]);
+    }
+
+    #[test]
+    fn white_balance_control_checks_support_then_sets_and_unlocks() {
+        for mode in [
+            IosCameraWhiteBalanceMode::Locked,
+            IosCameraWhiteBalanceMode::AutoWhiteBalance,
+            IosCameraWhiteBalanceMode::ContinuousAutoWhiteBalance,
+        ] {
+            let events = RefCell::new(Vec::new());
+            assert_eq!(
+                configure_white_balance_mode(
+                    mode,
+                    |requested| {
+                        assert_eq!(requested, mode);
+                        events.borrow_mut().push("supports");
+                        true
+                    },
+                    || {
+                        events.borrow_mut().push("lock");
+                        Ok(())
+                    },
+                    |requested| {
+                        assert_eq!(requested, mode);
+                        events.borrow_mut().push("set");
+                    },
+                    || events.borrow_mut().push("unlock"),
+                ),
+                Ok(())
+            );
+            assert_eq!(*events.borrow(), ["supports", "lock", "set", "unlock"]);
+        }
+    }
+
+    #[test]
+    fn white_balance_control_unlocks_after_unwind() {
+        let events = RefCell::new(Vec::new());
+        let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            configure_white_balance_mode(
+                IosCameraWhiteBalanceMode::AutoWhiteBalance,
+                |_| {
+                    events.borrow_mut().push("supports");
+                    true
+                },
+                || {
+                    events.borrow_mut().push("lock");
+                    Ok(())
+                },
+                |_| {
+                    events.borrow_mut().push("set");
+                    panic!("simulated white-balance mode set panic")
+                },
+                || events.borrow_mut().push("unlock"),
+            )
+        }));
+        assert!(result.is_err());
+        assert_eq!(*events.borrow(), ["supports", "lock", "set", "unlock"]);
     }
 
     #[test]

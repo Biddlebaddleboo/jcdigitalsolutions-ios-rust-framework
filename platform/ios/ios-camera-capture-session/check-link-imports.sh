@@ -93,6 +93,8 @@ for target in aarch64-apple-ios aarch64-apple-ios-sim; do
         setFocusMode: \
         isFocusPointOfInterestSupported \
         setFocusPointOfInterest: \
+        isWhiteBalanceModeSupported: \
+        setWhiteBalanceMode: \
         isExposureModeSupported: \
         setExposureMode: \
         isExposurePointOfInterestSupported \

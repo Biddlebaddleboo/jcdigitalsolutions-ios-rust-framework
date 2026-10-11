@@ -27,6 +27,14 @@ fn main() {
     let _ = std::hint::black_box(
         session.set_focus(ios_camera_capture_session::IosCameraFocusMode::Locked, None),
     );
+    for mode in [
+        ios_camera_capture_session::IosCameraWhiteBalanceMode::Locked,
+        ios_camera_capture_session::IosCameraWhiteBalanceMode::AutoWhiteBalance,
+        ios_camera_capture_session::IosCameraWhiteBalanceMode::ContinuousAutoWhiteBalance,
+    ] {
+        let _ = std::hint::black_box(session.is_white_balance_mode_supported(mode));
+        let _ = std::hint::black_box(session.set_white_balance_mode(mode));
+    }
     let _ = std::hint::black_box(session.set_exposure(
         ios_camera_capture_session::IosCameraExposureMode::AutoExpose,
         Some(ios_camera_capture_session::NormalizedFocusPoint::new(
