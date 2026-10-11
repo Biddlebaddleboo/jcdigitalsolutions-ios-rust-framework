@@ -16,7 +16,8 @@ use objc2::{DefinedClass, MainThreadMarker, MainThreadOnly, Message, define_clas
 use objc2_core_foundation::{CGPoint, CGRect, CGSize};
 use objc2_foundation::{NSObjectProtocol, NSRange, NSString};
 use objc2_ui_kit::{
-    UIApplication, UIButton, UIControlEvents, UIControlState, UIImage, UIImageView, UIKeyboardType,
+    UIApplication, UIButton, UIColor, UIControlEvents, UIControlState, UIImage, UIImageView,
+    UIKeyboardType,
     UILabel, UILayoutConstraintAxis, UIScrollView, UIStackView, UISwitch, UITextField,
     UITextInputTraits, UIView,
 };
@@ -25,6 +26,7 @@ use crate::keyboard_action_policy::run_with_main_thread_marker;
 use crate::layout_policy::{OneShotConstraints, ScrollLayoutPolicy};
 use crate::scroll_policy::validated_content_size;
 use crate::stack_spacing::is_valid_stack_spacing;
+use crate::system_symbol_policy::{resolve_system_symbol, validate_system_symbol_name};
 use crate::text_conversion::{Utf16Error, decode_utf16};
 use crate::text_policy::{KeyboardHint, TextFieldCallback, input_traits, invoke_text_callback};
 use crate::toggle_policy::invoke_toggle_callback;
@@ -368,6 +370,44 @@ impl IosUiBackend {
         })
     }
 
+    /// Adds a native image view for a public UIKit system symbol.
+    ///
+    /// System symbols require iOS 13.0 or later; this crate returns `Unsupported` on older
+    /// systems. An empty name returns `InvalidInput`, and a name UIKit does not recognize returns
+    /// `Unavailable`. The optional tint is applied to the `UIImageView`; when omitted, UIKit's
+    /// inherited tint remains in effect.
+    pub fn add_system_symbol_image_view(
+        &mut self,
+        parent: &mut IosView,
+        frame: Frame,
+        symbol_name: &str,
+        tint: Option<&UIColor>,
+    ) -> Result<IosImageView> {
+        let marker = main_thread_marker()?;
+        if !objc2::available!(ios = 13.0, ..) {
+            return Err(Error::new(ErrorKind::Unsupported));
+        }
+        validate_system_symbol_name(symbol_name)?;
+        let image = autoreleasepool(|_| {
+            let name = NSString::from_str(symbol_name);
+            UIImage::systemImageNamed(&name)
+        });
+        let image = resolve_system_symbol(image)?;
+        let native = UIImageView::new(marker);
+        native.setFrame(native_frame(frame));
+        native.setImage(Some(&image));
+        if let Some(tint) = tint {
+            // SAFETY: the new view is used on the proven main thread and the non-null tint is a
+            // valid UIColor borrow for this synchronous setter call.
+            unsafe { native.setTintColor(Some(tint)) };
+        }
+        parent.native.addSubview(&native);
+        Ok(IosImageView {
+            native,
+            _not_send: PhantomData,
+        })
+    }
+
     /// Adds a native text field to `parent` with optional text and placeholder values.
     ///
     /// `None` clears a native value; `Some("")` sets an empty string. Text values use explicit
@@ -438,6 +478,14 @@ impl IosImageView {
     /// Clears the image.
     pub fn clear_image(&mut self) -> Result<()> {
         self.set_image(None)
+    }
+
+    /// Sets a native UIKit tint color on the image view.
+    pub fn set_tint_color(&mut self, tint: &UIColor) -> Result<()> {
+        let _image_tint_thread = main_thread_marker()?;
+        // SAFETY: UIKit's non-null tint setter receives a valid UIColor borrow on the main thread.
+        unsafe { self.native.setTintColor(Some(tint)) };
+        Ok(())
     }
 
     /// Borrows the native image view for UIKit use.

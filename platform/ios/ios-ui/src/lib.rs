@@ -22,6 +22,8 @@ mod scroll_policy;
 #[cfg(any(test, target_os = "ios"))]
 mod stack_spacing;
 #[cfg(any(test, target_os = "ios"))]
+mod system_symbol_policy;
+#[cfg(any(test, target_os = "ios"))]
 mod text_conversion;
 /// System UI font vertical metrics from CoreText.
 #[cfg(target_os = "ios")]

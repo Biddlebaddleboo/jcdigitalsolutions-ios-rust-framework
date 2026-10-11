@@ -223,6 +223,28 @@ image_view.set_image(Some(&replacement))?;
 image_view.clear_image()?;
 ```
 
+`IosUiBackend::add_system_symbol_image_view` creates a `UIImageView` from UIKit's public
+`UIImage.systemImageNamed:` API, so Rust callers can use system symbol names without constructing a
+`UIImage`. UIKit added this constructor in iOS 13.0; `ios-ui` retains its iOS 12.0 device floor and
+returns `Unsupported` below the API floor. An empty name returns `InvalidInput`; a name UIKit does
+not recognize returns `Unavailable`. Names are passed through without a framework-maintained
+allowlist, so future public symbol names remain usable. Pass an optional native `UIColor` to set a
+tint; `None` preserves UIKit's inherited tint. `IosImageView::set_tint_color` can update it later
+
+```rust
+let blue = UIColor::blueColor();
+let checkmark = backend.add_system_symbol_image_view(
+    &mut parent,
+    frame,
+    "checkmark.circle.fill",
+    Some(&blue),
+)?;
+```
+
+The B530 link/import probe checks the `UIImage.systemImageNamed:` and `UIView.setTintColor:`
+selectors, UIKit linkage, and unchanged iOS 12.0 device / iOS 14.0 Simulator deployment targets.
+It does not execute the probe or prove symbol lookup, tint appearance, or runtime rendering
+
 ## CoreGraphics frame intersection
 
 `ios_ui::geometry::intersection(first, second)` calls the public CoreGraphics C functions
