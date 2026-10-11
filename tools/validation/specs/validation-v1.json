@@ -25,6 +25,14 @@
       "ios-media-authorization"
     ],
     [
+      "ios-microphone-recorder",
+      "framework-media-authorization"
+    ],
+    [
+      "ios-microphone-recorder",
+      "ios-media-authorization"
+    ],
+    [
       "ios-activitykit-status",
       "swift-abi-core"
     ],
@@ -142,6 +150,158 @@
       ],
       "source_dirs": [
         "platform/ios/ios-app-lifecycle"
+      ],
+      "targets": [
+        {
+          "minimum_os": "10.0",
+          "sdk": "iphoneos",
+          "triple": "aarch64-apple-ios"
+        },
+        {
+          "minimum_os": "14.0",
+          "sdk": "iphonesimulator",
+          "triple": "aarch64-apple-ios-sim"
+        }
+      ]
+    },
+    {
+      "abi_scripts": [
+        "platform/ios/ios-microphone-recorder/check-link-imports.sh"
+      ],
+      "abi_targets": [
+        {
+          "minimum_os": "10.0",
+          "sdk": "iphoneos",
+          "triple": "aarch64-apple-ios"
+        },
+        {
+          "minimum_os": "14.0",
+          "sdk": "iphonesimulator",
+          "triple": "aarch64-apple-ios-sim"
+        }
+      ],
+      "adapters": [],
+      "cargo_tree": false,
+      "check_script": "platform/ios/ios-microphone-recorder/check-link-imports.sh",
+      "clippy_all_targets": true,
+      "clippy_lib": false,
+      "docs": [
+        "docs/capabilities/capability-status.json",
+        "docs/ios/microphone-recorder.md",
+        "PLAN.md"
+      ],
+      "expected_imports": [
+        "AVFoundation.framework",
+        "Foundation.framework",
+        "objc_msgSend"
+      ],
+      "fmt_all": false,
+      "guards": [
+        {
+          "message": "recorder creation must read existing microphone authorization without prompting",
+          "must_exist": true,
+          "path": "platform/ios/ios-microphone-recorder/src/lib.rs",
+          "text": "IosMediaAuthorization::authorization_status("
+        },
+        {
+          "message": "recording must fail closed unless microphone authorization is Authorized",
+          "must_exist": true,
+          "path": "platform/ios/ios-microphone-recorder/src/lib.rs",
+          "text": "matches!(status, MediaAuthorizationStatus::Authorized)"
+        },
+        {
+          "message": "AVAudioFormat creation must enforce the iOS 10 deployment floor",
+          "must_exist": true,
+          "path": "platform/ios/ios-microphone-recorder/src/lib.rs",
+          "text": "objc2::available!(ios = 10.0, ..)"
+        },
+        {
+          "message": "PCM must use the public AVAudioFormat common-format initializer",
+          "must_exist": true,
+          "path": "platform/ios/ios-microphone-recorder/src/lib.rs",
+          "text": "AVAudioFormat::initWithCommonFormat_sampleRate_channels_interleaved"
+        },
+        {
+          "message": "file recording must use the public AVAudioRecorder format initializer",
+          "must_exist": true,
+          "path": "platform/ios/ios-microphone-recorder/src/lib.rs",
+          "text": "AVAudioRecorder::initWithURL_format_error"
+        },
+        {
+          "message": "recorder start must recheck microphone authorization",
+          "must_exist": true,
+          "path": "platform/ios/ios-microphone-recorder/src/lib.rs",
+          "text": "pub fn start(&mut self) -> Result<(), MicrophoneRecorderError>"
+        },
+        {
+          "message": "recording must not request microphone permission",
+          "must_exist": false,
+          "path": "platform/ios/ios-microphone-recorder/src/lib.rs",
+          "text": "IosMediaAuthorization::request"
+        },
+        {
+          "message": "recording must not invoke the AVFoundation permission prompt",
+          "must_exist": false,
+          "path": "platform/ios/ios-microphone-recorder/src/lib.rs",
+          "text": "requestAccessForMediaType_completionHandler"
+        },
+        {
+          "message": "the recorder must not configure or activate shared AVAudioSession state",
+          "must_exist": false,
+          "path": "platform/ios/ios-microphone-recorder/src/lib.rs",
+          "text": "AVAudioSession::sharedInstance"
+        },
+        {
+          "message": "the recorder must not change the shared audio-session category",
+          "must_exist": false,
+          "path": "platform/ios/ios-microphone-recorder/src/lib.rs",
+          "text": "setCategory_mode_options_error"
+        },
+        {
+          "message": "the recorder must not activate or deactivate the shared audio session",
+          "must_exist": false,
+          "path": "platform/ios/ios-microphone-recorder/src/lib.rs",
+          "text": "setActive_error"
+        },
+        {
+          "message": "the output file must close when the recorder is dropped",
+          "must_exist": true,
+          "path": "platform/ios/ios-microphone-recorder/src/lib.rs",
+          "text": "impl Drop for IosMicrophoneRecorder"
+        },
+        {
+          "message": "the recorder dependency must not enable AVAudioSession",
+          "must_exist": false,
+          "path": "platform/ios/ios-microphone-recorder/Cargo.toml",
+          "text": "\"AVAudioSession\""
+        }
+      ],
+      "id": "ios-microphone-pcm-recorder",
+      "manifest": "platform/ios/ios-microphone-recorder/Cargo.toml",
+      "offline": false,
+      "package": "ios-microphone-recorder",
+      "rustdoc_warnings": false,
+      "scoped_files": [
+        "Cargo.lock",
+        "platform/ios/ios-microphone-recorder/Cargo.toml",
+        "platform/ios/ios-microphone-recorder/check-link-imports.sh",
+        "platform/ios/ios-microphone-recorder/examples/microphone_recorder_link_probe.rs",
+        "platform/ios/ios-microphone-recorder/src/lib.rs",
+        "platform/ios/ios-media-authorization/src/lib.rs",
+        "platform/ios/ios-media-authorization/src/platform.rs",
+        "platform/ios/ios-media-authorization/src/status.rs",
+        "crates/framework-media-authorization/src/lib.rs",
+        "docs/capabilities/capability-status.json",
+        "docs/generated/VALIDATION_PROFILES.md",
+        "docs/ios/microphone-recorder.md",
+        "PLAN.md",
+        "tools/validation/specs/validation-v1.json"
+      ],
+      "shell_scripts": [
+        "platform/ios/ios-microphone-recorder/check-link-imports.sh"
+      ],
+      "source_dirs": [
+        "platform/ios/ios-microphone-recorder"
       ],
       "targets": [
         {
@@ -1201,6 +1361,11 @@
     {
       "path": "platform/ios/ios-camera-capture-session/",
       "node": "ios-camera-capture-session",
+      "global": false
+    },
+    {
+      "path": "platform/ios/ios-microphone-recorder/",
+      "node": "ios-microphone-recorder",
       "global": false
     },
     {

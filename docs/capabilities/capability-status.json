@@ -1474,7 +1474,8 @@
       "capability": "microphone/audio engine/I/O",
       "crate_module": [
         "framework-media-authorization",
-        "ios-media-authorization"
+        "ios-media-authorization",
+        "ios-microphone-recorder"
       ],
       "crate_module_status": "portable_contract_and_ios_backend_partial",
       "portability_class": "portable_with_platform_extensions",
@@ -1482,10 +1483,12 @@
       "portable_contract_note": "framework-media-authorization defines microphone authorization status and explicit request operations; iOS requests do not create audio I/O or expose samples.",
       "ios_implementation_class": "B",
       "implementation_status": "partial",
-      "status_reason": "B36 provides a non-prompting microphone authorization query; an additive MediaAuthorizationRequester operation explicitly requests microphone permission. It does not enumerate devices, create an audio session, or access samples.",
+      "status_reason": "B36 provides a non-prompting microphone authorization query; an additive MediaAuthorizationRequester operation explicitly requests microphone permission. B457 adds authorized PCM file recording through AVAudioRecorder with caller-owned audio-session configuration. Device enumeration, live sample callbacks, AVAudioEngine, and runtime recording/output-file proof remain incomplete or unverified.",
       "minimum_ios_version": "7.0",
       "required_frameworks": [
-        "AVFoundation"
+        "AVFAudio",
+        "AVFoundation",
+        "Foundation"
       ],
       "required_permissions": [],
       "required_info_plist_keys": [
@@ -1494,7 +1497,7 @@
       "entitlements": [],
       "device_only_restrictions": null,
       "swift_abi_requirement": false,
-      "metadata_verification": "Xcode 26.6 build 17F113 / iOS SDK 26.5 AVCaptureDevice.h declares authorizationStatusForMediaType: and requestAccessForMediaType:completionHandler: from iOS 7.0; the Rust 1.94.1 package checks and ios-media-authorization validator profile pass; no permission prompt or capture ran; NSMicrophoneUsageDescription is required for the explicit request, not the status query; no entitlement or sample access is included.",
+      "metadata_verification": "B457 binds the public iOS 10 AVAudioFormat common-PCM initializer and AVAudioRecorder format initializer with the pinned objc2-avf-audio 0.3.2 bindings. Recorder creation and each start require existing Authorized status; this crate never requests permission or mutates AVAudioSession. NSMicrophoneUsageDescription is required for host permission requests. Device/Simulator compile and link do not verify recording or output-file contents at runtime.",
       "parity_status": "not_tested_live_behavior_or_Apple_parity",
       "performance_status": "not_measured",
       "native_escape_handle_available": false,

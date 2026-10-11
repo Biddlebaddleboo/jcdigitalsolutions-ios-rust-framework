@@ -7,6 +7,7 @@ The following are configured validation profiles, not claims that every gate pas
 | Profile | Package | iOS targets | ABI scripts | Adapters | Offline |
 | --- | --- | ---: | ---: | ---: | --- |
 | ios-app-lifecycle | ios-app-lifecycle | 2 | 1 | 1 | False |
+| ios-microphone-pcm-recorder | ios-microphone-recorder | 2 | 1 | 0 | False |
 | ios-app-scenes | ios-app-scenes | 2 | 1 | 0 | False |
 | ios-media-authorization | ios-media-authorization | 2 | 1 | 1 | False |
 | ios-camera-capture-session | ios-camera-capture-session | 2 | 1 | 0 | False |

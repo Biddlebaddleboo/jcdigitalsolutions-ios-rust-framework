@@ -1,0 +1,20 @@
+[package]
+name = "ios-microphone-recorder"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "Authorized iOS microphone PCM file recording"
+
+[dependencies]
+framework-media-authorization = { path = "../../../crates/framework-media-authorization", version = "0.1.0" }
+
+[target.'cfg(target_os = "ios")'.dependencies]
+ios-media-authorization = { path = "../ios-media-authorization", version = "0.1.0" }
+objc2 = { workspace = true }
+objc2-avf-audio = { workspace = true, features = ["AVAudioRecorder", "AVAudioFormat", "AVAudioTypes"] }
+objc2-foundation = { workspace = true, features = ["NSString", "NSURL"] }
+
+[lints]
+workspace = true
