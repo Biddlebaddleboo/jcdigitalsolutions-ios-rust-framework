@@ -1,5 +1,5 @@
 #[cfg(target_os = "ios")]
-use framework_ui::{Frame, UiBackend};
+use framework_ui::{Frame, TextFieldInputMode, UiBackend};
 #[cfg(target_os = "ios")]
 use ios_runtime::main_thread::MainThread;
 #[cfg(target_os = "ios")]
@@ -43,6 +43,25 @@ fn main() {
         return;
     };
     let _ = callback_field.native_text_field();
+
+    for input_mode in [
+        TextFieldInputMode::Text,
+        TextFieldInputMode::Password,
+        TextFieldInputMode::Number,
+        TextFieldInputMode::Decimal,
+    ] {
+        let Ok(field) = ui.add_text_field_with_mode(
+            &mut callback_parent,
+            frame,
+            input_mode,
+            Some("not numeric"),
+            Some("Hint"),
+            |_| {},
+        ) else {
+            return;
+        };
+        let _ = field.native_text_field();
+    }
 }
 
 #[cfg(not(target_os = "ios"))]

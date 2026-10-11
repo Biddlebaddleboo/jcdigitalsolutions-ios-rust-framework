@@ -1,8 +1,25 @@
 use core::cell::RefCell;
 
 use framework_core::Result;
+use framework_ui::TextFieldInputMode;
 
 pub(crate) type TextFieldCallback = Box<dyn FnMut(Result<Option<String>>)>;
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(crate) enum KeyboardHint {
+    Default,
+    NumberPad,
+    DecimalPad,
+}
+
+pub(crate) const fn input_traits(mode: TextFieldInputMode) -> (bool, KeyboardHint) {
+    match mode {
+        TextFieldInputMode::Text => (false, KeyboardHint::Default),
+        TextFieldInputMode::Password => (true, KeyboardHint::Default),
+        TextFieldInputMode::Number => (false, KeyboardHint::NumberPad),
+        TextFieldInputMode::Decimal => (false, KeyboardHint::DecimalPad),
+    }
+}
 
 #[cfg(target_os = "ios")]
 fn catch_text_panic(callback: impl FnOnce()) {
@@ -27,9 +44,13 @@ pub(crate) fn invoke_text_callback(
 
 #[cfg(test)]
 mod tests {
-    use super::{TextFieldCallback, invoke_text_callback};
+    use super::{KeyboardHint, TextFieldCallback, input_traits, invoke_text_callback};
     use core::cell::{Cell, RefCell};
     use framework_core::{Error, ErrorKind, Result};
+    use framework_ui::{
+        ButtonControl, Frame, LabelControl, TextFieldControl, TextFieldInputMode, ToggleControl,
+        UiBackend, UiClient,
+    };
     use std::boxed::Box;
     use std::rc::{Rc, Weak};
 
@@ -37,6 +58,199 @@ mod tests {
     type Callback = Rc<CallbackCell>;
     type WeakCallback = Weak<CallbackCell>;
     type CallbackSlot = Rc<RefCell<Option<WeakCallback>>>;
+
+    struct ModeField {
+        input_mode: TextFieldInputMode,
+        text: Option<String>,
+        action: Box<dyn FnMut(Result<Option<String>>)>,
+    }
+
+    impl ModeField {
+        fn user_edit(&mut self, text: Option<&str>) {
+            self.text = text.map(String::from);
+            (self.action)(Ok(self.text.clone()));
+        }
+    }
+
+    impl TextFieldControl for ModeField {
+        fn text(&self) -> Result<Option<String>> {
+            Ok(self.text.clone())
+        }
+
+        fn set_text(&mut self, text: Option<&str>) -> Result<()> {
+            self.text = text.map(String::from);
+            Ok(())
+        }
+    }
+
+    struct UnsupportedControl;
+    struct ModeView;
+
+    impl LabelControl for UnsupportedControl {
+        fn set_text(&mut self, _text: &str) -> Result<()> {
+            Err(Error::new(ErrorKind::Unsupported))
+        }
+    }
+
+    impl ButtonControl for UnsupportedControl {
+        fn set_title(&mut self, _title: &str) -> Result<()> {
+            Err(Error::new(ErrorKind::Unsupported))
+        }
+    }
+
+    impl ToggleControl for UnsupportedControl {
+        fn is_on(&self) -> Result<bool> {
+            Err(Error::new(ErrorKind::Unsupported))
+        }
+
+        fn set_state(&mut self, _on: bool) -> Result<()> {
+            Err(Error::new(ErrorKind::Unsupported))
+        }
+    }
+
+    struct ModeBackend;
+
+    impl UiBackend for ModeBackend {
+        type View = ModeView;
+        type Label = UnsupportedControl;
+        type Button = UnsupportedControl;
+        type Toggle = UnsupportedControl;
+        type TextField = ModeField;
+
+        fn create_view(&mut self, _frame: Frame) -> Result<Self::View> {
+            Ok(ModeView)
+        }
+
+        fn add_label(
+            &mut self,
+            _parent: &mut Self::View,
+            _frame: Frame,
+            _text: &str,
+        ) -> Result<Self::Label> {
+            Err(Error::new(ErrorKind::Unsupported))
+        }
+
+        fn add_button<F>(
+            &mut self,
+            _parent: &mut Self::View,
+            _frame: Frame,
+            _title: &str,
+            action: F,
+        ) -> Result<Self::Button>
+        where
+            F: FnMut() + 'static,
+        {
+            drop(action);
+            Err(Error::new(ErrorKind::Unsupported))
+        }
+
+        fn add_toggle<F>(
+            &mut self,
+            _parent: &mut Self::View,
+            _frame: Frame,
+            _initial_on: bool,
+            action: F,
+        ) -> Result<Self::Toggle>
+        where
+            F: FnMut(bool) + 'static,
+        {
+            drop(action);
+            Err(Error::new(ErrorKind::Unsupported))
+        }
+
+        fn add_text_field<F>(
+            &mut self,
+            parent: &mut Self::View,
+            frame: Frame,
+            initial_text: Option<&str>,
+            placeholder: Option<&str>,
+            action: F,
+        ) -> Result<Self::TextField>
+        where
+            F: FnMut(Result<Option<String>>) + 'static,
+        {
+            self.add_text_field_with_mode(
+                parent,
+                frame,
+                TextFieldInputMode::Text,
+                initial_text,
+                placeholder,
+                action,
+            )
+        }
+
+        fn add_text_field_with_mode<F>(
+            &mut self,
+            _parent: &mut Self::View,
+            _frame: Frame,
+            input_mode: TextFieldInputMode,
+            initial_text: Option<&str>,
+            _placeholder: Option<&str>,
+            action: F,
+        ) -> Result<Self::TextField>
+        where
+            F: FnMut(Result<Option<String>>) + 'static,
+        {
+            Ok(ModeField {
+                input_mode,
+                text: initial_text.map(String::from),
+                action: Box::new(action),
+            })
+        }
+    }
+
+    #[test]
+    fn input_modes_are_hints_and_creation_does_not_emit_edits() {
+        let mut ui = UiClient::new(ModeBackend);
+        let frame = Frame::new(0.0, 0.0, 120.0, 32.0).unwrap();
+        let mut parent = ui.create_view(frame).unwrap();
+
+        for input_mode in [
+            TextFieldInputMode::Text,
+            TextFieldInputMode::Password,
+            TextFieldInputMode::Number,
+            TextFieldInputMode::Decimal,
+        ] {
+            let calls = Rc::new(Cell::new(0));
+            let action_calls = calls.clone();
+            let mut field = ui
+                .add_text_field_with_mode(
+                    &mut parent,
+                    frame,
+                    input_mode,
+                    Some("not numeric"),
+                    None,
+                    move |_| action_calls.set(action_calls.get() + 1),
+                )
+                .unwrap();
+
+            assert_eq!(field.input_mode, input_mode);
+            assert_eq!(field.text(), Ok(Some(String::from("not numeric"))));
+            assert_eq!(calls.get(), 0);
+            field.user_edit(Some("still text"));
+            assert_eq!(calls.get(), 1);
+        }
+    }
+
+    #[test]
+    fn input_modes_map_to_secure_entry_and_keyboard_hints() {
+        assert_eq!(
+            input_traits(TextFieldInputMode::Text),
+            (false, KeyboardHint::Default)
+        );
+        assert_eq!(
+            input_traits(TextFieldInputMode::Password),
+            (true, KeyboardHint::Default)
+        );
+        assert_eq!(
+            input_traits(TextFieldInputMode::Number),
+            (false, KeyboardHint::NumberPad)
+        );
+        assert_eq!(
+            input_traits(TextFieldInputMode::Decimal),
+            (false, KeyboardHint::DecimalPad)
+        );
+    }
 
     #[test]
     fn callback_panic_is_contained_and_releases_its_borrow() {

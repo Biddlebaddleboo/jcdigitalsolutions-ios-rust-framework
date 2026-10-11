@@ -1,9 +1,10 @@
 # Portable UI Controls
 
 `framework-ui` is a `no_std` contract for a small set of native controls: a container view, text
-label, and button. It defines validated `Frame` values, static `UiBackend`, `LabelControl`, and
-`ButtonControl` traits, and the generic `UiClient<B>` facade. The facade holds the backend supplied
-by the caller; it does not discover a backend or start a runtime
+label, button, toggle, and single-line text field. It defines validated `Frame` values, static
+`UiBackend`, `LabelControl`, `ButtonControl`, `ToggleControl`, and `TextFieldControl` traits, and the
+generic `UiClient<B>` facade. The facade holds the backend supplied by the caller; it does not
+discover a backend or start a runtime
 
 ## Frames
 
@@ -30,6 +31,11 @@ handle owns the action; dropping that handle ends callback ownership. If creatio
 the consumed callback is dropped. Callback thread, reentrancy, and panic behavior are backend
 contracts. The portable API has no callback executor, result future, global registry, or
 platform-specific object type
+
+`UiClient::add_text_field_with_mode` accepts `TextFieldInputMode::{Text, Password, Number, Decimal}`.
+These are input/keyboard hints only: they do not parse, validate, or format text. The existing
+`add_text_field` remains plain text, and backends that do not implement non-`Text` modes return
+`Unsupported`
 
 ## iOS extension
 

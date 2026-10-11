@@ -214,6 +214,21 @@ pub trait TextFieldControl {
     fn set_text(&mut self, text: Option<&str>) -> Result<()>;
 }
 
+/// Semantic input and keyboard hints for a native single-line text field.
+///
+/// These modes do not parse, validate, or format field values.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum TextFieldInputMode {
+    /// Ordinary text with the platform's default keyboard.
+    Text,
+    /// Secure text entry with the platform's default keyboard.
+    Password,
+    /// Integer-oriented keyboard hint; the value remains text.
+    Number,
+    /// Decimal-oriented keyboard hint; the value remains text.
+    Decimal,
+}
+
 /// A compile-time-selected backend for a native container view and controls.
 ///
 /// The contract starts no process service, event loop, executor, or global registration. Each
@@ -296,6 +311,31 @@ pub trait UiBackend {
     ) -> Result<Self::TextField>
     where
         F: FnMut(Result<Option<String>>) + 'static;
+
+    /// Creates a text field with a semantic input mode.
+    ///
+    /// Backends that do not implement a non-`Text` mode return `Unsupported`. Modes are input
+    /// hints only and must not parse or rewrite the field value. The default implementation
+    /// preserves existing backends for ordinary `Text` input. Returning an error consumes and
+    /// drops `action`, as with `add_text_field`.
+    fn add_text_field_with_mode<F>(
+        &mut self,
+        parent: &mut Self::View,
+        frame: Frame,
+        input_mode: TextFieldInputMode,
+        initial_text: Option<&str>,
+        placeholder: Option<&str>,
+        action: F,
+    ) -> Result<Self::TextField>
+    where
+        F: FnMut(Result<Option<String>>) + 'static,
+    {
+        if input_mode == TextFieldInputMode::Text {
+            self.add_text_field(parent, frame, initial_text, placeholder, action)
+        } else {
+            Err(Error::new(ErrorKind::Unsupported))
+        }
+    }
 }
 
 /// A thin facade over caller-owned, statically selected native UI backend state.
@@ -366,6 +406,29 @@ impl<B: UiBackend> UiClient<B> {
     {
         self.backend
             .add_text_field(parent, frame, initial_text, placeholder, action)
+    }
+
+    /// Creates and attaches a text field with the supplied semantic input mode.
+    pub fn add_text_field_with_mode<F>(
+        &mut self,
+        parent: &mut B::View,
+        frame: Frame,
+        input_mode: TextFieldInputMode,
+        initial_text: Option<&str>,
+        placeholder: Option<&str>,
+        action: F,
+    ) -> Result<B::TextField>
+    where
+        F: FnMut(Result<Option<String>>) + 'static,
+    {
+        self.backend.add_text_field_with_mode(
+            parent,
+            frame,
+            input_mode,
+            initial_text,
+            placeholder,
+            action,
+        )
     }
 
     /// Borrows the explicitly supplied backend.

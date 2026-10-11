@@ -5,7 +5,8 @@ use std::rc::Rc;
 
 use framework_core::{Error, ErrorKind, Result};
 use framework_ui::{
-    ButtonControl, Frame, LabelControl, TextFieldControl, ToggleControl, UiBackend,
+    ButtonControl, Frame, LabelControl, TextFieldControl, TextFieldInputMode, ToggleControl,
+    UiBackend,
 };
 use ios_runtime::ffi::catch_unwind;
 use ios_runtime::main_thread::MainThread;
@@ -15,13 +16,13 @@ use objc2::{DefinedClass, MainThreadMarker, MainThreadOnly, Message, define_clas
 use objc2_core_foundation::{CGPoint, CGRect, CGSize};
 use objc2_foundation::{NSObjectProtocol, NSRange, NSString};
 use objc2_ui_kit::{
-    UIButton, UIControlEvents, UIControlState, UIImage, UIImageView, UILabel,
-    UILayoutConstraintAxis, UIStackView, UISwitch, UITextField, UIView,
+    UIButton, UIControlEvents, UIControlState, UIImage, UIImageView, UIKeyboardType, UILabel,
+    UILayoutConstraintAxis, UIStackView, UISwitch, UITextField, UITextInputTraits, UIView,
 };
 
 use crate::stack_spacing::is_valid_stack_spacing;
 use crate::text_conversion::{Utf16Error, decode_utf16};
-use crate::text_policy::{TextFieldCallback, invoke_text_callback};
+use crate::text_policy::{KeyboardHint, TextFieldCallback, input_traits, invoke_text_callback};
 use crate::toggle_policy::invoke_toggle_callback;
 
 /// A UIKit backend for caller-owned native controls.
@@ -658,9 +659,38 @@ impl UiBackend for IosUiBackend {
     where
         F: FnMut(Result<Option<String>>) + 'static,
     {
+        self.add_text_field_with_mode(
+            parent,
+            frame,
+            TextFieldInputMode::Text,
+            initial_text,
+            placeholder,
+            action,
+        )
+    }
+
+    fn add_text_field_with_mode<F>(
+        &mut self,
+        parent: &mut Self::View,
+        frame: Frame,
+        input_mode: TextFieldInputMode,
+        initial_text: Option<&str>,
+        placeholder: Option<&str>,
+        action: F,
+    ) -> Result<Self::TextField>
+    where
+        F: FnMut(Result<Option<String>>) + 'static,
+    {
         let marker = main_thread_marker()?;
         let native = UITextField::new(marker);
         native.setFrame(native_frame(frame));
+        let (secure_text_entry, keyboard_hint) = input_traits(input_mode);
+        native.setSecureTextEntry(secure_text_entry);
+        native.setKeyboardType(match keyboard_hint {
+            KeyboardHint::Default => UIKeyboardType::Default,
+            KeyboardHint::NumberPad => UIKeyboardType::NumberPad,
+            KeyboardHint::DecimalPad => UIKeyboardType::DecimalPad,
+        });
         autoreleasepool(|_| {
             let text = initial_text.map(NSString::from_str);
             native.setText(text.as_deref());

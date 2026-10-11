@@ -91,8 +91,18 @@ On iOS the callback uses public `UITextField` target/action for
 `Send`; panics are caught before returning through Objective-C and reentrant calls while the same
 `FnMut` is active are ignored. The returned `IosTextField` handle retains the target and unregisters
 only its exact selector and event on drop, even if the parent still retains the native field. The
-existing `IosUiBackend::add_text_field` no-callback API remains available. Host tests and device /
-Simulator compile-link checks do not prove live keyboard input or callback delivery
+existing `IosUiBackend::add_text_field` no-callback API remains available and keeps plain-text
+behavior
+
+`UiClient::add_text_field_with_mode` adds `TextFieldInputMode::{Text, Password, Number, Decimal}`.
+The iOS backend applies `UITextInputTraits::setSecureTextEntry` and `setKeyboardType` before
+attaching the field: `Text` uses the default keyboard without secure entry, `Password` uses secure
+entry with the default keyboard, and `Number` / `Decimal` select `UIKeyboardType::NumberPad` /
+`DecimalPad`. These modes are hints, not numeric parsers or validators; initial and edited values
+remain exact text, and creating a field does not emit an edit callback. Other backends may return
+`Unsupported` for modes they do not implement. No submit/return handling, autoformatting, keyboard
+management, or application state is added. Host regressions and device / Simulator compile-link
+checks do not prove live keyboard selection, secure rendering, or callback delivery
 
 ## Boolean toggle
 

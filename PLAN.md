@@ -330,6 +330,10 @@ B502 adds a no-std `ToggleControl` and callback-bearing `UiBackend::add_toggle` 
 
 B503 adds `TextFieldControl` and callback-bearing `UiClient::add_text_field` with fresh owned `Result<Option<String>>` snapshots. iOS forwards public `UITextField` `EditingChanged` events, preserves strict UTF-16 errors and nil/empty distinctions, contains panics/reentry, and removes its exact target on drop; secure entry, keyboard policy, state observation, and live input remain incomplete
 
+### B504 — semantic secure and numeric text-input hints (row 003)
+
+B504 adds reusable `TextFieldInputMode::{Text, Password, Number, Decimal}` and `UiClient::add_text_field_with_mode`, preserving old plain-text methods. The iOS backend applies public `UITextInputTraits` secure entry and default / number / decimal keyboard hints before attaching the field; modes do not parse or rewrite text, and creation does not emit an edit callback. Submit/return handling, app-state observation, route wiring, and live keyboard or secure-rendering behavior remain incomplete or unverified
+
 ## Active work selection and limits
 
 1. Inspect the canonical capability status/owner, the relevant family plan, then the named workstream plan and exact files/symbols. Do not scan the entire planning corpus or treat every existing plan as pending work.
