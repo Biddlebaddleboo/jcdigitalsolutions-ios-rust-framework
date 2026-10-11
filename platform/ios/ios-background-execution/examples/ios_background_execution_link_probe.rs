@@ -18,6 +18,14 @@ fn main() {
         core::hint::black_box(expiry.is_expired());
         lease.end();
     }
+
+    if let Some(main_thread) = MainThread::current() {
+        if let Ok(lease) =
+            IosBackgroundExecution::new().begin_with_expiration_handler(main_thread, || {})
+        {
+            lease.end();
+        }
+    }
 }
 
 #[cfg(not(target_os = "ios"))]

@@ -10,5 +10,8 @@ pub use framework_background_execution::{
 #[cfg(target_os = "ios")]
 mod platform;
 
+#[cfg(any(target_os = "ios", test))]
+mod lease_policy;
+
 #[cfg(target_os = "ios")]
 pub use platform::{IosBackgroundExecution, IosBackgroundExpiry, IosBackgroundLease};

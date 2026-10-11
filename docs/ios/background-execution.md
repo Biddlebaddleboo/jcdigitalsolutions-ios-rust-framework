@@ -21,6 +21,20 @@ The function names in the loop are app-owned placeholders. `MainThread::current(
 
 UIKit calls the expiration handler synchronously on the main thread shortly before the remaining background time reaches zero. The adapter marks the expiry signal and ends the UIKit identifier once. If expiry races the return from begin, it ends the identifier as soon as it is available. App work must still observe the signal and stop promptly; setting the signal does not interrupt Rust work. `end` consumes the handle, and `Drop` is only a fallback if app code omits explicit end.
 
+## Expiration callback
+
+When app code needs synchronous cleanup at expiry, use the iOS-specific callback overload:
+
+```rust,ignore
+let Some(main_thread) = MainThread::current() else { return; };
+let execution = IosBackgroundExecution::new();
+let Ok(lease) = execution.begin_with_expiration_handler(main_thread, || {
+    cancel_app_owned_work();
+}) else { return; };
+```
+
+The callback is installed before UIKit begins the lease. UIKit invokes it at most once, synchronously on the main thread, after the expiry signal is set and before the adapter ends the native identifier. Keep cleanup bounded; callback panics are contained so they cannot cross the Objective-C block boundary or prevent lease end. Explicit `end` and `Drop` cancel a callback that has not run and release its captures. This callback does not interrupt Rust work or prove that UIKit grants more execution time.
+
 ## Availability and limits
 
 - The selected `UIApplication` methods and `UIBackgroundTaskInvalid` constant are `API_AVAILABLE(ios(4.0))` in the local iOS SDK 26.5 header. The adapter uses the unnamed `beginBackgroundTaskWithExpirationHandler:` method, not the iOS 7.0 task-name variant.
@@ -37,4 +51,4 @@ The active SDK declarations are in `UIApplication.h`: `UIBackgroundTaskInvalid` 
 
 Apple references: [`beginBackgroundTask(expirationHandler:)`](https://developer.apple.com/documentation/uikit/uiapplication/beginbackgroundtask%28expirationhandler%3A%29), [`endBackgroundTask(_:)`](https://developer.apple.com/documentation/uikit/uiapplication/endbackgroundtask%28_%3A%29), and [Extending your app's background execution time](https://developer.apple.com/documentation/uikit/extending-your-app-s-background-execution-time).
 
-Build and link checks do not prove a live UIKit expiry callback or physical-device behavior.
+Host lease-policy tests and device/Simulator compilation and link checks do not prove UIKit callback scheduling, a live expiry callback, or physical-device behavior.

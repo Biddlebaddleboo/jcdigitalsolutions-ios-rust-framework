@@ -1,6 +1,5 @@
 use std::panic::{AssertUnwindSafe, catch_unwind};
 use std::sync::Arc;
-use std::sync::atomic::{AtomicU8, AtomicUsize, Ordering};
 
 use block2::RcBlock;
 use framework_background_execution::{
@@ -9,11 +8,9 @@ use framework_background_execution::{
 use ios_runtime::main_thread::MainThread;
 use objc2::MainThreadMarker;
 use objc2::rc::Retained;
-use objc2_ui_kit::{UIApplication, UIBackgroundTaskIdentifier, UIBackgroundTaskInvalid};
+use objc2_ui_kit::{UIApplication, UIBackgroundTaskInvalid};
 
-const ID_READY: u8 = 1;
-const EXPIRED: u8 = 2;
-const ENDED: u8 = 4;
+use crate::lease_policy::{LeaseState, OneShot};
 
 /// Zero-state adapter for UIKit background-execution leases.
 #[derive(Clone, Copy, Debug, Default)]
@@ -23,6 +20,68 @@ impl IosBackgroundExecution {
     /// Creates the UIKit lease adapter.
     pub const fn new() -> Self {
         Self
+    }
+
+    /// Begins a UIKit lease with a one-shot expiration callback.
+    ///
+    /// UIKit invokes the callback synchronously on the main thread. It runs after expiry is
+    /// signaled and before the adapter ends the native identifier. Keep it bounded; a panic is
+    /// contained, and explicit lease end or drop cancels a callback that has not run.
+    pub fn begin_with_expiration_handler<F>(
+        &self,
+        main_thread: MainThread,
+        expiration_handler: F,
+    ) -> Result<IosBackgroundLease>
+    where
+        F: FnOnce() + 'static,
+    {
+        self.begin_inner(main_thread, Some(Box::new(expiration_handler)))
+    }
+
+    fn begin_inner(
+        &self,
+        main_thread: MainThread,
+        expiration_handler: Option<ExpirationHandler>,
+    ) -> Result<IosBackgroundLease> {
+        let marker = main_thread.into_objc2();
+        let application = UIApplication::sharedApplication(marker);
+        let state = Arc::new(LeaseState::default());
+        let state_for_expiry = Arc::clone(&state);
+        let expiration_callback = expiration_handler.map(OneShot::new);
+        let callback_for_expiry = expiration_callback.clone();
+        let expiration_block = RcBlock::new(move || {
+            let _ = catch_unwind(AssertUnwindSafe(|| {
+                state_for_expiry.handle_expiration(
+                    callback_for_expiry.as_ref(),
+                    || MainThreadMarker::new(),
+                    |marker, identifier| {
+                        let application = UIApplication::sharedApplication(marker);
+                        application.endBackgroundTask(identifier);
+                    },
+                );
+            }));
+        });
+        let identifier =
+            application.beginBackgroundTaskWithExpirationHandler(Some(&expiration_block));
+        // SAFETY: the generated binding exposes UIKit's immutable invalid-identifier constant.
+        let invalid_identifier = unsafe { UIBackgroundTaskInvalid };
+        if identifier == invalid_identifier {
+            if let Some(callback) = &expiration_callback {
+                callback.cancel();
+            }
+            return Err(Error::new(ErrorKind::Unavailable));
+        }
+
+        if let Some(identifier) = state.install_identifier(identifier) {
+            application.endBackgroundTask(identifier);
+        }
+        let expiry = IosBackgroundExpiry(Arc::clone(&state));
+        Ok(IosBackgroundLease {
+            application,
+            _main_thread: marker,
+            expiry,
+            expiration_callback,
+        })
     }
 }
 
@@ -45,7 +104,10 @@ pub struct IosBackgroundLease {
     application: Retained<UIApplication>,
     _main_thread: MainThreadMarker,
     expiry: IosBackgroundExpiry,
+    expiration_callback: Option<OneShot<ExpirationHandler>>,
 }
+
+type ExpirationHandler = Box<dyn FnOnce() + 'static>;
 
 impl IosBackgroundLease {
     /// Returns a cloneable signal that work can poll from another thread.
@@ -55,7 +117,20 @@ impl IosBackgroundLease {
 
     /// Ends the native UIKit lease once and consumes this handle.
     pub fn end(self) {
-        self.expiry.0.end_once(&self.application);
+        self.cancel_expiration_callback();
+        self.end_native_once();
+    }
+
+    fn cancel_expiration_callback(&self) {
+        if let Some(callback) = &self.expiration_callback {
+            callback.cancel();
+        }
+    }
+
+    fn end_native_once(&self) {
+        if let Some(identifier) = self.expiry.0.end_once() {
+            self.application.endBackgroundTask(identifier);
+        }
     }
 }
 
@@ -73,7 +148,8 @@ impl BackgroundExecutionLease for IosBackgroundLease {
 
 impl Drop for IosBackgroundLease {
     fn drop(&mut self) {
-        self.expiry.0.end_once(&self.application);
+        self.cancel_expiration_callback();
+        self.end_native_once();
     }
 }
 
@@ -82,84 +158,6 @@ impl BackgroundExecutionBackend for IosBackgroundExecution {
     type Lease = IosBackgroundLease;
 
     fn begin(&self, main_thread: Self::Context) -> Result<Self::Lease> {
-        let marker = main_thread.into_objc2();
-        let application = UIApplication::sharedApplication(marker);
-        let state = Arc::new(LeaseState::default());
-        let state_for_expiry = Arc::clone(&state);
-        let expiration_handler = RcBlock::new(move || {
-            let _ = catch_unwind(AssertUnwindSafe(|| {
-                state_for_expiry.mark_expired();
-                if let Some(marker) = MainThreadMarker::new() {
-                    let application = UIApplication::sharedApplication(marker);
-                    state_for_expiry.end_once(&application);
-                }
-            }));
-        });
-        let identifier =
-            application.beginBackgroundTaskWithExpirationHandler(Some(&expiration_handler));
-        // SAFETY: the generated binding exposes UIKit's immutable invalid-identifier constant.
-        let invalid_identifier = unsafe { UIBackgroundTaskInvalid };
-        if identifier == invalid_identifier {
-            return Err(Error::new(ErrorKind::Unavailable));
-        }
-
-        state.install_identifier(identifier, &application);
-        let expiry = IosBackgroundExpiry(Arc::clone(&state));
-        Ok(IosBackgroundLease {
-            application,
-            _main_thread: marker,
-            expiry,
-        })
-    }
-}
-
-#[derive(Default)]
-struct LeaseState {
-    flags: AtomicU8,
-    identifier: AtomicUsize,
-}
-
-impl LeaseState {
-    fn is_expired(&self) -> bool {
-        self.flags.load(Ordering::Acquire) & EXPIRED != 0
-    }
-
-    fn mark_expired(&self) {
-        self.flags.fetch_or(EXPIRED, Ordering::AcqRel);
-    }
-
-    fn install_identifier(
-        &self,
-        identifier: UIBackgroundTaskIdentifier,
-        application: &UIApplication,
-    ) {
-        self.identifier.store(identifier, Ordering::Release);
-        let previous = self.flags.fetch_or(ID_READY, Ordering::AcqRel);
-        if previous & EXPIRED != 0 {
-            self.end_once(application);
-        }
-    }
-
-    fn end_once(&self, application: &UIApplication) {
-        loop {
-            let current = self.flags.load(Ordering::Acquire);
-            if current & ID_READY == 0 || current & ENDED != 0 {
-                return;
-            }
-            if self
-                .flags
-                .compare_exchange(
-                    current,
-                    current | ENDED,
-                    Ordering::AcqRel,
-                    Ordering::Acquire,
-                )
-                .is_ok()
-            {
-                let identifier = self.identifier.load(Ordering::Acquire);
-                application.endBackgroundTask(identifier);
-                return;
-            }
-        }
+        self.begin_inner(main_thread, None)
     }
 }
