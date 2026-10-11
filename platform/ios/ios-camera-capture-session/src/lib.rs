@@ -35,8 +35,8 @@ use objc2_av_foundation::{
     AVCaptureDeviceTypeBuiltInWideAngleCamera, AVCaptureFileOutput,
     AVCaptureFileOutputRecordingDelegate, AVCaptureMovieFileOutput, AVCaptureOutput,
     AVCapturePhoto, AVCapturePhotoCaptureDelegate, AVCapturePhotoOutput, AVCapturePhotoSettings,
-    AVCaptureSession, AVCaptureVideoDataOutput, AVCaptureVideoDataOutputSampleBufferDelegate,
-    AVCaptureVideoPreviewLayer, AVMediaTypeVideo,
+    AVCaptureSession, AVCaptureTorchMode, AVCaptureVideoDataOutput,
+    AVCaptureVideoDataOutputSampleBufferDelegate, AVCaptureVideoPreviewLayer, AVMediaTypeVideo,
 };
 #[cfg(target_os = "ios")]
 use objc2_core_media::CMSampleBuffer;
@@ -861,6 +861,60 @@ pub enum CameraCaptureError {
     UnsupportedOperatingSystem,
 }
 
+/// Failure to control the torch on the session's selected camera
+#[cfg(any(target_os = "ios", test))]
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum TorchControlError {
+    /// The session graph has no configured video device
+    NoSelectedCamera,
+    /// The selected camera has no torch
+    NoTorch,
+    /// The selected camera does not support the requested torch mode
+    TorchModeUnsupported,
+    /// The torch is not currently available to enable
+    TorchUnavailable,
+    /// AVFoundation could not lock the selected camera for configuration
+    ConfigurationLockFailed,
+}
+
+#[cfg(any(target_os = "ios", test))]
+struct UnlockDeviceConfiguration<F: FnOnce()>(Option<F>);
+
+#[cfg(any(target_os = "ios", test))]
+impl<F: FnOnce()> Drop for UnlockDeviceConfiguration<F> {
+    fn drop(&mut self) {
+        if let Some(unlock) = self.0.take() {
+            unlock();
+        }
+    }
+}
+
+#[cfg(any(target_os = "ios", test))]
+fn configure_torch_enabled(
+    enabled: bool,
+    has_torch: impl FnOnce() -> bool,
+    supports_mode: impl FnOnce(bool) -> bool,
+    is_available: impl FnOnce() -> bool,
+    lock: impl FnOnce() -> Result<(), ()>,
+    set_mode: impl FnOnce(bool),
+    unlock: impl FnOnce(),
+) -> Result<(), TorchControlError> {
+    if !has_torch() {
+        return Err(TorchControlError::NoTorch);
+    }
+    if !supports_mode(enabled) {
+        return Err(TorchControlError::TorchModeUnsupported);
+    }
+    if enabled && !is_available() {
+        return Err(TorchControlError::TorchUnavailable);
+    }
+    lock().map_err(|()| TorchControlError::ConfigurationLockFailed)?;
+    let unlock = UnlockDeviceConfiguration(Some(unlock));
+    set_mode(enabled);
+    drop(unlock);
+    Ok(())
+}
+
 #[cfg(any(target_os = "ios", test))]
 fn require_camera_at_position<T>(
     position: IosCameraPosition,
@@ -872,6 +926,7 @@ fn require_camera_at_position<T>(
 #[cfg(target_os = "ios")]
 struct CaptureGraph {
     session: Retained<AVCaptureSession>,
+    device: Option<Retained<AVCaptureDevice>>,
     photo_output: Option<Retained<AVCapturePhotoOutput>>,
     movie_output: Option<Retained<AVCaptureMovieFileOutput>>,
     video_output: Option<Retained<AVCaptureVideoDataOutput>>,
@@ -882,7 +937,7 @@ struct CaptureGraph {
     movie_recording: MovieRecordingState,
 }
 
-// SAFETY: The graph is private and every session, output, delegate, and state transition is
+// SAFETY: The graph is private and every session, device, output, delegate, and state transition is
 // protected by its mutex or the dedicated serial queue for that operation. Sample callbacks use
 // their own serial queue and only access delegate-local state plus the atomic active flag. The only
 // main-thread session access is the synchronous preview-layer initializer after queue setup and
@@ -974,6 +1029,7 @@ impl IosCameraCaptureSession {
         let video_callback_active = Arc::new(AtomicBool::new(false));
         let graph = Arc::new(Mutex::new(CaptureGraph {
             session,
+            device: None,
             photo_output: None,
             movie_output: None,
             video_output: None,
@@ -1042,6 +1098,56 @@ impl IosCameraCaptureSession {
             // no configuration call runs concurrently with start or stop.
             unsafe { graph.session.startRunning() };
         });
+    }
+
+    /// Enable or disable the torch on this session's already selected camera
+    ///
+    /// The operation is serialized with session work and locks the device only for the mode
+    /// update. It does not select or switch cameras, request authorization, or change session or
+    /// audio policy. Disabling is allowed when AVFoundation reports the torch temporarily
+    /// unavailable; enabling returns `TorchControlError::TorchUnavailable` in that state.
+    pub fn set_torch_enabled(&self, enabled: bool) -> Result<(), TorchControlError> {
+        let graph = Arc::clone(&self.graph);
+        let mut result = Err(TorchControlError::NoSelectedCamera);
+        self.queue.exec_sync(|| {
+            let graph = graph
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner);
+            let Some(device) = graph.device.as_ref() else {
+                return;
+            };
+            result = configure_torch_enabled(
+                enabled,
+                // SAFETY: This is the retained AVCaptureDevice used by the configured input; the
+                // package's iOS 10.0 and Simulator 14.0 floors exceed the torch API's iOS 4.0 floor.
+                || unsafe { device.hasTorch() },
+                // SAFETY: The public mode-support query is available on this selected device.
+                |enabled| unsafe {
+                    device.isTorchModeSupported(if enabled {
+                        AVCaptureTorchMode::On
+                    } else {
+                        AVCaptureTorchMode::Off
+                    })
+                },
+                // SAFETY: The iOS 10.0 device floor exceeds isTorchAvailable's iOS 5.0 floor. The
+                // helper calls this only when enabling, so disabling remains possible if unavailable.
+                || unsafe { device.isTorchAvailable() },
+                // SAFETY: lockForConfiguration is public and the selected device remains retained
+                // under the graph mutex for this serialized operation.
+                || unsafe { device.lockForConfiguration().map_err(|_| ()) },
+                // SAFETY: The mode was checked above and the device configuration lock was acquired.
+                |enabled| unsafe {
+                    device.setTorchMode(if enabled {
+                        AVCaptureTorchMode::On
+                    } else {
+                        AVCaptureTorchMode::Off
+                    })
+                },
+                // SAFETY: configure_torch_enabled invokes this only after a successful matching lock.
+                || unsafe { device.unlockForConfiguration() },
+            );
+        });
+        result
     }
 
     /// Enqueue a nonblocking stop request on the private serial queue
@@ -1514,6 +1620,7 @@ fn configure_session(
     }
     // SAFETY: The immediately preceding canAddInput call accepted this exact input.
     unsafe { graph.session.addInput(&input) };
+    graph.device = Some(device);
 
     if objc2::available!(ios = 10.0, ..) {
         // SAFETY: AVCapturePhotoOutput is a public AVFoundation class available from iOS 10.
@@ -1605,12 +1712,13 @@ fn invoke_video_completion(completion: VideoRecordingCompletion, result: VideoRe
 mod tests {
     use super::{
         CameraCaptureError, IosCameraPosition, MediaAuthorizationStatus, MovieRecordingState,
-        PhotoCaptureError, PhotoCaptureResult, VideoFrameStreamError, VideoFrameStreamState,
-        VideoRecordingError, VideoRecordingResult, drop_video_frame_callback_safely,
-        invoke_video_frame_callback, may_create_device_input, photo_request_error,
-        require_camera_at_position, settle_movie_result, settle_photo_result,
+        PhotoCaptureError, PhotoCaptureResult, TorchControlError, VideoFrameStreamError,
+        VideoFrameStreamState, VideoRecordingError, VideoRecordingResult, configure_torch_enabled,
+        drop_video_frame_callback_safely, invoke_video_frame_callback, may_create_device_input,
+        photo_request_error, require_camera_at_position, settle_movie_result, settle_photo_result,
         take_photo_completion, take_video_completion, validate_movie_destination,
     };
+    use std::cell::RefCell;
     use std::path::PathBuf;
     use std::sync::Arc;
     use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
@@ -1648,6 +1756,149 @@ mod tests {
                 Err(CameraCaptureError::NoCameraAtPosition(position))
             );
         }
+    }
+
+    #[test]
+    fn torch_control_rejects_devices_without_torch_or_requested_mode() {
+        assert_eq!(
+            configure_torch_enabled(
+                true,
+                || false,
+                |_| panic!("mode support must not be queried without a torch"),
+                || panic!("availability must not be queried without a torch"),
+                || panic!("configuration must not lock without a torch"),
+                |_| panic!("mode must not change without a torch"),
+                || panic!("configuration must not unlock without a torch"),
+            ),
+            Err(TorchControlError::NoTorch)
+        );
+
+        assert_eq!(
+            configure_torch_enabled(
+                true,
+                || true,
+                |_| false,
+                || panic!("availability is irrelevant for an unsupported mode"),
+                || panic!("configuration must not lock for an unsupported mode"),
+                |_| panic!("unsupported mode must not be set"),
+                || panic!("configuration was never locked"),
+            ),
+            Err(TorchControlError::TorchModeUnsupported)
+        );
+    }
+
+    #[test]
+    fn torch_control_rejects_unavailable_enable_and_configuration_lock_failure() {
+        assert_eq!(
+            configure_torch_enabled(
+                true,
+                || true,
+                |_| true,
+                || false,
+                || panic!("configuration must not lock while torch is unavailable"),
+                |_| panic!("unavailable torch must not be enabled"),
+                || panic!("configuration was never locked"),
+            ),
+            Err(TorchControlError::TorchUnavailable)
+        );
+
+        assert_eq!(
+            configure_torch_enabled(
+                false,
+                || true,
+                |_| true,
+                || panic!("availability need not be queried to disable"),
+                || Err(()),
+                |_| panic!("mode must not change when locking fails"),
+                || panic!("unlock is only valid after acquiring the lock"),
+            ),
+            Err(TorchControlError::ConfigurationLockFailed)
+        );
+    }
+
+    #[test]
+    fn torch_control_locks_sets_and_unlocks_and_allows_disable_when_unavailable() {
+        let events = RefCell::new(Vec::new());
+        assert_eq!(
+            configure_torch_enabled(
+                true,
+                || {
+                    events.borrow_mut().push("has-torch");
+                    true
+                },
+                |enabled| {
+                    assert!(enabled);
+                    events.borrow_mut().push("supports-on");
+                    true
+                },
+                || {
+                    events.borrow_mut().push("available");
+                    true
+                },
+                || {
+                    events.borrow_mut().push("lock");
+                    Ok(())
+                },
+                |enabled| {
+                    assert!(enabled);
+                    events.borrow_mut().push("set-on");
+                },
+                || events.borrow_mut().push("unlock"),
+            ),
+            Ok(())
+        );
+        assert_eq!(
+            *events.borrow(),
+            [
+                "has-torch",
+                "supports-on",
+                "available",
+                "lock",
+                "set-on",
+                "unlock"
+            ]
+        );
+
+        let events = RefCell::new(Vec::new());
+        assert_eq!(
+            configure_torch_enabled(
+                false,
+                || true,
+                |enabled| !enabled,
+                || panic!("availability need not be queried to disable"),
+                || {
+                    events.borrow_mut().push("lock");
+                    Ok(())
+                },
+                |enabled| events
+                    .borrow_mut()
+                    .push(if enabled { "set-on" } else { "set-off" }),
+                || events.borrow_mut().push("unlock"),
+            ),
+            Ok(())
+        );
+        assert_eq!(*events.borrow(), ["lock", "set-off", "unlock"]);
+    }
+
+    #[test]
+    fn torch_control_unlocks_configuration_during_unwind() {
+        let events = RefCell::new(Vec::new());
+        let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            configure_torch_enabled(
+                true,
+                || true,
+                |_| true,
+                || true,
+                || {
+                    events.borrow_mut().push("lock");
+                    Ok(())
+                },
+                |_| panic!("simulated mode-set panic"),
+                || events.borrow_mut().push("unlock"),
+            )
+        }));
+        assert!(result.is_err());
+        assert_eq!(*events.borrow(), ["lock", "unlock"]);
     }
 
     #[test]

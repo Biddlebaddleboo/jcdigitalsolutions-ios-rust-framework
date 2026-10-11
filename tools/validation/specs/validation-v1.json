@@ -1319,6 +1319,48 @@
           "must_exist": true,
           "path": "platform/ios/ios-camera-capture-session/src/lib.rs",
           "text": "fn photo_request_error("
+        },
+        {
+          "message": "torch control must operate on the session's retained selected device",
+          "must_exist": true,
+          "path": "platform/ios/ios-camera-capture-session/src/lib.rs",
+          "text": "device: Option<Retained<AVCaptureDevice>>"
+        },
+        {
+          "message": "torch control must expose an additive enable/disable operation",
+          "must_exist": true,
+          "path": "platform/ios/ios-camera-capture-session/src/lib.rs",
+          "text": "pub fn set_torch_enabled(&self, enabled: bool) -> Result<(), TorchControlError>"
+        },
+        {
+          "message": "torch control must distinguish no torch, unsupported mode, unavailability, and lock failure",
+          "must_exist": true,
+          "path": "platform/ios/ios-camera-capture-session/src/lib.rs",
+          "text": "ConfigurationLockFailed"
+        },
+        {
+          "message": "torch control must reject devices without a torch before requesting a configuration lock",
+          "must_exist": true,
+          "path": "platform/ios/ios-camera-capture-session/src/lib.rs",
+          "text": "return Err(TorchControlError::NoTorch)"
+        },
+        {
+          "message": "torch configuration locks must release through a drop guard",
+          "must_exist": true,
+          "path": "platform/ios/ios-camera-capture-session/src/lib.rs",
+          "text": "struct UnlockDeviceConfiguration"
+        },
+        {
+          "message": "torch control must use public AVFoundation on/off modes",
+          "must_exist": true,
+          "path": "platform/ios/ios-camera-capture-session/src/lib.rs",
+          "text": "AVCaptureTorchMode::On"
+        },
+        {
+          "message": "torch control must turn the selected device off with the public mode constant",
+          "must_exist": true,
+          "path": "platform/ios/ios-camera-capture-session/src/lib.rs",
+          "text": "AVCaptureTorchMode::Off"
         }
       ],
       "id": "ios-camera-capture-session",

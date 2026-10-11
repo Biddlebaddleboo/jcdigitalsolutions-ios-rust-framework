@@ -48,7 +48,7 @@ Add an iOS camera session for capability row 046. The session uses the existing 
 ## Exclusions
 
 - Photo capture, movie recording, audio capture, output objects, sample buffers, frame callbacks, and image processing
-- Camera enumeration/selection, switching, torch, zoom, focus, orientation policy, session notifications, and recovery policy
+- Camera enumeration/selection, switching, torch level control, zoom, focus, orientation policy, session notifications, and recovery policy; B473 adds only explicit torch on/off control
 - Authorization requests or UI initiated by the capture crate
 - Portable camera-session API, C ABI, Python binding, or Swift shim
 
@@ -74,3 +74,13 @@ B467 adds an additive `IosCameraCaptureSession::new_with_camera_position` constr
 - Host regressions cover successful device pass-through and typed front/back unavailable-device errors. Registered source guards retain the old default-device path, require the new API/availability/error path, and forbid prompt, discovery/enumeration, out-of-scope camera types, audio, Photos, and Swift. Device and Simulator link/import checks retain the selector and wide-angle type reference.
 - The profile keeps its existing iOS 10.0 device and iOS 14.0 Simulator link minima. Host tests, compilation, and link/import checks do not prove front/back device availability, preview or media delivery, authorization UI behavior, Simulator execution, or physical-device runtime behavior.
 - Final registered command `ios-rust-validate --workspace-root "$PWD" --spec "$PWD/tools/validation/specs/validation-v1.json" --capability ios-camera-capture-session --format json` returned 102 PASS, 0 FAIL, 0 BLOCKED, and 2 SKIPPED (104 checks) at source head `d889270eae0952aa26cc2c0b6cf9f77ac9b23a08`, snapshot `30e0bed0afeb8c0ffb6af8c8ffbb0258972858400fa1d28b3ff6a47859ca98d9`, on Xcode 26.6 / iOS SDK 26.5. The skipped gates were Simulator execution and physical-device proof; no runtime claim is made.
+
+## B473: selected-camera torch on/off control
+
+B473 adds `IosCameraCaptureSession::set_torch_enabled(bool)` for the device already selected by the session. The implementation uses the public `AVCaptureDevice` torch category and the installed `objc2-av-foundation 0.3.2` bindings; the current iPhoneOS SDK marks the category available from iOS 4.0, below the profile's iOS 10.0 device and iOS 14.0 Simulator floors.
+
+- The configured device remains retained in the serialized capture graph. Torch checks, configuration lock, mode update, and unlock run on the existing private serial session queue.
+- `TorchControlError` distinguishes a missing configured device, no torch, unsupported requested mode, unavailable torch when enabling, and configuration-lock failure. Disabling remains allowed when the torch is temporarily unavailable.
+- A drop guard unlocks after every successful lock, including an unwind path. No authorization request, device enumeration/switching, session activation/configuration change, audio-session mutation, private selector, or Swift source is added.
+- Host regressions cover no-torch, unsupported-mode, unavailable-enable, lock-failure, successful lock/set/unlock order, unavailable disable, and unlock on unwind. The registered link probe requires `hasTorch`, `isTorchAvailable`, `isTorchModeSupported:`, `lockForConfiguration:`, `setTorchMode:`, and `unlockForConfiguration` on both existing targets.
+- Host tests and device/Simulator compilation/link checks validate deterministic logic and the public ABI boundary only. Actual torch availability, mode changes, illumination, Simulator execution, and physical-device runtime behavior remain unverified.

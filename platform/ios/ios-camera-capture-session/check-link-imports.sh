@@ -71,6 +71,12 @@ for target in aarch64-apple-ios aarch64-apple-ios-sim; do
         defaultDeviceWithMediaType: \
         defaultDeviceWithDeviceType:mediaType:position: \
         deviceInputWithDevice:error: \
+        hasTorch \
+        isTorchAvailable \
+        isTorchModeSupported: \
+        lockForConfiguration: \
+        setTorchMode: \
+        unlockForConfiguration \
         canAddInput: \
         addInput: \
         layerWithSession: \

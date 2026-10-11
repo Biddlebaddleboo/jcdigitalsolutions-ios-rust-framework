@@ -15,6 +15,8 @@ fn main() {
     };
     std::hint::black_box(session.preview_layer(main_thread));
     session.start();
+    let _ = std::hint::black_box(session.set_torch_enabled(true));
+    let _ = std::hint::black_box(session.set_torch_enabled(false));
     let _ = session.capture_photo(|result| {
         let _ = std::hint::black_box(result);
     });
