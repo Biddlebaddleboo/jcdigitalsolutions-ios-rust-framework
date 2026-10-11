@@ -17,6 +17,7 @@ objc2-foundation = { workspace = true, features = ["NSObject", "NSString", "NSPr
 objc2-user-notifications = { workspace = true, features = [
     "block2",
     "UNNotification",
+    "UNNotificationContent",
     "UNNotificationRequest",
     "UNNotificationResponse",
     "UNNotificationTrigger",

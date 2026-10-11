@@ -1,9 +1,10 @@
-use std::char;
 use std::panic::{AssertUnwindSafe, catch_unwind};
 use std::string::String;
 use std::sync::Arc;
+use std::vec::Vec;
 
 use crate::presentation::ForegroundPresentationOptions;
+use crate::response_user_info::{decode_utf16, sorted_string_entries};
 use framework_notifications::NotificationId;
 use framework_notifications::response::{
     NotificationActionId, NotificationResponse, NotificationResponseKind,
@@ -15,10 +16,10 @@ use objc2_foundation::{
     NSObject, NSObjectProtocol, NSOperatingSystemVersion, NSProcessInfo, NSString,
 };
 use objc2_user_notifications::{
-    UNNotification, UNNotificationDefaultActionIdentifier, UNNotificationDismissActionIdentifier,
-    UNNotificationPresentationOptions, UNNotificationRequest, UNNotificationResponse,
-    UNPushNotificationTrigger, UNTextInputNotificationResponse, UNUserNotificationCenter,
-    UNUserNotificationCenterDelegate,
+    UNNotification, UNNotificationContent, UNNotificationDefaultActionIdentifier,
+    UNNotificationDismissActionIdentifier, UNNotificationPresentationOptions,
+    UNNotificationRequest, UNNotificationResponse, UNPushNotificationTrigger,
+    UNTextInputNotificationResponse, UNUserNotificationCenter, UNUserNotificationCenterDelegate,
 };
 
 type ResponseClosure = Arc<dyn Fn(NotificationResponse) + Send + Sync + 'static>;
@@ -283,6 +284,8 @@ fn response_value(response: &UNNotificationResponse) -> Option<NotificationRespo
     }
 
     let notification_id = NotificationId::new(owned_string(&request.identifier())?).ok()?;
+    let content = request.content();
+    let user_info_entries = response_user_info(&content);
     let action_identifier = response.actionIdentifier();
     let kind = if is_default_action(&action_identifier) {
         NotificationResponseKind::Default
@@ -299,7 +302,32 @@ fn response_value(response: &UNNotificationResponse) -> Option<NotificationRespo
         )
     };
 
-    Some(NotificationResponse::new(notification_id, kind))
+    Some(user_info_entries.into_iter().fold(
+        NotificationResponse::new(notification_id, kind),
+        |response, (key, value)| response.with_user_info_entry(key, value),
+    ))
+}
+
+fn response_user_info(content: &UNNotificationContent) -> Vec<(String, String)> {
+    let user_info = content.userInfo();
+    let keys = user_info.allKeys();
+    let entries = (0..keys.count()).map(|index| {
+        let native_key = keys.objectAtIndex(index);
+        let Some(native_key_string) = native_key.downcast_ref::<NSString>() else {
+            return (None, None);
+        };
+        let Some(key) = owned_string(native_key_string) else {
+            return (None, None);
+        };
+        let Some(native_value) = user_info.objectForKey(&native_key) else {
+            return (Some(key), None);
+        };
+        let value = native_value
+            .downcast_ref::<NSString>()
+            .and_then(owned_string);
+        (Some(key), value)
+    });
+    sorted_string_entries(entries)
 }
 
 fn is_default_action(action_identifier: &NSString) -> bool {
@@ -314,7 +342,5 @@ fn is_dismiss_action(action_identifier: &NSString) -> bool {
 
 fn owned_string(value: &NSString) -> Option<String> {
     let utf16 = (0..value.len_utf16()).map(|index| value.characterAtIndex(index));
-    char::decode_utf16(utf16)
-        .collect::<Result<String, _>>()
-        .ok()
+    decode_utf16(utf16)
 }

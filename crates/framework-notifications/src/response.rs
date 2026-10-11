@@ -4,6 +4,7 @@
 //! notification responses.
 
 use alloc::string::String;
+use alloc::vec::Vec;
 use framework_core::ErrorKind;
 
 use super::NotificationId;
@@ -104,6 +105,7 @@ impl NotificationResponseKind {
 pub struct NotificationResponse {
     notification_id: NotificationId,
     kind: NotificationResponseKind,
+    user_info_entries: Vec<(String, String)>,
 }
 
 impl NotificationResponse {
@@ -113,6 +115,7 @@ impl NotificationResponse {
         Self {
             notification_id,
             kind,
+            user_info_entries: Vec::new(),
         }
     }
 
@@ -126,8 +129,106 @@ impl NotificationResponse {
         &self.kind
     }
 
-    /// Transfers the notification ID and response data to the caller without a copy.
+    /// Adds one exact string-valued user-info entry.
+    ///
+    /// Empty keys and values are retained. Repeating a key replaces its value in place, so the
+    /// last value wins while entry iteration keeps the key's first-insertion position. Native
+    /// iOS responses sort their string entries by key before this value is built because
+    /// `NSDictionary` does not define an iteration order.
+    pub fn with_user_info_entry(mut self, key: String, value: String) -> Self {
+        if let Some(index) = self
+            .user_info_entries
+            .iter()
+            .position(|(existing_key, _)| existing_key == &key)
+        {
+            self.user_info_entries[index].1 = value;
+        } else {
+            self.user_info_entries.push((key, value));
+        }
+        self
+    }
+
+    /// Borrows the exact owned string key/value entries in their stored order.
+    pub fn user_info_entries(&self) -> &[(String, String)] {
+        &self.user_info_entries
+    }
+
+    /// Borrows the exact string value for `key`, or returns `None` when it is absent.
+    pub fn user_info_value(&self, key: &str) -> Option<&str> {
+        self.user_info_entries
+            .iter()
+            .find_map(|(entry_key, value)| (entry_key == key).then_some(value.as_str()))
+    }
+
+    /// Transfers the notification ID and response kind without a copy.
+    ///
+    /// This original pair does not include user-info entries. Use
+    /// [`Self::into_parts_with_user_info`] to transfer the complete response value.
     pub fn into_parts(self) -> (NotificationId, NotificationResponseKind) {
         (self.notification_id, self.kind)
+    }
+
+    /// Transfers the notification ID, response kind and owned string user-info entries without
+    /// a copy.
+    pub fn into_parts_with_user_info(
+        self,
+    ) -> (
+        NotificationId,
+        NotificationResponseKind,
+        Vec<(String, String)>,
+    ) {
+        (self.notification_id, self.kind, self.user_info_entries)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use alloc::string::String;
+
+    fn response() -> NotificationResponse {
+        NotificationResponse::new(
+            NotificationId::new(String::from("response-test")).unwrap(),
+            NotificationResponseKind::Default,
+        )
+    }
+
+    #[test]
+    fn new_response_preserves_legacy_constructor_and_has_no_user_info() {
+        let response = response();
+        assert!(response.user_info_entries().is_empty());
+        assert_eq!(response.user_info_value("missing"), None);
+    }
+
+    #[test]
+    fn entries_preserve_exact_strings_empty_values_and_first_key_order() {
+        let response = response()
+            .with_user_info_entry(String::from("route"), String::from("cafe\u{301}🛰️"))
+            .with_user_info_entry(String::new(), String::from("empty-key"))
+            .with_user_info_entry(String::from("empty"), String::new())
+            .with_user_info_entry(String::from("route"), String::from("東京"));
+
+        assert_eq!(response.user_info_value("route"), Some("東京"));
+        assert_eq!(response.user_info_value(""), Some("empty-key"));
+        assert_eq!(response.user_info_value("empty"), Some(""));
+        assert_eq!(
+            response.user_info_entries(),
+            &[
+                (String::from("route"), String::from("東京")),
+                (String::new(), String::from("empty-key")),
+                (String::from("empty"), String::new()),
+            ]
+        );
+    }
+
+    #[test]
+    fn into_parts_with_user_info_preserves_the_complete_response_value() {
+        let (identifier, kind, entries) = response()
+            .with_user_info_entry(String::from("source"), String::from("local"))
+            .into_parts_with_user_info();
+
+        assert_eq!(identifier.as_str(), "response-test");
+        assert_eq!(kind, NotificationResponseKind::Default);
+        assert_eq!(entries, [(String::from("source"), String::from("local"))]);
     }
 }

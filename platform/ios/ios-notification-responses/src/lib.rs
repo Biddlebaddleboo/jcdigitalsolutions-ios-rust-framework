@@ -5,6 +5,9 @@
 #[cfg(any(target_os = "ios", test))]
 mod presentation;
 
+#[cfg(any(target_os = "ios", test))]
+mod response_user_info;
+
 #[cfg(target_os = "ios")]
 mod platform;
 

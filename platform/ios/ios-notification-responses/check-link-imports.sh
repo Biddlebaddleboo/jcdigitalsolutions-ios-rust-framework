@@ -43,6 +43,15 @@ for target in aarch64-apple-ios aarch64-apple-ios-sim; do
         printf '%s unexpectedly imports Swift runtime symbols\n' "$target" >&2
         exit 1
     fi
+    selectors="$target_dir/selectors.txt"
+    strings "$artifact" >"$selectors"
+    for selector in userInfo allKeys objectAtIndex: objectForKey:; do
+        if ! grep -Fxq "$selector" "$selectors"; then
+            printf '%s missing notification user-info selector %s\n' "$target" "$selector" >&2
+            cat "$selectors" >&2
+            exit 1
+        fi
+    done
     build_info="$target_dir/build.txt"
     vtool -show-build "$artifact" >"$build_info"
     actual_deployment_target=$(awk '$1 == "minos" || $1 == "version" { print $2; exit }' "$build_info")

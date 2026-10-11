@@ -8,7 +8,13 @@ pub extern "C" fn ios_notification_responses_foreground_link_probe() -> u8 {
         .with_banner(true)
         .with_sound(true)
         .with_badge(true);
-    match IosNotificationResponses::install_with_foreground_presentation(|_| {}, options) {
+    match IosNotificationResponses::install_with_foreground_presentation(
+        |response| {
+            core::hint::black_box(response.user_info_entries());
+            core::hint::black_box(response.user_info_value("link-probe"));
+        },
+        options,
+    ) {
         Ok(handle) => {
             drop(handle);
             1
