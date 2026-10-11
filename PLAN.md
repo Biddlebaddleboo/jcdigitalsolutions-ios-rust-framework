@@ -184,6 +184,10 @@ B459 adds one-shot live Float32 microphone polling through a separate AVAudioEng
 
 B461 independently adds opt-in video-only `AVCaptureVideoDataOutput` samples to row 046 through a borrowed callback-scoped `&CMSampleBuffer`. A dedicated serial queue, `alwaysDiscardsLateVideoFrames=true`, immediate callback deactivation, and asynchronous callback-queue drainage bound framework-owned queued work without claiming a bound on user callback duration. Static host/device/Simulator checks do not prove sample delivery, camera authorization UI, or runtime behavior. Microphone sample callbacks, device/Simulator runtime capture, and camera/movie/photo live behavior remain incomplete or unverified. See the B461 section in [PLAN_IOS_CAMERA_CAPTURE_SESSION.md](PLAN_IOS_CAMERA_CAPTURE_SESSION.md).
 
+### B462 — fetch one selected Contacts record (row 069)
+
+B462 adds an opt-in `ContactsFetchBackend` extension and public iOS `CNContactStore` lookup by a caller-supplied local identifier. It returns owned identifier, name, organization, phone, and email values; each synchronous fetch rechecks `Authorized` or `Limited` status and never prompts. Because the store read may block, callers should keep it off latency-sensitive UI contexts when appropriate; the crate adds no hidden executor. Limited-scope visibility and local identifier lifetime remain platform-dependent. Registered host regressions plus iOS 10.0 device / iOS 14.0 Simulator compile-link checks do not prove a live record fetch; see [docs/ios/contacts.md](docs/ios/contacts.md).
+
 ## Active work selection and limits
 
 1. Inspect the canonical capability status/owner, the relevant family plan, then the named workstream plan and exact files/symbols. Do not scan the entire planning corpus or treat every existing plan as pending work.

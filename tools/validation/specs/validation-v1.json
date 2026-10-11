@@ -75,6 +75,10 @@
     [
       "ios-playback",
       "framework-audio"
+    ],
+    [
+      "ios-contacts-fetch",
+      "framework-contacts"
     ]
   ],
   "pilots": [
@@ -2033,6 +2037,175 @@
           "triple": "aarch64-apple-ios-sim"
         }
       ]
+    },
+    {
+      "abi_scripts": [
+        "platform/ios/ios-contacts/scripts/check-link-imports.sh"
+      ],
+      "abi_targets": [
+        {
+          "minimum_os": "10.0",
+          "sdk": "iphoneos",
+          "triple": "aarch64-apple-ios"
+        },
+        {
+          "minimum_os": "14.0",
+          "sdk": "iphonesimulator",
+          "triple": "aarch64-apple-ios-sim"
+        }
+      ],
+      "adapters": [],
+      "cargo_tree": false,
+      "check_script": "platform/ios/ios-contacts/scripts/check-link-imports.sh",
+      "clippy_all_targets": true,
+      "clippy_lib": false,
+      "docs": [
+        "docs/capabilities/contacts.md",
+        "docs/capabilities/capability-status.json",
+        "docs/ios/contacts.md",
+        "PLAN.md"
+      ],
+      "expected_imports": [
+        "Contacts.framework",
+        "Foundation.framework",
+        "objc_msgSend"
+      ],
+      "fmt_all": false,
+      "guards": [
+        {
+          "message": "fetch must use the public single-contact identifier API",
+          "must_exist": true,
+          "path": "platform/ios/ios-contacts/src/fetch.rs",
+          "text": "unifiedContactWithIdentifier_keysToFetch_error"
+        },
+        {
+          "message": "fetch must recheck Contacts authorization",
+          "must_exist": true,
+          "path": "platform/ios/ios-contacts/src/fetch.rs",
+          "text": "fetch_authorization_error(status)"
+        },
+        {
+          "message": "only full or limited status may permit data access",
+          "must_exist": true,
+          "path": "platform/ios/ios-contacts/src/conversion.rs",
+          "text": "ContactsAuthorization::Authorized | ContactsAuthorization::Limited => None"
+        },
+        {
+          "message": "fetch must validate caller-supplied identifiers",
+          "must_exist": true,
+          "path": "platform/ios/ios-contacts/src/fetch.rs",
+          "text": "validate_identifier(identifier)?"
+        },
+        {
+          "message": "empty and NUL identifiers must fail as invalid input",
+          "must_exist": true,
+          "path": "platform/ios/ios-contacts/src/conversion.rs",
+          "text": "identifier.is_empty() || identifier.as_bytes().contains(&0)"
+        },
+        {
+          "message": "native missing-record errors must use the stable not-found category",
+          "must_exist": true,
+          "path": "platform/ios/ios-contacts/src/conversion.rs",
+          "text": "contacts_error_domain && code == 200"
+        },
+        {
+          "message": "fetch must request only the documented common contact keys",
+          "must_exist": true,
+          "path": "platform/ios/ios-contacts/src/fetch.rs",
+          "text": "CNContactEmailAddressesKey"
+        },
+        {
+          "message": "fetch must not request permission",
+          "must_exist": false,
+          "path": "platform/ios/ios-contacts/src/fetch.rs",
+          "text": "requestAccessForEntityType_completionHandler"
+        },
+        {
+          "message": "fetch must not enumerate contacts",
+          "must_exist": false,
+          "path": "platform/ios/ios-contacts/src/fetch.rs",
+          "text": "enumerateContactsWithFetchRequest_error_usingBlock"
+        },
+        {
+          "message": "fetch must not search contacts",
+          "must_exist": false,
+          "path": "platform/ios/ios-contacts/src/fetch.rs",
+          "text": "predicateForContactsMatchingName"
+        },
+        {
+          "message": "fetch must not mutate the Contacts store",
+          "must_exist": false,
+          "path": "platform/ios/ios-contacts/src/fetch.rs",
+          "text": "executeSaveRequest_error"
+        },
+        {
+          "message": "fetch must not use ContactsUI or picker APIs",
+          "must_exist": false,
+          "path": "platform/ios/ios-contacts/src/fetch.rs",
+          "text": "ContactsUI"
+        },
+        {
+          "message": "the Contacts binding must not enable mutation features",
+          "must_exist": false,
+          "path": "platform/ios/ios-contacts/Cargo.toml",
+          "text": "CNMutableContact"
+        },
+        {
+          "message": "the portable contract must remain no_std with alloc-owned values",
+          "must_exist": true,
+          "path": "crates/framework-contacts/src/lib.rs",
+          "text": "#![no_std]"
+        },
+        {
+          "message": "the fetch extension must not break ContactsBackend implementors",
+          "must_exist": true,
+          "path": "crates/framework-contacts/src/lib.rs",
+          "text": "pub trait ContactsFetchBackend: ContactsBackend"
+        }
+      ],
+      "id": "ios-contacts-fetch",
+      "manifest": "platform/ios/ios-contacts/Cargo.toml",
+      "offline": false,
+      "package": "ios-contacts",
+      "rustdoc_warnings": true,
+      "scoped_files": [
+        "Cargo.lock",
+        "crates/framework-contacts/Cargo.toml",
+        "crates/framework-contacts/src/lib.rs",
+        "platform/ios/ios-contacts/Cargo.toml",
+        "platform/ios/ios-contacts/examples/contacts_fetch_api_floor.m",
+        "platform/ios/ios-contacts/examples/ios_contacts_fetch_link_probe.rs",
+        "platform/ios/ios-contacts/scripts/check-link-imports.sh",
+        "platform/ios/ios-contacts/src/conversion.rs",
+        "platform/ios/ios-contacts/src/fetch.rs",
+        "platform/ios/ios-contacts/src/lib.rs",
+        "platform/ios/ios-contacts/src/platform.rs",
+        "platform/ios/ios-contacts/src/operation.rs",
+        "docs/capabilities/contacts.md",
+        "docs/capabilities/capability-status.json",
+        "docs/ios/contacts.md",
+        "PLAN.md",
+        "tools/validation/specs/validation-v1.json"
+      ],
+      "shell_scripts": [
+        "platform/ios/ios-contacts/scripts/check-link-imports.sh"
+      ],
+      "source_dirs": [
+        "crates/framework-contacts",
+        "platform/ios/ios-contacts"
+      ],
+      "targets": [
+        {
+          "minimum_os": "10.0",
+          "sdk": "iphoneos",
+          "triple": "aarch64-apple-ios"
+        },
+        {
+          "minimum_os": "14.0",
+          "sdk": "iphonesimulator",
+          "triple": "aarch64-apple-ios-sim"
+        }
+      ]
     }
   ],
   "schema_version": 1,
@@ -2164,6 +2337,16 @@
     {
       "path": "platform/ios/ios-playback/",
       "node": "ios-playback",
+      "global": false
+    },
+    {
+      "path": "crates/framework-contacts/",
+      "node": "framework-contacts",
+      "global": false
+    },
+    {
+      "path": "platform/ios/ios-contacts/",
+      "node": "ios-contacts-fetch",
       "global": false
     }
   ]

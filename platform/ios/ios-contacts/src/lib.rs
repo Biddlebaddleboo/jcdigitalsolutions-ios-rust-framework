@@ -10,4 +10,7 @@ mod operation;
 mod platform;
 
 #[cfg(target_os = "ios")]
+mod fetch;
+
+#[cfg(target_os = "ios")]
 pub use platform::{IosContactsBackend, IosRequestAuthorizationFuture};

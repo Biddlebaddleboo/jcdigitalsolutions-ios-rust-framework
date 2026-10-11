@@ -99,7 +99,7 @@ impl Drop for IosContactsFuture {
 
 /// Portable Contacts operations backed by the app's Contacts authorization state.
 pub struct IosContactsBackend {
-    store: Retained<CNContactStore>,
+    pub(super) store: Retained<CNContactStore>,
 }
 
 impl IosContactsBackend {
@@ -135,7 +135,7 @@ impl ContactsBackend for IosContactsBackend {
     }
 }
 
-fn native_authorization_status() -> isize {
+pub(super) fn native_authorization_status() -> isize {
     // SAFETY: Contacts authorizationStatusForEntityType is a public, thread-safe status query.
     unsafe { CNContactStore::authorizationStatusForEntityType(CNEntityType::Contacts) }.0
 }

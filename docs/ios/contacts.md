@@ -1,9 +1,9 @@
 # iOS Contacts authorization
 
 `ios-contacts` implements the portable [`framework-contacts`](../capabilities/contacts.md)
-authorization contract through public Contacts APIs. It can query authorization status and
-explicitly request access; it does not fetch or enumerate contacts, expose identifiers, edit data,
-present ContactsUI, or provide a picker or button.
+authorization and one-record read contract through public Contacts APIs. It can query status,
+explicitly request access, and fetch a caller-selected record by local identifier. It does not
+enumerate, search, or edit contacts, present ContactsUI, or provide a picker or button.
 
 ```rust,ignore
 use framework_contacts::{Contacts, ContactsAuthorization};
@@ -20,12 +20,24 @@ async fn request_contacts_access() -> Result<ContactsAuthorization, framework_co
 }
 ```
 
-The application supplies its own executor or polls the future itself. `IosContactsBackend::new()`
+After the application has obtained access and another UI/API has supplied a local identifier, it
+can fetch one owned record without a prompt:
+
+```rust,ignore
+use framework_contacts::Contacts;
+use ios_contacts::IosContactsBackend;
+
+fn read_selected_contact(identifier: &str) -> Result<framework_contacts::Contact, framework_contacts::ContactsError> {
+    Contacts::new(IosContactsBackend::new()).fetch_contact(identifier)
+}
+```
+
+The application supplies its own executor or polls the future itself. The host app must include
+the exact `NSContactsUsageDescription` key with user-understandable purpose text before requesting
+or accessing contact data. `IosContactsBackend::new()`
 creates caller-owned backend state without querying authorization or prompting. The status query
 does not prompt. A prompt-capable native call begins only when `request_authorization()`'s future
-is first polled. The app must include the exact `NSContactsUsageDescription` key in its
-`Info.plist` with user-understandable purpose text before making that request. This crate does not
-modify the host app's property list.
+is first polled. This crate does not modify the host app's property list.
 
 ## Status, permission, and OS availability
 
@@ -38,7 +50,8 @@ The backend maps native Not Determined, Restricted, Denied, Authorized, and Limi
 distinct portable variants. Limited is not promoted to full Authorized. It permits only the
 contact subset selected by the user. If a native status value is not recognized, the portable
 result is Unknown. Authorization status can change outside the process; query again when the app
-needs current state. This API does not observe Settings changes or fetch contact data.
+needs current state. The record fetch path re-queries status and proceeds only for Authorized or
+Limited. Limited access does not imply the selected identifier is visible.
 
 ## Request lifecycle and errors
 
@@ -57,19 +70,41 @@ Native callback state remains alive until completion, accepts one result, and di
 after detachment. Panics are contained at the block boundary and map to an internal operation
 error. Permission denial is a status result, not a transport failure.
 
-Creating this backend or observing Authorized/Limited status does not enable contact access through
-this crate. No fetch method exists in this slice. Automated checks compile and lint the portable
-and native adapters; they do not show the permission UI, exercise consent or Limited selection,
-verify Settings changes, or prove contact-data access.
+Fetch rejects empty/NUL-containing identifiers as `InvalidIdentifier`, reports insufficient
+authorization as `AuthorizationRequired(status)`, maps `CNErrorCodeRecordDoesNotExist` in
+`CNErrorDomain` to `NotFound`, and preserves other representable native codes as platform errors.
+It calls `unifiedContactWithIdentifier:keysToFetch:error:` for only identifier, given name, family
+name, organization, phone numbers, and email addresses; it copies all results into Rust-owned
+strings and vectors before the autorelease pool ends. Phone/email labels and order reflect the
+native result and are not durable sort contracts. If authorization is revoked between the status
+query and fetch, the adapter re-queries status on native failure.
+
+Limited access includes only the user-selected subset. A non-selected identifier may resolve as
+not found, so the result does not prove that the contact is absent from the full store. Contacts
+identifiers are local handles, not durable identity; deletion or unification can make a saved
+identifier stale. The fetched unified record's returned identifier may differ from the supplied
+identifier. Re-fetch when needed and handle `NotFound`.
+
+`fetch_contact` is synchronous, and a Contacts store read can block. Avoid calling it from a
+latency-sensitive UI context when the read may take time. The crate does not add a hidden executor;
+the application decides where to perform the read.
+
+Creating this backend or observing Authorized/Limited status does not prove a contact can be read.
+Automated checks compile and link the adapter and test host status/error/value mappings; they do not
+show permission UI, exercise consent or Limited selection, verify Settings changes, or prove a
+live contact-data fetch.
 
 ## Dependency and linkage
 
 The iOS-only adapter uses `objc2-contacts` 0.3.2 with default features disabled and only its
-`CNContactStore` and `block2` features enabled, plus `objc2`, Foundation `NSError`, and `block2`.
-No contact-record, ContactsUI, or unrelated Contacts binding features are enabled. The portable
-D24 crate exposes no binding types. The adapter requires the public Contacts and Foundation
-frameworks at final link; no Swift source, UI framework, or private API is added. The package
-checks do not inspect a final host-app binary for imports.
+`CNContact`, `CNContactStore`, `CNLabeledValue`, `CNPhoneNumber`, `CNError`, and `block2` features,
+plus `objc2`, Foundation `NSArray`, `NSError`, and `NSString`, and `block2`. No ContactsUI,
+mutation, or unrelated binding features are enabled. The portable crate exposes no binding types.
+The public single-record fetch API is available from iOS 9.0; Limited authorization itself was
+introduced in iOS 18.0. Rust 1.94.1 sets iOS 10.0 as its minimum supported device deployment
+target, so the registered device and Simulator link checks use floors iOS 10.0 and iOS 14.0,
+respectively. They verify public Contacts/Foundation imports and deployment metadata, but do not
+execute the probe. No Swift source, UI framework, or private API is added.
 
 References: [Apple CNContactStore](https://developer.apple.com/documentation/contacts/cncontactstore),
 [Apple Limited authorization](https://developer.apple.com/documentation/contacts/cnauthorizationstatus/limited?language=objc),

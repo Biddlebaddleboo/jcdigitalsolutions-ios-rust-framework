@@ -3,6 +3,10 @@
 #![deny(missing_docs)]
 #![doc = "Portable Contacts authorization values and a runtime-neutral static backend contract."]
 
+extern crate alloc;
+
+use alloc::string::String;
+use alloc::vec::Vec;
 use core::future::Future;
 use framework_core::{Availability, Error, ErrorKind, PlatformErrorCode};
 
@@ -44,6 +48,12 @@ impl ContactsAuthorization {
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
 #[non_exhaustive]
 pub enum ContactsError {
+    /// The supplied local contact identifier is empty or contains a NUL character.
+    InvalidIdentifier,
+    /// The current authorization state does not permit contact-data access.
+    AuthorizationRequired(ContactsAuthorization),
+    /// No accessible contact matches the supplied local identifier.
+    NotFound,
     /// The selected backend returned an operation error rather than an authorization result.
     Backend(Error),
 }
@@ -52,6 +62,12 @@ impl ContactsError {
     /// Returns the stable portable error category.
     pub const fn kind(self) -> ErrorKind {
         match self {
+            Self::InvalidIdentifier => ErrorKind::InvalidInput,
+            Self::AuthorizationRequired(
+                ContactsAuthorization::Denied | ContactsAuthorization::Restricted,
+            ) => ErrorKind::PermissionDenied,
+            Self::AuthorizationRequired(_) => ErrorKind::Unavailable,
+            Self::NotFound => ErrorKind::NotFound,
             Self::Backend(error) => error.kind(),
         }
     }
@@ -60,8 +76,39 @@ impl ContactsError {
     pub const fn platform_code(self) -> Option<PlatformErrorCode> {
         match self {
             Self::Backend(error) => error.platform_code(),
+            Self::InvalidIdentifier | Self::AuthorizationRequired(_) | Self::NotFound => None,
         }
     }
+}
+
+/// An owned snapshot of common fields from one Contacts record.
+///
+/// Phone and email values retain the native order returned by Contacts. That order is not a
+/// stable sort guarantee. A local identifier can become stale when the Contacts database changes
+/// or records are unified.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct Contact {
+    /// The local Contacts identifier for this record.
+    pub identifier: String,
+    /// The given name, or an empty string when absent.
+    pub given_name: String,
+    /// The family name, or an empty string when absent.
+    pub family_name: String,
+    /// The organization name, or an empty string when absent.
+    pub organization_name: String,
+    /// The record's labeled phone numbers in native order.
+    pub phone_numbers: Vec<ContactLabeledValue>,
+    /// The record's labeled email addresses in native order.
+    pub email_addresses: Vec<ContactLabeledValue>,
+}
+
+/// An owned label/value pair for one phone number or email address.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ContactLabeledValue {
+    /// The native label, when present. Labels may be localized by the system.
+    pub label: Option<String>,
+    /// The phone number or email address value.
+    pub value: String,
 }
 
 /// A statically selected backend for Contacts authorization status and request operations.
@@ -97,6 +144,16 @@ pub trait ContactsBackend {
     fn request_authorization<'a>(&'a mut self) -> Self::RequestAuthorizationFuture<'a>;
 }
 
+/// A read-only extension for backends that can fetch one record by local identifier.
+///
+/// Implementations must re-check authorization for each call, permit only `Authorized` or
+/// `Limited`, reject empty/NUL-containing identifiers, and return owned Rust data. This separate
+/// trait keeps existing [`ContactsBackend`] implementors source-compatible.
+pub trait ContactsFetchBackend: ContactsBackend {
+    /// Fetches one accessible contact by caller-supplied local identifier.
+    fn fetch_contact(&self, identifier: &str) -> Result<Contact, ContactsError>;
+}
+
 /// A thin facade over caller-owned, statically selected Contacts backend state.
 pub struct Contacts<B> {
     backend: B,
@@ -121,6 +178,13 @@ impl<B: ContactsBackend> Contacts<B> {
     /// Starts an explicit authorization request when the returned future is first polled.
     pub fn request_authorization(&mut self) -> B::RequestAuthorizationFuture<'_> {
         self.backend.request_authorization()
+    }
+}
+
+impl<B: ContactsFetchBackend> Contacts<B> {
+    /// Fetches one contact without prompting, enumerating, or mutating the contact store.
+    pub fn fetch_contact(&self, identifier: &str) -> Result<Contact, ContactsError> {
+        self.backend.fetch_contact(identifier)
     }
 }
 
@@ -239,5 +303,53 @@ mod tests {
         );
         assert_eq!(error.kind(), ErrorKind::Platform);
         assert_eq!(error.platform_code().unwrap().get(), -42);
+    }
+
+    #[test]
+    fn fetch_errors_expose_stable_categories() {
+        assert_eq!(
+            ContactsError::InvalidIdentifier.kind(),
+            ErrorKind::InvalidInput
+        );
+        assert_eq!(ContactsError::NotFound.kind(), ErrorKind::NotFound);
+        assert_eq!(
+            ContactsError::AuthorizationRequired(ContactsAuthorization::Denied).kind(),
+            ErrorKind::PermissionDenied
+        );
+        assert_eq!(
+            ContactsError::AuthorizationRequired(ContactsAuthorization::Unknown).kind(),
+            ErrorKind::Unavailable
+        );
+        assert_eq!(
+            ContactsError::AuthorizationRequired(ContactsAuthorization::Limited).platform_code(),
+            None
+        );
+    }
+
+    #[test]
+    fn contact_snapshot_owns_common_fields_and_labeled_values() {
+        let contact = Contact {
+            identifier: String::from("local-id"),
+            given_name: String::from("Ada"),
+            family_name: String::from("Lovelace"),
+            organization_name: String::new(),
+            phone_numbers: vec![ContactLabeledValue {
+                label: Some(String::from("mobile")),
+                value: String::from("+1 555 0100"),
+            }],
+            email_addresses: vec![ContactLabeledValue {
+                label: None,
+                value: String::from("ada@example.test"),
+            }],
+        };
+
+        assert_eq!(contact.identifier, "local-id");
+        assert_eq!(contact.given_name, "Ada");
+        assert_eq!(contact.family_name, "Lovelace");
+        assert!(contact.organization_name.is_empty());
+        assert_eq!(contact.phone_numbers[0].label.as_deref(), Some("mobile"));
+        assert_eq!(contact.phone_numbers[0].value, "+1 555 0100");
+        assert_eq!(contact.email_addresses[0].label, None);
+        assert_eq!(contact.email_addresses[0].value, "ada@example.test");
     }
 }
