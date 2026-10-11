@@ -4502,10 +4502,10 @@
           "text": "eventWithIdentifier(&native_identifier)"
         },
         {
-          "message": "EventKit deletion must verify the freshly resolved identifier",
+          "message": "the shared selected-event snapshot validator must compare the resolved identifier",
           "must_exist": true,
           "path": "platform/ios/ios-calendar/src/conversion.rs",
-          "text": "event.event_identifier() != Some(resolved_identifier)"
+          "text": "event.event_identifier() == Some(resolved_identifier)"
         },
         {
           "message": "EventKit deletion must fail closed when the resolved occurrence differs from the selected snapshot",
@@ -4514,16 +4514,22 @@
           "text": "validate_event_delete_snapshot(event, &resolved_identifier, start, end)?"
         },
         {
-          "message": "exact event snapshot validation must reject a different recurring occurrence start",
+          "message": "the shared event snapshot validator must reject any identifier or date mismatch",
           "must_exist": true,
           "path": "platform/ios/ios-calendar/src/conversion.rs",
-          "text": "start_seconds != event.start().unix_seconds()"
+          "text": "if !selected_event_snapshot_matches(event, resolved_identifier, start_seconds, end_seconds)"
         },
         {
-          "message": "exact event snapshot validation must reject a changed selected-event end",
+          "message": "the shared event snapshot validator must compare the selected start instant",
           "must_exist": true,
           "path": "platform/ios/ios-calendar/src/conversion.rs",
-          "text": "end_seconds != event.end().unix_seconds()"
+          "text": "start_seconds == event.start().unix_seconds()"
+        },
+        {
+          "message": "the shared event snapshot validator must compare the selected end instant",
+          "must_exist": true,
+          "path": "platform/ios/ios-calendar/src/conversion.rs",
+          "text": "end_seconds == event.end().unix_seconds()"
         },
         {
           "message": "EventKit deletion must require the resolved event calendar to support Event entities",
@@ -4650,24 +4656,6 @@
           "must_exist": true,
           "path": "platform/ios/ios-calendar/src/event_update.rs",
           "text": "validate_event_update_snapshot(event, &resolved_identifier, start, end)?"
-        },
-        {
-          "message": "selected event occurrence validation must compare the identifier and exact start/end instants",
-          "must_exist": true,
-          "path": "platform/ios/ios-calendar/src/conversion.rs",
-          "text": "event.event_identifier() == Some(resolved_identifier)"
-        },
-        {
-          "message": "selected event occurrence validation must compare the exact start instant",
-          "must_exist": true,
-          "path": "platform/ios/ios-calendar/src/conversion.rs",
-          "text": "start_seconds == event.start().unix_seconds()"
-        },
-        {
-          "message": "selected event occurrence validation must compare the exact end instant",
-          "must_exist": true,
-          "path": "platform/ios/ios-calendar/src/conversion.rs",
-          "text": "end_seconds == event.end().unix_seconds()"
         },
         {
           "message": "EventKit update must require the current event calendar to support Event entities",
