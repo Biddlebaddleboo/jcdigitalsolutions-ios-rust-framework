@@ -16,8 +16,8 @@ use objc2::rc::{Retained, autoreleasepool};
 use objc2::runtime::{AnyObject, Bool};
 use objc2::sel;
 use objc2_foundation::{
-    NSArray, NSCalendar, NSDateComponents, NSError, NSMutableDictionary, NSObjectProtocol,
-    NSString, NSTimeZone,
+    NSArray, NSCalendar, NSDateComponents, NSError, NSMutableDictionary, NSNumber,
+    NSObjectProtocol, NSString, NSTimeZone,
 };
 use objc2_user_notifications::{
     UNAuthorizationOptions, UNCalendarNotificationTrigger, UNMutableNotificationContent,
@@ -618,6 +618,10 @@ fn make_request(
         content.setTitle(&NSString::from_str(notification.content().title()));
         if let Some(body) = notification.content().body() {
             content.setBody(&NSString::from_str(body));
+        }
+        if let Some(badge_count) = notification.content().badge_count() {
+            let badge = NSNumber::new_u32(badge_count);
+            content.setBadge(Some(&badge));
         }
         if let Some(thread_identifier) = notification.content().thread_identifier() {
             content.setThreadIdentifier(&NSString::from_str(thread_identifier));

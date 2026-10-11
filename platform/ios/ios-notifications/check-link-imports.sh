@@ -17,6 +17,10 @@ if ! grep -Fq '.with_system_default_sound()' "$probe_source"; then
     echo "iOS notifications link probe must retain the system-default sound API call" >&2
     exit 1
 fi
+if ! grep -Fq '.with_badge_count(3)' "$probe_source"; then
+    echo "iOS notifications link probe must retain the badge-count API call" >&2
+    exit 1
+fi
 if ! grep -Fq 'backend.pending_request_count()' "$probe_source"; then
     echo "iOS notifications link probe must retain the pending-request count API call" >&2
     exit 1
@@ -53,6 +57,11 @@ if ! grep -Fq 'backend.notification_settings_surface_raw_values()' "$probe_sourc
     exit 1
 fi
 settings_source=platform/ios/ios-notifications/src/platform.rs
+if ! grep -Fq 'notification.content().badge_count()' "$settings_source" || \
+    ! grep -Fq 'content.setBadge(Some(&badge));' "$settings_source"; then
+    echo "iOS notification requests must map a present badge count to UserNotifications" >&2
+    exit 1
+fi
 if ! grep -Fq 'if notification.content().uses_system_default_sound() {' "$settings_source"; then
     echo "iOS notification requests must set sound only when the portable opt-in is true" >&2
     exit 1

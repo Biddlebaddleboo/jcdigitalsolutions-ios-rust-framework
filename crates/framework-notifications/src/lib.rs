@@ -49,12 +49,14 @@ impl NotificationId {
 
 /// Owned portable text fields for one user-visible notification.
 ///
-/// The contract contains a title, optional body, and an opt-in system-default sound. It does not
-/// model custom sounds, actions, categories, attachments, badges, or platform-specific options.
+/// The contract contains a title, optional body, an opt-in system-default sound, and an optional
+/// application badge count. It does not model custom sounds, actions, categories, attachments, or
+/// platform-specific options.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct NotificationContent {
     title: String,
     body: Option<String>,
+    badge_count: Option<u32>,
     system_default_sound: bool,
     metadata: Option<Box<NotificationMetadata>>,
 }
@@ -71,9 +73,24 @@ impl NotificationContent {
         Self {
             title,
             body,
+            badge_count: None,
             system_default_sound: false,
             metadata: None,
         }
+    }
+
+    /// Requests that the delivered notification set the application's badge to this count.
+    ///
+    /// A count of zero requests clearing the badge. Delivery, authorization, and the resulting
+    /// application icon state remain controlled by the platform.
+    pub const fn with_badge_count(mut self, count: u32) -> Self {
+        self.badge_count = Some(count);
+        self
+    }
+
+    /// Returns the requested application badge count, or `None` when the content leaves it alone.
+    pub const fn badge_count(&self) -> Option<u32> {
+        self.badge_count
     }
 
     /// Sets an exact platform-neutral notification grouping identifier.
@@ -98,7 +115,10 @@ impl NotificationContent {
     /// so the last value wins while entry iteration retains the key's first-insertion position.
     pub fn with_user_info_entry(mut self, key: String, value: String) -> Self {
         let entries = &mut self.metadata_mut().user_info_entries;
-        if let Some(index) = entries.iter().position(|(existing_key, _)| existing_key == &key) {
+        if let Some(index) = entries
+            .iter()
+            .position(|(existing_key, _)| existing_key == &key)
+        {
             entries[index].1 = value;
         } else {
             entries.push((key, value));
@@ -686,6 +706,18 @@ mod tests {
             NotificationTrigger::at_unix_millis(MAX_UNIX_TIMESTAMP_MILLIS + 1),
             Err(NotificationError::InvalidTimestamp)
         );
+    }
+
+    #[test]
+    fn badge_count_defaults_to_unchanged_and_preserves_zero_and_maximum() {
+        let content = NotificationContent::new(String::from("title"), None);
+        assert_eq!(content.badge_count(), None);
+
+        let clear = content.clone().with_badge_count(0);
+        assert_eq!(clear.badge_count(), Some(0));
+
+        let maximum = content.with_badge_count(u32::MAX);
+        assert_eq!(maximum.badge_count(), Some(u32::MAX));
     }
 
     #[test]

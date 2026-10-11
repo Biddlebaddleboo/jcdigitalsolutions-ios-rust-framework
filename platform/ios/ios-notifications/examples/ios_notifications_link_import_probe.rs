@@ -39,6 +39,7 @@ fn main() {
         let notification = Notification::new(
             identifier,
             NotificationContent::new(String::from("Link probe"), None)
+                .with_badge_count(3)
                 .with_system_default_sound()
                 .with_thread_identifier(String::from("probe-group"))
                 .with_user_info_entry(String::from("reference"), String::from("item:42")),
