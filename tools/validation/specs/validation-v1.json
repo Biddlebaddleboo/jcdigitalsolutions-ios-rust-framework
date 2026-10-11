@@ -112,7 +112,7 @@
       "ios-sharing",
       "ios-runtime"
     ],
-["ios-microphone-pcm-recorder","ios-media-authorization"],["ios-datagram","framework-datagram"],["ios-notification-responses","framework-notifications"],["ios-call-provider","objc2-call-kit"]
+["ios-microphone-pcm-recorder","ios-media-authorization"],["ios-datagram","framework-datagram"],["ios-notification-responses","framework-notifications"],["ios-navigation","framework-core"],["ios-navigation","framework-ui"],["ios-navigation","ios-runtime"],["ios-navigation","ios-ui"],["ios-call-provider","objc2-call-kit"]
   ],
   "pilots": [
     {
@@ -4025,594 +4025,104 @@
       ],
       "fmt_all": false,
       "guards": [
-        {
-          "path": "platform/ios/ios-ui/src/platform.rs",
-          "text": "pub struct IosImageView",
-          "must_exist": true,
-          "message": "the image handle must retain UIImageView and remain !Send/!Sync"
-        },
-        {
-          "path": "platform/ios/ios-ui/src/platform.rs",
-          "text": "native: Retained<UIImageView>,",
-          "must_exist": true,
-          "message": "the image handle must retain UIImageView and remain !Send/!Sync"
-        },
-        {
-          "path": "platform/ios/ios-ui/src/platform.rs",
-          "text": "_not_send: PhantomData<Rc<()>>,",
-          "must_exist": true,
-          "message": "the image handle must retain UIImageView and remain !Send/!Sync"
-        },
-        {
-          "path": "platform/ios/ios-ui/src/platform.rs",
-          "text": "pub fn add_image_view(",
-          "must_exist": true,
-          "message": "ios-ui must construct an image view under its main-thread proof"
-        },
-        {
-          "path": "platform/ios/ios-ui/src/platform.rs",
-          "text": "image: Option<&UIImage>,",
-          "must_exist": true,
-          "message": "image input must remain a borrowed UIKit UIImage"
-        },
-        {
-          "path": "platform/ios/ios-ui/src/platform.rs",
-          "text": "UIImageView::new(marker)",
-          "must_exist": true,
-          "message": "UIImageView creation must require a current UIKit main-thread marker"
-        },
-        {
-          "path": "platform/ios/ios-ui/src/platform.rs",
-          "text": "pub fn set_image(&mut self, image: Option<&UIImage>) -> Result<()>",
-          "must_exist": true,
-          "message": "image set and clear must use UIKit setImage: under main-thread proof"
-        },
-        {
-          "path": "platform/ios/ios-ui/src/platform.rs",
-          "text": "self.native.setImage(image);",
-          "must_exist": true,
-          "message": "image set and clear must use UIKit setImage: under main-thread proof"
-        },
-        {
-          "path": "platform/ios/ios-ui/src/platform.rs",
-          "text": "pub fn clear_image(&mut self) -> Result<()>",
-          "must_exist": true,
-          "message": "the image handle must expose an explicit clear operation"
-        },
-        {
-          "path": "platform/ios/ios-ui/src/platform.rs",
-          "text": "self.set_image(None)",
-          "must_exist": true,
-          "message": "the image handle must expose an explicit clear operation"
-        },
-        {
-          "path": "platform/ios/ios-ui/src/platform.rs",
-          "text": "pub fn native_image_view(&self) -> &UIImageView",
-          "must_exist": true,
-          "message": "the image handle must expose its typed UIKit escape"
-        },
-        {
-          "path": "platform/ios/ios-ui/src/lib.rs",
-          "text": "IosImageView",
-          "must_exist": true,
-          "message": "IosImageView must be part of the public ios-ui surface"
-        },
-        {
-          "path": "platform/ios/ios-ui/Cargo.toml",
-          "text": "\"UIImage\", \"UIImageView\"",
-          "must_exist": true,
-          "message": "only the needed UIImage and UIImageView UIKit bindings are required"
-        },
-        {
-          "path": "platform/ios/ios-ui/examples/ios_ui_image_view_link_probe.rs",
-          "text": "view.set_image(Some(image));",
-          "must_exist": true,
-          "message": "the link probe must compile the non-null UIImage set path"
-        },
-        {
-          "path": "crates/framework-ui/src/lib.rs",
-          "text": "UIImage",
-          "must_exist": false,
-          "message": "UIKit UIImage types must not leak into portable framework-ui"
-        },
-        {
-          "path": "crates/framework-ui/src/lib.rs",
-          "text": "UIImageView",
-          "must_exist": false,
-          "message": "UIKit UIImageView types must not leak into portable framework-ui"
-        },
-        {
-          "path": "platform/ios/ios-ui/src/platform.rs",
-          "text": "UIImage::imageWithData(",
-          "must_exist": false,
-          "message": "this increment must not add image decoding"
-        },
-        {
-          "path": "platform/ios/ios-ui/src/platform.rs",
-          "text": "UIImage::initWithData(",
-          "must_exist": false,
-          "message": "this increment must not add image decoding"
-        },
-        {
-          "path": "platform/ios/ios-ui/src/platform.rs",
-          "text": "UIImage::imageWithContentsOfFile(",
-          "must_exist": false,
-          "message": "this increment must not add image file I/O"
-        },
-        {
-          "path": "platform/ios/ios-ui/src/platform.rs",
-          "text": "UIImage::initWithContentsOfFile(",
-          "must_exist": false,
-          "message": "this increment must not add image file I/O"
-        },
-        {
-          "path": "platform/ios/ios-ui/src/platform.rs",
-          "text": "UIImage::imageNamed(",
-          "must_exist": false,
-          "message": "this increment must not add asset lookup or image I/O"
-        },
-        {
-          "path": "platform/ios/ios-ui/src/platform.rs",
-          "text": "let marker = main_thread_marker()?;",
-          "must_exist": true,
-          "message": "UIKit image-view creation must require a current main-thread proof"
-        },
-        {
-          "path": "platform/ios/ios-ui/src/platform.rs",
-          "text": "let _image_thread = main_thread_marker()?;",
-          "must_exist": true,
-          "message": "UIKit image replacement must require a current main-thread proof"
-        },
-        {
-          "path": "platform/ios/ios-ui/src/platform.rs",
-          "text": "pub struct IosTextField",
-          "must_exist": true,
-          "message": "ios-ui must expose a retained native text-field handle"
-        },
-        {
-          "path": "platform/ios/ios-ui/src/platform.rs",
-          "text": "native: Retained<UITextField>,",
-          "must_exist": true,
-          "message": "the text-field handle must retain UITextField and remain !Send/!Sync"
-        },
-        {
-          "path": "platform/ios/ios-ui/src/platform.rs",
-          "text": "_text_field_not_send: PhantomData<Rc<()>>",
-          "must_exist": true,
-          "message": "the text-field handle must remain !Send/!Sync"
-        },
-        {
-          "path": "platform/ios/ios-ui/src/platform.rs",
-          "text": "pub fn add_text_field(",
-          "must_exist": true,
-          "message": "ios-ui must add a text field as a caller-owned child view"
-        },
-        {
-          "path": "platform/ios/ios-ui/src/platform.rs",
-          "text": "let field_marker = main_thread_marker()?;",
-          "must_exist": true,
-          "message": "text-field creation must require a current UIKit main-thread proof"
-        },
-        {
-          "path": "platform/ios/ios-ui/src/platform.rs",
-          "text": "let native = UITextField::new(field_marker);",
-          "must_exist": true,
-          "message": "UITextField creation must use the proven main-thread marker"
-        },
-        {
-          "path": "platform/ios/ios-ui/src/platform.rs",
-          "text": "parent.native.addSubview(&native);",
-          "must_exist": true,
-          "message": "the text field must be attached to the caller-owned parent view"
-        },
-        {
-          "path": "platform/ios/ios-ui/src/platform.rs",
-          "text": "native.setText(text.as_deref());",
-          "must_exist": true,
-          "message": "initial nullable text must map nil and empty values to UIKit"
-        },
-        {
-          "path": "platform/ios/ios-ui/src/platform.rs",
-          "text": "let text = text.map(NSString::from_str);",
-          "must_exist": true,
-          "message": "initial Rust text must be encoded with NSString's explicit-length constructor"
-        },
-        {
-          "path": "platform/ios/ios-ui/src/platform.rs",
-          "text": "native.setPlaceholder(placeholder.as_deref());",
-          "must_exist": true,
-          "message": "initial nullable placeholder must map nil and empty values to UIKit"
-        },
-        {
-          "path": "platform/ios/ios-ui/src/platform.rs",
-          "text": "let placeholder = placeholder.map(NSString::from_str);",
-          "must_exist": true,
-          "message": "initial placeholder must be encoded with NSString's explicit-length constructor"
-        },
-        {
-          "path": "platform/ios/ios-ui/src/platform.rs",
-          "text": "pub fn text(&self) -> Result<Option<String>>",
-          "must_exist": true,
-          "message": "field text reads must preserve nil and return Rust-owned strings"
-        },
-        {
-          "path": "platform/ios/ios-ui/src/platform.rs",
-          "text": ".text()",
-          "must_exist": true,
-          "message": "the text getter must read the native UITextField property"
-        },
-        {
-          "path": "platform/ios/ios-ui/src/platform.rs",
-          "text": ".placeholder()",
-          "must_exist": true,
-          "message": "the placeholder getter must read the native UITextField property"
-        },
-        {
-          "path": "platform/ios/ios-ui/src/platform.rs",
-          "text": "pub fn set_text(&mut self, text: Option<&str>) -> Result<()>",
-          "must_exist": true,
-          "message": "field text writes must preserve nullable length-aware input"
-        },
-        {
-          "path": "platform/ios/ios-ui/src/platform.rs",
-          "text": "self.native.setText(text.as_deref());",
-          "must_exist": true,
-          "message": "field text writes must set or clear the native text property"
-        },
-        {
-          "path": "platform/ios/ios-ui/src/platform.rs",
-          "text": "pub fn placeholder(&self) -> Result<Option<String>>",
-          "must_exist": true,
-          "message": "placeholder reads must preserve nil and return Rust-owned strings"
-        },
-        {
-          "path": "platform/ios/ios-ui/src/platform.rs",
-          "text": "pub fn set_placeholder(&mut self, placeholder: Option<&str>) -> Result<()>",
-          "must_exist": true,
-          "message": "placeholder writes must preserve nullable length-aware input"
-        },
-        {
-          "path": "platform/ios/ios-ui/src/platform.rs",
-          "text": "self.native.setPlaceholder(placeholder.as_deref());",
-          "must_exist": true,
-          "message": "placeholder writes must set or clear the native placeholder property"
-        },
-        {
-          "path": "platform/ios/ios-ui/src/platform.rs",
-          "text": "let _field_text_thread = main_thread_marker()?;",
-          "must_exist": true,
-          "message": "field text reads must require a current main-thread proof"
-        },
-        {
-          "path": "platform/ios/ios-ui/src/platform.rs",
-          "text": "let _field_text_write_thread = main_thread_marker()?;",
-          "must_exist": true,
-          "message": "field text writes must require a current main-thread proof"
-        },
-        {
-          "path": "platform/ios/ios-ui/src/platform.rs",
-          "text": "let _field_placeholder_read_thread = main_thread_marker()?;",
-          "must_exist": true,
-          "message": "placeholder reads must require a current main-thread proof"
-        },
-        {
-          "path": "platform/ios/ios-ui/src/platform.rs",
-          "text": "let _field_placeholder_write_thread = main_thread_marker()?;",
-          "must_exist": true,
-          "message": "placeholder writes must require a current main-thread proof"
-        },
-        {
-          "path": "platform/ios/ios-ui/src/platform.rs",
-          "text": "pub fn request_first_responder(&mut self) -> Result<bool>",
-          "must_exist": true,
-          "message": "first-responder requests must return UIKit's Bool result"
-        },
-        {
-          "path": "platform/ios/ios-ui/src/platform.rs",
-          "text": "self.native.becomeFirstResponder()",
-          "must_exist": true,
-          "message": "focus requests must call the public UIKit responder API"
-        },
-        {
-          "path": "platform/ios/ios-ui/src/platform.rs",
-          "text": "let _field_focus_thread = main_thread_marker()?;",
-          "must_exist": true,
-          "message": "first-responder requests must require a current main-thread proof"
-        },
-        {
-          "path": "platform/ios/ios-ui/src/platform.rs",
-          "text": "pub fn resign_first_responder(&mut self) -> Result<bool>",
-          "must_exist": true,
-          "message": "resign requests must return UIKit's Bool result"
-        },
-        {
-          "path": "platform/ios/ios-ui/src/platform.rs",
-          "text": "self.native.resignFirstResponder()",
-          "must_exist": true,
-          "message": "resign requests must call the public UIKit responder API"
-        },
-        {
-          "path": "platform/ios/ios-ui/src/platform.rs",
-          "text": "let _field_resign_thread = main_thread_marker()?;",
-          "must_exist": true,
-          "message": "resign requests must require a current main-thread proof"
-        },
-        {
-          "path": "platform/ios/ios-ui/src/platform.rs",
-          "text": "pub fn native_text_field(&self) -> &UITextField",
-          "must_exist": true,
-          "message": "the text-field handle must expose its typed UIKit escape"
-        },
-        {
-          "path": "platform/ios/ios-ui/src/platform.rs",
-          "text": "let length = value.len_utf16();",
-          "must_exist": true,
-          "message": "NSString reads must use its UTF-16 length"
-        },
-        {
-          "path": "platform/ios/ios-ui/src/platform.rs",
-          "text": "value.getCharacters_range(buffer, NSRange::new(0, length))",
-          "must_exist": true,
-          "message": "NSString reads must copy an explicit UTF-16 range"
-        },
-        {
-          "path": "platform/ios/ios-ui/src/platform.rs",
-          "text": "map(native_string_to_rust)",
-          "must_exist": true,
-          "message": "native field strings must pass through the strict Rust UTF-16 conversion"
-        },
-        {
-          "path": "platform/ios/ios-ui/src/platform.rs",
-          "text": "Utf16Error::Invalid => Error::new(ErrorKind::InvalidInput)",
-          "must_exist": true,
-          "message": "malformed UTF-16 must fail instead of becoming lossy text"
-        },
-        {
-          "path": "platform/ios/ios-ui/src/platform.rs",
-          "text": "NSString::from_str",
-          "must_exist": true,
-          "message": "Rust strings must use the length-aware NSString constructor"
-        },
-        {
-          "path": "platform/ios/ios-ui/src/platform.rs",
-          "text": "UTF8String",
-          "must_exist": false,
-          "message": "the text-field bridge must not use NSString C-string conversion"
-        },
-        {
-          "path": "platform/ios/ios-ui/src/platform.rs",
-          "text": "CString",
-          "must_exist": false,
-          "message": "the text-field bridge must not convert through C strings"
-        },
-        {
-          "path": "platform/ios/ios-ui/src/platform.rs",
-          "text": "CStr",
-          "must_exist": false,
-          "message": "the text-field bridge must not read through C strings"
-        },
-        {
-          "path": "platform/ios/ios-ui/src/platform.rs",
-          "text": "initWithCString",
-          "must_exist": false,
-          "message": "the text-field bridge must not initialize NSString through C strings"
-        },
-        {
-          "path": "platform/ios/ios-ui/src/text_conversion.rs",
-          "text": "from_utf16_lossy",
-          "must_exist": false,
-          "message": "malformed UTF-16 must not be silently replaced"
-        },
-        {
-          "path": "platform/ios/ios-ui/src/text_conversion.rs",
-          "text": "decodes_empty_and_embedded_nul",
-          "must_exist": true,
-          "message": "host regressions must preserve embedded NUL and empty strings"
-        },
-        {
-          "path": "platform/ios/ios-ui/src/text_conversion.rs",
-          "text": "decodes_supplementary_scalar",
-          "must_exist": true,
-          "message": "host regressions must preserve supplementary Unicode scalars"
-        },
-        {
-          "path": "platform/ios/ios-ui/src/text_conversion.rs",
-          "text": "rejects_unpaired_surrogates_without_replacement",
-          "must_exist": true,
-          "message": "host regressions must reject malformed UTF-16"
-        },
-        {
-          "path": "platform/ios/ios-ui/src/lib.rs",
-          "text": "IosTextField",
-          "must_exist": true,
-          "message": "IosTextField must be part of the public ios-ui surface"
-        },
-        {
-          "path": "platform/ios/ios-ui/Cargo.toml",
-          "text": "\"UITextField\", \"UIResponder\"",
-          "must_exist": true,
-          "message": "objc2-ui-kit must enable UITextField and its responder binding"
-        },
-        {
-          "path": "platform/ios/ios-ui/Cargo.toml",
-          "text": "features = [\"NSRange\", \"NSString\"]",
-          "must_exist": true,
-          "message": "objc2-foundation must enable length-aware UTF-16 range access"
-        },
-        {
-          "path": "platform/ios/ios-ui/examples/ios_ui_text_field_link_probe.rs",
-          "text": "field.request_first_responder()",
-          "must_exist": true,
-          "message": "the registered link probe must retain the responder selector"
-        },
-        {
-          "path": "platform/ios/ios-ui/examples/ios_ui_text_field_link_probe.rs",
-          "text": "field.native_text_field()",
-          "must_exist": true,
-          "message": "the registered link probe must compile the typed UIKit escape"
-        },
-        {
-          "path": "platform/ios/ios-ui/check-text-field-link-imports.sh",
-          "text": "grep -F 'objc_getClass'",
-          "must_exist": true,
-          "message": "the link check must verify the objc2 runtime class-lookup mechanism"
-        },
-        {
-          "path": "platform/ios/ios-ui/check-text-field-link-imports.sh",
-          "text": "grep -Fx 'UITextField'",
-          "must_exist": true,
-          "message": "the link check must verify the public UITextField runtime class name"
-        },
-        {
-          "path": "crates/framework-ui/src/lib.rs",
-          "text": "UITextField",
-          "must_exist": false,
-          "message": "UIKit text-field types must not leak into portable framework-ui"
-        },
-        {
-          "path": "platform/ios/ios-ui/src/platform.rs",
-          "text": "pub struct IosStackView",
-          "must_exist": true,
-          "message": "ios-ui must expose a retained UIStackView handle"
-        },
-        {
-          "path": "platform/ios/ios-ui/src/platform.rs",
-          "text": "native: Retained<UIStackView>,",
-          "must_exist": true,
-          "message": "the stack handle must retain UIKit's native UIStackView"
-        },
-        {
-          "path": "platform/ios/ios-ui/src/platform.rs",
-          "text": "pub enum IosStackAxis",
-          "must_exist": true,
-          "message": "stack direction must use a typed public axis"
-        },
-        {
-          "path": "platform/ios/ios-ui/src/platform.rs",
-          "text": "pub fn add_stack_view(",
-          "must_exist": true,
-          "message": "the backend must add a stack to a caller-owned parent"
-        },
-        {
-          "path": "platform/ios/ios-ui/src/platform.rs",
-          "text": "if !is_valid_stack_spacing(spacing)",
-          "must_exist": true,
-          "message": "stack creation and spacing updates must reject non-finite spacing"
-        },
-        {
-          "path": "platform/ios/ios-ui/src/platform.rs",
-          "text": "let native = UIStackView::new(marker);",
-          "must_exist": true,
-          "message": "stack creation must use the proven main-thread marker"
-        },
-        {
-          "path": "platform/ios/ios-ui/src/platform.rs",
-          "text": "UILayoutConstraintAxis::Horizontal",
-          "must_exist": true,
-          "message": "the horizontal axis must map to UIKit's public axis"
-        },
-        {
-          "path": "platform/ios/ios-ui/src/platform.rs",
-          "text": "UILayoutConstraintAxis::Vertical",
-          "must_exist": true,
-          "message": "the vertical axis must map to UIKit's public axis"
-        },
-        {
-          "path": "platform/ios/ios-ui/src/platform.rs",
-          "text": "native.setSpacing(spacing as _);",
-          "must_exist": true,
-          "message": "finite spacing must reach UIKit in native point units"
-        },
-        {
-          "path": "platform/ios/ios-ui/src/platform.rs",
-          "text": "parent.native.addSubview(&native);",
-          "must_exist": true,
-          "message": "stack creation must attach to the caller-owned parent"
-        },
-        {
-          "path": "platform/ios/ios-ui/src/platform.rs",
-          "text": "pub fn add_arranged_subview(&mut self, view: &UIView) -> Result<()>",
-          "must_exist": true,
-          "message": "the stack must accept a native UIView as an arranged child"
-        },
-        {
-          "path": "platform/ios/ios-ui/src/platform.rs",
-          "text": "self.native.addArrangedSubview(view);",
-          "must_exist": true,
-          "message": "arranged-child mutation must call UIKit's native operation"
-        },
-        {
-          "path": "platform/ios/ios-ui/src/platform.rs",
-          "text": "pub fn set_spacing(&mut self, spacing: f64) -> Result<()>",
-          "must_exist": true,
-          "message": "the stack must expose spacing updates"
-        },
-        {
-          "path": "platform/ios/ios-ui/src/platform.rs",
-          "text": "pub fn native_stack_view(&self) -> &UIStackView",
-          "must_exist": true,
-          "message": "the stack handle must expose a typed UIKit escape"
-        },
-        {
-          "path": "platform/ios/ios-ui/src/stack_spacing.rs",
-          "text": "spacing.is_finite()",
-          "must_exist": true,
-          "message": "spacing validation must reject NaN and infinities"
-        },
-        {
-          "path": "platform/ios/ios-ui/src/stack_spacing.rs",
-          "text": "assert!(is_valid_stack_spacing(-2.0));",
-          "must_exist": true,
-          "message": "negative finite spacing must remain valid for UIKit overlap behavior"
-        },
-        {
-          "path": "platform/ios/ios-ui/src/stack_spacing.rs",
-          "text": "fn rejects_non_finite_spacing()",
-          "must_exist": true,
-          "message": "host regressions must reject NaN and positive or negative infinity"
-        },
-        {
-          "path": "platform/ios/ios-ui/src/lib.rs",
-          "text": "IosStackAxis, IosStackView",
-          "must_exist": true,
-          "message": "stack types must be part of the public ios-ui surface"
-        },
-        {
-          "path": "platform/ios/ios-ui/Cargo.toml",
-          "text": "\"UIStackView\"",
-          "must_exist": true,
-          "message": "objc2-ui-kit must enable the typed UIStackView binding"
-        },
-        {
-          "path": "platform/ios/ios-ui/examples/ios_ui_stack_link_probe.rs",
-          "text": "IosStackAxis::Vertical",
-          "must_exist": true,
-          "message": "the device and simulator link probe must compile vertical stack creation"
-        },
-        {
-          "path": "platform/ios/ios-ui/examples/ios_ui_stack_link_probe.rs",
-          "text": "stack.add_arranged_subview(label.native_label())",
-          "must_exist": true,
-          "message": "the link probe must compile arranged-child insertion"
-        },
-        {
-          "path": "platform/ios/ios-ui/check-link-imports.sh",
-          "text": "for symbol in UIStackView 'addArrangedSubview:' 'setAxis:' 'setSpacing:'; do",
-          "must_exist": true,
-          "message": "the link check must inspect UIStackView class and selectors"
-        },
-        {
-          "path": "crates/framework-ui/src/lib.rs",
-          "text": "UIStackView",
-          "must_exist": false,
-          "message": "UIKit stack types must not leak into portable framework-ui"
-        },
-        {
-          "path": "crates/framework-ui/src/lib.rs",
-          "text": "IosStackView",
-          "must_exist": false,
-          "message": "the iOS stack handle must not leak into portable framework-ui"
-        }
+        {"path":"platform/ios/ios-ui/src/platform.rs","text":"pub struct IosImageView","must_exist":true,"message":"the image handle must retain UIImageView and remain !Send/!Sync"},
+        {"path":"platform/ios/ios-ui/src/platform.rs","text":"native: Retained<UIImageView>,","must_exist":true,"message":"the image handle must retain UIImageView and remain !Send/!Sync"},
+        {"path":"platform/ios/ios-ui/src/platform.rs","text":"_not_send: PhantomData<Rc<()>>,","must_exist":true,"message":"the image handle must retain UIImageView and remain !Send/!Sync"},
+        {"path":"platform/ios/ios-ui/src/platform.rs","text":"pub fn add_image_view(","must_exist":true,"message":"ios-ui must construct an image view under its main-thread proof"},
+        {"path":"platform/ios/ios-ui/src/platform.rs","text":"image: Option<&UIImage>,","must_exist":true,"message":"image input must remain a borrowed UIKit UIImage"},
+        {"path":"platform/ios/ios-ui/src/platform.rs","text":"UIImageView::new(marker)","must_exist":true,"message":"UIImageView creation must require a current UIKit main-thread marker"},
+        {"path":"platform/ios/ios-ui/src/platform.rs","text":"pub fn set_image(&mut self, image: Option<&UIImage>) -> Result<()>","must_exist":true,"message":"image set and clear must use UIKit setImage: under main-thread proof"},
+        {"path":"platform/ios/ios-ui/src/platform.rs","text":"self.native.setImage(image);","must_exist":true,"message":"image set and clear must use UIKit setImage: under main-thread proof"},
+        {"path":"platform/ios/ios-ui/src/platform.rs","text":"pub fn clear_image(&mut self) -> Result<()>","must_exist":true,"message":"the image handle must expose an explicit clear operation"},
+        {"path":"platform/ios/ios-ui/src/platform.rs","text":"self.set_image(None)","must_exist":true,"message":"the image handle must expose an explicit clear operation"},
+        {"path":"platform/ios/ios-ui/src/platform.rs","text":"pub fn native_image_view(&self) -> &UIImageView","must_exist":true,"message":"the image handle must expose its typed UIKit escape"},
+        {"path":"platform/ios/ios-ui/src/lib.rs","text":"IosImageView","must_exist":true,"message":"IosImageView must be part of the public ios-ui surface"},
+        {"path":"platform/ios/ios-ui/Cargo.toml","text":"\"UIImage\", \"UIImageView\"","must_exist":true,"message":"only the needed UIImage and UIImageView UIKit bindings are required"},
+        {"path":"platform/ios/ios-ui/examples/ios_ui_image_view_link_probe.rs","text":"view.set_image(Some(image));","must_exist":true,"message":"the link probe must compile the non-null UIImage set path"},
+        {"path":"crates/framework-ui/src/lib.rs","text":"UIImage","must_exist":false,"message":"UIKit UIImage types must not leak into portable framework-ui"},
+        {"path":"crates/framework-ui/src/lib.rs","text":"UIImageView","must_exist":false,"message":"UIKit UIImageView types must not leak into portable framework-ui"},
+        {"path":"platform/ios/ios-ui/src/platform.rs","text":"UIImage::imageWithData(","must_exist":false,"message":"this increment must not add image decoding"},
+        {"path":"platform/ios/ios-ui/src/platform.rs","text":"UIImage::initWithData(","must_exist":false,"message":"this increment must not add image decoding"},
+        {"path":"platform/ios/ios-ui/src/platform.rs","text":"UIImage::imageWithContentsOfFile(","must_exist":false,"message":"this increment must not add image file I/O"},
+        {"path":"platform/ios/ios-ui/src/platform.rs","text":"UIImage::initWithContentsOfFile(","must_exist":false,"message":"this increment must not add image file I/O"},
+        {"path":"platform/ios/ios-ui/src/platform.rs","text":"UIImage::imageNamed(","must_exist":false,"message":"this increment must not add asset lookup or image I/O"},
+        {"path":"platform/ios/ios-ui/src/platform.rs","text":"let marker = main_thread_marker()?;","must_exist":true,"message":"UIKit image-view creation must require a current main-thread proof"},
+        {"path":"platform/ios/ios-ui/src/platform.rs","text":"let _image_thread = main_thread_marker()?;","must_exist":true,"message":"UIKit image replacement must require a current main-thread proof"},
+        {"path":"platform/ios/ios-ui/src/platform.rs","text":"pub struct IosTextField","must_exist":true,"message":"ios-ui must expose a retained native text-field handle"},
+        {"path":"platform/ios/ios-ui/src/platform.rs","text":"native: Retained<UITextField>,","must_exist":true,"message":"the text-field handle must retain UITextField and remain !Send/!Sync"},
+        {"path":"platform/ios/ios-ui/src/platform.rs","text":"_text_field_not_send: PhantomData<Rc<()>>","must_exist":true,"message":"the text-field handle must remain !Send/!Sync"},
+        {"path":"platform/ios/ios-ui/src/platform.rs","text":"pub fn add_text_field(","must_exist":true,"message":"ios-ui must add a text field as a caller-owned child view"},
+        {"path":"platform/ios/ios-ui/src/platform.rs","text":"let field_marker = main_thread_marker()?;","must_exist":true,"message":"text-field creation must require a current UIKit main-thread proof"},
+        {"path":"platform/ios/ios-ui/src/platform.rs","text":"let native = UITextField::new(field_marker);","must_exist":true,"message":"UITextField creation must use the proven main-thread marker"},
+        {"path":"platform/ios/ios-ui/src/platform.rs","text":"parent.native.addSubview(&native);","must_exist":true,"message":"the text field must be attached to the caller-owned parent view"},
+        {"path":"platform/ios/ios-ui/src/platform.rs","text":"native.setText(text.as_deref());","must_exist":true,"message":"initial nullable text must map nil and empty values to UIKit"},
+        {"path":"platform/ios/ios-ui/src/platform.rs","text":"let text = text.map(NSString::from_str);","must_exist":true,"message":"initial Rust text must be encoded with NSString's explicit-length constructor"},
+        {"path":"platform/ios/ios-ui/src/platform.rs","text":"native.setPlaceholder(placeholder.as_deref());","must_exist":true,"message":"initial nullable placeholder must map nil and empty values to UIKit"},
+        {"path":"platform/ios/ios-ui/src/platform.rs","text":"let placeholder = placeholder.map(NSString::from_str);","must_exist":true,"message":"initial placeholder must be encoded with NSString's explicit-length constructor"},
+        {"path":"platform/ios/ios-ui/src/platform.rs","text":"pub fn text(&self) -> Result<Option<String>>","must_exist":true,"message":"field text reads must preserve nil and return Rust-owned strings"},
+        {"path":"platform/ios/ios-ui/src/platform.rs","text":".text()","must_exist":true,"message":"the text getter must read the native UITextField property"},
+        {"path":"platform/ios/ios-ui/src/platform.rs","text":".placeholder()","must_exist":true,"message":"the placeholder getter must read the native UITextField property"},
+        {"path":"platform/ios/ios-ui/src/platform.rs","text":"pub fn set_text(&mut self, text: Option<&str>) -> Result<()>","must_exist":true,"message":"field text writes must preserve nullable length-aware input"},
+        {"path":"platform/ios/ios-ui/src/platform.rs","text":"self.native.setText(text.as_deref());","must_exist":true,"message":"field text writes must set or clear the native text property"},
+        {"path":"platform/ios/ios-ui/src/platform.rs","text":"pub fn placeholder(&self) -> Result<Option<String>>","must_exist":true,"message":"placeholder reads must preserve nil and return Rust-owned strings"},
+        {"path":"platform/ios/ios-ui/src/platform.rs","text":"pub fn set_placeholder(&mut self, placeholder: Option<&str>) -> Result<()>","must_exist":true,"message":"placeholder writes must preserve nullable length-aware input"},
+        {"path":"platform/ios/ios-ui/src/platform.rs","text":"self.native.setPlaceholder(placeholder.as_deref());","must_exist":true,"message":"placeholder writes must set or clear the native placeholder property"},
+        {"path":"platform/ios/ios-ui/src/platform.rs","text":"let _field_text_thread = main_thread_marker()?;","must_exist":true,"message":"field text reads must require a current main-thread proof"},
+        {"path":"platform/ios/ios-ui/src/platform.rs","text":"let _field_text_write_thread = main_thread_marker()?;","must_exist":true,"message":"field text writes must require a current main-thread proof"},
+        {"path":"platform/ios/ios-ui/src/platform.rs","text":"let _field_placeholder_read_thread = main_thread_marker()?;","must_exist":true,"message":"placeholder reads must require a current main-thread proof"},
+        {"path":"platform/ios/ios-ui/src/platform.rs","text":"let _field_placeholder_write_thread = main_thread_marker()?;","must_exist":true,"message":"placeholder writes must require a current main-thread proof"},
+        {"path":"platform/ios/ios-ui/src/platform.rs","text":"pub fn request_first_responder(&mut self) -> Result<bool>","must_exist":true,"message":"first-responder requests must return UIKit's Bool result"},
+        {"path":"platform/ios/ios-ui/src/platform.rs","text":"self.native.becomeFirstResponder()","must_exist":true,"message":"focus requests must call the public UIKit responder API"},
+        {"path":"platform/ios/ios-ui/src/platform.rs","text":"let _field_focus_thread = main_thread_marker()?;","must_exist":true,"message":"first-responder requests must require a current main-thread proof"},
+        {"path":"platform/ios/ios-ui/src/platform.rs","text":"pub fn resign_first_responder(&mut self) -> Result<bool>","must_exist":true,"message":"resign requests must return UIKit's Bool result"},
+        {"path":"platform/ios/ios-ui/src/platform.rs","text":"self.native.resignFirstResponder()","must_exist":true,"message":"resign requests must call the public UIKit responder API"},
+        {"path":"platform/ios/ios-ui/src/platform.rs","text":"let _field_resign_thread = main_thread_marker()?;","must_exist":true,"message":"resign requests must require a current main-thread proof"},
+        {"path":"platform/ios/ios-ui/src/platform.rs","text":"pub fn native_text_field(&self) -> &UITextField","must_exist":true,"message":"the text-field handle must expose its typed UIKit escape"},
+        {"path":"platform/ios/ios-ui/src/platform.rs","text":"let length = value.len_utf16();","must_exist":true,"message":"NSString reads must use its UTF-16 length"},
+        {"path":"platform/ios/ios-ui/src/platform.rs","text":"value.getCharacters_range(buffer, NSRange::new(0, length))","must_exist":true,"message":"NSString reads must copy an explicit UTF-16 range"},
+        {"path":"platform/ios/ios-ui/src/platform.rs","text":"map(native_string_to_rust)","must_exist":true,"message":"native field strings must pass through the strict Rust UTF-16 conversion"},
+        {"path":"platform/ios/ios-ui/src/platform.rs","text":"Utf16Error::Invalid => Error::new(ErrorKind::InvalidInput)","must_exist":true,"message":"malformed UTF-16 must fail instead of becoming lossy text"},
+        {"path":"platform/ios/ios-ui/src/platform.rs","text":"NSString::from_str","must_exist":true,"message":"Rust strings must use the length-aware NSString constructor"},
+        {"path":"platform/ios/ios-ui/src/platform.rs","text":"UTF8String","must_exist":false,"message":"the text-field bridge must not use NSString C-string conversion"},
+        {"path":"platform/ios/ios-ui/src/platform.rs","text":"CString","must_exist":false,"message":"the text-field bridge must not convert through C strings"},
+        {"path":"platform/ios/ios-ui/src/platform.rs","text":"CStr","must_exist":false,"message":"the text-field bridge must not read through C strings"},
+        {"path":"platform/ios/ios-ui/src/platform.rs","text":"initWithCString","must_exist":false,"message":"the text-field bridge must not initialize NSString through C strings"},
+        {"path":"platform/ios/ios-ui/src/text_conversion.rs","text":"from_utf16_lossy","must_exist":false,"message":"malformed UTF-16 must not be silently replaced"},
+        {"path":"platform/ios/ios-ui/src/text_conversion.rs","text":"decodes_empty_and_embedded_nul","must_exist":true,"message":"host regressions must preserve embedded NUL and empty strings"},
+        {"path":"platform/ios/ios-ui/src/text_conversion.rs","text":"decodes_supplementary_scalar","must_exist":true,"message":"host regressions must preserve supplementary Unicode scalars"},
+        {"path":"platform/ios/ios-ui/src/text_conversion.rs","text":"rejects_unpaired_surrogates_without_replacement","must_exist":true,"message":"host regressions must reject malformed UTF-16"},
+        {"path":"platform/ios/ios-ui/src/lib.rs","text":"IosTextField","must_exist":true,"message":"IosTextField must be part of the public ios-ui surface"},
+        {"path":"platform/ios/ios-ui/Cargo.toml","text":"\"UITextField\", \"UIResponder\"","must_exist":true,"message":"objc2-ui-kit must enable UITextField and its responder binding"},
+        {"path":"platform/ios/ios-ui/Cargo.toml","text":"features = [\"NSRange\", \"NSString\"]","must_exist":true,"message":"objc2-foundation must enable length-aware UTF-16 range access"},
+        {"path":"platform/ios/ios-ui/examples/ios_ui_text_field_link_probe.rs","text":"field.request_first_responder()","must_exist":true,"message":"the registered link probe must retain the responder selector"},
+        {"path":"platform/ios/ios-ui/examples/ios_ui_text_field_link_probe.rs","text":"field.native_text_field()","must_exist":true,"message":"the registered link probe must compile the typed UIKit escape"},
+        {"path":"platform/ios/ios-ui/check-text-field-link-imports.sh","text":"grep -F 'objc_getClass'","must_exist":true,"message":"the link check must verify the objc2 runtime class-lookup mechanism"},
+        {"path":"platform/ios/ios-ui/check-text-field-link-imports.sh","text":"grep -Fx 'UITextField'","must_exist":true,"message":"the link check must verify the public UITextField runtime class name"},
+        {"path":"crates/framework-ui/src/lib.rs","text":"UITextField","must_exist":false,"message":"UIKit text-field types must not leak into portable framework-ui"},
+        {"path":"platform/ios/ios-ui/src/platform.rs","text":"pub struct IosStackView","must_exist":true,"message":"ios-ui must expose a retained UIStackView handle"},
+        {"path":"platform/ios/ios-ui/src/platform.rs","text":"native: Retained<UIStackView>,","must_exist":true,"message":"the stack handle must retain UIKit's native UIStackView"},
+        {"path":"platform/ios/ios-ui/src/platform.rs","text":"pub enum IosStackAxis","must_exist":true,"message":"stack direction must use a typed public axis"},
+        {"path":"platform/ios/ios-ui/src/platform.rs","text":"pub fn add_stack_view(","must_exist":true,"message":"the backend must add a stack to a caller-owned parent"},
+        {"path":"platform/ios/ios-ui/src/platform.rs","text":"if !is_valid_stack_spacing(spacing)","must_exist":true,"message":"stack creation and spacing updates must reject non-finite spacing"},
+        {"path":"platform/ios/ios-ui/src/platform.rs","text":"let native = UIStackView::new(marker);","must_exist":true,"message":"stack creation must use the proven main-thread marker"},
+        {"path":"platform/ios/ios-ui/src/platform.rs","text":"UILayoutConstraintAxis::Horizontal","must_exist":true,"message":"the horizontal axis must map to UIKit's public axis"},
+        {"path":"platform/ios/ios-ui/src/platform.rs","text":"UILayoutConstraintAxis::Vertical","must_exist":true,"message":"the vertical axis must map to UIKit's public axis"},
+        {"path":"platform/ios/ios-ui/src/platform.rs","text":"native.setSpacing(spacing as _);","must_exist":true,"message":"finite spacing must reach UIKit in native point units"},
+        {"path":"platform/ios/ios-ui/src/platform.rs","text":"parent.native.addSubview(&native);","must_exist":true,"message":"stack creation must attach to the caller-owned parent"},
+        {"path":"platform/ios/ios-ui/src/platform.rs","text":"pub fn add_arranged_subview(&mut self, view: &UIView) -> Result<()>","must_exist":true,"message":"the stack must accept a native UIView as an arranged child"},
+        {"path":"platform/ios/ios-ui/src/platform.rs","text":"self.native.addArrangedSubview(view);","must_exist":true,"message":"arranged-child mutation must call UIKit's native operation"},
+        {"path":"platform/ios/ios-ui/src/platform.rs","text":"pub fn set_spacing(&mut self, spacing: f64) -> Result<()>","must_exist":true,"message":"the stack must expose spacing updates"},
+        {"path":"platform/ios/ios-ui/src/platform.rs","text":"pub fn native_stack_view(&self) -> &UIStackView","must_exist":true,"message":"the stack handle must expose a typed UIKit escape"},
+        {"path":"platform/ios/ios-ui/src/stack_spacing.rs","text":"spacing.is_finite()","must_exist":true,"message":"spacing validation must reject NaN and infinities"},
+        {"path":"platform/ios/ios-ui/src/stack_spacing.rs","text":"assert!(is_valid_stack_spacing(-2.0));","must_exist":true,"message":"negative finite spacing must remain valid for UIKit overlap behavior"},
+        {"path":"platform/ios/ios-ui/src/stack_spacing.rs","text":"fn rejects_non_finite_spacing()","must_exist":true,"message":"host regressions must reject NaN and positive or negative infinity"},
+        {"path":"platform/ios/ios-ui/src/lib.rs","text":"IosStackAxis, IosStackView","must_exist":true,"message":"stack types must be part of the public ios-ui surface"},
+        {"path":"platform/ios/ios-ui/Cargo.toml","text":"\"UIStackView\"","must_exist":true,"message":"objc2-ui-kit must enable the typed UIStackView binding"},
+        {"path":"platform/ios/ios-ui/examples/ios_ui_stack_link_probe.rs","text":"IosStackAxis::Vertical","must_exist":true,"message":"the device and simulator link probe must compile vertical stack creation"},
+        {"path":"platform/ios/ios-ui/examples/ios_ui_stack_link_probe.rs","text":"stack.add_arranged_subview(label.native_label())","must_exist":true,"message":"the link probe must compile arranged-child insertion"},
+        {"path":"platform/ios/ios-ui/check-link-imports.sh","text":"for symbol in UIStackView 'addArrangedSubview:' 'setAxis:' 'setSpacing:'; do","must_exist":true,"message":"the link check must inspect UIStackView class and selectors"},
+        {"path":"crates/framework-ui/src/lib.rs","text":"UIStackView","must_exist":false,"message":"UIKit stack types must not leak into portable framework-ui"},
+        {"path":"crates/framework-ui/src/lib.rs","text":"IosStackView","must_exist":false,"message":"the iOS stack handle must not leak into portable framework-ui"}
       ],
       "id": "ios-ui",
       "manifest": "platform/ios/ios-ui/Cargo.toml",
@@ -5002,6 +4512,71 @@
         {"minimum_os":"10.0","sdk":"iphoneos","triple":"aarch64-apple-ios"},
         {"minimum_os":"14.0","sdk":"iphonesimulator","triple":"aarch64-apple-ios-sim"}
       ]
+    },
+    {
+      "abi_scripts": ["platform/ios/ios-navigation/check-link-imports.sh"],
+      "abi_targets": [{"minimum_os":"12.0","sdk":"iphoneos","triple":"aarch64-apple-ios"},{"minimum_os":"14.0","sdk":"iphonesimulator","triple":"aarch64-apple-ios-sim"}],
+      "adapters": [],
+      "cargo_tree": false,
+      "check_script": "platform/ios/ios-navigation/check-link-imports.sh",
+      "clippy_all_targets": true,
+      "clippy_lib": false,
+      "docs": ["docs/ios/navigation.md","docs/DOCUMENTATION.md","docs/capabilities/capability-status.json","docs/generated/CAPABILITY_STATUS.md","docs/generated/VALIDATION_PROFILES.md","PLAN_RIDESHARE_BOT_MIGRATION.md"],
+      "expected_imports": ["CoreFoundation.framework","CoreGraphics.framework","CoreText.framework","Foundation.framework","UIKit.framework","libobjc.A.dylib","libSystem.B.dylib","objc_getClass","objc_msgSend"],
+      "fmt_all": false,
+      "guards": [
+        {
+          "message": "push parent preflight",
+          "must_exist": true,
+          "path": "platform/ios/ios-navigation/src/platform.rs",
+          "text": "perform_push_if_unparented(screen.native.parentViewController().is_some(), ||"
+        },
+        {
+          "message": "negative push regression",
+          "must_exist": true,
+          "path": "platform/ios/ios-navigation/src/push_policy.rs",
+          "text": "already_parented_screen_is_rejected_without_calling_uikit_push"
+        },
+        {
+          "message": "UIKit selector initWithRootViewController:",
+          "must_exist": true,
+          "path": "platform/ios/ios-navigation/check-link-imports.sh",
+          "text": "initWithRootViewController:"
+        },
+        {
+          "message": "UIKit selector setView:",
+          "must_exist": true,
+          "path": "platform/ios/ios-navigation/check-link-imports.sh",
+          "text": "setView:"
+        },
+        {
+          "message": "UIKit selector setTitle:",
+          "must_exist": true,
+          "path": "platform/ios/ios-navigation/check-link-imports.sh",
+          "text": "setTitle:"
+        },
+        {
+          "message": "UIKit selector pushViewController:animated:",
+          "must_exist": true,
+          "path": "platform/ios/ios-navigation/check-link-imports.sh",
+          "text": "pushViewController:animated:"
+        },
+        {
+          "message": "UIKit selector popViewControllerAnimated:",
+          "must_exist": true,
+          "path": "platform/ios/ios-navigation/check-link-imports.sh",
+          "text": "popViewControllerAnimated:"
+        }
+      ],
+      "id": "ios-navigation",
+      "manifest": "platform/ios/ios-navigation/Cargo.toml",
+      "offline": false,
+      "package": "ios-navigation",
+      "rustdoc_warnings": true,
+      "scoped_files": ["Cargo.lock","docs/DOCUMENTATION.md","docs/capabilities/capability-status.json","docs/ios/navigation.md","platform/ios/ios-navigation/Cargo.toml","platform/ios/ios-navigation/check-link-imports.sh","platform/ios/ios-navigation/examples/ios_navigation_link_probe.rs","tools/validation/specs/validation-v1.json","platform/ios/ios-navigation/src/platform.rs","platform/ios/ios-navigation/src/push_policy.rs","PLAN_RIDESHARE_BOT_MIGRATION.md"],
+      "shell_scripts": ["platform/ios/ios-navigation/check-link-imports.sh"],
+      "source_dirs": ["platform/ios/ios-navigation"],
+      "targets": [{"minimum_os":"12.0","sdk":"iphoneos","triple":"aarch64-apple-ios"},{"minimum_os":"14.0","sdk":"iphonesimulator","triple":"aarch64-apple-ios-sim"}]
     }
   ],
   "schema_version": 1,
@@ -5190,6 +4765,8 @@
       "node": "ios-notification-responses",
       "global": false
     },
+    {"path":"platform/ios/ios-navigation/","node":"ios-navigation","global":false},
+    {"path":"crates/framework-core/","node":"framework-core","global":false},
     {
       "path": "platform/ios/callkit/ios-call-provider/",
       "node": "ios-call-provider",

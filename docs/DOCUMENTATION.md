@@ -58,6 +58,8 @@ The ReplayKit availability snapshot has separate
 
 The reusable portable native-control slice and UIKit backend have separate [portable UI](capabilities/ui.md)
 and [iOS UI](ios/ui.md) guides.
+The UIKit-owned root/push/pop route stack has a separate [iOS navigation guide](ios/navigation.md);
+the application retains its own scene and window.
 
 The `ios-files` crate's synchronous Foundation coordination extension has a separate [file-coordination guide](ios/file-coordination.md). The [security-scoped URL access guide](ios/security-scoped-access.md) covers balancing an already-issued Foundation scope; it does not select URLs or add file I/O.
 

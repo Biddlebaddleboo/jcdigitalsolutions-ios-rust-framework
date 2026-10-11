@@ -952,6 +952,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "ios-navigation"
+version = "0.1.0"
+dependencies = [
+ "framework-core",
+ "framework-ui",
+ "ios-runtime",
+ "ios-ui",
+ "objc2",
+ "objc2-foundation",
+ "objc2-ui-kit",
+]
+
+[[package]]
 name = "ios-nearby"
 version = "0.1.0"
 dependencies = [

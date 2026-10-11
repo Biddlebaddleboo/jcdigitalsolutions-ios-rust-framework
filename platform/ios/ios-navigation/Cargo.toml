@@ -1,0 +1,28 @@
+[package]
+name = "ios-navigation"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "Native UIKit screen navigation for iOS"
+
+[dependencies]
+framework-core.workspace = true
+
+[target.'cfg(target_os = "ios")'.dependencies]
+framework-ui = { path = "../../../crates/framework-ui" }
+ios-runtime = { path = "../ios-runtime" }
+ios-ui = { path = "../ios-ui" }
+objc2 = { workspace = true, features = ["std"] }
+objc2-foundation = { workspace = true, features = ["NSString"] }
+objc2-ui-kit = { workspace = true, features = [
+    "std",
+    "UINavigationController",
+    "UIResponder",
+    "UIView",
+    "UIViewController",
+] }
+
+[lints]
+workspace = true

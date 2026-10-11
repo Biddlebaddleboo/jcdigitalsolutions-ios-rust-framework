@@ -318,6 +318,10 @@ B498 adds an opt-in `ios-call-provider` package for incoming-call reports, end r
 
 B500 adds `IosStackView` over public `UIStackView`, with typed horizontal/vertical axis, finite point spacing (including UIKit's valid negative overlap spacing), arranged-view insertion, and a typed UIKit escape. UIKit owns child arrangement; callers own the stack's parent placement. The registered `ios-ui` profile passed 152 checks with 0 FAIL, 0 BLOCKED, and 2 runtime SKIPPED. Simulator execution and physical-device visual behavior remain unverified; see [PLAN_IOS_UI.md](PLAN_IOS_UI.md)
 
+### B501 — UIKit navigation stack (row 003)
+
+B501 adds `ios-navigation` with a generic `IosScreenController`, optional UTF-8 title, and UIKit-owned `IosNavigationController` root/push/pop. It rejects pushing already-parented controllers, keeps the scene/window app-owned, and borrows a native navigation-controller escape. The registered profile passed 40 checks with 0 FAIL, 0 BLOCKED, and 2 runtime SKIPPED; Simulator execution and physical-device route behavior remain unverified. See [PLAN_RIDESHARE_BOT_MIGRATION.md](PLAN_RIDESHARE_BOT_MIGRATION.md)
+
 ## Active work selection and limits
 
 1. Inspect the canonical capability status/owner, the relevant family plan, then the named workstream plan and exact files/symbols. Do not scan the entire planning corpus or treat every existing plan as pending work.
