@@ -342,6 +342,10 @@ B505 adds `IosScrollView` over public `UIScrollView` with a retained zero-origin
 
 B506 adds a main-thread `IosSceneWindow` over public `UIWindow::initWithWindowScene`, root-controller attachment, and key/visible calls for a caller-supplied `UIWindowScene`. It rejects parented controllers and already-window-attached loaded roots without loading views, and hides the window and clears its root on drop. Host policy regressions and device/Simulator compile-link checks pass; app/scene delegate bootstrap, scene-event policy, live presentation, and scene-disconnect cleanup remain incomplete or unverified
 
+### B507 — intrinsic UIKit scroll layout (row 003)
+
+B507 adds opt-in intrinsic vertical sizing via `IosScrollView::enable_intrinsic_vertical_layout` and one-shot direct-parent stack constraints via `IosStackView::pin_edges_to_parent`; B505 manual sizing remains intact and the modes cannot mix. The registered `ios-ui` profile reports 212 PASS and two SKIPPED runtime-evidence gates; live scrolling and layout remain unverified
+
 ## Active work selection and limits
 
 1. Inspect the canonical capability status/owner, the relevant family plan, then the named workstream plan and exact files/symbols. Do not scan the entire planning corpus or treat every existing plan as pending work.
