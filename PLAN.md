@@ -350,6 +350,10 @@ B507 adds opt-in intrinsic vertical sizing via `IosScrollView::enable_intrinsic_
 
 B508 adds explicit alert/badge/sound authorization choices for the Rideshare notification use case without changing portable alert-only defaults. The registered `ios-notifications` profile reports 29 PASS, 0 FAIL, 0 BLOCKED, and 2 SKIPPED; simulator execution and physical-device runtime proof remain unverified. Scheduled default sound remains an independent notification-content gap
 
+### B509 — scheduled local-notification system sound (row 031)
+
+B509 adds an opt-in portable `NotificationContent::with_system_default_sound`; existing `NotificationContent::new` values remain no-sound. The iOS backend maps opt-in requests to public `UNNotificationSound::defaultSound`. The registered `ios-notifications` profile reports 31 PASS, 0 FAIL, 0 BLOCKED, and 2 SKIPPED; simulator execution and physical-device notification behavior remain unverified
+
 ## Active work selection and limits
 
 1. Inspect the canonical capability status/owner, the relevant family plan, then the named workstream plan and exact files/symbols. Do not scan the entire planning corpus or treat every existing plan as pending work.

@@ -13,6 +13,10 @@ for tool in awk cargo diff find grep nm otool sort; do
 done
 
 probe_source=platform/ios/ios-notifications/examples/ios_notifications_link_import_probe.rs
+if ! grep -Fq '.with_system_default_sound()' "$probe_source"; then
+    echo "iOS notifications link probe must retain the system-default sound API call" >&2
+    exit 1
+fi
 if ! grep -Fq 'backend.pending_request_count()' "$probe_source"; then
     echo "iOS notifications link probe must retain the pending-request count API call" >&2
     exit 1
@@ -49,6 +53,15 @@ if ! grep -Fq 'backend.notification_settings_surface_raw_values()' "$probe_sourc
     exit 1
 fi
 settings_source=platform/ios/ios-notifications/src/platform.rs
+if ! grep -Fq 'if notification.content().uses_system_default_sound() {' "$settings_source"; then
+    echo "iOS notification requests must set sound only when the portable opt-in is true" >&2
+    exit 1
+fi
+if ! grep -Fq 'let sound = UNNotificationSound::defaultSound();' "$settings_source" || \
+    ! grep -Fq 'content.setSound(Some(&sound));' "$settings_source"; then
+    echo "iOS notification requests must use public UNNotificationSound.defaultSound" >&2
+    exit 1
+fi
 for selector in criticalAlertSetting timeSensitiveSetting scheduledDeliverySetting announcementSetting; do
     if ! grep -Fq "respondsToSelector(sel!($selector))" "$settings_source"; then
         echo "extended raw settings must availability-check $selector" >&2

@@ -47,18 +47,34 @@ impl NotificationId {
 
 /// Owned portable text fields for one user-visible notification.
 ///
-/// The contract contains only a title and optional body. It does not model actions, categories,
-/// attachments, sounds, badges, or platform-specific presentation options.
+/// The contract contains a title, optional body, and an opt-in system-default sound. It does not
+/// model custom sounds, actions, categories, attachments, badges, or platform-specific options.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct NotificationContent {
     title: String,
     body: Option<String>,
+    system_default_sound: bool,
 }
 
 impl NotificationContent {
     /// Takes ownership of a title and optional body without normalization or an additional copy.
     pub const fn new(title: String, body: Option<String>) -> Self {
-        Self { title, body }
+        Self {
+            title,
+            body,
+            system_default_sound: false,
+        }
+    }
+
+    /// Opts into the platform's system-default notification sound.
+    pub const fn with_system_default_sound(mut self) -> Self {
+        self.system_default_sound = true;
+        self
+    }
+
+    /// Reports whether this content opts into the platform's system-default notification sound.
+    pub const fn uses_system_default_sound(&self) -> bool {
+        self.system_default_sound
     }
 
     /// Borrows the owned title text.

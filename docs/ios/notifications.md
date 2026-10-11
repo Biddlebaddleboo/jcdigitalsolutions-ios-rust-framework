@@ -25,7 +25,8 @@ async fn schedule_reminder(
         NotificationContent::new(
             String::from("Reminder"),
             Some(String::from("Review today's notes")),
-        ),
+        )
+        .with_system_default_sound(),
         NotificationTrigger::at_unix_millis(trigger_at_unix_millis)?,
     );
     notifications.schedule(request).await
@@ -54,8 +55,9 @@ The iOS-only `IosNotificationsBackend::request_authorization_with_options` accep
 `IosNotificationAuthorizationOptions` value. Combine `ALERT`, `BADGE`, and `SOUND` with `|` to
 choose the requested interactions. This call uses the same callback and result path as the portable
 method, and its native prompt starts only when the returned future is first polled. The portable
-method remains alert-only. The options do not expose critical or provisional authorization and do
-not register for remote notifications.
+method remains alert-only. Notification content has a separate opt-in for system-default sound;
+this does not change authorization options. The options do not expose critical or provisional
+authorization and do not register for remote notifications.
 
 B86 extends B4 with the iOS-only `IosNotificationsBackend::authorization_status_raw_value` future.
 It returns the raw signed `NSInteger` from `UNNotificationSettings.authorizationStatus` without
@@ -116,8 +118,10 @@ action, response-delegate, or notification-service-extension behavior.
 
 - Caller IDs are passed unchanged through `NSString`; the backend adds no prefix, truncation, or
   normalization. D3's constructor remains responsible for rejecting empty and NUL-containing IDs.
-- Title and optional body strings are copied into `UNMutableNotificationContent`. Actions,
-  categories, attachments, sounds, and badges are not represented.
+- Title and optional body strings are copied into `UNMutableNotificationContent`. Content created
+  by `NotificationContent::new` has no sound. Call `with_system_default_sound` to set the public
+  `UNNotificationSound.defaultSound`; custom sounds, actions, categories, attachments, and badges
+  are not represented.
 - Immediate triggers and timestamps already in the past use a nil native trigger, which requests
   immediate delivery. Future absolute Unix-millisecond timestamps become non-repeating calendar
   triggers with Gregorian calendar and UTC time zone, including the millisecond fraction in the

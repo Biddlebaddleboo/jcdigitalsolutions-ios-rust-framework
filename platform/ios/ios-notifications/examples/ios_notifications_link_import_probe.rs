@@ -38,7 +38,7 @@ fn main() {
     if let Ok(identifier) = NotificationId::new(String::from("link-probe")) {
         let notification = Notification::new(
             identifier,
-            NotificationContent::new(String::from("Link probe"), None),
+            NotificationContent::new(String::from("Link probe"), None).with_system_default_sound(),
             NotificationTrigger::immediate(),
         );
         core::mem::drop(core::hint::black_box(backend.schedule(notification)));

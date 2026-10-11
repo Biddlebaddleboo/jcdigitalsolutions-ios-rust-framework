@@ -20,7 +20,7 @@ use objc2_foundation::{
 };
 use objc2_user_notifications::{
     UNAuthorizationOptions, UNCalendarNotificationTrigger, UNMutableNotificationContent,
-    UNNotificationRequest, UNNotificationSettings, UNUserNotificationCenter,
+    UNNotificationRequest, UNNotificationSettings, UNNotificationSound, UNUserNotificationCenter,
 };
 use std::panic::{AssertUnwindSafe, catch_unwind};
 use std::sync::Arc;
@@ -617,6 +617,10 @@ fn make_request(
         content.setTitle(&NSString::from_str(notification.content().title()));
         if let Some(body) = notification.content().body() {
             content.setBody(&NSString::from_str(body));
+        }
+        if notification.content().uses_system_default_sound() {
+            let sound = UNNotificationSound::defaultSound();
+            content.setSound(Some(&sound));
         }
         let now = SystemTime::now()
             .duration_since(UNIX_EPOCH)
