@@ -38,6 +38,7 @@ const EF_SHARES_ALL_BLOCKS: u64 = 0x0000_0040;
 // This public `sys/attr.h` macro is not bound as a Rust constant by locked `libc`.
 const ATTR_CMNEXT_CLONE_REFCNT: u32 = 0x0000_1000;
 
+mod append;
 mod bookmark;
 mod coordination;
 mod path_validation;
@@ -3390,6 +3391,15 @@ impl FileBackend for IosFiles {
         let mut bytes = Vec::new();
         file.read_to_end(&mut bytes).map_err(file_error)?;
         Ok(bytes)
+    }
+
+    fn append(&mut self, path: AppPath<'_>, bytes: &[u8]) -> Result<(), FileError> {
+        if bytes.is_empty() {
+            return Ok(());
+        }
+        let parts = path_parts(path.relative())?;
+        let (parent, leaf) = open_parent(self.root(path.directory())?, &parts)?;
+        append::append_at(&parent, &leaf, bytes).map_err(file_error)
     }
 
     fn write(

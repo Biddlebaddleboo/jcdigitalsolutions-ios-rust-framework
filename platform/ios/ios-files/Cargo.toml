@@ -11,6 +11,9 @@ description = "iOS sandbox file backend for framework-files"
 framework-core = { workspace = true }
 framework-files = { path = "../../../crates/framework-files", version = "0.1.0" }
 
+[dev-dependencies]
+libc.workspace = true
+
 [target.'cfg(target_os = "ios")'.dependencies]
 block2 = { workspace = true, features = ["alloc"] }
 libc = { workspace = true }

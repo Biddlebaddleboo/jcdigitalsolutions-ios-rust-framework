@@ -249,6 +249,22 @@ pub trait FileBackend {
     /// Reads a file into a caller-owned byte vector.
     fn read(&mut self, path: AppPath<'_>) -> Result<Vec<u8>, FileError>;
 
+    /// Appends all bytes to a regular file, creating it if absent.
+    ///
+    /// An empty slice is a no-op and does not create a file. This operation does not truncate or
+    /// replace an existing file. A successful call appends the complete byte slice contiguously
+    /// at the end of the file. Concurrent successful calls do not overwrite one another; their
+    /// order is unspecified. A backend unable to preserve those semantics must return
+    /// `Unsupported` before mutation. A failed call may already have created the file or appended
+    /// an unknown prefix, so retrying it can duplicate data. The backend applies its documented
+    /// path and symbolic-link policy. Success does not imply crash durability.
+    ///
+    /// The default implementation returns `Unsupported` without mutation. Backends that support
+    /// append semantics override this method.
+    fn append(&mut self, _path: AppPath<'_>, _bytes: &[u8]) -> Result<(), FileError> {
+        Err(FileError::Backend(Error::new(ErrorKind::Unsupported)))
+    }
+
     /// Writes one byte slice and reports the atomicity the backend can guarantee.
     ///
     /// The backend borrows `bytes` only for this call. If `RequireAtomic` is set and atomicity is
@@ -314,6 +330,19 @@ impl<B: FileBackend> Files<B> {
     /// facade-level byte copy.
     pub fn read_string(&mut self, path: AppPath<'_>) -> Result<String, FileError> {
         String::from_utf8(self.read(path)?).map_err(|_| FileError::InvalidUtf8)
+    }
+
+    /// Appends borrowed bytes to a file, creating it if absent without replacing existing bytes.
+    ///
+    /// An empty slice is a no-op and does not create a file. A successful call appends the full
+    /// byte slice contiguously at EOF; concurrent successful calls do not overwrite one another,
+    /// but their order is unspecified. A backend that cannot preserve these semantics must return
+    /// `Unsupported` before mutation. On error, the backend may already have created the file or
+    /// appended an unknown prefix, so retrying may duplicate data. Success does not imply crash
+    /// durability. A backend that does not implement append returns `Unsupported` without
+    /// mutation.
+    pub fn append(&mut self, path: AppPath<'_>, bytes: &[u8]) -> Result<(), FileError> {
+        self.backend.append(path, bytes)
     }
 
     /// Writes a borrowed byte slice; the backend may copy it but may not retain this borrow.
@@ -385,6 +414,49 @@ mod tests {
     use super::*;
     use alloc::vec;
 
+    struct LegacyBackend {
+        bytes: Vec<u8>,
+    }
+
+    impl FileBackend for LegacyBackend {
+        fn availability(&self) -> Availability {
+            Availability::Available
+        }
+
+        fn read(&mut self, _path: AppPath<'_>) -> Result<Vec<u8>, FileError> {
+            Ok(self.bytes.clone())
+        }
+
+        fn write(
+            &mut self,
+            _path: AppPath<'_>,
+            _bytes: &[u8],
+            _options: WriteOptions,
+        ) -> Result<WriteOutcome, FileError> {
+            Err(FileError::Backend(Error::new(ErrorKind::Unsupported)))
+        }
+
+        fn create_directory(&mut self, _path: AppPath<'_>) -> Result<(), FileError> {
+            Err(FileError::Backend(Error::new(ErrorKind::Unsupported)))
+        }
+
+        fn read_directory(&mut self, _path: AppPath<'_>) -> Result<Vec<DirectoryEntry>, FileError> {
+            Err(FileError::Backend(Error::new(ErrorKind::Unsupported)))
+        }
+
+        fn remove_file(&mut self, _path: AppPath<'_>) -> Result<(), FileError> {
+            Err(FileError::Backend(Error::new(ErrorKind::Unsupported)))
+        }
+
+        fn remove_directory(&mut self, _path: AppPath<'_>) -> Result<(), FileError> {
+            Err(FileError::Backend(Error::new(ErrorKind::Unsupported)))
+        }
+
+        fn exists(&mut self, _path: AppPath<'_>) -> Result<bool, FileError> {
+            Err(FileError::Backend(Error::new(ErrorKind::Unsupported)))
+        }
+    }
+
     struct Backend {
         bytes: Vec<u8>,
         atomicity: WriteAtomicity,
@@ -397,6 +469,11 @@ mod tests {
 
         fn read(&mut self, _path: AppPath<'_>) -> Result<Vec<u8>, FileError> {
             Ok(self.bytes.clone())
+        }
+
+        fn append(&mut self, _path: AppPath<'_>, bytes: &[u8]) -> Result<(), FileError> {
+            self.bytes.extend_from_slice(bytes);
+            Ok(())
         }
 
         fn write(
@@ -472,6 +549,46 @@ mod tests {
             .write(path, b"updated", WriteOptions::create_or_replace())
             .unwrap();
         assert_eq!(outcome.atomicity(), WriteAtomicity::NotGuaranteed);
+    }
+
+    #[test]
+    fn append_preserves_existing_bytes_and_adds_binary_data_at_end() {
+        let mut files = Files::new(Backend {
+            bytes: vec![0x00, 0xff],
+            atomicity: WriteAtomicity::NotGuaranteed,
+        });
+        let path = AppPath::new(AppDirectory::ApplicationSupport, "logs/app.bin").unwrap();
+        files.append(path, &[0x80, 0x00]).unwrap();
+        let path = AppPath::new(AppDirectory::ApplicationSupport, "logs/app.bin").unwrap();
+        assert_eq!(files.read(path), Ok(vec![0x00, 0xff, 0x80, 0x00]));
+    }
+
+    #[test]
+    fn empty_append_preserves_existing_bytes() {
+        let mut files = Files::new(Backend {
+            bytes: vec![b'l', b'o', b'g'],
+            atomicity: WriteAtomicity::NotGuaranteed,
+        });
+        let path = AppPath::new(AppDirectory::ApplicationSupport, "logs/app.bin").unwrap();
+        files.append(path, &[]).unwrap();
+        let path = AppPath::new(AppDirectory::ApplicationSupport, "logs/app.bin").unwrap();
+        assert_eq!(files.read(path), Ok(vec![b'l', b'o', b'g']));
+    }
+
+    #[test]
+    fn backend_without_append_keeps_legacy_impl_compatible_and_unmodified() {
+        let mut files = Files::new(LegacyBackend {
+            bytes: vec![b'l', b'o', b'g'],
+        });
+        let path = AppPath::new(AppDirectory::ApplicationSupport, "logs/app.bin").unwrap();
+        let error = files.append(path, b"next").unwrap_err();
+        assert_eq!(
+            error,
+            FileError::Backend(Error::new(ErrorKind::Unsupported))
+        );
+
+        let path = AppPath::new(AppDirectory::ApplicationSupport, "logs/app.bin").unwrap();
+        assert_eq!(files.read(path), Ok(vec![b'l', b'o', b'g']));
     }
 
     #[test]
