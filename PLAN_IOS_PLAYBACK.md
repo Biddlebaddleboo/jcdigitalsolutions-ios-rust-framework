@@ -40,3 +40,23 @@ strict Clippy for both iOS targets, host check/Clippy, and rustdoc. It does not 
 HDR hardware/runtime behavior.
 
 Apple API: [AVPlayer.eligibleForHDRPlayback](https://developer.apple.com/documentation/avfoundation/avplayer/eligibleforhdrplayback)
+
+## B463 — local-file player controls (row 048)
+
+B463 extends this crate with a thin main-thread `IosFilePlayer` around the public `AVPlayer` URL
+constructor. It accepts an absolute Rust UTF-8 path, rejects embedded NUL, opens the file to verify
+readability and regular-file metadata, then passes the unchanged path to `NSURL::fileURLWithPath`.
+It provides main-thread `play` and `pause` calls plus a borrowed `&AVPlayer` escape for host
+`AVPlayerLayer` integration.
+
+The iPhoneOS SDK declares `AVPlayer` from iOS 4.0; local creation, play, and pause therefore use
+that API floor, and row 048 records the aggregate AVPlayer playback floor as iOS 4.0. The
+pre-iOS-16 main-thread requirement is enforced by `MainThreadMarker` on create, controls, and
+native escape. The existing HDR property remains guarded at iOS 13.4. Validator target floors stay
+at iOS 13.4 for device and iOS 14.0 for Simulator.
+
+No seek/current-time methods are added: portable `framework-media::MediaTime` represents finite
+numeric times only, while `AVPlayer` time can be invalid or indefinite. AVPlayer handles codec
+support, readiness, buffering, decoding, and output asynchronously. The host owns the file's
+post-construction lifetime, `AVAudioSession` policy, permission policy, UI, and output attachment.
+The local-file API makes no claim that `play()` began playback or that audio/video output works.

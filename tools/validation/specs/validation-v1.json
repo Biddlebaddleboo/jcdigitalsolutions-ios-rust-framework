@@ -71,6 +71,10 @@
     [
       "ios-microphone-pcm-stream",
       "ios-media-authorization"
+    ],
+    [
+      "ios-playback",
+      "framework-audio"
     ]
   ],
   "pilots": [
@@ -1876,6 +1880,159 @@
           "triple": "aarch64-apple-ios-sim"
         }
       ]
+    },
+    {
+      "abi_scripts": [
+        "platform/ios/ios-playback/check-link-imports.sh"
+      ],
+      "abi_targets": [
+        {
+          "minimum_os": "13.4",
+          "sdk": "iphoneos",
+          "triple": "aarch64-apple-ios"
+        },
+        {
+          "minimum_os": "14.0",
+          "sdk": "iphonesimulator",
+          "triple": "aarch64-apple-ios-sim"
+        }
+      ],
+      "adapters": [],
+      "cargo_tree": false,
+      "check_script": "platform/ios/ios-playback/check.sh",
+      "clippy_all_targets": true,
+      "clippy_lib": false,
+      "docs": [
+        "docs/capabilities/capability-status.json",
+        "docs/capabilities/playback.md",
+        "docs/ios/playback.md",
+        "PLAN_IOS_PLAYBACK.md"
+      ],
+      "expected_imports": [
+        "AVFoundation.framework",
+        "Foundation.framework",
+        "objc_msgSend"
+      ],
+      "fmt_all": false,
+      "guards": [
+        {
+          "message": "local playback rejects relative paths",
+          "must_exist": true,
+          "path": "platform/ios/ios-playback/src/lib.rs",
+          "text": "Path::new(path).is_absolute()"
+        },
+        {
+          "message": "local playback rejects embedded NUL",
+          "must_exist": true,
+          "path": "platform/ios/ios-playback/src/lib.rs",
+          "text": "path.contains('\\0')"
+        },
+        {
+          "message": "local playback opens its path before AVPlayer construction",
+          "must_exist": true,
+          "path": "platform/ios/ios-playback/src/lib.rs",
+          "text": "File::open(path)"
+        },
+        {
+          "message": "local playback rejects non-regular files",
+          "must_exist": true,
+          "path": "platform/ios/ios-playback/src/lib.rs",
+          "text": "metadata.is_file()"
+        },
+        {
+          "message": "local playback preserves the validated UTF-8 path for Foundation conversion",
+          "must_exist": true,
+          "path": "platform/ios/ios-playback/src/lib.rs",
+          "text": "NSString::from_str(path)"
+        },
+        {
+          "message": "local playback uses public AVPlayer URL construction",
+          "must_exist": true,
+          "path": "platform/ios/ios-playback/src/lib.rs",
+          "text": "AVPlayer::playerWithURL(&url, main_thread)"
+        },
+        {
+          "message": "player creation requires a main-thread marker",
+          "must_exist": true,
+          "path": "platform/ios/ios-playback/src/lib.rs",
+          "text": "main_thread: objc2::MainThreadMarker"
+        },
+        {
+          "message": "play control requires a main-thread marker",
+          "must_exist": true,
+          "path": "platform/ios/ios-playback/src/lib.rs",
+          "text": "pub fn play(&self, _main_thread: objc2::MainThreadMarker)"
+        },
+        {
+          "message": "pause control requires a main-thread marker",
+          "must_exist": true,
+          "path": "platform/ios/ios-playback/src/lib.rs",
+          "text": "pub fn pause(&self, _main_thread: objc2::MainThreadMarker)"
+        },
+        {
+          "message": "native AVPlayer access is borrowed",
+          "must_exist": true,
+          "path": "platform/ios/ios-playback/src/lib.rs",
+          "text": ") -> &objc2_av_foundation::AVPlayer"
+        },
+        {
+          "message": "play invokes the AVPlayer play control",
+          "must_exist": true,
+          "path": "platform/ios/ios-playback/src/lib.rs",
+          "text": "self.player.play()"
+        },
+        {
+          "message": "pause invokes the AVPlayer pause control",
+          "must_exist": true,
+          "path": "platform/ios/ios-playback/src/lib.rs",
+          "text": "self.player.pause()"
+        },
+        {
+          "message": "playback does not mutate the host audio session",
+          "must_exist": false,
+          "path": "platform/ios/ios-playback/src/lib.rs",
+          "text": "AVAudioSession::sharedInstance"
+        }
+      ],
+      "id": "ios-playback",
+      "manifest": "platform/ios/ios-playback/Cargo.toml",
+      "offline": false,
+      "package": "ios-playback",
+      "rustdoc_warnings": false,
+      "scoped_files": [
+        "Cargo.lock",
+        "platform/ios/ios-playback/Cargo.toml",
+        "platform/ios/ios-playback/check.sh",
+        "platform/ios/ios-playback/check-link-imports.sh",
+        "platform/ios/ios-playback/examples/ios_playback_link_probe.rs",
+        "platform/ios/ios-playback/src/lib.rs",
+        "docs/capabilities/capability-status.json",
+        "docs/capabilities/playback.md",
+        "docs/generated/VALIDATION_PROFILES.md",
+        "docs/ios/playback.md",
+        "platform/ios/ios-playback/README.md",
+        "PLAN_IOS_PLAYBACK.md",
+        "tools/validation/specs/validation-v1.json"
+      ],
+      "shell_scripts": [
+        "platform/ios/ios-playback/check.sh",
+        "platform/ios/ios-playback/check-link-imports.sh"
+      ],
+      "source_dirs": [
+        "platform/ios/ios-playback"
+      ],
+      "targets": [
+        {
+          "minimum_os": "13.4",
+          "sdk": "iphoneos",
+          "triple": "aarch64-apple-ios"
+        },
+        {
+          "minimum_os": "14.0",
+          "sdk": "iphonesimulator",
+          "triple": "aarch64-apple-ios-sim"
+        }
+      ]
     }
   ],
   "schema_version": 1,
@@ -1997,6 +2154,16 @@
     {
       "path": "platform/ios/ios-photos/",
       "node": "ios-photos",
+      "global": false
+    },
+    {
+      "path": "crates/framework-audio/",
+      "node": "framework-audio",
+      "global": false
+    },
+    {
+      "path": "platform/ios/ios-playback/",
+      "node": "ios-playback",
       "global": false
     }
   ]

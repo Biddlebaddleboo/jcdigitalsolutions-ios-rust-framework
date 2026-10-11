@@ -1517,11 +1517,11 @@
       "crate_module_status": "portable_contract_and_ios_backend_partial",
       "portability_class": "portable_with_platform_extensions",
       "portable_contract_status": "implemented",
-      "portable_contract_note": "framework-audio defines a point-in-time HDR playback-eligibility value; it does not inspect assets or start playback.",
+      "portable_contract_note": "framework-audio defines a point-in-time HDR playback-eligibility value; iOS also exposes a native local-file AVPlayer extension.",
       "ios_implementation_class": "B",
       "implementation_status": "partial",
-      "status_reason": "B48 reports one HDR playback-eligibility snapshot; it does not inspect an asset or start playback.",
-      "minimum_ios_version": "13.4",
+      "status_reason": "B48 preserves an HDR eligibility snapshot; B463 adds readable local-file AVPlayer creation, main-thread play/pause, and a borrowed native player for host output integration.",
+      "minimum_ios_version": "4.0",
       "required_frameworks": [
         "AVFoundation",
         "Foundation"
@@ -1531,11 +1531,11 @@
       "entitlements": null,
       "device_only_restrictions": null,
       "swift_abi_requirement": false,
-      "metadata_verification": "PLAN_IOS_PLAYBACK.md verifies AVPlayer.eligibleForHDRPlayback from iOS 13.4; the main-thread snapshot does not create a player, load an asset, start playback, request permission, or establish HDR output.",
+      "metadata_verification": "PLAN_IOS_PLAYBACK.md records AVPlayer local-file creation and play/pause from iOS 4.0 plus the existing guarded AVPlayer.eligibleForHDRPlayback property from iOS 13.4. B463 validates an absolute UTF-8 readable regular local file, then delegates readiness, codecs, buffering, decoding, and output to AVPlayer. The host owns AVAudioSession policy, permissions, file lifetime, and AVPlayerLayer attachment; compile/link checks do not prove playback or output.",
       "parity_status": "not_tested_live_behavior_or_Apple_parity",
       "performance_status": "not_measured",
-      "native_escape_handle_available": false,
-      "native_escape_handle_note": "No native escape handle is exposed by the capability facade in this row."
+      "native_escape_handle_available": true,
+      "native_escape_handle_note": "IosFilePlayer::as_av_player(&MainThreadMarker) lends a borrowed &AVPlayer for host AVPlayerLayer or other public AVFoundation integration; it does not transfer ownership."
     },
     {
       "id": "049-camera-audio-media-media-time-buffer-wrappers",

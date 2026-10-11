@@ -17,6 +17,7 @@ The following are configured validation profiles, not claims that every gate pas
 | ios-alarmkit-status | ios-alarmkit-status | 2 | 1 | 0 | True |
 | ios-activitykit-status | ios-activitykit-status | 2 | 2 | 0 | False |
 | ios-photos | ios-photos | 2 | 1 | 0 | False |
+| ios-playback | ios-playback | 2 | 1 | 0 | False |
 
 
 ## Inspect actual gates
