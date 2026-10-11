@@ -240,6 +240,46 @@ impl CalendarEventCreateError {
     }
 }
 
+/// An error returned while deleting one caller-selected Calendar event.
+#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
+#[non_exhaustive]
+pub enum CalendarEventDeleteError {
+    /// The selected event summary has no non-empty native event identifier.
+    InvalidEventIdentifier,
+    /// Current authorization does not permit full event-data access.
+    NotFullAccess(CalendarAuthorizationStatus),
+    /// The selected identifier or exact event snapshot no longer resolves.
+    EventNotFound,
+    /// The resolved event's calendar no longer supports events.
+    CalendarDoesNotSupportEvents,
+    /// The resolved event's calendar does not currently allow changes.
+    CalendarNotWritable,
+    /// The backend returned a framework or native platform error.
+    Backend(Error),
+}
+
+impl CalendarEventDeleteError {
+    /// Returns the stable portable error category.
+    pub const fn kind(self) -> ErrorKind {
+        match self {
+            Self::InvalidEventIdentifier => ErrorKind::InvalidInput,
+            Self::NotFullAccess(_) => ErrorKind::PermissionDenied,
+            Self::EventNotFound => ErrorKind::NotFound,
+            Self::CalendarDoesNotSupportEvents => ErrorKind::Unsupported,
+            Self::CalendarNotWritable => ErrorKind::Unavailable,
+            Self::Backend(error) => error.kind(),
+        }
+    }
+
+    /// Returns the optional backend-native code.
+    pub const fn platform_code(self) -> Option<PlatformErrorCode> {
+        match self {
+            Self::Backend(error) => error.platform_code(),
+            _ => None,
+        }
+    }
+}
+
 impl CalendarEvent {
     /// Creates a summary with owned text and an ordered event interval.
     #[allow(clippy::too_many_arguments)]
@@ -426,6 +466,17 @@ pub trait CalendarEventCreateBackend {
     ) -> Result<(), CalendarEventCreateError>;
 }
 
+/// A statically selected backend for deleting one caller-selected event.
+///
+/// A backend must reject absent or empty identifiers before native lookup, recheck current
+/// `FullAccess` without prompting, resolve only the selected event, verify its current event
+/// calendar is modifiable, and remove exactly one occurrence with the narrowest native scope.
+/// Calls may block and leave thread choice to the caller.
+pub trait CalendarEventDeleteBackend {
+    /// Deletes exactly the event represented by the caller-selected summary.
+    fn delete_event(&self, event: &CalendarEvent) -> Result<(), CalendarEventDeleteError>;
+}
+
 /// A small owner of a caller-selected Calendar authorization backend.
 pub struct Calendar<B> {
     backend: B,
@@ -500,6 +551,24 @@ impl<B: CalendarEventCreateBackend> Calendar<B> {
         draft: &CalendarEventDraft,
     ) -> Result<(), CalendarEventCreateError> {
         self.backend.create_event(calendar, draft)
+    }
+}
+
+impl<B: CalendarEventDeleteBackend> Calendar<B> {
+    /// Deletes exactly one caller-selected event returned by an event-range read.
+    ///
+    /// Missing or empty native identifiers fail before the backend is called. Event identifiers
+    /// can become stale after sync or a calendar move; the backend must resolve the selected ID
+    /// again, verify the selected occurrence and current calendar writability, and fail without
+    /// mutation if the snapshot no longer matches. The operation is synchronous and may block.
+    pub fn delete_event(&self, event: &CalendarEvent) -> Result<(), CalendarEventDeleteError> {
+        if !event
+            .event_identifier()
+            .is_some_and(|identifier| !identifier.is_empty())
+        {
+            return Err(CalendarEventDeleteError::InvalidEventIdentifier);
+        }
+        self.backend.delete_event(event)
     }
 }
 

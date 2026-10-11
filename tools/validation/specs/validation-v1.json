@@ -4342,6 +4342,138 @@
           "must_exist": false,
           "path": "platform/ios/ios-calendar/src/event_create.rs",
           "text": "removeEvent"
+        },
+        {
+          "message": "the portable Calendar facade must expose one-selected-event deletion",
+          "must_exist": true,
+          "path": "crates/framework-calendar/src/lib.rs",
+          "text": "pub fn delete_event"
+        },
+        {
+          "message": "the portable Calendar contract must keep event deletion source-compatible",
+          "must_exist": true,
+          "path": "crates/framework-calendar/src/lib.rs",
+          "text": "pub trait CalendarEventDeleteBackend"
+        },
+        {
+          "message": "the facade must reject missing or empty identifiers before backend dispatch",
+          "must_exist": true,
+          "path": "crates/framework-calendar/src/lib.rs",
+          "text": "!event.event_identifier().is_some_and(|identifier| !identifier.is_empty())"
+        },
+        {
+          "message": "EventKit deletion must reject missing or empty identifiers before native lookup",
+          "must_exist": true,
+          "path": "platform/ios/ios-calendar/src/event_delete.rs",
+          "text": ".filter(|identifier| !identifier.is_empty())"
+        },
+        {
+          "message": "EventKit deletion must recheck current FullAccess without prompting",
+          "must_exist": true,
+          "path": "platform/ios/ios-calendar/src/event_delete.rs",
+          "text": "require_full_access_for_delete(native_authorization_status())?"
+        },
+        {
+          "message": "EventKit deletion must resolve only the selected event identifier",
+          "must_exist": true,
+          "path": "platform/ios/ios-calendar/src/event_delete.rs",
+          "text": "eventWithIdentifier(&native_identifier)"
+        },
+        {
+          "message": "EventKit deletion must verify the freshly resolved identifier",
+          "must_exist": true,
+          "path": "platform/ios/ios-calendar/src/conversion.rs",
+          "text": "event.event_identifier() != Some(resolved_identifier)"
+        },
+        {
+          "message": "EventKit deletion must fail closed when the resolved occurrence differs from the selected snapshot",
+          "must_exist": true,
+          "path": "platform/ios/ios-calendar/src/event_delete.rs",
+          "text": "validate_event_delete_snapshot(event, &resolved_identifier, start, end)?"
+        },
+        {
+          "message": "exact event snapshot validation must reject a different recurring occurrence start",
+          "must_exist": true,
+          "path": "platform/ios/ios-calendar/src/conversion.rs",
+          "text": "start != event.start().unix_seconds()"
+        },
+        {
+          "message": "exact event snapshot validation must reject a changed selected-event end",
+          "must_exist": true,
+          "path": "platform/ios/ios-calendar/src/conversion.rs",
+          "text": "end_seconds != event.end().unix_seconds()"
+        },
+        {
+          "message": "EventKit deletion must require the resolved event calendar to support Event entities",
+          "must_exist": true,
+          "path": "platform/ios/ios-calendar/src/event_delete.rs",
+          "text": "allowedEntityTypes()"
+        },
+        {
+          "message": "EventKit deletion must check for the Event entity mask",
+          "must_exist": true,
+          "path": "platform/ios/ios-calendar/src/event_delete.rs",
+          "text": ".contains(EKEntityMask::Event)"
+        },
+        {
+          "message": "EventKit deletion must recheck current calendar writability",
+          "must_exist": true,
+          "path": "platform/ios/ios-calendar/src/event_delete.rs",
+          "text": "allowsContentModifications()"
+        },
+        {
+          "message": "EventKit deletion must commit one ThisEvent removal only",
+          "must_exist": true,
+          "path": "platform/ios/ios-calendar/src/event_delete.rs",
+          "text": "removeEvent_span_commit_error"
+        },
+        {
+          "message": "EventKit deletion must not remove a recurring series or future occurrences",
+          "must_exist": true,
+          "path": "platform/ios/ios-calendar/src/event_delete.rs",
+          "text": "EKSpan::ThisEvent"
+        },
+        {
+          "message": "EventKit deletion must commit the single selected-event removal",
+          "must_exist": true,
+          "path": "platform/ios/ios-calendar/src/event_delete.rs",
+          "text": "true,"
+        },
+        {
+          "message": "EventKit deletion must not request Calendar permission",
+          "must_exist": false,
+          "path": "platform/ios/ios-calendar/src/event_delete.rs",
+          "text": "requestFullAccessToEventsWithCompletion"
+        },
+        {
+          "message": "EventKit deletion must not request write-only Calendar permission",
+          "must_exist": false,
+          "path": "platform/ios/ios-calendar/src/event_delete.rs",
+          "text": "requestWriteOnlyAccessToEventsWithCompletion"
+        },
+        {
+          "message": "EventKit deletion must not enumerate events or calendars",
+          "must_exist": false,
+          "path": "platform/ios/ios-calendar/src/event_delete.rs",
+          "text": "eventsMatchingPredicate"
+        },
+        {
+          "message": "EventKit deletion must not enumerate calendars to find a fallback",
+          "must_exist": false,
+          "path": "platform/ios/ios-calendar/src/event_delete.rs",
+          "text": "calendarsForEntityType"
+        },
+        {
+          "message": "EventKit deletion must not access reminders",
+          "must_exist": false,
+          "path": "platform/ios/ios-calendar/src/event_delete.rs",
+          "text": "EKReminder"
+        },
+        {
+          "message": "EventKit deletion must not use a future-series span",
+          "must_exist": false,
+          "path": "platform/ios/ios-calendar/src/event_delete.rs",
+          "text": "EKSpan::FutureEvents"
         }
       ],
       "id": "ios-calendar",
@@ -4358,10 +4490,12 @@
         "platform/ios/ios-calendar/check-link-imports.sh",
         "platform/ios/ios-calendar/src/conversion.rs",
         "platform/ios/ios-calendar/src/event_create.rs",
+        "platform/ios/ios-calendar/src/event_delete.rs",
         "platform/ios/ios-calendar/src/event_query.rs",
         "platform/ios/ios-calendar/src/lib.rs",
         "platform/ios/ios-calendar/src/platform.rs",
         "platform/ios/ios-calendar/tests/event_create_contract.rs",
+        "platform/ios/ios-calendar/tests/event_delete_contract.rs",
         "docs/capabilities/capability-status.json",
         "docs/capabilities/calendar.md",
         "docs/generated/CAPABILITY_STATUS.md",

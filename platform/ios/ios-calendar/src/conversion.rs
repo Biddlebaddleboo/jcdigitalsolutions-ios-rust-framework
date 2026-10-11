@@ -1,6 +1,6 @@
 use framework_calendar::{
-    CalendarAuthorizationStatus, CalendarEvent, CalendarEventError, CalendarEventRange,
-    CalendarEventTime,
+    CalendarAuthorizationStatus, CalendarEvent, CalendarEventDeleteError, CalendarEventError,
+    CalendarEventRange, CalendarEventTime,
 };
 use framework_core::{Error, ErrorKind, PlatformErrorCode};
 
@@ -47,6 +47,23 @@ pub(crate) fn validate_eventkit_range(range: CalendarEventRange) -> Result<(), C
         return Err(CalendarEventError::RangeTooWide);
     }
     Ok(())
+}
+
+/// Rejects a stale or ambiguous selected occurrence before EventKit mutation.
+pub(crate) fn validate_event_delete_snapshot(
+    event: &CalendarEvent,
+    resolved_identifier: &str,
+    start_seconds: f64,
+    end_seconds: f64,
+) -> Result<(), CalendarEventDeleteError> {
+    if event.event_identifier() != Some(resolved_identifier)
+        || start_seconds != event.start().unix_seconds()
+        || end_seconds != event.end().unix_seconds()
+    {
+        Err(CalendarEventDeleteError::EventNotFound)
+    } else {
+        Ok(())
+    }
 }
 
 /// Copies decoded EventKit fields into a validated Rust-owned summary.
@@ -193,6 +210,31 @@ mod tests {
             event_from_native_fields(None, String::new(), 2.0, 1.0, false, None, None),
             Err(CalendarEventError::InvalidNativeEvent)
         );
+    }
+
+    #[test]
+    fn recurring_first_occurrence_mismatch_fails_before_delete() {
+        let selected = CalendarEvent::new(
+            Some("recurring-event".to_string()),
+            "Selected occurrence".to_string(),
+            CalendarEventTime::from_unix_seconds(1_700_086_400.0).unwrap(),
+            CalendarEventTime::from_unix_seconds(1_700_086_800.0).unwrap(),
+            false,
+            None,
+            None,
+        )
+        .unwrap();
+        let mut remove_calls = 0_u8;
+        let result = validate_event_delete_snapshot(
+            &selected,
+            "recurring-event",
+            1_700_000_000.0,
+            1_700_000_400.0,
+        )
+        .map(|()| remove_calls += 1);
+
+        assert_eq!(result, Err(CalendarEventDeleteError::EventNotFound));
+        assert_eq!(remove_calls, 0);
     }
 
     #[test]

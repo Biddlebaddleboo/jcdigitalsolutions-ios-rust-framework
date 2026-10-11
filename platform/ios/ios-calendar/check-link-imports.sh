@@ -26,8 +26,8 @@ use core::future::Future;
 use core::pin::pin;
 use core::task::{Context, Poll, Waker};
 use framework_calendar::{
-    Calendar, CalendarAuthorizationBackend, CalendarAuthorizationStatus, CalendarEventDraft,
-    CalendarEventRange, CalendarEventTime, WritableEventCalendar,
+    Calendar, CalendarAuthorizationBackend, CalendarAuthorizationStatus, CalendarEvent,
+    CalendarEventDraft, CalendarEventRange, CalendarEventTime, WritableEventCalendar,
 };
 use ios_calendar::IosCalendarBackend;
 use std::string::String;
@@ -108,6 +108,26 @@ pub extern "C" fn calendar_event_create_link_probe() -> u8 {
         Err(error) => error.kind() as u8,
     }
 }
+
+#[unsafe(no_mangle)]
+pub extern "C" fn calendar_event_delete_link_probe() -> u8 {
+    let start = CalendarEventTime::from_unix_seconds(1_700_000_000.0).unwrap();
+    let end = CalendarEventTime::from_unix_seconds(1_700_000_060.0).unwrap();
+    let event = CalendarEvent::new(
+        Some(String::from("link-probe-event")),
+        String::from("Link probe"),
+        start,
+        end,
+        false,
+        None,
+        None,
+    )
+    .unwrap();
+    match Calendar::new(IosCalendarBackend::new()).delete_event(&event) {
+        Ok(()) => 1,
+        Err(error) => error.kind() as u8,
+    }
+}
 EOF
 
 for target in aarch64-apple-ios aarch64-apple-ios-sim; do
@@ -137,7 +157,7 @@ EOF_IMPORTS
     fi
     selectors="$scratch/$target-selectors.txt"
     strings "$artifact" >"$selectors"
-    for selector in calendarsForEntityType: calendarIdentifier title calendarWithIdentifier: allowedEntityTypes allowsContentModifications eventWithEventStore: setCalendar: setTitle: setStartDate: setEndDate: setAllDay: setLocation: setNotes: saveEvent:span:commit:error:; do
+    for selector in calendarsForEntityType: calendarIdentifier title calendarWithIdentifier: allowedEntityTypes allowsContentModifications eventWithEventStore: setCalendar: setTitle: setStartDate: setEndDate: setAllDay: setLocation: setNotes: saveEvent:span:commit:error: eventWithIdentifier: removeEvent:span:commit:error:; do
         if ! grep -Fq "$selector" "$selectors"; then
             printf 'missing EventKit selector %s in %s\n' "$selector" "$artifact" >&2
             exit 1

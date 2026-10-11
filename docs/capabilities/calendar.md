@@ -34,6 +34,12 @@ This is read-only access to committed events in the selected time range and all 
 
 Calendar listing and creation are synchronous and may block on the caller's thread. They do not prompt, enumerate events, retry, create worker threads, or return EventKit objects. EventKit save failures, permission changes, and the saved event's runtime contents are not host-test proof.
 
+## Deleting one selected event
+
+`Calendar::delete_event(&CalendarEvent)` accepts a selected summary returned by `events_in_range`. Missing or empty identifiers fail before backend dispatch. The iOS backend rechecks current `FullAccess` without prompting, resolves only that identifier through `eventWithIdentifier:`, and requires the resolved identifier and exact start/end instants to match the selected summary. It then requires the event's attached calendar to support Event entities and currently allow modifications, and calls `removeEvent:span:commit:error:` once with `EKSpan::ThisEvent` and commit enabled. Stale identifiers, snapshots, or read-only calendars fail without removal. Native error kind and a representable platform code are retained.
+
+Apple documents that `eventWithIdentifier:` returns the first occurrence for a recurring identifier. To avoid deleting a different occurrence, the backend fails closed when the resolved date interval differs from the selected summary; it does not enumerate or search for a substitute occurrence. The operation does not remove a series or future occurrences, access reminders, prompt, retry, or show UI. EventKit deletion and runtime state are not proven by host tests.
+
 ## Status and result semantics
 
 `CalendarAuthorizationStatus` distinguishes `Unknown`, `NotDetermined`, `Restricted`, `Denied`, `WriteOnly`, and `FullAccess`. `Unknown` means the backend could not classify a reported status; it is distinct from `NotDetermined`, which means no user decision has been made. `WriteOnly` is not equivalent to `FullAccess`: it reports permission to save new events without full Calendar event-data access. The contract reports a write-only state but does not offer a write-only permission request.
@@ -44,7 +50,7 @@ The portable crate depends only on `framework-core` and `core` plus `alloc` for 
 
 ## Scope and checks
 
-This contract covers status, an explicit full-access request, bounded event-range reads, a writable event-calendar choice snapshot, and creation of one caller-described event. It does not define full event enumeration, event edits/deletes, reminder access, EventKitUI, calendar UI, entitlements, or permission-copy values.
+This contract covers status, an explicit full-access request, bounded event-range reads, a writable event-calendar choice snapshot, creation of one caller-described event, and deletion of one selected event. It does not define full event enumeration, event edits, reminder access, EventKitUI, calendar UI, entitlements, or permission-copy values.
 
 Portable checks:
 
