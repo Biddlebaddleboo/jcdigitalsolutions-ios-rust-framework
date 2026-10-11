@@ -2,8 +2,14 @@
 #![deny(unsafe_op_in_unsafe_fn)]
 #![doc = "An opt-in local notification response bridge for iOS"]
 
+#[cfg(any(target_os = "ios", test))]
+mod presentation;
+
 #[cfg(target_os = "ios")]
 mod platform;
 
 #[cfg(target_os = "ios")]
 pub use platform::{InstallError, IosNotificationResponses};
+
+#[cfg(target_os = "ios")]
+pub use presentation::ForegroundPresentationOptions;

@@ -112,7 +112,7 @@
       "ios-sharing",
       "ios-runtime"
     ],
-["ios-microphone-pcm-recorder","ios-media-authorization"],["ios-datagram","framework-datagram"]
+["ios-microphone-pcm-recorder","ios-media-authorization"],["ios-datagram","framework-datagram"],["ios-notification-responses","framework-notifications"]
   ],
   "pilots": [
     {
@@ -219,18 +219,7 @@
       "abi_scripts": [
         "platform/ios/ios-app-lifecycle/check-link-imports.sh"
       ],
-      "abi_targets": [
-        {
-          "minimum_os": "10.0",
-          "sdk": "iphoneos",
-          "triple": "aarch64-apple-ios"
-        },
-        {
-          "minimum_os": "14.0",
-          "sdk": "iphonesimulator",
-          "triple": "aarch64-apple-ios-sim"
-        }
-      ],
+      "abi_targets": [{"minimum_os":"10.0","sdk":"iphoneos","triple":"aarch64-apple-ios"},{"minimum_os":"14.0","sdk":"iphonesimulator","triple":"aarch64-apple-ios-sim"}],
       "adapters": [
         {
           "deadline_seconds": 10,
@@ -279,19 +268,7 @@
       "offline": false,
       "package": "ios-app-lifecycle",
       "rustdoc_warnings": false,
-      "scoped_files": [
-        "platform/ios/ios-app-lifecycle/Cargo.toml",
-        "platform/ios/ios-app-lifecycle/check-link-imports.sh",
-        "platform/ios/ios-app-lifecycle/check-surface.sh",
-        "platform/ios/ios-app-lifecycle/check.sh",
-        "platform/ios/ios-app-lifecycle/examples/link_probe.rs",
-        "platform/ios/ios-app-lifecycle/src/lib.rs",
-        "platform/ios/ios-app-lifecycle/src/mapping.rs",
-        "platform/ios/ios-app-lifecycle/src/observers.rs",
-        "platform/ios/ios-app-lifecycle/src/platform.rs",
-        "platform/ios/ios-app-lifecycle/src/queue.rs",
-        "tools/validation/adapters/check_ios_app_lifecycle.py"
-      ],
+      "scoped_files": ["platform/ios/ios-app-lifecycle/Cargo.toml","platform/ios/ios-app-lifecycle/check-link-imports.sh","platform/ios/ios-app-lifecycle/check-surface.sh","platform/ios/ios-app-lifecycle/check.sh","platform/ios/ios-app-lifecycle/examples/link_probe.rs","platform/ios/ios-app-lifecycle/src/lib.rs","platform/ios/ios-app-lifecycle/src/mapping.rs","platform/ios/ios-app-lifecycle/src/observers.rs","platform/ios/ios-app-lifecycle/src/platform.rs","platform/ios/ios-app-lifecycle/src/queue.rs","tools/validation/adapters/check_ios_app_lifecycle.py"],
       "shell_scripts": [
         "platform/ios/ios-app-lifecycle/check.sh",
         "platform/ios/ios-app-lifecycle/check-surface.sh",
@@ -300,35 +277,13 @@
       "source_dirs": [
         "platform/ios/ios-app-lifecycle"
       ],
-      "targets": [
-        {
-          "minimum_os": "10.0",
-          "sdk": "iphoneos",
-          "triple": "aarch64-apple-ios"
-        },
-        {
-          "minimum_os": "14.0",
-          "sdk": "iphonesimulator",
-          "triple": "aarch64-apple-ios-sim"
-        }
-      ]
+      "targets": [{"minimum_os":"10.0","sdk":"iphoneos","triple":"aarch64-apple-ios"},{"minimum_os":"14.0","sdk":"iphonesimulator","triple":"aarch64-apple-ios-sim"}]
     },
     {
       "abi_scripts": [
         "platform/ios/ios-microphone-recorder/check-link-imports.sh"
       ],
-      "abi_targets": [
-        {
-          "minimum_os": "10.0",
-          "sdk": "iphoneos",
-          "triple": "aarch64-apple-ios"
-        },
-        {
-          "minimum_os": "14.0",
-          "sdk": "iphonesimulator",
-          "triple": "aarch64-apple-ios-sim"
-        }
-      ],
+      "abi_targets": [{"minimum_os":"10.0","sdk":"iphoneos","triple":"aarch64-apple-ios"},{"minimum_os":"14.0","sdk":"iphonesimulator","triple":"aarch64-apple-ios-sim"}],
       "adapters": [],
       "cargo_tree": false,
       "check_script": "platform/ios/ios-microphone-recorder/check-link-imports.sh",
@@ -443,35 +398,13 @@
       "source_dirs": [
         "platform/ios/ios-microphone-recorder"
       ],
-      "targets": [
-        {
-          "minimum_os": "10.0",
-          "sdk": "iphoneos",
-          "triple": "aarch64-apple-ios"
-        },
-        {
-          "minimum_os": "14.0",
-          "sdk": "iphonesimulator",
-          "triple": "aarch64-apple-ios-sim"
-        }
-      ]
+      "targets": [{"minimum_os":"10.0","sdk":"iphoneos","triple":"aarch64-apple-ios"},{"minimum_os":"14.0","sdk":"iphonesimulator","triple":"aarch64-apple-ios-sim"}]
     },
     {
       "abi_scripts": [
         "platform/ios/ios-microphone-pcm-stream/check-link-imports.sh"
       ],
-      "abi_targets": [
-        {
-          "minimum_os": "10.0",
-          "sdk": "iphoneos",
-          "triple": "aarch64-apple-ios"
-        },
-        {
-          "minimum_os": "14.0",
-          "sdk": "iphonesimulator",
-          "triple": "aarch64-apple-ios-sim"
-        }
-      ],
+      "abi_targets": [{"minimum_os":"10.0","sdk":"iphoneos","triple":"aarch64-apple-ios"},{"minimum_os":"14.0","sdk":"iphonesimulator","triple":"aarch64-apple-ios-sim"}],
       "adapters": [],
       "cargo_tree": false,
       "check_script": "platform/ios/ios-microphone-pcm-stream/check-link-imports.sh",
@@ -844,50 +777,19 @@
       "source_dirs": [
         "platform/ios/ios-microphone-pcm-stream"
       ],
-      "targets": [
-        {
-          "minimum_os": "10.0",
-          "sdk": "iphoneos",
-          "triple": "aarch64-apple-ios"
-        },
-        {
-          "minimum_os": "14.0",
-          "sdk": "iphonesimulator",
-          "triple": "aarch64-apple-ios-sim"
-        }
-      ]
+      "targets": [{"minimum_os":"10.0","sdk":"iphoneos","triple":"aarch64-apple-ios"},{"minimum_os":"14.0","sdk":"iphonesimulator","triple":"aarch64-apple-ios-sim"}]
     },
     {
       "abi_scripts": [
         "platform/ios/ios-app-scenes/check-link-imports.sh"
       ],
-      "abi_targets": [
-        {
-          "minimum_os": "13.0",
-          "sdk": "iphoneos",
-          "triple": "aarch64-apple-ios"
-        },
-        {
-          "minimum_os": "14.0",
-          "sdk": "iphonesimulator",
-          "triple": "aarch64-apple-ios-sim"
-        }
-      ],
+      "abi_targets": [{"minimum_os":"13.0","sdk":"iphoneos","triple":"aarch64-apple-ios"},{"minimum_os":"14.0","sdk":"iphonesimulator","triple":"aarch64-apple-ios-sim"}],
       "adapters": [],
       "cargo_tree": false,
       "check_script": "platform/ios/ios-app-scenes/check.sh",
       "clippy_all_targets": true,
       "clippy_lib": false,
-      "docs": [
-        "docs/ios/app-scenes.md",
-        "docs/ios/app-lifecycle.md",
-        "docs/capabilities/capability-status.json",
-        "docs/capabilities/README.md",
-        "PLAN.md",
-        "PLAN_CAPABILITIES_APPLICATION_LIFECYCLE.md",
-        "PLAN_IOS_SCENE_SNAPSHOT.md",
-        "PLAN_VALIDATION_IOS_SCENE_SNAPSHOT.md"
-      ],
+      "docs": ["docs/ios/app-scenes.md","docs/ios/app-lifecycle.md","docs/capabilities/capability-status.json","docs/capabilities/README.md","PLAN.md","PLAN_CAPABILITIES_APPLICATION_LIFECYCLE.md","PLAN_IOS_SCENE_SNAPSHOT.md","PLAN_VALIDATION_IOS_SCENE_SNAPSHOT.md"],
       "expected_imports": [
         "Foundation.framework",
         "UIKit.framework",
@@ -900,19 +802,7 @@
       "offline": false,
       "package": "ios-app-scenes",
       "rustdoc_warnings": false,
-      "scoped_files": [
-        "PLAN.md",
-        "PLAN_CAPABILITIES_APPLICATION_LIFECYCLE.md",
-        "PLAN_IOS_SCENE_SNAPSHOT.md",
-        "PLAN_VALIDATION_IOS_SCENE_SNAPSHOT.md",
-        "platform/ios/ios-app-scenes/Cargo.toml",
-        "platform/ios/ios-app-scenes/README.md",
-        "platform/ios/ios-app-scenes/check-link-imports.sh",
-        "platform/ios/ios-app-scenes/check.sh",
-        "platform/ios/ios-app-scenes/examples/link_check.rs",
-        "platform/ios/ios-app-scenes/src/backend.rs",
-        "platform/ios/ios-app-scenes/src/lib.rs"
-      ],
+      "scoped_files": ["PLAN.md","PLAN_CAPABILITIES_APPLICATION_LIFECYCLE.md","PLAN_IOS_SCENE_SNAPSHOT.md","PLAN_VALIDATION_IOS_SCENE_SNAPSHOT.md","platform/ios/ios-app-scenes/Cargo.toml","platform/ios/ios-app-scenes/README.md","platform/ios/ios-app-scenes/check-link-imports.sh","platform/ios/ios-app-scenes/check.sh","platform/ios/ios-app-scenes/examples/link_check.rs","platform/ios/ios-app-scenes/src/backend.rs","platform/ios/ios-app-scenes/src/lib.rs"],
       "shell_scripts": [
         "platform/ios/ios-app-scenes/check.sh",
         "platform/ios/ios-app-scenes/check-link-imports.sh"
@@ -920,35 +810,13 @@
       "source_dirs": [
         "platform/ios/ios-app-scenes"
       ],
-      "targets": [
-        {
-          "minimum_os": "13.0",
-          "sdk": "iphoneos",
-          "triple": "aarch64-apple-ios"
-        },
-        {
-          "minimum_os": "14.0",
-          "sdk": "iphonesimulator",
-          "triple": "aarch64-apple-ios-sim"
-        }
-      ]
+      "targets": [{"minimum_os":"13.0","sdk":"iphoneos","triple":"aarch64-apple-ios"},{"minimum_os":"14.0","sdk":"iphonesimulator","triple":"aarch64-apple-ios-sim"}]
     },
     {
       "abi_scripts": [
         "platform/ios/ios-media-authorization/check-link-imports.sh"
       ],
-      "abi_targets": [
-        {
-          "minimum_os": "10.0",
-          "sdk": "iphoneos",
-          "triple": "aarch64-apple-ios"
-        },
-        {
-          "minimum_os": "14.0",
-          "sdk": "iphonesimulator",
-          "triple": "aarch64-apple-ios-sim"
-        }
-      ],
+      "abi_targets": [{"minimum_os":"10.0","sdk":"iphoneos","triple":"aarch64-apple-ios"},{"minimum_os":"14.0","sdk":"iphonesimulator","triple":"aarch64-apple-ios-sim"}],
       "cargo_tree": false,
       "check_script": "platform/ios/ios-media-authorization/check.sh",
       "clippy_all_targets": true,
@@ -999,24 +867,7 @@
       "offline": false,
       "package": "ios-media-authorization",
       "rustdoc_warnings": false,
-      "scoped_files": [
-        "PLAN.md",
-        "PLAN_CAPABILITIES_MEDIA_AUTHORIZATION.md",
-        "PLAN_IOS_MEDIA_AUTHORIZATION.md",
-        "PLAN_IOS_NATIVE.md",
-        "crates/framework-media-authorization/src/lib.rs",
-        "platform/ios/ios-media-authorization/Cargo.toml",
-        "platform/ios/ios-media-authorization/check-link-imports.sh",
-        "platform/ios/ios-media-authorization/check-surface.sh",
-        "platform/ios/ios-media-authorization/check.sh",
-        "platform/ios/ios-media-authorization/examples/media_authorization_link_probe.rs",
-        "platform/ios/ios-media-authorization/src/lib.rs",
-        "platform/ios/ios-media-authorization/src/operation.rs",
-        "platform/ios/ios-media-authorization/src/platform.rs",
-        "platform/ios/ios-media-authorization/src/request.rs",
-        "platform/ios/ios-media-authorization/src/status.rs",
-        "tools/validation/adapters/check_media_authorization.py"
-      ],
+      "scoped_files": ["PLAN.md","PLAN_CAPABILITIES_MEDIA_AUTHORIZATION.md","PLAN_IOS_MEDIA_AUTHORIZATION.md","PLAN_IOS_NATIVE.md","crates/framework-media-authorization/src/lib.rs","platform/ios/ios-media-authorization/Cargo.toml","platform/ios/ios-media-authorization/check-link-imports.sh","platform/ios/ios-media-authorization/check-surface.sh","platform/ios/ios-media-authorization/check.sh","platform/ios/ios-media-authorization/examples/media_authorization_link_probe.rs","platform/ios/ios-media-authorization/src/lib.rs","platform/ios/ios-media-authorization/src/operation.rs","platform/ios/ios-media-authorization/src/platform.rs","platform/ios/ios-media-authorization/src/request.rs","platform/ios/ios-media-authorization/src/status.rs","tools/validation/adapters/check_media_authorization.py"],
       "shell_scripts": [
         "platform/ios/ios-media-authorization/check.sh",
         "platform/ios/ios-media-authorization/check-surface.sh",
@@ -1025,18 +876,7 @@
       "source_dirs": [
         "platform/ios/ios-media-authorization"
       ],
-      "targets": [
-        {
-          "minimum_os": "10.0",
-          "sdk": "iphoneos",
-          "triple": "aarch64-apple-ios"
-        },
-        {
-          "minimum_os": "14.0",
-          "sdk": "iphonesimulator",
-          "triple": "aarch64-apple-ios-sim"
-        }
-      ],
+      "targets": [{"minimum_os":"10.0","sdk":"iphoneos","triple":"aarch64-apple-ios"},{"minimum_os":"14.0","sdk":"iphonesimulator","triple":"aarch64-apple-ios-sim"}],
       "adapters": [
         {
           "id": "media-authorization-request-contract",
@@ -1068,18 +908,7 @@
       "abi_scripts": [
         "platform/ios/ios-camera-capture-session/check-link-imports.sh"
       ],
-      "abi_targets": [
-        {
-          "minimum_os": "10.0",
-          "sdk": "iphoneos",
-          "triple": "aarch64-apple-ios"
-        },
-        {
-          "minimum_os": "14.0",
-          "sdk": "iphonesimulator",
-          "triple": "aarch64-apple-ios-sim"
-        }
-      ],
+      "abi_targets": [{"minimum_os":"10.0","sdk":"iphoneos","triple":"aarch64-apple-ios"},{"minimum_os":"14.0","sdk":"iphonesimulator","triple":"aarch64-apple-ios-sim"}],
       "adapters": [
         {
           "deadline_seconds": 10,
@@ -2602,35 +2431,13 @@
       "source_dirs": [
         "platform/ios/ios-camera-capture-session"
       ],
-      "targets": [
-        {
-          "minimum_os": "10.0",
-          "sdk": "iphoneos",
-          "triple": "aarch64-apple-ios"
-        },
-        {
-          "minimum_os": "14.0",
-          "sdk": "iphonesimulator",
-          "triple": "aarch64-apple-ios-sim"
-        }
-      ]
+      "targets": [{"minimum_os":"10.0","sdk":"iphoneos","triple":"aarch64-apple-ios"},{"minimum_os":"14.0","sdk":"iphonesimulator","triple":"aarch64-apple-ios-sim"}]
     },
     {
       "abi_scripts": [
         "platform/ios/ios-homekit-identify-status/check-link-imports.sh"
       ],
-      "abi_targets": [
-        {
-          "minimum_os": "11.3",
-          "sdk": "iphoneos",
-          "triple": "aarch64-apple-ios"
-        },
-        {
-          "minimum_os": "14.0",
-          "sdk": "iphonesimulator",
-          "triple": "aarch64-apple-ios-sim"
-        }
-      ],
+      "abi_targets": [{"minimum_os":"11.3","sdk":"iphoneos","triple":"aarch64-apple-ios"},{"minimum_os":"14.0","sdk":"iphonesimulator","triple":"aarch64-apple-ios-sim"}],
       "cargo_tree": false,
       "check_script": "platform/ios/ios-homekit-identify-status/check.sh",
       "clippy_all_targets": true,
@@ -2757,18 +2564,7 @@
       "source_dirs": [
         "platform/ios/ios-homekit-identify-status"
       ],
-      "targets": [
-        {
-          "minimum_os": "11.3",
-          "sdk": "iphoneos",
-          "triple": "aarch64-apple-ios"
-        },
-        {
-          "minimum_os": "14.0",
-          "sdk": "iphonesimulator",
-          "triple": "aarch64-apple-ios-sim"
-        }
-      ],
+      "targets": [{"minimum_os":"11.3","sdk":"iphoneos","triple":"aarch64-apple-ios"},{"minimum_os":"14.0","sdk":"iphonesimulator","triple":"aarch64-apple-ios-sim"}],
       "adapters": [
         {
           "id": "homekit-source-contract",
@@ -2792,18 +2588,7 @@
         "platform/ios/ios-photogrammetry-status/check-swiftcall.sh",
         "platform/ios/ios-photogrammetry-status/check-link-imports.sh"
       ],
-      "abi_targets": [
-        {
-          "minimum_os": "17.0",
-          "sdk": "iphoneos",
-          "triple": "aarch64-apple-ios"
-        },
-        {
-          "minimum_os": "17.0",
-          "sdk": "iphonesimulator",
-          "triple": "aarch64-apple-ios-sim"
-        }
-      ],
+      "abi_targets": [{"minimum_os":"17.0","sdk":"iphoneos","triple":"aarch64-apple-ios"},{"minimum_os":"17.0","sdk":"iphonesimulator","triple":"aarch64-apple-ios-sim"}],
       "cargo_tree": false,
       "check_script": "platform/ios/ios-photogrammetry-status/check.sh",
       "clippy_all_targets": false,
@@ -2843,41 +2628,14 @@
       "source_dirs": [
         "platform/ios/ios-photogrammetry-status"
       ],
-      "targets": [
-        {
-          "minimum_os": "17.0",
-          "sdk": "iphoneos",
-          "triple": "aarch64-apple-ios"
-        },
-        {
-          "minimum_os": "17.0",
-          "sdk": "iphonesimulator",
-          "triple": "aarch64-apple-ios-sim"
-        },
-        {
-          "minimum_os": "17.0",
-          "sdk": "iphonesimulator",
-          "triple": "x86_64-apple-ios"
-        }
-      ],
+      "targets": [{"minimum_os":"17.0","sdk":"iphoneos","triple":"aarch64-apple-ios"},{"minimum_os":"17.0","sdk":"iphonesimulator","triple":"aarch64-apple-ios-sim"},{"minimum_os":"17.0","sdk":"iphonesimulator","triple":"x86_64-apple-ios"}],
       "adapters": []
     },
     {
       "abi_scripts": [
         "platform/ios/ios-alarmkit-status/check-link-imports.sh"
       ],
-      "abi_targets": [
-        {
-          "minimum_os": "26.0",
-          "sdk": "iphoneos",
-          "triple": "aarch64-apple-ios"
-        },
-        {
-          "minimum_os": "26.0",
-          "sdk": "iphonesimulator",
-          "triple": "aarch64-apple-ios-sim"
-        }
-      ],
+      "abi_targets": [{"minimum_os":"26.0","sdk":"iphoneos","triple":"aarch64-apple-ios"},{"minimum_os":"26.0","sdk":"iphonesimulator","triple":"aarch64-apple-ios-sim"}],
       "cargo_tree": false,
       "check_script": "platform/ios/ios-alarmkit-status/check.sh",
       "clippy_all_targets": false,
@@ -2902,19 +2660,7 @@
       "offline": true,
       "package": "ios-alarmkit-status",
       "rustdoc_warnings": true,
-      "scoped_files": [
-        ".github/workflows/ci.yml",
-        "PLAN_CAPABILITIES_ALARMKIT.md",
-        "PLAN_SWIFT_ABI.md",
-        "interop/swift-abi-core/include/swift_abi_runtime.h",
-        "platform/ios/ios-alarmkit-status/Cargo.toml",
-        "platform/ios/ios-alarmkit-status/build.rs",
-        "platform/ios/ios-alarmkit-status/check-link-imports.sh",
-        "platform/ios/ios-alarmkit-status/check.sh",
-        "platform/ios/ios-alarmkit-status/examples/alarmkit_status_link_probe.rs",
-        "platform/ios/ios-alarmkit-status/native/alarmkit_status.c",
-        "platform/ios/ios-alarmkit-status/src/lib.rs"
-      ],
+      "scoped_files": [".github/workflows/ci.yml","PLAN_CAPABILITIES_ALARMKIT.md","PLAN_SWIFT_ABI.md","interop/swift-abi-core/include/swift_abi_runtime.h","platform/ios/ios-alarmkit-status/Cargo.toml","platform/ios/ios-alarmkit-status/build.rs","platform/ios/ios-alarmkit-status/check-link-imports.sh","platform/ios/ios-alarmkit-status/check.sh","platform/ios/ios-alarmkit-status/examples/alarmkit_status_link_probe.rs","platform/ios/ios-alarmkit-status/native/alarmkit_status.c","platform/ios/ios-alarmkit-status/src/lib.rs"],
       "shell_scripts": [
         "platform/ios/ios-alarmkit-status/check.sh",
         "platform/ios/ios-alarmkit-status/check-link-imports.sh"
@@ -2922,18 +2668,7 @@
       "source_dirs": [
         "platform/ios/ios-alarmkit-status"
       ],
-      "targets": [
-        {
-          "minimum_os": "26.0",
-          "sdk": "iphoneos",
-          "triple": "aarch64-apple-ios"
-        },
-        {
-          "minimum_os": "26.0",
-          "sdk": "iphonesimulator",
-          "triple": "aarch64-apple-ios-sim"
-        }
-      ],
+      "targets": [{"minimum_os":"26.0","sdk":"iphoneos","triple":"aarch64-apple-ios"},{"minimum_os":"26.0","sdk":"iphonesimulator","triple":"aarch64-apple-ios-sim"}],
       "adapters": []
     },
     {
@@ -2941,18 +2676,7 @@
         "platform/ios/ios-activitykit-status/scripts/check-swiftcall.sh",
         "platform/ios/ios-activitykit-status/scripts/check-link-imports.sh"
       ],
-      "abi_targets": [
-        {
-          "minimum_os": "16.1",
-          "sdk": "iphoneos",
-          "triple": "aarch64-apple-ios"
-        },
-        {
-          "minimum_os": "16.1",
-          "sdk": "iphonesimulator",
-          "triple": "aarch64-apple-ios-sim"
-        }
-      ],
+      "abi_targets": [{"minimum_os":"16.1","sdk":"iphoneos","triple":"aarch64-apple-ios"},{"minimum_os":"16.1","sdk":"iphonesimulator","triple":"aarch64-apple-ios-sim"}],
       "cargo_tree": true,
       "check_script": "platform/ios/ios-activitykit-status/check.sh",
       "clippy_all_targets": false,
@@ -3158,19 +2882,7 @@
       "offline": false,
       "package": "ios-activitykit-status",
       "rustdoc_warnings": true,
-      "scoped_files": [
-        "PLAN_CAPABILITIES_ACTIVITYKIT.md",
-        "interop/swift-abi-core/include/swift_abi_runtime.h",
-        "platform/ios/ios-activitykit-status/Cargo.toml",
-        "platform/ios/ios-activitykit-status/README.md",
-        "platform/ios/ios-activitykit-status/build.rs",
-        "platform/ios/ios-activitykit-status/check.sh",
-        "platform/ios/ios-activitykit-status/examples/activitykit_status_link_probe.rs",
-        "platform/ios/ios-activitykit-status/native/activitykit_status.c",
-        "platform/ios/ios-activitykit-status/scripts/check-link-imports.sh",
-        "platform/ios/ios-activitykit-status/scripts/check-swiftcall.sh",
-        "platform/ios/ios-activitykit-status/src/lib.rs"
-      ],
+      "scoped_files": ["PLAN_CAPABILITIES_ACTIVITYKIT.md","interop/swift-abi-core/include/swift_abi_runtime.h","platform/ios/ios-activitykit-status/Cargo.toml","platform/ios/ios-activitykit-status/README.md","platform/ios/ios-activitykit-status/build.rs","platform/ios/ios-activitykit-status/check.sh","platform/ios/ios-activitykit-status/examples/activitykit_status_link_probe.rs","platform/ios/ios-activitykit-status/native/activitykit_status.c","platform/ios/ios-activitykit-status/scripts/check-link-imports.sh","platform/ios/ios-activitykit-status/scripts/check-swiftcall.sh","platform/ios/ios-activitykit-status/src/lib.rs"],
       "shell_scripts": [
         "platform/ios/ios-activitykit-status/check.sh",
         "platform/ios/ios-activitykit-status/scripts/check-swiftcall.sh",
@@ -3179,36 +2891,14 @@
       "source_dirs": [
         "platform/ios/ios-activitykit-status"
       ],
-      "targets": [
-        {
-          "minimum_os": "16.1",
-          "sdk": "iphoneos",
-          "triple": "aarch64-apple-ios"
-        },
-        {
-          "minimum_os": "16.1",
-          "sdk": "iphonesimulator",
-          "triple": "aarch64-apple-ios-sim"
-        }
-      ],
+      "targets": [{"minimum_os":"16.1","sdk":"iphoneos","triple":"aarch64-apple-ios"},{"minimum_os":"16.1","sdk":"iphonesimulator","triple":"aarch64-apple-ios-sim"}],
       "adapters": []
     },
     {
       "abi_scripts": [
         "platform/ios/ios-photos/check-link-imports.sh"
       ],
-      "abi_targets": [
-        {
-          "minimum_os": "14.0",
-          "sdk": "iphoneos",
-          "triple": "aarch64-apple-ios"
-        },
-        {
-          "minimum_os": "14.0",
-          "sdk": "iphonesimulator",
-          "triple": "aarch64-apple-ios-sim"
-        }
-      ],
+      "abi_targets": [{"minimum_os":"14.0","sdk":"iphoneos","triple":"aarch64-apple-ios"},{"minimum_os":"14.0","sdk":"iphonesimulator","triple":"aarch64-apple-ios-sim"}],
       "adapters": [],
       "cargo_tree": false,
       "check_script": "platform/ios/ios-photos/check-link-imports.sh",
@@ -3514,72 +3204,26 @@
       "offline": false,
       "package": "ios-photos",
       "rustdoc_warnings": false,
-      "scoped_files": [
-        "PLAN.md",
-        "crates/framework-photos/Cargo.toml",
-        "crates/framework-photos/src/lib.rs",
-        "platform/ios/ios-photos/Cargo.toml",
-        "platform/ios/ios-photos/check-link-imports.sh",
-        "platform/ios/ios-photos/examples/ios_photos_link_import_probe.rs",
-        "platform/ios/ios-photos/examples/photos_api_floor.m",
-        "platform/ios/ios-photos/src/fetch.rs",
-        "platform/ios/ios-photos/src/import.rs",
-        "platform/ios/ios-photos/src/lib.rs",
-        "platform/ios/ios-photos/src/operation.rs",
-        "platform/ios/ios-photos/src/platform.rs",
-        "platform/ios/ios-photos/src/save.rs",
-        "platform/ios/ios-photos/src/status.rs"
-      ],
+      "scoped_files": ["PLAN.md","crates/framework-photos/Cargo.toml","crates/framework-photos/src/lib.rs","platform/ios/ios-photos/Cargo.toml","platform/ios/ios-photos/check-link-imports.sh","platform/ios/ios-photos/examples/ios_photos_link_import_probe.rs","platform/ios/ios-photos/examples/photos_api_floor.m","platform/ios/ios-photos/src/fetch.rs","platform/ios/ios-photos/src/import.rs","platform/ios/ios-photos/src/lib.rs","platform/ios/ios-photos/src/operation.rs","platform/ios/ios-photos/src/platform.rs","platform/ios/ios-photos/src/save.rs","platform/ios/ios-photos/src/status.rs"],
       "shell_scripts": [
         "platform/ios/ios-photos/check-link-imports.sh"
       ],
       "source_dirs": [
         "platform/ios/ios-photos"
       ],
-      "targets": [
-        {
-          "minimum_os": "14.0",
-          "sdk": "iphoneos",
-          "triple": "aarch64-apple-ios"
-        },
-        {
-          "minimum_os": "14.0",
-          "sdk": "iphonesimulator",
-          "triple": "aarch64-apple-ios-sim"
-        }
-      ]
+      "targets": [{"minimum_os":"14.0","sdk":"iphoneos","triple":"aarch64-apple-ios"},{"minimum_os":"14.0","sdk":"iphonesimulator","triple":"aarch64-apple-ios-sim"}]
     },
     {
       "abi_scripts": [
         "platform/ios/ios-playback/check-link-imports.sh"
       ],
-      "abi_targets": [
-        {
-          "minimum_os": "13.4",
-          "sdk": "iphoneos",
-          "triple": "aarch64-apple-ios"
-        },
-        {
-          "minimum_os": "14.0",
-          "sdk": "iphonesimulator",
-          "triple": "aarch64-apple-ios-sim"
-        }
-      ],
+      "abi_targets": [{"minimum_os":"13.4","sdk":"iphoneos","triple":"aarch64-apple-ios"},{"minimum_os":"14.0","sdk":"iphonesimulator","triple":"aarch64-apple-ios-sim"}],
       "adapters": [],
       "cargo_tree": false,
       "check_script": "platform/ios/ios-playback/check.sh",
       "clippy_all_targets": true,
       "clippy_lib": false,
-      "docs": [
-        "docs/capabilities/capability-status.json",
-        "docs/capabilities/playback.md",
-        "docs/generated/CAPABILITY_STATUS.md",
-        "docs/generated/VALIDATION_PROFILES.md",
-        "docs/ios/playback.md",
-        "platform/ios/ios-playback/README.md",
-        "PLAN.md",
-        "PLAN_IOS_PLAYBACK.md"
-      ],
+      "docs": ["docs/capabilities/capability-status.json","docs/capabilities/playback.md","docs/generated/CAPABILITY_STATUS.md","docs/generated/VALIDATION_PROFILES.md","docs/ios/playback.md","platform/ios/ios-playback/README.md","PLAN.md","PLAN_IOS_PLAYBACK.md"],
       "expected_imports": [
         "AVFoundation.framework",
         "CoreFoundation.framework",
@@ -3912,35 +3556,13 @@
       "source_dirs": [
         "platform/ios/ios-playback"
       ],
-      "targets": [
-        {
-          "minimum_os": "13.4",
-          "sdk": "iphoneos",
-          "triple": "aarch64-apple-ios"
-        },
-        {
-          "minimum_os": "14.0",
-          "sdk": "iphonesimulator",
-          "triple": "aarch64-apple-ios-sim"
-        }
-      ]
+      "targets": [{"minimum_os":"13.4","sdk":"iphoneos","triple":"aarch64-apple-ios"},{"minimum_os":"14.0","sdk":"iphonesimulator","triple":"aarch64-apple-ios-sim"}]
     },
     {
       "abi_scripts": [
         "platform/ios/ios-contacts/scripts/check-link-imports.sh"
       ],
-      "abi_targets": [
-        {
-          "minimum_os": "10.0",
-          "sdk": "iphoneos",
-          "triple": "aarch64-apple-ios"
-        },
-        {
-          "minimum_os": "14.0",
-          "sdk": "iphonesimulator",
-          "triple": "aarch64-apple-ios-sim"
-        }
-      ],
+      "abi_targets": [{"minimum_os":"10.0","sdk":"iphoneos","triple":"aarch64-apple-ios"},{"minimum_os":"14.0","sdk":"iphonesimulator","triple":"aarch64-apple-ios-sim"}],
       "adapters": [],
       "cargo_tree": false,
       "check_script": "platform/ios/ios-contacts/scripts/check-link-imports.sh",
@@ -4848,32 +4470,7 @@
       "offline": false,
       "package": "ios-contacts",
       "rustdoc_warnings": true,
-      "scoped_files": [
-        "PLAN.md",
-        "PLAN_IOS_CONTACTS.md",
-        "crates/framework-contacts/Cargo.toml",
-        "crates/framework-contacts/src/lib.rs",
-        "platform/ios/ios-contacts/Cargo.toml",
-        "platform/ios/ios-contacts/examples/contacts_fetch_api_floor.m",
-        "platform/ios/ios-contacts/examples/ios_contacts_fetch_link_probe.rs",
-        "platform/ios/ios-contacts/scripts/check-link-imports.sh",
-        "platform/ios/ios-contacts/src/conversion.rs",
-        "platform/ios/ios-contacts/src/create.rs",
-        "platform/ios/ios-contacts/src/delete.rs",
-        "platform/ios/ios-contacts/src/export.rs",
-        "platform/ios/ios-contacts/src/fetch.rs",
-        "platform/ios/ios-contacts/src/lib.rs",
-        "platform/ios/ios-contacts/src/operation.rs",
-        "platform/ios/ios-contacts/src/platform.rs",
-        "platform/ios/ios-contacts/src/search.rs",
-        "platform/ios/ios-contacts/src/snapshot.rs",
-        "platform/ios/ios-contacts/src/thumbnail.rs",
-        "platform/ios/ios-contacts/src/update.rs",
-        "platform/ios/ios-contacts/tests/delete_contract.rs",
-        "platform/ios/ios-contacts/tests/export_contract.rs",
-        "platform/ios/ios-contacts/tests/thumbnail_contract.rs",
-        "platform/ios/ios-contacts/tests/update_contract.rs"
-      ],
+      "scoped_files": ["PLAN.md","PLAN_IOS_CONTACTS.md","crates/framework-contacts/Cargo.toml","crates/framework-contacts/src/lib.rs","platform/ios/ios-contacts/Cargo.toml","platform/ios/ios-contacts/examples/contacts_fetch_api_floor.m","platform/ios/ios-contacts/examples/ios_contacts_fetch_link_probe.rs","platform/ios/ios-contacts/scripts/check-link-imports.sh","platform/ios/ios-contacts/src/conversion.rs","platform/ios/ios-contacts/src/create.rs","platform/ios/ios-contacts/src/delete.rs","platform/ios/ios-contacts/src/export.rs","platform/ios/ios-contacts/src/fetch.rs","platform/ios/ios-contacts/src/lib.rs","platform/ios/ios-contacts/src/operation.rs","platform/ios/ios-contacts/src/platform.rs","platform/ios/ios-contacts/src/search.rs","platform/ios/ios-contacts/src/snapshot.rs","platform/ios/ios-contacts/src/thumbnail.rs","platform/ios/ios-contacts/src/update.rs","platform/ios/ios-contacts/tests/delete_contract.rs","platform/ios/ios-contacts/tests/export_contract.rs","platform/ios/ios-contacts/tests/thumbnail_contract.rs","platform/ios/ios-contacts/tests/update_contract.rs"],
       "shell_scripts": [
         "platform/ios/ios-contacts/scripts/check-link-imports.sh"
       ],
@@ -4881,35 +4478,13 @@
         "crates/framework-contacts",
         "platform/ios/ios-contacts"
       ],
-      "targets": [
-        {
-          "minimum_os": "10.0",
-          "sdk": "iphoneos",
-          "triple": "aarch64-apple-ios"
-        },
-        {
-          "minimum_os": "14.0",
-          "sdk": "iphonesimulator",
-          "triple": "aarch64-apple-ios-sim"
-        }
-      ]
+      "targets": [{"minimum_os":"10.0","sdk":"iphoneos","triple":"aarch64-apple-ios"},{"minimum_os":"14.0","sdk":"iphonesimulator","triple":"aarch64-apple-ios-sim"}]
     },
     {
       "abi_scripts": [
         "platform/ios/ios-calendar/check-link-imports.sh"
       ],
-      "abi_targets": [
-        {
-          "minimum_os": "17.0",
-          "sdk": "iphoneos",
-          "triple": "aarch64-apple-ios"
-        },
-        {
-          "minimum_os": "17.0",
-          "sdk": "iphonesimulator",
-          "triple": "aarch64-apple-ios-sim"
-        }
-      ],
+      "abi_targets": [{"minimum_os":"17.0","sdk":"iphoneos","triple":"aarch64-apple-ios"},{"minimum_os":"17.0","sdk":"iphonesimulator","triple":"aarch64-apple-ios-sim"}],
       "adapters": [],
       "cargo_tree": false,
       "check_script": "platform/ios/ios-calendar/check-link-imports.sh",
@@ -5567,29 +5142,7 @@
       "offline": false,
       "package": "ios-calendar",
       "rustdoc_warnings": true,
-      "scoped_files": [
-        "PLAN.md",
-        "PLAN_IOS_CALENDAR.md",
-        "PLAN_VALIDATION_IOS_CALENDAR.md",
-        "crates/framework-calendar/Cargo.toml",
-        "crates/framework-calendar/src/lib.rs",
-        "crates/framework-calendar/src/reminder_status.rs",
-        "platform/ios/ios-calendar/Cargo.toml",
-        "platform/ios/ios-calendar/check-link-imports.sh",
-        "platform/ios/ios-calendar/check.sh",
-        "platform/ios/ios-calendar/src/conversion.rs",
-        "platform/ios/ios-calendar/src/event_create.rs",
-        "platform/ios/ios-calendar/src/event_delete.rs",
-        "platform/ios/ios-calendar/src/event_query.rs",
-        "platform/ios/ios-calendar/src/event_update.rs",
-        "platform/ios/ios-calendar/src/lib.rs",
-        "platform/ios/ios-calendar/src/platform.rs",
-        "platform/ios/ios-calendar/src/reminder_create.rs",
-        "platform/ios/ios-calendar/tests/event_create_contract.rs",
-        "platform/ios/ios-calendar/tests/event_delete_contract.rs",
-        "platform/ios/ios-calendar/tests/event_update_contract.rs",
-        "platform/ios/ios-calendar/tests/reminder_create_contract.rs"
-      ],
+      "scoped_files": ["PLAN.md","PLAN_IOS_CALENDAR.md","PLAN_VALIDATION_IOS_CALENDAR.md","crates/framework-calendar/Cargo.toml","crates/framework-calendar/src/lib.rs","crates/framework-calendar/src/reminder_status.rs","platform/ios/ios-calendar/Cargo.toml","platform/ios/ios-calendar/check-link-imports.sh","platform/ios/ios-calendar/check.sh","platform/ios/ios-calendar/src/conversion.rs","platform/ios/ios-calendar/src/event_create.rs","platform/ios/ios-calendar/src/event_delete.rs","platform/ios/ios-calendar/src/event_query.rs","platform/ios/ios-calendar/src/event_update.rs","platform/ios/ios-calendar/src/lib.rs","platform/ios/ios-calendar/src/platform.rs","platform/ios/ios-calendar/src/reminder_create.rs","platform/ios/ios-calendar/tests/event_create_contract.rs","platform/ios/ios-calendar/tests/event_delete_contract.rs","platform/ios/ios-calendar/tests/event_update_contract.rs","platform/ios/ios-calendar/tests/reminder_create_contract.rs"],
       "shell_scripts": [
         "platform/ios/ios-calendar/check.sh",
         "platform/ios/ios-calendar/check-link-imports.sh"
@@ -5598,35 +5151,13 @@
         "crates/framework-calendar",
         "platform/ios/ios-calendar"
       ],
-      "targets": [
-        {
-          "minimum_os": "17.0",
-          "sdk": "iphoneos",
-          "triple": "aarch64-apple-ios"
-        },
-        {
-          "minimum_os": "17.0",
-          "sdk": "iphonesimulator",
-          "triple": "aarch64-apple-ios-sim"
-        }
-      ]
+      "targets": [{"minimum_os":"17.0","sdk":"iphoneos","triple":"aarch64-apple-ios"},{"minimum_os":"17.0","sdk":"iphonesimulator","triple":"aarch64-apple-ios-sim"}]
     },
     {
       "abi_scripts": [
         "platform/ios/ios-location/check-link-imports.sh"
       ],
-      "abi_targets": [
-        {
-          "minimum_os": "10.0",
-          "sdk": "iphoneos",
-          "triple": "aarch64-apple-ios"
-        },
-        {
-          "minimum_os": "14.0",
-          "sdk": "iphonesimulator",
-          "triple": "aarch64-apple-ios-sim"
-        }
-      ],
+      "abi_targets": [{"minimum_os":"10.0","sdk":"iphoneos","triple":"aarch64-apple-ios"},{"minimum_os":"14.0","sdk":"iphonesimulator","triple":"aarch64-apple-ios-sim"}],
       "adapters": [],
       "cargo_tree": false,
       "check_script": "platform/ios/ios-location/check-link-imports.sh",
@@ -5674,25 +5205,7 @@
       "offline": false,
       "package": "ios-location",
       "rustdoc_warnings": false,
-      "scoped_files": [
-        "PLAN_IOS_LOCATION.md",
-        "crates/framework-location/src/lib.rs",
-        "platform/ios/ios-location/Cargo.toml",
-        "platform/ios/ios-location/check-link-imports.sh",
-        "platform/ios/ios-location/check_source_contract.py",
-        "platform/ios/ios-location/examples/ios_location_link_import_probe.rs",
-        "platform/ios/ios-location/src/conversion.rs",
-        "platform/ios/ios-location/src/configuration.rs",
-        "platform/ios/ios-location/src/lib.rs",
-        "platform/ios/ios-location/src/operation.rs",
-        "platform/ios/ios-location/src/platform.rs",
-        "platform/ios/ios-location/tests/portable_updates.rs",
-        "docs/capabilities/capability-status.json",
-        "docs/ios/location.md",
-        "PLAN.md",
-        "PLAN_IOS_LOCATION.md",
-        "tools/validation/specs/validation-v1.json"
-      ],
+      "scoped_files": ["PLAN_IOS_LOCATION.md","crates/framework-location/src/lib.rs","platform/ios/ios-location/Cargo.toml","platform/ios/ios-location/check-link-imports.sh","platform/ios/ios-location/check_source_contract.py","platform/ios/ios-location/examples/ios_location_link_import_probe.rs","platform/ios/ios-location/src/conversion.rs","platform/ios/ios-location/src/configuration.rs","platform/ios/ios-location/src/lib.rs","platform/ios/ios-location/src/operation.rs","platform/ios/ios-location/src/platform.rs","platform/ios/ios-location/tests/portable_updates.rs","docs/capabilities/capability-status.json","docs/ios/location.md","PLAN.md","PLAN_IOS_LOCATION.md","tools/validation/specs/validation-v1.json"],
       "shell_scripts": [
         "platform/ios/ios-location/check-link-imports.sh"
       ],
@@ -5700,18 +5213,7 @@
         "crates/framework-location",
         "platform/ios/ios-location"
       ],
-      "targets": [
-        {
-          "minimum_os": "10.0",
-          "sdk": "iphoneos",
-          "triple": "aarch64-apple-ios"
-        },
-        {
-          "minimum_os": "14.0",
-          "sdk": "iphonesimulator",
-          "triple": "aarch64-apple-ios-sim"
-        }
-      ]
+      "targets": [{"minimum_os":"10.0","sdk":"iphoneos","triple":"aarch64-apple-ios"},{"minimum_os":"14.0","sdk":"iphonesimulator","triple":"aarch64-apple-ios-sim"}]
     },
     {
       "abi_scripts": [
@@ -5719,18 +5221,7 @@
         "platform/ios/ios-ui/check-text-metrics-link-imports.sh",
         "platform/ios/ios-ui/check-text-field-link-imports.sh"
       ],
-      "abi_targets": [
-        {
-          "triple": "aarch64-apple-ios",
-          "sdk": "iphoneos",
-          "minimum_os": "12.0"
-        },
-        {
-          "triple": "aarch64-apple-ios-sim",
-          "sdk": "iphonesimulator",
-          "minimum_os": "14.0"
-        }
-      ],
+      "abi_targets": [{"triple":"aarch64-apple-ios","sdk":"iphoneos","minimum_os":"12.0"},{"triple":"aarch64-apple-ios-sim","sdk":"iphonesimulator","minimum_os":"14.0"}],
       "adapters": [],
       "cargo_tree": false,
       "check_script": "platform/ios/ios-ui/check-image-view-link-imports.sh",
@@ -6200,26 +5691,7 @@
       "offline": false,
       "package": "ios-ui",
       "rustdoc_warnings": true,
-      "scoped_files": [
-        "PLAN_IOS_UI.md",
-        "crates/framework-ui/src/lib.rs",
-        "platform/ios/ios-ui/Cargo.toml",
-        "platform/ios/ios-ui/check-image-view-link-imports.sh",
-        "platform/ios/ios-ui/check-link-imports.sh",
-        "platform/ios/ios-ui/check-text-field-link-imports.sh",
-        "platform/ios/ios-ui/check-text-metrics-link-imports.sh",
-        "platform/ios/ios-ui/examples/ios_ui_geometry_link_import_probe.rs",
-        "platform/ios/ios-ui/examples/ios_ui_image_view_link_probe.rs",
-        "platform/ios/ios-ui/examples/ios_ui_text_field_link_probe.rs",
-        "platform/ios/ios-ui/examples/ios_ui_text_metrics_link_import_probe.rs",
-        "platform/ios/ios-ui/probes/geometry-layout.c",
-        "platform/ios/ios-ui/probes/text-metrics-layout.c",
-        "platform/ios/ios-ui/src/geometry.rs",
-        "platform/ios/ios-ui/src/lib.rs",
-        "platform/ios/ios-ui/src/platform.rs",
-        "platform/ios/ios-ui/src/text_conversion.rs",
-        "platform/ios/ios-ui/src/text_metrics.rs"
-      ],
+      "scoped_files": ["PLAN_IOS_UI.md","crates/framework-ui/src/lib.rs","platform/ios/ios-ui/Cargo.toml","platform/ios/ios-ui/check-image-view-link-imports.sh","platform/ios/ios-ui/check-link-imports.sh","platform/ios/ios-ui/check-text-field-link-imports.sh","platform/ios/ios-ui/check-text-metrics-link-imports.sh","platform/ios/ios-ui/examples/ios_ui_geometry_link_import_probe.rs","platform/ios/ios-ui/examples/ios_ui_image_view_link_probe.rs","platform/ios/ios-ui/examples/ios_ui_text_field_link_probe.rs","platform/ios/ios-ui/examples/ios_ui_text_metrics_link_import_probe.rs","platform/ios/ios-ui/probes/geometry-layout.c","platform/ios/ios-ui/probes/text-metrics-layout.c","platform/ios/ios-ui/src/geometry.rs","platform/ios/ios-ui/src/lib.rs","platform/ios/ios-ui/src/platform.rs","platform/ios/ios-ui/src/text_conversion.rs","platform/ios/ios-ui/src/text_metrics.rs"],
       "shell_scripts": [
         "platform/ios/ios-ui/check-link-imports.sh",
         "platform/ios/ios-ui/check-text-metrics-link-imports.sh",
@@ -6230,35 +5702,13 @@
         "crates/framework-ui",
         "platform/ios/ios-ui"
       ],
-      "targets": [
-        {
-          "triple": "aarch64-apple-ios",
-          "sdk": "iphoneos",
-          "minimum_os": "12.0"
-        },
-        {
-          "triple": "aarch64-apple-ios-sim",
-          "sdk": "iphonesimulator",
-          "minimum_os": "14.0"
-        }
-      ]
+      "targets": [{"triple":"aarch64-apple-ios","sdk":"iphoneos","minimum_os":"12.0"},{"triple":"aarch64-apple-ios-sim","sdk":"iphonesimulator","minimum_os":"14.0"}]
     },
     {
       "abi_scripts": [
         "platform/ios/ios-sharing/check-clipboard-link-imports.sh"
       ],
-      "abi_targets": [
-        {
-          "minimum_os": "10.0",
-          "sdk": "iphoneos",
-          "triple": "aarch64-apple-ios"
-        },
-        {
-          "minimum_os": "14.0",
-          "sdk": "iphonesimulator",
-          "triple": "aarch64-apple-ios-sim"
-        }
-      ],
+      "abi_targets": [{"minimum_os":"10.0","sdk":"iphoneos","triple":"aarch64-apple-ios"},{"minimum_os":"14.0","sdk":"iphonesimulator","triple":"aarch64-apple-ios-sim"}],
       "adapters": [],
       "cargo_tree": false,
       "check_script": "platform/ios/ios-sharing/check-clipboard-link-imports.sh",
@@ -6366,19 +5816,72 @@
         "crates/framework-sharing",
         "platform/ios/ios-sharing"
       ],
-      "targets": [
+      "targets": [{"minimum_os":"10.0","sdk":"iphoneos","triple":"aarch64-apple-ios"},{"minimum_os":"14.0","sdk":"iphonesimulator","triple":"aarch64-apple-ios-sim"}],
+      "id": "ios-sharing"
+    },
+    {
+      "abi_scripts": [
+        "platform/ios/ios-notification-responses/check-link-imports.sh"
+      ],
+      "abi_targets": [{"minimum_os":"10.0","sdk":"iphoneos","triple":"aarch64-apple-ios"},{"minimum_os":"14.0","sdk":"iphonesimulator","triple":"aarch64-apple-ios-sim"}],
+      "adapters": [
         {
-          "minimum_os": "10.0",
-          "sdk": "iphoneos",
-          "triple": "aarch64-apple-ios"
-        },
-        {
-          "minimum_os": "14.0",
-          "sdk": "iphonesimulator",
-          "triple": "aarch64-apple-ios-sim"
+          "deadline_seconds": 10,
+          "evidence_type": "source-contract-consistency",
+          "id": "foreground-notification-presentation-contract",
+          "input_paths": [
+            "platform/ios/ios-notification-responses/src/lib.rs",
+            "platform/ios/ios-notification-responses/src/platform.rs",
+            "platform/ios/ios-notification-responses/src/presentation.rs"
+          ],
+          "interpreter": "python3",
+          "minimum_version": "3.9",
+          "required": true,
+          "script": "tools/validation/adapters/check_ios_foreground_notification_presentation.py",
+          "stderr_limit_bytes": 4096,
+          "stdout_limit_bytes": 4096,
+          "temporary_space_bytes": 1048576
         }
       ],
-      "id": "ios-sharing"
+      "cargo_tree": false,
+      "check_script": "platform/ios/ios-notification-responses/check-link-imports.sh",
+      "clippy_all_targets": true,
+      "clippy_lib": false,
+      "docs": [
+        "docs/ios/notification-responses.md",
+        "docs/capabilities/capability-status.json",
+        "PLAN_IOS_NOTIFICATION_RESPONSES.md"
+      ],
+      "expected_imports": [
+        "Foundation.framework",
+        "UserNotifications.framework",
+        "objc_msgSend"
+      ],
+      "fmt_all": false,
+      "guards": [],
+      "id": "ios-notification-responses",
+      "manifest": "platform/ios/ios-notification-responses/Cargo.toml",
+      "offline": false,
+      "package": "ios-notification-responses",
+      "rustdoc_warnings": true,
+      "scoped_files": [
+        "platform/ios/ios-notification-responses/Cargo.toml",
+        "platform/ios/ios-notification-responses/check-link-imports.sh",
+        "platform/ios/ios-notification-responses/examples/foreground_presentation_link_probe.rs",
+        "platform/ios/ios-notification-responses/src/lib.rs",
+        "platform/ios/ios-notification-responses/src/platform.rs",
+        "platform/ios/ios-notification-responses/src/presentation.rs",
+        "tools/validation/adapters/check_ios_foreground_notification_presentation.py",
+        "tools/validation/specs/validation-v1.json"
+      ],
+      "shell_scripts": [
+        "platform/ios/ios-notification-responses/check-link-imports.sh"
+      ],
+      "source_dirs": [
+        "crates/framework-notifications",
+        "platform/ios/ios-notification-responses"
+      ],
+      "targets": [{"minimum_os":"10.0","sdk":"iphoneos","triple":"aarch64-apple-ios"},{"minimum_os":"14.0","sdk":"iphonesimulator","triple":"aarch64-apple-ios-sim"}]
     }
   ],
   "schema_version": 1,
@@ -6555,6 +6058,16 @@
     {
       "path": "platform/ios/ios-datagram/",
       "node": "ios-datagram",
+      "global": false
+    },
+    {
+      "path": "crates/framework-notifications/",
+      "node": "framework-notifications",
+      "global": false
+    },
+    {
+      "path": "platform/ios/ios-notification-responses/",
+      "node": "ios-notification-responses",
       "global": false
     }
   ]

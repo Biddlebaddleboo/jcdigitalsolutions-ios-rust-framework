@@ -24,6 +24,7 @@ The following are configured validation profiles, not claims that every gate pas
 | ios-location-updates | ios-location | 2 | 1 | 0 | False |
 | ios-ui | ios-ui | 2 | 3 | 0 | False |
 | ios-sharing | ios-sharing | 2 | 1 | 0 | False |
+| ios-notification-responses | ios-notification-responses | 2 | 1 | 1 | False |
 
 
 ## Inspect actual gates

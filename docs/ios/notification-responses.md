@@ -12,6 +12,22 @@ let responses = IosNotificationResponses::install(|response| {
 
 Keep `responses` alive while the app needs local notification responses. Its strong `Retained` field keeps the Rust delegate alive while the native center holds only a weak `delegate` reference. Drop of `responses` releases that delegate and does not clear a delegate set by app code after this install
 
+`install` preserves the default foreground behavior: it supplies no presentation options. To opt in to foreground presentation, use `install_with_foreground_presentation`:
+
+```rust,ignore
+use ios_notification_responses::{ForegroundPresentationOptions, IosNotificationResponses};
+
+let responses = IosNotificationResponses::install_with_foreground_presentation(
+    |response| { /* handle the owned response */ },
+    ForegroundPresentationOptions::new()
+        .with_banner(true)
+        .with_sound(true)
+        .with_badge(true),
+)?;
+```
+
+The selected styles apply only when a notification arrives while the app is in the foreground. Banner uses the iOS 14 `Banner` option; on iOS 10–13 it uses the supported legacy `Alert` option. Sound and badge are independent selections. A banner-only request checks the OS version; no version lookup occurs when a banner is not requested. This API does not request authorization or schedule notifications
+
 ## Install and delegate ownership
 
 Call `IosNotificationResponses::install` before app launch completes, such as from app launch setup; if the shared `UNUserNotificationCenter` already has a delegate, install returns `InstallError::DelegateAlreadySet` and leaves that delegate as is
@@ -39,12 +55,12 @@ The crate uses `objc2-user-notifications` 0.3.2 with default features off and on
 
 ## Completion, queue, and limits
 
-Apple requires the native completion block after response work; the bridge invokes it exactly once for each native method call, even after it drops an invalid or remote value or catches a Rust panic; Rust panic payloads are discarded at this boundary
+Apple requires the native completion block after response work; the response callback invokes it exactly once for each native method call, even after it drops an invalid or remote value or catches a Rust panic; Rust panic payloads are discarded at this boundary. The foreground presentation callback also invokes its native completion exactly once; if presentation mapping panics, it supplies an empty option set
 
-The closure call is synchronous and runs before native completion. Do not block for long work. This crate has no event queue, async callback, foreground presentation method, action/category setup, app-settings hook, APNs path, delivery promise, or response-order guarantee across app states. It adds no serial callback queue; app code must protect any state shared with the closure. The callback may only occur when iOS reports a notification action to the app
+The response closure call is synchronous and runs before native completion. Do not block for long work. This crate has no event queue, async callback, action/category setup, app-settings hook, APNs path, delivery promise, or response-order guarantee across app states. It adds no serial callback queue; app code must protect any state shared with the closure. The response callback may only occur when iOS reports a notification action to the app. Foreground presentation uses the same retained delegate and install safety rules; it does not invoke the response closure and static checks do not prove live display, sound, or badge behavior
 
 ## Availability
 
-The `UNUserNotificationCenter`, `UNUserNotificationCenterDelegate`, and `didReceiveNotificationResponse` APIs have an iOS 10.0 floor in the Xcode 26.6 iPhoneOS 26.5 SDK headers; Apple says to set the delegate before launch completes; the delegate property is weak, and the relevant Apple callback docs do not specify its queue
+The `UNUserNotificationCenter`, `UNUserNotificationCenterDelegate`, `didReceiveNotificationResponse`, and `willPresent` APIs have an iOS 10.0 floor in the Xcode 26.6 iPhoneOS 26.5 SDK headers. `UNNotificationPresentationOptionBanner` is available from iOS 14; before iOS 14 the bridge uses the legacy `Alert` option for a requested banner. Apple says to set the delegate before launch completes; the delegate property is weak, and the relevant Apple callback docs do not specify its queue
 
 References: [delegate protocol](https://developer.apple.com/documentation/usernotifications/unusernotificationcenterdelegate), [response method](https://developer.apple.com/documentation/usernotifications/unusernotificationcenterdelegate/usernotificationcenter%28_%3Adidreceive%3Awithcompletionhandler%3A%29), [delegate property](https://developer.apple.com/documentation/usernotifications/unusernotificationcenter/delegate), [response values](https://developer.apple.com/documentation/usernotifications/unnotificationresponse), [text input value](https://developer.apple.com/documentation/usernotifications/untextinputnotificationresponse/usertext), [remote trigger](https://developer.apple.com/documentation/usernotifications/unpushnotificationtrigger), and [objc2 UserNotifications bindings](https://docs.rs/objc2-user-notifications/0.3.2/objc2_user_notifications/)

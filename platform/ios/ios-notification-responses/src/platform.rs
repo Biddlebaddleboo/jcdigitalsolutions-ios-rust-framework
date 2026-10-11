@@ -3,6 +3,7 @@ use std::panic::{AssertUnwindSafe, catch_unwind};
 use std::string::String;
 use std::sync::Arc;
 
+use crate::presentation::ForegroundPresentationOptions;
 use framework_notifications::NotificationId;
 use framework_notifications::response::{
     NotificationActionId, NotificationResponse, NotificationResponseKind,
@@ -10,11 +11,14 @@ use framework_notifications::response::{
 use objc2::rc::{Retained, autoreleasepool};
 use objc2::runtime::ProtocolObject;
 use objc2::{AnyThread, DefinedClass, define_class, msg_send};
-use objc2_foundation::{NSObject, NSObjectProtocol, NSString};
+use objc2_foundation::{
+    NSObject, NSObjectProtocol, NSOperatingSystemVersion, NSProcessInfo, NSString,
+};
 use objc2_user_notifications::{
-    UNNotificationDefaultActionIdentifier, UNNotificationDismissActionIdentifier,
-    UNNotificationRequest, UNNotificationResponse, UNPushNotificationTrigger,
-    UNTextInputNotificationResponse, UNUserNotificationCenter, UNUserNotificationCenterDelegate,
+    UNNotification, UNNotificationDefaultActionIdentifier, UNNotificationDismissActionIdentifier,
+    UNNotificationPresentationOptions, UNNotificationRequest, UNNotificationResponse,
+    UNPushNotificationTrigger, UNTextInputNotificationResponse, UNUserNotificationCenter,
+    UNUserNotificationCenterDelegate,
 };
 
 type ResponseClosure = Arc<dyn Fn(NotificationResponse) + Send + Sync + 'static>;
@@ -53,13 +57,39 @@ impl IosNotificationResponses {
     where
         F: Fn(NotificationResponse) + Send + Sync + 'static,
     {
+        Self::install_inner(handler, ForegroundPresentationOptions::new())
+    }
+
+    /// Install a synchronous response closure and select foreground notification presentation
+    ///
+    /// The presentation options apply to notifications delivered while the app is in the
+    /// foreground. A requested banner uses the legacy alert style on iOS 10 through iOS 13,
+    /// because the banner option is available only on iOS 14 and later. Response closure
+    /// threading, ownership, and completion behavior match [`Self::install`]
+    pub fn install_with_foreground_presentation<F>(
+        handler: F,
+        presentation: ForegroundPresentationOptions,
+    ) -> Result<Self, InstallError>
+    where
+        F: Fn(NotificationResponse) + Send + Sync + 'static,
+    {
+        Self::install_inner(handler, presentation)
+    }
+
+    fn install_inner<F>(
+        handler: F,
+        presentation: ForegroundPresentationOptions,
+    ) -> Result<Self, InstallError>
+    where
+        F: Fn(NotificationResponse) + Send + Sync + 'static,
+    {
         autoreleasepool(|_| {
             let center = UNUserNotificationCenter::currentNotificationCenter();
             if center.delegate().is_some() {
                 return Err(InstallError::DelegateAlreadySet);
             }
 
-            let delegate = ResponseDelegate::new(Arc::new(handler));
+            let delegate = ResponseDelegate::new(Arc::new(handler), presentation);
             let delegate_object = ProtocolObject::from_ref(&*delegate);
             center.setDelegate(Some(delegate_object));
             Ok(Self {
@@ -71,6 +101,7 @@ impl IosNotificationResponses {
 
 struct ResponseDelegateIvars {
     handler: ResponseClosure,
+    presentation: ForegroundPresentationOptions,
 }
 
 define_class!(
@@ -85,6 +116,21 @@ define_class!(
     // completion runs once, and Rust panics are caught before the Objective-C boundary
     #[allow(non_snake_case)]
     unsafe impl UNUserNotificationCenterDelegate for ResponseDelegate {
+        #[unsafe(method(userNotificationCenter:willPresentNotification:withCompletionHandler:))]
+        unsafe fn userNotificationCenter_willPresentNotification_withCompletionHandler(
+            &self,
+            _center: &UNUserNotificationCenter,
+            _notification: &UNNotification,
+            completion_handler: &block2::DynBlock<dyn Fn(UNNotificationPresentationOptions)>,
+        ) {
+            let mut completion = NativePresentationCompletion::new(completion_handler);
+            let presentation = catch_unwind(AssertUnwindSafe(|| {
+                self.ivars().presentation.native_options()
+            }))
+            .unwrap_or_else(|_| UNNotificationPresentationOptions::empty());
+            completion.run(presentation);
+        }
+
         #[unsafe(method(userNotificationCenter:didReceiveNotificationResponse:withCompletionHandler:))]
         unsafe fn userNotificationCenter_didReceiveNotificationResponse_withCompletionHandler(
             &self,
@@ -118,11 +164,75 @@ define_class!(
 );
 
 impl ResponseDelegate {
-    fn new(handler: ResponseClosure) -> Retained<Self> {
-        let state = ResponseDelegateIvars { handler };
+    fn new(
+        handler: ResponseClosure,
+        presentation: ForegroundPresentationOptions,
+    ) -> Retained<Self> {
+        let state = ResponseDelegateIvars {
+            handler,
+            presentation,
+        };
         let allocated = Self::alloc().set_ivars(state);
         // SAFETY: The class derives from NSObject and its ivars are set before NSObject init
         unsafe { msg_send![super(allocated), init] }
+    }
+}
+
+impl ForegroundPresentationOptions {
+    fn native_options(self) -> UNNotificationPresentationOptions {
+        let supports_banner = self.banner_requested()
+            && NSProcessInfo::processInfo().isOperatingSystemAtLeastVersion(
+                NSOperatingSystemVersion {
+                    majorVersion: 14,
+                    minorVersion: 0,
+                    patchVersion: 0,
+                },
+            );
+        let selection = self.for_system(supports_banner);
+        let mut options = UNNotificationPresentationOptions::empty();
+        if selection.banner {
+            options |= UNNotificationPresentationOptions::Banner;
+        }
+        if selection.legacy_alert {
+            #[allow(deprecated)]
+            {
+                options |= UNNotificationPresentationOptions::Alert;
+            }
+        }
+        if selection.sound {
+            options |= UNNotificationPresentationOptions::Sound;
+        }
+        if selection.badge {
+            options |= UNNotificationPresentationOptions::Badge;
+        }
+        options
+    }
+}
+
+struct NativePresentationCompletion<'a> {
+    block: &'a block2::DynBlock<dyn Fn(UNNotificationPresentationOptions)>,
+    called: bool,
+}
+
+impl<'a> NativePresentationCompletion<'a> {
+    fn new(block: &'a block2::DynBlock<dyn Fn(UNNotificationPresentationOptions)>) -> Self {
+        Self {
+            block,
+            called: false,
+        }
+    }
+
+    fn run(&mut self, options: UNNotificationPresentationOptions) {
+        if !self.called {
+            self.called = true;
+            let _ = catch_unwind(AssertUnwindSafe(|| self.block.call((options,))));
+        }
+    }
+}
+
+impl Drop for NativePresentationCompletion<'_> {
+    fn drop(&mut self) {
+        self.run(UNNotificationPresentationOptions::empty());
     }
 }
 

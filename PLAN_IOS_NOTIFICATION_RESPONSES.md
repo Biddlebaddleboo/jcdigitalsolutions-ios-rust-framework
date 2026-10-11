@@ -15,6 +15,15 @@ tests or live response checks were run in this follow-up.
 The recorded target-check host is Xcode 26.6 with iPhoneOS/iPhoneSimulator SDK 26.5, below the
 required Xcode 27.x baseline.
 
+## B499 follow-up: foreground presentation
+
+B499 adds opt-in banner, sound, and badge presentation through the same retained
+`UNUserNotificationCenterDelegate`. Existing `install` still selects no foreground options. A
+requested banner uses `Banner` on iOS 14+ and `Alert` on iOS 10–13. This does not add permission,
+scheduling, categories, APNs, or a second delegate path. Host option tests, negative source
+mutations, and registered target/link gates cover the static contract; no live notification
+presentation is claimed.
+
 ## Goal
 
 Map native iOS local-notification response data into D9 `NotificationResponse` values with an opt-in Rust bridge and no Swift source
@@ -56,9 +65,9 @@ Apple does not state a callback queue in the relevant pages. Do not claim main-q
 
 Local objc2 0.3.2 bindings mark `delegate` weak and gate the response method on `UNNotificationResponse` plus `block2`. The crate uses only `block2`, `UNNotification`, `UNNotificationRequest`, `UNNotificationResponse`, `UNNotificationTrigger`, and `UNUserNotificationCenter`; `UNNotificationTrigger` permits the `UNPushNotificationTrigger` check
 
-## Not in scope
+## B12 scope boundary
 
-- No permission API, schedule/cancel change, action/category registration, foreground presentation method, app-settings method, remote push/APNs/PushKit implementation, notification service extension, Swift source, live prompt/response, or test add/run
+- B12 did not add permission APIs, schedule/cancel changes, action/category registration, foreground presentation, app-settings methods, remote push/APNs/PushKit, notification service extensions, Swift source, live prompt/response, or tests. B499 adds only the foreground presentation increment described above
 - No replacement or chain of a present app delegate
 - No promise of delivery, response order across app states, callback queue, UI-thread context, or response life beyond the sync method call
 
