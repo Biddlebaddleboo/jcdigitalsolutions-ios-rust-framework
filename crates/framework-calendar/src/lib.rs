@@ -1,7 +1,7 @@
 #![no_std]
 #![forbid(unsafe_code)]
 #![deny(missing_docs)]
-#![doc = "Portable Calendar authorization and event-range contracts."]
+#![doc = "Portable Calendar and Reminders authorization, event, and create contracts."]
 
 extern crate alloc;
 
@@ -32,6 +32,26 @@ pub enum CalendarAuthorizationStatus {
     /// The platform permits saving new events but does not grant full access.
     WriteOnly,
     /// The platform grants full access to Calendar event data.
+    FullAccess,
+}
+
+/// The normalized authorization status for Reminders data.
+///
+/// EventKit currently exposes full access as the only requestable reminder-access level. A
+/// status that does not safely identify full Reminders access, including a write-only raw value,
+/// maps to `Unknown` rather than implying that reminder creation is authorized.
+#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
+#[non_exhaustive]
+pub enum ReminderAuthorizationStatus {
+    /// The platform returned a status this contract cannot classify as a Reminders state.
+    Unknown,
+    /// The platform has not yet asked the user for Reminders access.
+    NotDetermined,
+    /// Access is blocked by platform policy or device restrictions.
+    Restricted,
+    /// The user denied Reminders access.
+    Denied,
+    /// The platform grants full read and write access to Reminders data.
     FullAccess,
 }
 
@@ -227,6 +247,61 @@ impl CalendarEventCreateError {
             Self::CalendarNotFound => ErrorKind::NotFound,
             Self::CalendarDoesNotSupportEvents => ErrorKind::Unsupported,
             Self::CalendarNotWritable => ErrorKind::Unavailable,
+            Self::Backend(error) => error.kind(),
+        }
+    }
+
+    /// Returns the optional backend-native code.
+    pub const fn platform_code(self) -> Option<PlatformErrorCode> {
+        match self {
+            Self::Backend(error) => error.platform_code(),
+            _ => None,
+        }
+    }
+}
+
+/// A caller-owned title for creating one reminder in the system default list.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct CalendarReminderDraft {
+    title: String,
+}
+
+impl CalendarReminderDraft {
+    /// Creates a reminder draft with a non-empty title preserved exactly as supplied.
+    pub fn new(title: String) -> Result<Self, CalendarReminderCreateError> {
+        if title.is_empty() {
+            return Err(CalendarReminderCreateError::EmptyTitle);
+        }
+        Ok(Self { title })
+    }
+
+    /// Borrows the exact caller-provided title.
+    pub fn title(&self) -> &str {
+        &self.title
+    }
+}
+
+/// An error returned while creating one Reminders item.
+#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
+#[non_exhaustive]
+pub enum CalendarReminderCreateError {
+    /// The caller supplied an empty title.
+    EmptyTitle,
+    /// Current authorization does not permit full Reminders access.
+    NotFullAccess(ReminderAuthorizationStatus),
+    /// EventKit has no system default Reminders list.
+    DefaultListUnavailable,
+    /// The backend returned a framework or native platform error.
+    Backend(Error),
+}
+
+impl CalendarReminderCreateError {
+    /// Returns the stable portable error category.
+    pub const fn kind(self) -> ErrorKind {
+        match self {
+            Self::EmptyTitle => ErrorKind::InvalidInput,
+            Self::NotFullAccess(_) => ErrorKind::PermissionDenied,
+            Self::DefaultListUnavailable => ErrorKind::Unavailable,
             Self::Backend(error) => error.kind(),
         }
     }
@@ -474,6 +549,42 @@ pub trait CalendarAuthorizationBackend {
     fn request_full_access<'a>(&'a mut self) -> Self::RequestFullAccessFuture<'a>;
 }
 
+/// A statically selected backend for non-prompting Reminders status and explicit full access.
+///
+/// Status queries must not prompt. EventKit currently supports only a full-access reminder
+/// request; a backend must defer that request until the returned future is first polled and report
+/// status queried after native completion, not the callback's grant Boolean. Dropping an unpolled
+/// future starts no native work. Dropping a pending future detaches result interest but cannot
+/// promise to dismiss a prompt already shown. Callback state must remain safe through completion
+/// and settle at most once. No executor or `Send` requirement is imposed.
+pub trait CalendarReminderAuthorizationBackend {
+    /// Reports current Reminders authorization without prompting.
+    fn reminder_authorization_status(&self) -> ReminderAuthorizationStatus;
+
+    /// The future type for an explicit full Reminders access request.
+    type RequestFullReminderAccessFuture<'a>: Future<Output = Result<ReminderAuthorizationStatus, CalendarError>>
+        + 'a
+    where
+        Self: 'a;
+
+    /// Explicitly requests full read and write access to Reminders data.
+    fn request_full_reminder_access<'a>(&'a mut self) -> Self::RequestFullReminderAccessFuture<'a>;
+}
+
+/// A statically selected backend for creating one reminder in the system default list.
+///
+/// Creation must recheck current Reminders status, require `FullAccess`, obtain only the system
+/// default Reminders list, and save exactly one caller-described reminder. It must not prompt,
+/// read or enumerate existing reminders, or return native EventKit objects. Calls may block and
+/// leave thread choice to the caller.
+pub trait CalendarReminderCreateBackend {
+    /// Creates exactly one caller-titled reminder in the current system default list.
+    fn create_reminder(
+        &self,
+        draft: &CalendarReminderDraft,
+    ) -> Result<(), CalendarReminderCreateError>;
+}
+
 /// A statically selected backend for synchronous Calendar event-range reads.
 ///
 /// `events_in_range` must recheck current authorization at the native read boundary, require full
@@ -572,6 +683,42 @@ impl<B: CalendarAuthorizationBackend> Calendar<B> {
         &mut self,
     ) -> Result<CalendarAuthorizationStatus, CalendarError> {
         self.backend.request_full_access().await
+    }
+}
+
+impl<B: CalendarReminderAuthorizationBackend> Calendar<B> {
+    /// Reports current Reminders authorization without prompting.
+    pub fn reminder_authorization_status(&self) -> ReminderAuthorizationStatus {
+        self.backend.reminder_authorization_status()
+    }
+
+    /// Explicitly requests full read and write access to Reminders data.
+    ///
+    /// Creating or dropping the returned future before its first poll starts no backend work. The
+    /// result is based on a status query after native completion. Dropping a pending future
+    /// abandons the result but cannot be assumed to dismiss a prompt already shown.
+    pub async fn request_full_reminder_access(
+        &mut self,
+    ) -> Result<ReminderAuthorizationStatus, CalendarError> {
+        self.backend.request_full_reminder_access().await
+    }
+}
+
+impl<B: CalendarReminderCreateBackend> Calendar<B> {
+    /// Creates one reminder in the system default Reminders list after current full access is
+    /// verified by the backend.
+    ///
+    /// The operation is synchronous and may block. It never prompts and does not read existing
+    /// reminders. Success reports only that the native save call succeeded, not later sync or
+    /// durable persistence.
+    pub fn create_reminder(
+        &self,
+        draft: &CalendarReminderDraft,
+    ) -> Result<(), CalendarReminderCreateError> {
+        if draft.title.is_empty() {
+            return Err(CalendarReminderCreateError::EmptyTitle);
+        }
+        self.backend.create_reminder(draft)
     }
 }
 

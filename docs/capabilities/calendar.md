@@ -48,17 +48,25 @@ The iOS backend rejects missing/empty identifiers before native work, rechecks c
 
 The operation is synchronous and may block. Host regressions cover invalid identifiers/no dispatch, denied access, stale occurrence/no save, non-event and unwritable calendars, exact replacement fields/current-calendar preservation, one save, and native error-code retention. These checks do not prove live EventKit state or on-device recurrence behavior.
 
+## Requesting Reminders access and creating one reminder (B494)
+
+`ReminderAuthorizationStatus` is distinct from the Calendar-event status. EventKit currently provides no supported write-only Reminders request; only an explicit `Calendar::request_full_reminder_access` request for full Reminders access is exposed. Status lookup does not prompt. The request future starts only when polled, and its result is a status query after the native callback rather than a grant Boolean. EventKit's raw write-only status is not treated as Reminders authorization and maps to `Unknown`.
+
+Apple requires `NSRemindersFullAccessUsageDescription` for the supported full-access Reminders request, even when an app only wants to create a reminder. This grants broad read/write access at the platform permission layer; the framework API deliberately exposes no reminder read, enumeration, edit, or delete operation. The host app owns the property-list declaration and consent flow.
+
+`CalendarReminderDraft::new` accepts one non-empty title without trimming or normalization. `Calendar::create_reminder` is synchronous, never prompts, rechecks current `FullAccess`, obtains only EventKit's system default Reminders list, creates one title-only `EKReminder`, and commits it once. It returns no native identifier. Success means only that EventKit's save call succeeded, not that sync or durable persistence followed. Default-list availability and native save errors are reported distinctly. Static and host checks do not prove a live prompt, Reminders database contents, sync, or device behavior.
+
 ## Status and result semantics
 
 `CalendarAuthorizationStatus` distinguishes `Unknown`, `NotDetermined`, `Restricted`, `Denied`, `WriteOnly`, and `FullAccess`. `Unknown` means the backend could not classify a reported status; it is distinct from `NotDetermined`, which means no user decision has been made. `WriteOnly` is not equivalent to `FullAccess`: it reports permission to save new events without full Calendar event-data access. The contract reports a write-only state but does not offer a write-only permission request.
 
 The result of a request is the authorization status queried after native completion, not a callback grant Boolean. Dropping a pending request future abandons its result; it cannot promise to dismiss a native prompt already shown. Native callback state must remain safe until completion and complete at most once. Errors retain their portable `ErrorKind` and optional signed `PlatformErrorCode` through `CalendarError::Backend`.
 
-The portable crate depends only on `framework-core` and `core` plus `alloc` for owned event text and result vectors. It has no Apple framework types, unsafe code, executor, or platform-specific permission implementation.
+The portable crate depends only on `framework-core` and `core` plus `alloc` for owned event/reminder text and result vectors. It has no Apple framework types, unsafe code, executor, or platform-specific permission implementation.
 
 ## Scope and checks
 
-This contract covers status, an explicit full-access request, bounded event-range reads, a writable event-calendar choice snapshot, creation of one caller-described event, deletion of one selected event, and replacement of six fields on one selected event. It does not define full event enumeration, series edits, reminder access, EventKitUI, calendar UI, entitlements, or permission-copy values.
+This contract covers event status and an explicit full-event-access request; bounded event-range reads; a writable event-calendar choice snapshot; creation, deletion, and replacement of selected events; plus separate Reminders status, explicit full-access request, and one default-list title-only create operation. It does not define full event/reminder enumeration, reminder reads/edits/deletes, series edits, EventKitUI, calendar UI, entitlements, or host permission-copy values.
 
 Portable checks:
 

@@ -27,7 +27,9 @@ use core::pin::pin;
 use core::task::{Context, Poll, Waker};
 use framework_calendar::{
     Calendar, CalendarAuthorizationBackend, CalendarAuthorizationStatus, CalendarEvent,
-    CalendarEventDraft, CalendarEventRange, CalendarEventTime, WritableEventCalendar,
+    CalendarEventDraft, CalendarEventRange, CalendarEventTime,
+    CalendarReminderAuthorizationBackend, CalendarReminderDraft, ReminderAuthorizationStatus,
+    WritableEventCalendar,
 };
 use ios_calendar::IosCalendarBackend;
 use std::string::String;
@@ -62,6 +64,36 @@ pub extern "C" fn calendar_request_link_probe() -> bool {
     let waker = Waker::from(Arc::new(NoopWake));
     let mut context = Context::from_waker(&waker);
     matches!(future.as_mut().poll(&mut context), Poll::Ready(_))
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn calendar_reminder_status_link_probe() -> u8 {
+    match Calendar::new(IosCalendarBackend::new()).reminder_authorization_status() {
+        ReminderAuthorizationStatus::NotDetermined => 1,
+        ReminderAuthorizationStatus::Restricted => 2,
+        ReminderAuthorizationStatus::Denied => 3,
+        ReminderAuthorizationStatus::FullAccess => 4,
+        ReminderAuthorizationStatus::Unknown => 0,
+        _ => 0,
+    }
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn calendar_reminder_request_link_probe() -> bool {
+    let mut backend = IosCalendarBackend::new();
+    let mut future = pin!(backend.request_full_reminder_access());
+    let waker = Waker::from(Arc::new(NoopWake));
+    let mut context = Context::from_waker(&waker);
+    matches!(future.as_mut().poll(&mut context), Poll::Ready(_))
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn calendar_reminder_create_link_probe() -> u8 {
+    let draft = CalendarReminderDraft::new(String::from("Link probe")).unwrap();
+    match Calendar::new(IosCalendarBackend::new()).create_reminder(&draft) {
+        Ok(()) => 1,
+        Err(error) => error.kind() as u8,
+    }
 }
 
 #[unsafe(no_mangle)]
@@ -180,13 +212,13 @@ EOF_IMPORTS
     nm -u "$artifact" >"$symbols"
     grep -q 'objc_getClass' "$symbols"
     grep -q 'objc_msgSend' "$symbols"
-    if grep -Eqi 'swift_|EKReminder|requestFullAccessToReminders|saveReminder|removeReminder' "$symbols"; then
-        printf 'unexpected Swift runtime or reminder symbol in %s\n' "$symbols" >&2
+    if grep -Eqi 'swift_|fetchReminders|predicateForReminders|removeReminder|requestWriteOnlyAccessToReminders' "$symbols"; then
+        printf 'unexpected Swift runtime or reminder read/delete/write-only symbol in %s\n' "$symbols" >&2
         exit 1
     fi
     selectors="$scratch/$target-selectors.txt"
     strings "$artifact" >"$selectors"
-    for selector in calendarsForEntityType: calendarIdentifier title calendarWithIdentifier: allowedEntityTypes allowsContentModifications eventWithEventStore: setCalendar: setTitle: setStartDate: setEndDate: setAllDay: setLocation: setNotes: saveEvent:span:commit:error: eventWithIdentifier: eventIdentifier startDate endDate calendar removeEvent:span:commit:error:; do
+    for selector in calendarsForEntityType: calendarIdentifier title calendarWithIdentifier: allowedEntityTypes allowsContentModifications eventWithEventStore: setCalendar: setTitle: setStartDate: setEndDate: setAllDay: setLocation: setNotes: saveEvent:span:commit:error: eventWithIdentifier: eventIdentifier startDate endDate calendar removeEvent:span:commit:error: requestFullAccessToRemindersWithCompletion: defaultCalendarForNewReminders reminderWithEventStore: saveReminder:commit:error:; do
         if ! grep -Fq "$selector" "$selectors"; then
             printf 'missing EventKit selector %s in %s\n' "$selector" "$artifact" >&2
             exit 1

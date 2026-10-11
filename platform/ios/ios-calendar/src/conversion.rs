@@ -1,6 +1,7 @@
 use framework_calendar::{
     CalendarAuthorizationStatus, CalendarEvent, CalendarEventDeleteError, CalendarEventError,
-    CalendarEventRange, CalendarEventTime, CalendarEventUpdateError,
+    CalendarEventRange, CalendarEventTime, CalendarEventUpdateError, CalendarReminderCreateError,
+    ReminderAuthorizationStatus,
 };
 use framework_core::{Error, ErrorKind, PlatformErrorCode};
 
@@ -15,6 +16,20 @@ pub(crate) const fn authorization_from_native(value: isize) -> CalendarAuthoriza
         3 => CalendarAuthorizationStatus::FullAccess,
         4 => CalendarAuthorizationStatus::WriteOnly,
         _ => CalendarAuthorizationStatus::Unknown,
+    }
+}
+
+/// Maps an EventKit authorization-status raw value to the portable Reminders status.
+pub(crate) const fn reminder_authorization_from_native(
+    value: isize,
+) -> ReminderAuthorizationStatus {
+    match value {
+        0 => ReminderAuthorizationStatus::NotDetermined,
+        1 => ReminderAuthorizationStatus::Restricted,
+        2 => ReminderAuthorizationStatus::Denied,
+        3 => ReminderAuthorizationStatus::FullAccess,
+        // EventKit's WriteOnly status describes Calendar events, not Reminders access.
+        _ => ReminderAuthorizationStatus::Unknown,
     }
 }
 
@@ -47,6 +62,27 @@ pub(crate) fn require_full_access(
         Ok(())
     } else {
         Err(CalendarEventError::NotFullAccess(status))
+    }
+}
+
+/// Fails closed unless EventKit currently permits full Reminders access.
+pub(crate) fn require_full_reminder_access(
+    status: ReminderAuthorizationStatus,
+) -> Result<(), CalendarReminderCreateError> {
+    if status == ReminderAuthorizationStatus::FullAccess {
+        Ok(())
+    } else {
+        Err(CalendarReminderCreateError::NotFullAccess(status))
+    }
+}
+
+/// Maps an EventKit reminder save error to the portable create contract.
+pub(crate) fn reminder_create_error_from_native(code: isize) -> CalendarReminderCreateError {
+    match error_from_native(code) {
+        framework_calendar::CalendarError::Backend(error) => {
+            CalendarReminderCreateError::Backend(error)
+        }
+        _ => CalendarReminderCreateError::Backend(Error::new(ErrorKind::Platform)),
     }
 }
 
@@ -127,7 +163,9 @@ pub(crate) fn event_from_native_fields(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use framework_calendar::{Calendar, CalendarEventBackend};
+    use framework_calendar::{
+        Calendar, CalendarEventBackend, CalendarReminderCreateError, ReminderAuthorizationStatus,
+    };
     use std::cell::Cell;
     use std::string::ToString;
     use std::vec::Vec;
@@ -161,6 +199,49 @@ mod tests {
     }
 
     #[test]
+    fn reminder_authorization_fails_closed_for_event_write_only_status() {
+        assert_eq!(
+            reminder_authorization_from_native(0),
+            ReminderAuthorizationStatus::NotDetermined
+        );
+        assert_eq!(
+            reminder_authorization_from_native(1),
+            ReminderAuthorizationStatus::Restricted
+        );
+        assert_eq!(
+            reminder_authorization_from_native(2),
+            ReminderAuthorizationStatus::Denied
+        );
+        assert_eq!(
+            reminder_authorization_from_native(3),
+            ReminderAuthorizationStatus::FullAccess
+        );
+        assert_eq!(
+            reminder_authorization_from_native(4),
+            ReminderAuthorizationStatus::Unknown
+        );
+        assert_eq!(
+            reminder_authorization_from_native(5),
+            ReminderAuthorizationStatus::Unknown
+        );
+        assert_eq!(
+            require_full_reminder_access(ReminderAuthorizationStatus::FullAccess),
+            Ok(())
+        );
+        for status in [
+            ReminderAuthorizationStatus::Unknown,
+            ReminderAuthorizationStatus::NotDetermined,
+            ReminderAuthorizationStatus::Restricted,
+            ReminderAuthorizationStatus::Denied,
+        ] {
+            assert_eq!(
+                require_full_reminder_access(status),
+                Err(CalendarReminderCreateError::NotFullAccess(status))
+            );
+        }
+    }
+
+    #[test]
     fn native_errors_keep_platform_kind_and_representable_code() {
         let error = error_from_native(-42);
         assert_eq!(error.kind(), ErrorKind::Platform);
@@ -169,6 +250,10 @@ mod tests {
         let update_error = update_error_from_native(-42);
         assert_eq!(update_error.kind(), ErrorKind::Platform);
         assert_eq!(update_error.platform_code().unwrap().get(), -42);
+
+        let reminder_error = reminder_create_error_from_native(-42);
+        assert_eq!(reminder_error.kind(), ErrorKind::Platform);
+        assert_eq!(reminder_error.platform_code().unwrap().get(), -42);
 
         let zero = error_from_native(0);
         assert_eq!(zero.kind(), ErrorKind::Platform);

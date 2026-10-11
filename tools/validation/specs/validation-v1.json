@@ -5323,6 +5323,150 @@
           "must_exist": false,
           "path": "platform/ios/ios-calendar/src/event_update.rs",
           "text": "removeEvent"
+        },
+        {
+          "message": "the portable Calendar facade must expose non-prompting Reminders status",
+          "must_exist": true,
+          "path": "crates/framework-calendar/src/lib.rs",
+          "text": "pub fn reminder_authorization_status"
+        },
+        {
+          "message": "the portable Calendar facade must expose an explicit lazy full Reminders request",
+          "must_exist": true,
+          "path": "crates/framework-calendar/src/lib.rs",
+          "text": "pub async fn request_full_reminder_access"
+        },
+        {
+          "message": "Reminders authorization must use the typed public full-access request",
+          "must_exist": true,
+          "path": "platform/ios/ios-calendar/src/platform.rs",
+          "text": "requestFullAccessToRemindersWithCompletion"
+        },
+        {
+          "message": "the native status query must select Reminder, not Event",
+          "must_exist": true,
+          "path": "platform/ios/ios-calendar/src/platform.rs",
+          "text": "authorizationStatusForEntityType(EKEntityType::Reminder)"
+        },
+        {
+          "message": "EventKit write-only status must fail closed for Reminders",
+          "must_exist": true,
+          "path": "platform/ios/ios-calendar/src/conversion.rs",
+          "text": "_ => ReminderAuthorizationStatus::Unknown"
+        },
+        {
+          "message": "the portable Calendar facade must expose one-reminder creation",
+          "must_exist": true,
+          "path": "crates/framework-calendar/src/lib.rs",
+          "text": "pub fn create_reminder"
+        },
+        {
+          "message": "reminder creation must recheck current full access without prompting",
+          "must_exist": true,
+          "path": "platform/ios/ios-calendar/src/reminder_create.rs",
+          "text": "require_full_reminder_access(native_reminder_authorization_status())?"
+        },
+        {
+          "message": "reminder creation must use only EventKit default Reminders list",
+          "must_exist": true,
+          "path": "platform/ios/ios-calendar/src/reminder_create.rs",
+          "text": "defaultCalendarForNewReminders()"
+        },
+        {
+          "message": "reminder creation must create a new item in the existing event store",
+          "must_exist": true,
+          "path": "platform/ios/ios-calendar/src/reminder_create.rs",
+          "text": "EKReminder::reminderWithEventStore(event_store)"
+        },
+        {
+          "message": "reminder creation must commit one caller-titled reminder",
+          "must_exist": true,
+          "path": "platform/ios/ios-calendar/src/reminder_create.rs",
+          "text": "saveReminder_commit_error(&reminder, true)"
+        },
+        {
+          "message": "reminder creation must preserve native save errors",
+          "must_exist": true,
+          "path": "platform/ios/ios-calendar/src/reminder_create.rs",
+          "text": "reminder_create_error_from_native(error.code())"
+        },
+        {
+          "message": "reminder creation must never prompt for access",
+          "must_exist": false,
+          "path": "platform/ios/ios-calendar/src/reminder_create.rs",
+          "text": "requestFullAccessToRemindersWithCompletion"
+        },
+        {
+          "message": "reminder creation must not read, enumerate, or delete reminders",
+          "must_exist": false,
+          "path": "platform/ios/ios-calendar/src/reminder_create.rs",
+          "text": "fetchRemindersMatchingPredicate"
+        },
+        {
+          "message": "reminder creation must not delete reminders",
+          "must_exist": false,
+          "path": "platform/ios/ios-calendar/src/reminder_create.rs",
+          "text": "removeReminder"
+        },
+        {
+          "message": "the host regression suite must cover Reminders authorization and create boundaries",
+          "must_exist": true,
+          "path": "platform/ios/ios-calendar/tests/reminder_create_contract.rs",
+          "text": "invalid_or_non_full_access_never_reaches_create_backend"
+        },
+        {
+          "message": "reminder creation must not query calendar events",
+          "must_exist": false,
+          "path": "platform/ios/ios-calendar/src/reminder_create.rs",
+          "text": "eventsMatchingPredicate"
+        },
+        {
+          "message": "reminder creation must not enumerate calendars",
+          "must_exist": false,
+          "path": "platform/ios/ios-calendar/src/reminder_create.rs",
+          "text": "calendarsForEntityType"
+        },
+        {
+          "message": "Reminders callback errors must be copied as native error codes",
+          "must_exist": true,
+          "path": "platform/ios/ios-calendar/src/platform.rs",
+          "text": "error_from_native(error.code())"
+        },
+        {
+          "message": "the Reminders request future must re-query status after callback completion",
+          "must_exist": true,
+          "path": "platform/ios/ios-calendar/src/platform.rs",
+          "text": "native_reminder_authorization_status))"
+        },
+        {
+          "message": "dropping a pending Reminders request must detach result interest",
+          "must_exist": true,
+          "path": "platform/ios/ios-calendar/src/platform.rs",
+          "text": "self.completion.detach()"
+        },
+        {
+          "message": "the backend must not call an unsupported write-only Reminders request",
+          "must_exist": false,
+          "path": "platform/ios/ios-calendar/src/platform.rs",
+          "text": "requestWriteOnlyAccessToRemindersWithCompletion"
+        },
+        {
+          "message": "the Reminders contract must not claim a write-only status",
+          "must_exist": false,
+          "path": "platform/ios/ios-calendar/src/platform.rs",
+          "text": "ReminderAuthorizationStatus::WriteOnly"
+        },
+        {
+          "message": "the portable Reminders facade must reject an empty title before backend dispatch",
+          "must_exist": true,
+          "path": "crates/framework-calendar/src/lib.rs",
+          "text": "if draft.title.is_empty()"
+        },
+        {
+          "message": "the host suite must cover an unavailable default Reminders list",
+          "must_exist": true,
+          "path": "platform/ios/ios-calendar/tests/reminder_create_contract.rs",
+          "text": "missing_default_list_is_a_typed_error_without_prompt"
         }
       ],
       "id": "ios-calendar",
@@ -5355,7 +5499,9 @@
         "PLAN.md",
         "PLAN_IOS_CALENDAR.md",
         "PLAN_VALIDATION_IOS_CALENDAR.md",
-        "tools/validation/specs/validation-v1.json"
+        "tools/validation/specs/validation-v1.json",
+        "platform/ios/ios-calendar/src/reminder_create.rs",
+        "platform/ios/ios-calendar/tests/reminder_create_contract.rs"
       ],
       "shell_scripts": [
         "platform/ios/ios-calendar/check.sh",

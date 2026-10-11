@@ -1,7 +1,7 @@
 #![deny(missing_docs)]
 #![deny(unsafe_op_in_unsafe_fn)]
 #![cfg_attr(not(target_os = "ios"), allow(dead_code))]
-#![doc = "iOS 17+ full Calendar event-authorization status and request through public EventKit APIs."]
+#![doc = "iOS 17+ Calendar event and Reminders operations through public EventKit APIs."]
 
 mod conversion;
 mod operation;
@@ -22,4 +22,9 @@ mod event_delete;
 mod event_update;
 
 #[cfg(target_os = "ios")]
-pub use platform::{IosCalendarBackend, IosRequestFullAccessFuture};
+mod reminder_create;
+
+#[cfg(target_os = "ios")]
+pub use platform::{
+    IosCalendarBackend, IosRequestFullAccessFuture, IosRequestFullReminderAccessFuture,
+};

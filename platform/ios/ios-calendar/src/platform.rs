@@ -1,4 +1,6 @@
-use crate::conversion::{authorization_from_native, error_from_native};
+use crate::conversion::{
+    authorization_from_native, error_from_native, reminder_authorization_from_native,
+};
 use crate::operation::CompletionCell;
 use block2::RcBlock;
 use core::future::Future;
@@ -6,6 +8,7 @@ use core::pin::Pin;
 use core::task::{Context, Poll};
 use framework_calendar::{
     CalendarAuthorizationBackend, CalendarAuthorizationStatus, CalendarError,
+    CalendarReminderAuthorizationBackend, ReminderAuthorizationStatus,
 };
 use framework_core::{Error, ErrorKind};
 use objc2::AnyThread;
@@ -21,6 +24,9 @@ type AccessHandler = dyn Fn(Bool, *mut NSError);
 
 /// iOS full-Calendar-event-access request future.
 pub type IosRequestFullAccessFuture<'a> = IosCalendarFuture<'a>;
+
+/// iOS full-Reminders-access request future.
+pub type IosRequestFullReminderAccessFuture<'a> = IosReminderAccessFuture<'a>;
 
 /// A lazy iOS EventKit full-access request that retains safe callback state.
 pub struct IosCalendarFuture<'a> {
@@ -89,6 +95,72 @@ impl Drop for IosCalendarFuture<'_> {
     }
 }
 
+/// A lazy iOS EventKit full-Reminders-access request that retains safe callback state.
+pub struct IosReminderAccessFuture<'a> {
+    backend: &'a mut IosCalendarBackend,
+    completion: Completion,
+    handler: Option<RcBlock<AccessHandler>>,
+    started: bool,
+    finished: bool,
+}
+
+impl IosReminderAccessFuture<'_> {
+    fn start(&mut self) {
+        if self.started {
+            return;
+        }
+        self.started = true;
+        let completion = self.completion.clone();
+        let handler = RcBlock::new(move |_granted: Bool, error: *mut NSError| {
+            let result = catch_unwind(AssertUnwindSafe(|| {
+                // SAFETY: EventKit borrows NSError for the duration of its completion callback.
+                unsafe { error.as_ref() }
+                    .map_or(Ok(()), |error| Err(error_from_native(error.code())))
+            }))
+            .unwrap_or_else(|_| Err(internal_error()));
+            completion.complete(result);
+        });
+        let handler_ptr = RcBlock::as_ptr(&handler);
+        self.handler = Some(handler);
+        // SAFETY: `handler_ptr` points to the live Rust block retained in `self.handler` for
+        // this call. EventKit copies the completion block for its asynchronous callback.
+        unsafe {
+            self.backend
+                .event_store
+                .requestFullAccessToRemindersWithCompletion(handler_ptr)
+        };
+    }
+}
+
+impl Future for IosReminderAccessFuture<'_> {
+    type Output = Result<ReminderAuthorizationStatus, CalendarError>;
+
+    fn poll(mut self: Pin<&mut Self>, context: &mut Context<'_>) -> Poll<Self::Output> {
+        let this = self.as_mut().get_mut();
+        if !this.started {
+            this.start();
+        }
+        match this.completion.poll(context) {
+            Poll::Ready(callback_result) => {
+                // The callback Boolean is not permission state. Re-query only after completion.
+                let status = catch_unwind(AssertUnwindSafe(native_reminder_authorization_status))
+                    .map_err(|_| internal_error());
+                this.finished = true;
+                Poll::Ready(callback_result.and(status))
+            }
+            Poll::Pending => Poll::Pending,
+        }
+    }
+}
+
+impl Drop for IosReminderAccessFuture<'_> {
+    fn drop(&mut self) {
+        if !self.finished {
+            self.completion.detach();
+        }
+    }
+}
+
 /// Full Calendar event-authorization status and request through public EventKit APIs.
 ///
 /// Create this backend on iOS 17 or later. Construction creates an `EKEventStore` but does not
@@ -142,11 +214,38 @@ impl CalendarAuthorizationBackend for IosCalendarBackend {
     }
 }
 
+impl CalendarReminderAuthorizationBackend for IosCalendarBackend {
+    fn reminder_authorization_status(&self) -> ReminderAuthorizationStatus {
+        native_reminder_authorization_status()
+    }
+
+    type RequestFullReminderAccessFuture<'a>
+        = IosRequestFullReminderAccessFuture<'a>
+    where
+        Self: 'a;
+
+    fn request_full_reminder_access<'a>(&'a mut self) -> Self::RequestFullReminderAccessFuture<'a> {
+        IosReminderAccessFuture {
+            backend: self,
+            completion: Arc::new(CompletionCell::new()),
+            handler: None,
+            started: false,
+            finished: false,
+        }
+    }
+}
+
 pub(crate) fn native_authorization_status() -> CalendarAuthorizationStatus {
     // SAFETY: This static EventKit status query accepts the Event entity and has no prompt side
     // effect. The backend's documented API floor is iOS 17.0.
     let status = unsafe { EKEventStore::authorizationStatusForEntityType(EKEntityType::Event) };
     authorization_from_native(status.0)
+}
+
+pub(crate) fn native_reminder_authorization_status() -> ReminderAuthorizationStatus {
+    // SAFETY: This static EventKit query is nonprompting and selects Reminder, not Event.
+    let status = unsafe { EKEventStore::authorizationStatusForEntityType(EKEntityType::Reminder) };
+    reminder_authorization_from_native(status.0)
 }
 
 fn internal_error() -> CalendarError {
