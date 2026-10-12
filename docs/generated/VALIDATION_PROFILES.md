@@ -39,6 +39,7 @@ The following are configured validation profiles, not claims that every gate pas
 | framework-connectivity | framework-connectivity | 2 | 0 | 0 | True |
 | ios-connectivity | ios-connectivity | 2 | 1 | 0 | True |
 | ios-contact-picker | ios-contact-picker | 2 | 1 | 0 | False |
+| ios-photo-picker | ios-photo-picker | 2 | 1 | 0 | False |
 
 
 ## Inspect actual gates

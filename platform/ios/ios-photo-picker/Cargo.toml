@@ -1,0 +1,20 @@
+[package]
+name = "ios-photo-picker"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "User-mediated single-image selection through public PhotosUI"
+build = "build.rs"
+
+[target.'cfg(target_os = "ios")'.dependencies]
+block2 = { workspace = true, features = ["alloc"] }
+ios-runtime = { path = "../ios-runtime" }
+objc2 = { workspace = true, features = ["std"] }
+objc2-foundation = { workspace = true, features = ["NSArray", "NSError", "NSItemProvider", "NSPathUtilities", "NSProgress", "NSString", "NSURL", "block2"] }
+objc2-photos-ui = { workspace = true, features = ["PHPicker"] }
+objc2-ui-kit = { workspace = true, features = ["std", "UIResponder", "UIViewController", "block2"] }
+
+[lints]
+workspace = true

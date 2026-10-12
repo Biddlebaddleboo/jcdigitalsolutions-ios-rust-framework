@@ -2139,19 +2139,22 @@
       "capability": "Photos",
       "crate_module": [
         "framework-photos",
-        "ios-photos"
+        "ios-photos",
+        "ios-photo-picker"
       ],
       "crate_module_status": "portable_contract_and_ios_backend_partial",
       "portability_class": "portable_with_platform_extensions",
       "portable_contract_status": "implemented",
-      "portable_contract_note": "framework-photos defines separate read/write and add-only authorization status/request contracts; iOS file import and exact-identifier original-resource fetch are iOS-specific extensions, while broad asset enumeration and picker UI are excluded.",
+      "portable_contract_note": "framework-photos defines separate read/write and add-only authorization status/request contracts; iOS file import, exact-identifier original-resource fetch, and user-mediated single-image selection are platform-specific extensions, while broad asset enumeration and edits are excluded.",
       "ios_implementation_class": "B",
       "implementation_status": "partial",
-      "status_reason": "B27 implements PhotoKit read/write authorization status and explicit request. B460 adds a separate PhotoKit add-only status/request and asynchronous save of caller-owned JPEG or finalized movie files from strict absolute UTF-8 Rust paths. Saves never prompt, require add-only Authorized status, use public PHAssetCreationRequest file resources with shouldMoveFile false, and preserve caller files. B464 adds an exact-one-local-identifier read of an original still-photo resource for current ReadWrite Authorized or Limited access, with an explicit network choice, callback-scoped chunk copies, caller byte cap, owned Vec result, and best-effort cancellation on future drop; it never prompts or returns edited/paired resources. Broad asset enumeration, edits, album selection, and picker UI remain excluded; compile/link evidence does not prove on-device Photos access, iCloud retrieval, or saves.",
+      "status_reason": "B27 implements PhotoKit read/write authorization status and explicit request. B460 adds a separate PhotoKit add-only status/request and asynchronous save of caller-owned JPEG or finalized movie files from strict absolute UTF-8 Rust paths. Saves never prompt, require add-only Authorized status, use public PHAssetCreationRequest file resources with shouldMoveFile false, and preserve caller files. B464 adds an exact-one-local-identifier read of an original still-photo resource for current ReadWrite Authorized or Limited access, with an explicit network choice, callback-scoped chunk copies, caller byte cap, owned Vec result, and best-effort cancellation on future drop; it never prompts or returns edited/paired resources. B557 adds an independent iOS 14+ PhotosUI picker limited to one image, without broad PhotoKit authorization or enumeration. It copies the system's public.image provider file representation byte-for-byte into a private app-temporary directory under a caller-supplied nonzero byte ceiling; the system may supply a compatible representation rather than original library bytes. Broad asset enumeration and edits remain excluded. Static compile/link checks do not prove picker presentation, user selection, transfer, or device behavior.",
       "minimum_ios_version": "14.0",
       "required_frameworks": [
         "Photos",
-        "Foundation"
+        "Foundation",
+        "PhotosUI",
+        "UIKit"
       ],
       "required_permissions": [
         "Photo Library read/write authorization is explicit and opt-in",
@@ -2164,7 +2167,7 @@
       "entitlements": null,
       "device_only_restrictions": null,
       "swift_abi_requirement": false,
-      "metadata_verification": "B460 adds add-only authorization and caller-file JPEG/movie save; B464 adds a bounded original-photo resource fetch by one local identifier. The ios-photos profile registers host regressions, device/Simulator iOS 14.0 compile and link/import checks including the new PhotoKit selectors, strict Clippy, rustdoc, source/negative guards, and docs checks; no live Photos prompt, authorization outcome, iCloud retrieval, or runtime asset access/save is claimed.",
+      "metadata_verification": "B460 adds add-only authorization and caller-file JPEG/movie save; B464 adds a bounded original-photo resource fetch by one local identifier; B557 adds a separate ios-photo-picker crate and profile for a user-mediated single-image PhotosUI workflow without broad authorization or enumeration. The profiles register host regressions and iOS 14.0 device/Simulator compile/link/import checks; no live permission, picker, asset access, transfer, save, or device behavior is claimed.",
       "parity_status": "not_tested_live_behavior_or_Apple_parity",
       "performance_status": "not_measured",
       "native_escape_handle_available": false,

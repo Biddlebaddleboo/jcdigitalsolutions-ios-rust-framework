@@ -564,4 +564,8 @@ B555 adds optional reusable UIKit supplementary text headers to `IosCollectionGr
 
 ### B556 — named iOS geofence monitor
 
-B556 adds `IosLocationBackend::open_geofence_monitor(name)` over public iOS 17 `CLMonitor` and `CLCircularGeographicCondition`. It requires existing Always authorization and valid host usage text, never prompts, serializes native access, caps event storage at 16, and preserves conditions on session drop; explicit removal remains available. The `ios-location-updates` gate passed 43 checks; Simulator execution and device runtime proof remain unverified. See [the location workstream](PLAN_IOS_LOCATION.md#b556--named-ios-geofence-monitor).
+B556 adds `IosLocationBackend::open_geofence_monitor(name)` over public iOS 17 `CLMonitor` and `CLCircularGeographicCondition`. It requires existing Always authorization and valid host usage text, never prompts, serializes native access, caps event storage at 16, and preserves conditions on session drop; explicit removal remains available. The `ios-location-updates` gate passed 43 checks; Simulator execution and device runtime proof remain unverified. See [the location workstream](PLAN_IOS_LOCATION.md#b556--named-ios-geofence-monitoring).
+
+### B557 — user-mediated Photos picker (row 068)
+
+B557 adds a separate `ios-photo-picker` crate over public `PHPickerViewController`. It presents one image, avoids PhotoKit database access and authorization, and copies the provider’s exact temporary representation through a fixed 32 KiB buffer into a private app-local file with explicit cancellation and drop cleanup; it does not claim library-original bytes. The picker profile passed 31 checks and the existing `ios-photos` profile passed 80; each skipped only Simulator execution and physical-device proof. Visible presentation and provider runtime behavior remain unverified. See [the picker guide](docs/ios/photo-picker.md).
