@@ -79,3 +79,37 @@ status was unverified at that point. This audit reran
 `cargo +1.94.1 fmt --all -- --check`; it passed. B9 did not edit either D19 path.
 
 No host test was added or run because the crate has no pure conversion or error-mapping helper to test; UIKit preflight was not simulated. These checks establish compile/lint and static SDK evidence only. No app launch, live alert presentation or dismissal, user interaction, device execution, simulator runtime, or VoiceOver behavior was tested. No commit was created.
+
+## B574: selectable UIKit alert
+
+Status: complete. The new
+`present_action_alert` API accepts a borrowed slice of typed `AlertAction` values and reports the
+first selected `AlertActionId` through a one-shot callback. It supports UIKit Default, Destructive,
+and Cancel styles; rejects empty slices, duplicate IDs, and multiple Cancel actions; and preserves
+the exact uncalled callback for those input errors and the existing presenter preflight errors.
+Multiple retained UIKit blocks share one local `Rc<OneShot<F>>`; callback state is taken before
+invocation, so reentry is ignored, callback panics are contained at the Objective-C block boundary,
+and callback state releases with the action blocks. No global callback registry is used. B9's
+acknowledgement and B518's destructive confirmation implementations remain unchanged. The
+presentation result still means only that UIKit's `void` request was issued; there is no visible
+presentation, selection, dismissal, Simulator, or physical-device runtime claim.
+
+The B574 change updates `docs/ios/presentation.md`, host policy/callback regressions, and the B518
+device/Simulator link probe so the new alert API is part of the same registered profile. Validation
+passed with the installed `/Users/john/.local/bin/ios-rust-validate`, source SHA
+`350971094cc3b77191cd6b3d07e01af04d71943d`, executable SHA-256
+`77f9c7aa941ba1335827ffc6ce274898987ce1d5f408d91d1a7c1daf34527944`:
+
+```text
+ios-rust-validate --workspace-root "$PWD" --spec "$PWD/tools/validation/specs/validation-v1.json" --capability ios-presentation --diagnostics short
+result pass=26 fail=0 blocked=0 skipped=2
+```
+
+The registered profile passed host tests (14 tests), host and device/Simulator strict Clippy,
+device and Simulator compile/rustdoc, shell syntax, Release link/import probes at deployment
+targets iOS 12.0 and iOS 14.0, docs-check, zero-Swift-source, and diff checks. The two skipped
+runtime checks are Simulator execution and physical-device proof. No visible alert, action
+selection, cancellation, dismissal, or device behavior is claimed. The first profile attempt found
+a pre-existing source-guard name mismatch and a Clippy type-complexity lint in the new reentry test;
+the negative regression was retained under the declared name, the test type was factored, and the
+second full profile passed.

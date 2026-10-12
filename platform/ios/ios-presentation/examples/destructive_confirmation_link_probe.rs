@@ -1,6 +1,7 @@
 #[cfg(target_os = "ios")]
 use ios_presentation::{
-    DestructiveConfirmationText, PopoverAnchor, present_destructive_confirmation,
+    AlertAction, AlertActionId, AlertActionStyle, DestructiveConfirmationText, PopoverAnchor,
+    present_action_alert, present_destructive_confirmation,
 };
 #[cfg(target_os = "ios")]
 use ios_runtime::main_thread::MainThread;
@@ -35,6 +36,30 @@ fn main() {
         || {},
     );
     let _ = core::hint::black_box(result);
+
+    let Some(action_marker) = MainThread::current() else {
+        return;
+    };
+    let actions = [
+        AlertAction::new(AlertActionId::new(1), "Keep", AlertActionStyle::Default),
+        AlertAction::new(
+            AlertActionId::new(2),
+            "Delete",
+            AlertActionStyle::Destructive,
+        ),
+        AlertAction::new(AlertActionId::new(3), "Cancel", AlertActionStyle::Cancel),
+    ];
+    let selected = present_action_alert(
+        action_marker,
+        &presenter,
+        "Choose an action",
+        "Select one option.",
+        &actions,
+        |id| {
+            let _ = core::hint::black_box(id.get());
+        },
+    );
+    let _ = core::hint::black_box(selected);
 }
 
 #[cfg(not(target_os = "ios"))]

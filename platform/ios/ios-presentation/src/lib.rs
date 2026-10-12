@@ -12,6 +12,11 @@ mod platform;
 
 #[cfg(target_os = "ios")]
 pub use platform::{
-    DestructiveConfirmationError, DestructiveConfirmationStartError, DestructiveConfirmationText,
-    PopoverAnchor, PresentationError, present_acknowledgement, present_destructive_confirmation,
+    ActionAlertError, ActionAlertStartError, DestructiveConfirmationError,
+    DestructiveConfirmationStartError, DestructiveConfirmationText, PopoverAnchor,
+    PresentationError, present_acknowledgement, present_action_alert,
+    present_destructive_confirmation,
 };
+
+#[cfg(target_os = "ios")]
+pub use policy::{AlertAction, AlertActionId, AlertActionStyle};

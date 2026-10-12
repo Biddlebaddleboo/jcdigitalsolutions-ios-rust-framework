@@ -8,9 +8,135 @@ use objc2_ui_kit::{
     UIUserInterfaceIdiom, UIView, UIViewController, UIWindow,
 };
 use std::ptr;
+use std::rc::Rc;
 
 use crate::callback::{OneShot, catch_foreign_panic, return_callback_on_error};
-use crate::policy::valid_popover_source_rect;
+use crate::policy::{
+    ActionListError, AlertAction, AlertActionId, AlertActionStyle, valid_popover_source_rect,
+    validate_action_list,
+};
+
+/// A bounded reason a selectable alert request is known to be invalid.
+#[non_exhaustive]
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum ActionAlertError {
+    /// The supplied presenter failed the existing UIKit context preflight.
+    Presenter(PresentationError),
+    /// UIKit alerts require at least one action.
+    EmptyActions,
+    /// Every action must have a distinct caller-defined identity.
+    DuplicateActionId,
+    /// UIKit alerts support at most one cancel action.
+    MultipleCancelActions,
+}
+
+/// A known-invalid selectable alert request that still owns its uncalled callback.
+#[must_use = "recover or drop the uncalled action callback"]
+pub struct ActionAlertStartError<F> {
+    error: ActionAlertError,
+    on_action: F,
+}
+
+impl<F> ActionAlertStartError<F> {
+    /// Return the bounded action-list or presentation-context error.
+    pub fn error(&self) -> ActionAlertError {
+        self.error
+    }
+
+    /// Recover the error and exact callback, which has not been invoked or transferred to UIKit.
+    pub fn into_parts(self) -> (ActionAlertError, F) {
+        (self.error, self.on_action)
+    }
+}
+
+/// Request a selectable, system-owned UIKit alert from a caller-owned presenter.
+///
+/// The caller supplies borrowed UTF-8 title/message text and a nonempty borrowed action slice with
+/// unique IDs and no more than one cancel action. The function synchronously constructs one
+/// `UIAlertControllerStyle::Alert`, sends the presentation request, and passes the selected ID to
+/// `on_action` at most once. The closure must be `'static` because UIKit retains each action's
+/// handler; it need not be `Send` or `Sync`. All handlers share one local one-shot state. A handler
+/// panic is caught before the Objective-C block returns when the process uses an unwinding Rust
+/// panic strategy; `panic=abort` still aborts. If UIKit releases the alert without selection, the
+/// callback state drops with its action blocks. No global callback registry is used.
+///
+/// Known-invalid action lists or presenter state return `ActionAlertStartError<F>` with the exact
+/// uncalled callback. After `Ok(())`, the callback belongs to UIKit's action blocks. As with the
+/// acknowledgement API, `Ok(())` means only that `presentViewController:animated:completion:` was
+/// called; UIKit returns `void` and gives no refusal or visibility result. This call does not
+/// prove that the alert appeared, that an action was selected, or that dismissal completed.
+pub fn present_action_alert<F>(
+    main_thread: MainThread,
+    presenter: &UIViewController,
+    title: &str,
+    message: &str,
+    actions: &[AlertAction<'_>],
+    on_action: F,
+) -> Result<(), ActionAlertStartError<F>>
+where
+    F: FnOnce(AlertActionId) + 'static,
+{
+    let mut on_action = Some(on_action);
+    let result = autoreleasepool(|_| {
+        validate_action_list(actions).map_err(map_action_list_error)?;
+        preflight(presenter).map_err(ActionAlertError::Presenter)?;
+
+        let marker = main_thread.into_objc2();
+        let title = NSString::from_str(title);
+        let message = NSString::from_str(message);
+        let alert = UIAlertController::alertControllerWithTitle_message_preferredStyle(
+            Some(&title),
+            Some(&message),
+            UIAlertControllerStyle::Alert,
+            marker,
+        );
+        let callback =
+            Rc::new(OneShot::new(on_action.take().expect(
+                "selectable alert callback is present before UIKit handoff",
+            )));
+
+        for action in actions {
+            let action_title = NSString::from_str(action.title);
+            let action_id = action.id;
+            let callback = Rc::clone(&callback);
+            let handler: block2::RcBlock<dyn Fn(std::ptr::NonNull<UIAlertAction>)> =
+                block2::RcBlock::new(move |_action| {
+                    let _ = catch_foreign_panic(|| {
+                        callback.invoke_with(action_id);
+                    });
+                });
+            let native_action = UIAlertAction::actionWithTitle_style_handler(
+                Some(&action_title),
+                native_action_style(action.style),
+                Some(&handler),
+                marker,
+            );
+            alert.addAction(&native_action);
+        }
+
+        presenter.presentViewController_animated_completion(&alert, true, None);
+        Ok(())
+    });
+
+    return_callback_on_error(result, on_action)
+        .map_err(|(error, on_action)| ActionAlertStartError { error, on_action })
+}
+
+fn map_action_list_error(error: ActionListError) -> ActionAlertError {
+    match error {
+        ActionListError::Empty => ActionAlertError::EmptyActions,
+        ActionListError::DuplicateId => ActionAlertError::DuplicateActionId,
+        ActionListError::MultipleCancelActions => ActionAlertError::MultipleCancelActions,
+    }
+}
+
+fn native_action_style(style: AlertActionStyle) -> UIAlertActionStyle {
+    match style {
+        AlertActionStyle::Default => UIAlertActionStyle::Default,
+        AlertActionStyle::Destructive => UIAlertActionStyle::Destructive,
+        AlertActionStyle::Cancel => UIAlertActionStyle::Cancel,
+    }
+}
 
 /// A bounded reason the supplied UIKit presentation context is known to be invalid.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]

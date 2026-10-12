@@ -1,8 +1,8 @@
 # iOS UIKit presentation
 
-`ios-presentation` is a partial UIKit system-UI backend. It adds a synchronous one-action
-acknowledgement alert and a two-action destructive confirmation sheet; it is not a general
-presentation, navigation, arbitrary action-list, custom-controller, or SwiftUI API.
+`ios-presentation` is a partial UIKit system-UI backend. It adds a one-action acknowledgement alert,
+a typed selectable alert, and a two-action destructive confirmation sheet; it is not a general
+navigation, custom-controller, app/view-tree, or SwiftUI API.
 
 This alert API is separate from [the iOS share API](sharing.md): it accepts no `ShareItem`, creates
 no `UIActivityViewController`, exposes no `ShareOutcome` or share completion callback, and makes no
@@ -44,6 +44,55 @@ alert; the caller retains responsibility for supplying valid presentation contex
 application/controller lifecycle. UIKit values remain main-thread-only and are not exposed as
 `Send` or `Sync` state.
 
+## Present a selectable alert
+
+`present_action_alert` accepts a borrowed action slice. Each `AlertAction` carries a caller-defined
+`AlertActionId`, a borrowed title, and one of the public UIKit styles `Default`, `Destructive`, or
+`Cancel`. IDs must be unique, the slice must not be empty, and at most one action may use the cancel
+style. The function creates an alert-style `UIAlertController`; it does not create an action sheet,
+popover, menu framework, or navigation operation.
+
+```rust
+use ios_presentation::{
+    AlertAction, AlertActionId, AlertActionStyle, ActionAlertStartError, present_action_alert,
+};
+use ios_runtime::main_thread::MainThread;
+use objc2_ui_kit::UIViewController;
+
+fn ask_choice<F>(
+    main_thread: MainThread,
+    presenter: &UIViewController,
+    on_choice: F,
+) -> Result<(), ActionAlertStartError<F>>
+where
+    F: FnOnce(AlertActionId) + 'static,
+{
+    let actions = [
+        AlertAction::new(AlertActionId::new(10), "Keep", AlertActionStyle::Default),
+        AlertAction::new(AlertActionId::new(20), "Delete", AlertActionStyle::Destructive),
+        AlertAction::new(AlertActionId::new(30), "Cancel", AlertActionStyle::Cancel),
+    ];
+    present_action_alert(
+        main_thread,
+        presenter,
+        "Choose an action",
+        "Select one option.",
+        &actions,
+        on_choice,
+    )
+}
+```
+
+The caller owns the action slice and its text for the synchronous call. On an empty list, duplicate
+ID, second cancel action, or known-invalid presenter context, `ActionAlertStartError::into_parts()`
+returns the bounded error and exact uncalled callback. Once `Ok(())` is returned, UIKit action
+blocks own the callback. All action blocks share one local one-shot state, so only the first
+selection forwards its ID; a later or reentrant invocation is ignored. A callback panic is caught
+before the Objective-C block returns when Rust unwinds. If UIKit releases the actions without a
+selection, their retained blocks release the callback state. The callback need not be `Send` or
+`Sync`, and the crate uses no global registry. As with B9, the `void` presentation call provides no
+proof that UIKit displayed the alert, that a user selected an action, or that dismissal completed.
+
 ## Preflight and result limits
 
 Before constructing the alert, preflight checks only the presenter's observable state: whether the
@@ -58,10 +107,11 @@ callback. UIKit also offers an optional completion block, called after the prese
 `viewDidAppear:`; B9 passes `None` for that block and supplies no action handler. Therefore
 `Ok(())` means only that the presentation request was issued. It does not prove that UIKit displayed
 the alert, that the user selected the action, or that dismissal completed. B9 exposes no signal for
-presentation-transition completion, action selection, or dismissal. UIKit can refuse a request for
-conditions not caught by this bounded preflight, and the presenter hierarchy can change after
-preflight; neither case has a recovery signal in this API. No live alert, display, acknowledgement,
-dismissal, or device/simulator behavior is claimed.
+presentation-transition completion, action selection, or dismissal. B574's action callback reports
+only a handler invocation; it does not report presentation or dismissal completion. UIKit can
+refuse a request for conditions not caught by this bounded preflight, and the presenter hierarchy
+can change after preflight; neither case has a recovery signal in this API. No live alert, display,
+acknowledgement, dismissal, or device/simulator behavior is claimed.
 
 ## Present a destructive confirmation sheet
 

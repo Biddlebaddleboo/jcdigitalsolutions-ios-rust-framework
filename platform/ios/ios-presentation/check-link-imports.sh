@@ -72,6 +72,6 @@ for target in aarch64-apple-ios aarch64-apple-ios-sim; do
         echo "$target probe has deployment target ${actual_deployment_target:-unknown}; expected $deployment_target" >&2
         exit 1
     fi
-    printf '%s UIKit destructive-confirmation selectors verified at iOS %s; probe not executed\n' \
+    printf '%s UIKit acknowledgement, selectable-alert, and destructive-confirmation selectors verified at iOS %s; probe not executed\n' \
         "$target" "$deployment_target"
 done
