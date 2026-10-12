@@ -155,13 +155,14 @@ struct SampleQueue {
     samples: Vec<UnsafeCell<u32>>,
     sample_capacity: u32,
     channels: u32,
-    write_index: AtomicU32,
-    read_index: AtomicU32,
+    write_cursor: AtomicU32,
+    read_cursor: AtomicU32,
+    queued_samples: AtomicU32,
 }
 
 // SAFETY: Exactly one caller thread mutates the queue through &mut IosPcmAudioOutput, and the
-// native render callback is the only concurrent consumer. Release/acquire indices keep each slot
-// exclusively owned until the producer observes that the consumer has advanced.
+// native render callback is the only concurrent consumer. Bounded cursors select physical slots;
+// the release/acquire queued count publishes writes and prevents reuse until reads complete.
 #[cfg(any(test, target_os = "ios"))]
 unsafe impl Sync for SampleQueue {}
 
@@ -185,8 +186,9 @@ impl SampleQueue {
             samples,
             sample_capacity,
             channels,
-            write_index: AtomicU32::new(0),
-            read_index: AtomicU32::new(0),
+            write_cursor: AtomicU32::new(0),
+            read_cursor: AtomicU32::new(0),
+            queued_samples: AtomicU32::new(0),
         })
     }
 
@@ -199,50 +201,59 @@ impl SampleQueue {
         if sample_count_u32 > self.sample_capacity {
             return Err(PcmWriteError::QueueFull);
         }
-        let write = self.write_index.load(Ordering::Relaxed);
-        let read = self.read_index.load(Ordering::Acquire);
-        let queued = write.wrapping_sub(read);
+        let queued = self.queued_samples.load(Ordering::Acquire);
         if queued > self.sample_capacity || sample_count_u32 > self.sample_capacity - queued {
             return Err(PcmWriteError::QueueFull);
         }
+        let mut cursor = self.write_cursor.load(Ordering::Relaxed);
         for offset in 0..sample_count_u32 {
-            let slot = write.wrapping_add(offset) % self.sample_capacity;
-            let Some(cell) = self.samples.get(slot as usize) else {
+            let Some(cell) = self.samples.get(cursor as usize) else {
                 return Err(PcmWriteError::QueueFull);
             };
-            // SAFETY: The release/acquire queue indices establish producer-exclusive ownership of
-            // every slot in this not-yet-published range.
+            // SAFETY: The release/acquire queued count establishes producer-exclusive ownership
+            // of every slot outside the published unread range.
             unsafe { *cell.get() = encode(offset as usize) };
+            cursor += 1;
+            if cursor == self.sample_capacity {
+                cursor = 0;
+            }
         }
-        self.write_index
-            .store(write.wrapping_add(sample_count_u32), Ordering::Release);
+        self.write_cursor.store(cursor, Ordering::Relaxed);
+        self.queued_samples
+            .fetch_add(sample_count_u32, Ordering::Release);
         Ok(sample_count_u32 / self.channels)
     }
 
     fn consume_with(&self, sample_limit: u32, mut write_sample: impl FnMut(u32, u32)) -> u32 {
-        let read = self.read_index.load(Ordering::Relaxed);
-        let write = self.write_index.load(Ordering::Acquire);
-        let available = write.wrapping_sub(read).min(self.sample_capacity);
+        let available = self
+            .queued_samples
+            .load(Ordering::Acquire)
+            .min(self.sample_capacity);
         let count = sample_limit.min(available);
+        let mut cursor = self.read_cursor.load(Ordering::Relaxed);
         for offset in 0..count {
-            let slot = read.wrapping_add(offset) % self.sample_capacity;
-            let Some(cell) = self.samples.get(slot as usize) else {
+            let Some(cell) = self.samples.get(cursor as usize) else {
                 return offset;
             };
             // SAFETY: The acquire load observes the producer's release publication. The producer
-            // cannot reuse this slot until this consumer publishes the advanced read index.
+            // cannot reuse this slot until this consumer decrements the queued sample count.
             let sample = unsafe { *cell.get() };
             write_sample(offset, sample);
+            cursor += 1;
+            if cursor == self.sample_capacity {
+                cursor = 0;
+            }
         }
-        self.read_index
-            .store(read.wrapping_add(count), Ordering::Release);
+        self.read_cursor.store(cursor, Ordering::Relaxed);
+        self.queued_samples.fetch_sub(count, Ordering::Release);
         count
     }
 
     fn queued_frames(&self) -> u32 {
-        let write = self.write_index.load(Ordering::Acquire);
-        let read = self.read_index.load(Ordering::Acquire);
-        write.wrapping_sub(read).min(self.sample_capacity) / self.channels
+        self.queued_samples
+            .load(Ordering::Acquire)
+            .min(self.sample_capacity)
+            / self.channels
     }
 }
 
@@ -655,18 +666,27 @@ mod tests {
     }
 
     #[test]
-    fn queue_wraps_indices_without_losing_fifo_order() {
-        let queue = SampleQueue::new(4, 1).unwrap();
-        let near_wrap = u32::MAX - 2;
-        queue.write_index.store(near_wrap, Ordering::Relaxed);
-        queue.read_index.store(near_wrap, Ordering::Relaxed);
-        queue.push_with(4, |index| index as u32 + 1).unwrap();
-        let mut output = [0; 4];
+    fn non_power_of_two_ring_wrap_preserves_fifo_at_full_capacity() {
+        let queue = SampleQueue::new(3, 1).unwrap();
+        queue.write_cursor.store(2, Ordering::Relaxed);
+        queue.read_cursor.store(2, Ordering::Relaxed);
+        queue.push_with(2, |index| index as u32 + 1).unwrap();
+        let mut first = [0; 1];
         assert_eq!(
-            queue.consume_with(4, |index, sample| output[index as usize] = sample),
-            4
+            queue.consume_with(1, |index, sample| first[index as usize] = sample),
+            1
         );
-        assert_eq!(output, [1, 2, 3, 4]);
+        assert_eq!(first, [1]);
+        queue.push_with(2, |index| index as u32 + 3).unwrap();
+        assert_eq!(queue.queued_frames(), 3);
+        let mut output = [0; 3];
+        assert_eq!(
+            queue.consume_with(3, |index, sample| output[index as usize] = sample),
+            3
+        );
+        assert_eq!(output, [2, 3, 4]);
+        assert!(queue.write_cursor.load(Ordering::Relaxed) < queue.sample_capacity);
+        assert!(queue.read_cursor.load(Ordering::Relaxed) < queue.sample_capacity);
         assert_eq!(queue.queued_frames(), 0);
     }
 
