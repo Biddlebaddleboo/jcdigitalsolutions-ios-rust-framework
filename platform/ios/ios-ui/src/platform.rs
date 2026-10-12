@@ -32,11 +32,13 @@ use crate::text_policy::{KeyboardHint, TextFieldCallback, input_traits, invoke_t
 use crate::toggle_policy::invoke_toggle_callback;
 
 mod activity_indicator;
+mod collection_grid;
 mod context_menu;
 mod disclosure_group;
 mod list;
 mod selectable_text;
 pub use activity_indicator::IosActivityIndicator;
+pub use collection_grid::IosCollectionGrid;
 pub use context_menu::{IosContextMenu, IosContextMenuAction};
 pub use disclosure_group::IosDisclosureGroup;
 pub use list::{IosListRow, IosListView};

@@ -14,8 +14,8 @@ ios-runtime = { path = "../ios-runtime" }
 block2.workspace = true
 objc2 = { workspace = true, features = ["std"] }
 objc2-core-foundation = { workspace = true, features = ["CFCGTypes"] }
-objc2-foundation = { workspace = true, features = ["NSRange", "NSString"] }
-objc2-ui-kit = { workspace = true, features = ["std", "UIApplication", "UIButton", "UIActivityIndicatorView", "UIAccessibility", "UIControl", "UIEvent", "UIImage", "UIImageView", "UILabel", "NSLayoutAnchor", "NSLayoutConstraint", "UILayoutGuide", "UIStackView", "UIScrollView", "UITableView", "UITableViewCell", "NSIndexPath_UIKitAdditions", "UISwitch", "UITextField", "UITextView", "UIResponder", "UIViewController", "UITextInputTraits", "UIColor", "UIView", "UIInteraction", "UIContextMenuInteraction", "UIContextMenuConfiguration", "UIAction", "UIMenu", "UIMenuElement", "objc2-core-foundation", "block2"] }
+objc2-foundation = { workspace = true, features = ["NSRange", "NSString", "NSValue"] }
+objc2-ui-kit = { workspace = true, features = ["std", "UIApplication", "UIButton", "UIActivityIndicatorView", "UIAccessibility", "UIControl", "UIEvent", "UIImage", "UIImageView", "UILabel", "NSLayoutAnchor", "NSLayoutConstraint", "UILayoutGuide", "UIStackView", "UIScrollView", "UITableView", "UITableViewCell", "NSIndexPath_UIKitAdditions", "UISwitch", "UITextField", "UITextView", "UIResponder", "UIViewController", "UITextInputTraits", "UIColor", "UIView", "UIInteraction", "UIContextMenuInteraction", "UIContextMenuConfiguration", "UIAction", "UIMenu", "UIMenuElement", "UICollectionView", "UICollectionViewCell", "UICollectionViewCompositionalLayout", "UICollectionViewLayout", "UIDiffableDataSource", "UIGeometry", "objc2-core-foundation", "block2"] }
 
 [dev-dependencies]
 framework-core.workspace = true

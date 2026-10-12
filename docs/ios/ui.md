@@ -117,6 +117,41 @@ transactional replacement, panic containment, and callback reentry. Device/Simul
 checks verify UIKit symbols and deployment floors only; they do not establish live row rendering,
 selection, scrolling, or accessibility behavior
 
+## Reusable sectioned UIKit collection
+
+`IosUiBackend::add_collection_grid` creates a native `UICollectionView` with fixed-column,
+adaptive-column, or horizontal-carousel sections. Each section owns an ordered set of items with
+unique `u64` identities. `IosCollectionGridItem` supports reusable typed card, metric, action, and
+toggle content; UIKit reuses one native cell class with labels, a button, and a `UISwitch`. Action
+and switch enabled state is explicit. IDs remain unsigned 64-bit values through UIKit diffable
+snapshots, and selection/action/toggle callbacks report stable IDs rather than index paths
+
+```rust,ignore
+let mut dashboard = backend.add_collection_grid(&mut parent, frame, sections, |event| match event {
+    IosCollectionGridEvent::Selected { item_id } => select(item_id),
+    IosCollectionGridEvent::ActionTriggered { item_id } => activate(item_id),
+    IosCollectionGridEvent::ToggleChanged { item_id, is_on } => request_toggle(item_id, is_on),
+})?;
+dashboard.replace_snapshot(updated_sections, true)?;
+```
+
+The callback is an event request, not an automatic state binding. A toggle reverts to the current
+snapshot value after user input; the caller applies a new snapshot to commit updated state. Snapshot
+replacement validates all section/item IDs and layout dimensions before changing state, and existing
+IDs with changed typed content reload. UIKit applies one diff per call. To avoid overlapping UIKit
+updates, a replacement while any prior apply is in flight returns `Unavailable` without mutation;
+retry after its completion. The handle exposes `native_collection_view` for configuration but callers
+must not replace its data source, delegate, layout, or registered cell identifier
+
+This uses typed data and explicit snapshots over UIKit's native composition; it is not SwiftUI-style
+declarative view composition. The caller owns app state and decides when to submit a complete snapshot;
+there is no arbitrary view builder, section-header content, `Binding`, automatic state observation, or
+virtual view tree. `IosGridView` remains the simpler eager `UIStackView` helper. Compositional layout
+and diffable data sources require iOS 13; the package's iOS 12 device and iOS 14 Simulator compile
+floors remain, and runtime creation below iOS 13 returns `Unavailable`. Host policy tests and static
+device/Simulator link checks do not establish live rendering, animation, input, or accessibility
+behavior
+
 ## Fixed UIKit context menus
 
 `IosUiBackend::add_context_menu` attaches a `UIContextMenuInteraction` to a caller-owned `UIView`
@@ -409,11 +444,13 @@ disclosure.set_expanded(true)?;
 ## Scope and evidence
 
 This crate is a partial native-control backend, not a view hierarchy runtime. It does not own an
-application, window, controller, scene, navigation stack, modal presenter, or layout engine. It
-does not implement a general accessibility model, animations, gestures, tables, collections,
-multi-line editing, delegates, keyboard management, or SwiftUI. The disclosure header's accessible
-expanded state is the narrow exception described above. The existing `ios-minimal` example demonstrates a separate app-entry vertical slice;
-this crate does not alter that example
+application, window, controller, scene, navigation stack, modal presenter, or general layout engine.
+It exposes narrow native `UITableView` and `UICollectionView` primitives, including `IosCollectionGrid`,
+but does not provide general table/collection composition, a virtual view tree, or SwiftUI-style
+declarative views. It does not implement a general accessibility model, animations, gestures,
+multi-line editing, delegates, or keyboard management. The disclosure header's accessible expanded
+state is the narrow exception described above. The existing `ios-minimal` example demonstrates a
+separate app-entry vertical slice; this crate does not alter that example
 
 Portable no-std compilation passed in the recorded validation. That record reports seven portable
 unit tests passed, but the current `framework-ui` source has nine `#[test]` cases; this audit did not

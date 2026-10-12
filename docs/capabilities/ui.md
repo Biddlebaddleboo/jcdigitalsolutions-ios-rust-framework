@@ -74,3 +74,8 @@ It is read-only, selectable, scrollable, and main-thread-bound; text snapshots p
 NUL and supplementary Unicode scalars and reject malformed UTF-16. Its native escape remains
 available. This does not add a portable text-view contract or SwiftUI state binding; content and
 copy policy remain with the app
+
+The iOS backend also exposes `IosCollectionGrid`, a typed section/snapshot API backed by native
+`UICollectionView` compositional layouts and diffable snapshots. Its reusable cell content covers
+cards, metrics, actions, and switches; stable `u64` IDs feed typed caller-owned events. It remains an
+iOS-only UIKit extension rather than a portable view, binding, or observation contract

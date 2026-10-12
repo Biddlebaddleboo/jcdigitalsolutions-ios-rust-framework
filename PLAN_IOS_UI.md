@@ -212,3 +212,17 @@ existing typed anchors. It shares one-shot state with `pin_edges_to_parent`, val
 parent identity and autoresizing-mask state before activation, and preserves the iOS 12 device and
 iOS 14 Simulator floors. Host regressions cover preflight rejection and one-shot policy; registered
 device/Simulator link checks cover the public UIKit symbols. No runtime layout behavior is claimed.
+
+## B554 — reusable sectioned collection grid
+
+B554 adds `IosCollectionGrid` over UIKit `UICollectionView` compositional layouts and diffable full
+snapshots, while leaving the eager `IosGridView` and portable `framework-ui` contract unchanged.
+Sections support fixed-column, adaptive-column, and horizontal-carousel layouts; reusable native cells
+render typed card, metric, action, and toggle content. Stable IDs remain lossless across the full
+`u64` range, events report stable IDs and requested toggle values, and caller snapshots remain
+authoritative. Invalid or overlapping snapshot replacement preserves current state. Host tests report
+62 passed; device/Simulator compile and strict device Clippy pass, and the collection-grid link probe
+verifies UIKit imports, diffable/compositional symbols, selectors, and deployment floors at iOS 12.0 /
+14.0. Formatting and probe syntax checks pass. These are compile/link/static checks only; Simulator
+execution, live cell rendering, scrolling, selection, animation, and physical-device behavior remain
+unverified.

@@ -3,6 +3,8 @@
 #![doc = "A bounded native UIKit view and control backend for iOS."]
 
 #[cfg(any(test, target_os = "ios"))]
+mod collection_grid_policy;
+#[cfg(any(test, target_os = "ios"))]
 mod context_menu_policy;
 #[cfg(any(test, target_os = "ios"))]
 mod disclosure_policy;
@@ -38,9 +40,16 @@ mod text_policy;
 mod toggle_policy;
 
 #[cfg(target_os = "ios")]
+pub use collection_grid_policy::{
+    IosCollectionGridEvent, IosCollectionGridInsets, IosCollectionGridItem,
+    IosCollectionGridItemContent, IosCollectionGridLayout, IosCollectionGridSection,
+};
+#[cfg(target_os = "ios")]
 pub use grid::IosGridView;
 #[cfg(target_os = "ios")]
 pub use platform::IosActivityIndicator;
+#[cfg(target_os = "ios")]
+pub use platform::IosCollectionGrid;
 #[cfg(target_os = "ios")]
 pub use platform::IosDisclosureGroup;
 #[cfg(target_os = "ios")]
