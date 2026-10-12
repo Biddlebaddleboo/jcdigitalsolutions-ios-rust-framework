@@ -13,9 +13,9 @@ framework-maps = { path = "../../../crates/framework-maps" }
 [target.'cfg(target_os = "ios")'.dependencies]
 objc2 = { workspace = true, features = ["std"] }
 objc2-core-foundation = { workspace = true, features = ["CFCGTypes", "objc2"] }
-objc2-core-location = { workspace = true, features = ["CLLocation"] }
+objc2-core-location = { workspace = true, features = ["CLLocation", "CLLocationManager"] }
 objc2-foundation = { workspace = true, features = ["NSString"] }
-objc2-map-kit = { version = "=0.3.2", default-features = false, features = ["MKAnnotation", "MKGeometry", "MKMultiPoint", "MKOverlay", "MKOverlayPathRenderer", "MKOverlayRenderer", "MKPointAnnotation", "MKPolyline", "MKPolylineRenderer", "MKShape", "objc2-core-foundation", "objc2-core-location"] }
+objc2-map-kit = { version = "=0.3.2", default-features = false, features = ["MKAnnotation", "MKGeometry", "MKMapView", "MKMultiPoint", "MKOverlay", "MKOverlayPathRenderer", "MKOverlayRenderer", "MKPointAnnotation", "MKPolyline", "MKPolylineRenderer", "MKShape", "objc2-core-foundation", "objc2-core-location"] }
 objc2-ui-kit = { workspace = true, features = ["UIColor", "UIResponder", "UIView", "objc2-core-foundation"] }
 
 [lints]

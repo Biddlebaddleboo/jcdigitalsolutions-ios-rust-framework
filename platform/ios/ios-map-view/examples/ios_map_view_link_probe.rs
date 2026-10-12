@@ -2,7 +2,10 @@
 
 #[cfg(target_os = "ios")]
 fn main() {
-    use ios_map_view::{IosMapView, MapAnnotation, MapCoordinate, MapRegion, MapSpan};
+    use ios_map_view::{
+        IosMapView, IosUserTrackingMode, MapAnnotation, MapCoordinate, MapRegion, MapSpan,
+        MapUserTrackingError,
+    };
 
     let Some(marker) = objc2::MainThreadMarker::new() else {
         return;
@@ -24,7 +27,12 @@ fn main() {
         view.replace_route(&route).expect("valid route");
         view.clear_route();
     }
-    let _ = core::hint::black_box((view.region(), view.native_view()));
+    let tracking_api: fn(
+        &IosMapView,
+        IosUserTrackingMode,
+        bool,
+    ) -> Result<(), MapUserTrackingError> = IosMapView::set_user_tracking_mode;
+    let _ = core::hint::black_box((view.region(), view.native_view(), tracking_api));
 }
 
 #[cfg(not(target_os = "ios"))]

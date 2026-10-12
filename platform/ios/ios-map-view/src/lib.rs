@@ -10,6 +10,9 @@ pub use annotations::AnnotationSnapshotError;
 mod route;
 pub use route::{MAX_ROUTE_COORDINATES, MapRouteError};
 
+mod tracking;
+pub use tracking::{IosUserTrackingMode, MapUserTrackingError};
+
 #[cfg(target_os = "ios")]
 mod platform;
 

@@ -664,3 +664,7 @@ public symbolic-trait APIs are available at the existing iOS 12.0 device floor; 
 system-design API is used. Host tests pass 99/99, strict all-target Clippy passes, and device iOS
 12.0 / Simulator iOS 14.0 checks plus both Release link probes pass. The root combined `ios-ui`
 validator run is pending; font appearance and Dynamic Type updates remain runtime-unverified.
+
+### B586 — caller-controlled MapKit user-location tracking (row 093)
+
+B586 adds `IosUserTrackingMode::{None, Follow, FollowHeading}` to `IosMapView`. Follow modes check the current Core Location status and require existing `AuthorizedWhenInUse` or `AuthorizedAlways` authorization; they never request or change permission. Unauthorized or unknown states fail closed by disabling tracking/display, while `None` works without permission. The main-thread API leaves the route delegate untouched; the host owns `NSLocationWhenInUseUsageDescription` and authorization UX. The final registered `ios-map-view` profile reported 28 PASS, 0 FAIL, 0 BLOCKED, and 2 SKIPPED at snapshot `ff357e70a1fc9a5089098cfdc53bd2c171409ac1189c2f8bbe5ae2babd2d7908` (Simulator execution and physical-device proof). Permission transitions, visible location, heading rotation, and runtime updates remain unverified. See [MapKit implementation scope](PLAN_CAPABILITIES_MAPKIT.md#b586-caller-controlled-user-location-tracking-boundary).

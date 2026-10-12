@@ -26,9 +26,18 @@ grep -F 'fn duplicate_ids_reject_snapshot_before_native_changes()' platform/ios/
 grep -F 'fn route_rejects_empty_and_single_point_paths()' platform/ios/ios-map-view/src/route.rs >/dev/null
 grep -F 'fn route_rejects_paths_over_the_bounded_coordinate_limit()' platform/ios/ios-map-view/src/route.rs >/dev/null
 grep -F 'fn route_delegate_policy_accepts_only_empty_or_owned_slots()' platform/ios/ios-map-view/src/route.rs >/dev/null
+grep -F 'fn none_mode_is_allowed_without_location_authorization()' platform/ios/ios-map-view/src/tracking.rs >/dev/null
+grep -F 'fn follow_modes_reject_unavailable_authorization_states()' platform/ios/ios-map-view/src/tracking.rs >/dev/null
+grep -F 'pub fn set_user_tracking_mode(' platform/ios/ios-map-view/src/platform.rs >/dev/null
+grep -F 'self.apply_user_tracking_mode(MKUserTrackingMode::None, false, false);' platform/ios/ios-map-view/src/platform.rs >/dev/null
+grep -F 'authorizationStatus_class' platform/ios/ios-map-view/src/tracking.rs >/dev/null
 grep -F 'return Err(MapRouteError::DelegateSlotOccupied);' platform/ios/ios-map-view/src/platform.rs >/dev/null
 grep -F 'pub fn clear_route(&mut self)' platform/ios/ios-map-view/src/platform.rs >/dev/null
 grep -F 'impl Drop for IosMapView' platform/ios/ios-map-view/src/platform.rs >/dev/null
+if grep -E 'requestWhenInUseAuthorization|requestAlwaysAuthorization|requestTemporaryFullAccuracyAuthorization' platform/ios/ios-map-view/src/platform.rs platform/ios/ios-map-view/src/tracking.rs; then
+    echo "ios-map-view must not request or elevate location authorization" >&2
+    exit 1
+fi
 
 for target in aarch64-apple-ios aarch64-apple-ios-sim; do
     case "$target" in
@@ -57,8 +66,8 @@ for target in aarch64-apple-ios aarch64-apple-ios-sim; do
     nm -u "$binary" > "$symbols"
     grep -q '_objc_getClass' "$symbols"
     grep -q '_objc_msgSend' "$symbols"
-    if grep -Eqi 'swift_|Py[A-Z_]|CLLocationManager|CLGeocoder|MKLocalSearch|MKDirections|MKMapItem|MKMapSnapshotter|MKAnnotationView|MKTileOverlay|showsUserLocation|userLocation' "$symbols"; then
-        echo "unexpected Swift, Python, location service, search, directions, custom annotation, tile overlay, or user-location import in $symbols" >&2
+    if grep -Eqi 'swift_|Py[A-Z_]|CLGeocoder|MKLocalSearch|MKDirections|MKMapItem|MKMapSnapshotter|MKAnnotationView|MKTileOverlay' "$symbols"; then
+        echo "unexpected Swift, Python, geocoder, search, directions, custom annotation, or tile overlay import in $symbols" >&2
         exit 1
     fi
 
@@ -80,8 +89,16 @@ for target in aarch64-apple-ios aarch64-apple-ios-sim; do
     grep -F 'setLineWidth:' "$strings_file" >/dev/null
     grep -F 'setCoordinate:' "$strings_file" >/dev/null
     grep -F 'setTitle:' "$strings_file" >/dev/null
-    if grep -Eqi 'swift_|CLLocationManager|CLGeocoder|MKLocalSearch|MKDirections|MKMapItem|MKMapSnapshotter|MKAnnotationView|MKTileOverlay|showsUserLocation|userLocation' "$strings_file"; then
-        echo "unexpected Swift, location service, search, directions, custom annotation, tile overlay, or user-location selector in $strings_file" >&2
+    grep -Fx 'CLLocationManager' "$strings_file" >/dev/null
+    grep -F 'authorizationStatus' "$strings_file" >/dev/null
+    grep -F 'setShowsUserLocation:' "$strings_file" >/dev/null
+    grep -F 'setUserTrackingMode:animated:' "$strings_file" >/dev/null
+    if grep -Eqi 'requestWhenInUseAuthorization|requestAlwaysAuthorization|requestTemporaryFullAccuracyAuthorization' "$strings_file"; then
+        echo "unexpected location authorization request selector in $strings_file" >&2
+        exit 1
+    fi
+    if grep -Eqi 'swift_|CLGeocoder|MKLocalSearch|MKDirections|MKMapItem|MKMapSnapshotter|MKAnnotationView|MKTileOverlay' "$strings_file"; then
+        echo "unexpected Swift, geocoder, search, directions, custom annotation, or tile overlay selector in $strings_file" >&2
         exit 1
     fi
 

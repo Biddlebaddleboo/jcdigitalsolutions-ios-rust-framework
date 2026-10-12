@@ -1,14 +1,14 @@
-# PLAN_CAPABILITIES_MAPKIT.md — D77/B73 Geometry and B577/B581/B583 Native Map View for Row 093
+# PLAN_CAPABILITIES_MAPKIT.md — D77/B73 Geometry and B577/B581/B583/B586 MapKit for Row 093
 
 ## Objective
 
-Implement the narrow MapKit geometry-only subset for row `093-maps-ar-spatial-mapkit`: finite portable coordinate/map-point/distance values and three public by-value geometry calls
+Implement a narrow MapKit subset for row `093-maps-ar-spatial-mapkit`: finite portable geometry values and public by-value calls, plus a native iOS map view with bounded regions, marker snapshots, one route overlay, and caller-controlled user-location tracking
 
 ## Status and recommendation
 
-A real, narrowly bounded MapKit slice is available and is implemented in `framework-maps` and `ios-maps`: caller-supplied coordinate/map-point conversion and MapKit distance functions. B577 adds validated center/span regions and a separate `ios-map-view` crate for a native UIKit-embeddable `MKMapView`. B581 adds stable point-marker snapshots with optional titles; B583 adds one caller-supplied route polyline. These slices remain partial; they do not access device location or promise native map-content availability
+A real, narrowly bounded MapKit slice is implemented in `framework-maps`, `ios-maps`, and `ios-map-view`: caller-supplied coordinate/map-point conversion and MapKit distance functions, a UIKit-embeddable `MKMapView`, stable point-marker snapshots, one route polyline, and the B586 opt-in user-location tracking mode. These slices remain partial and do not promise native map-content availability or runtime location delivery
 
-The root lock contains `objc2-map-kit` 0.3.2 and the `ios-maps` dependency edges. B577 adds a separate `ios-map-view` edge without widening `ios-maps`' UIKit dependency graph. The native view uses a small local `objc2` declaration because this selected generated binding exposes `MKMapView` only under macOS/AppKit; its `MKCoordinateRegion`, `MKCoordinateSpan`, `MKPointAnnotation`, `MKAnnotation`, `MKPolyline`, and renderer values use generated public bindings where available. B581 and B583 add only their required MapKit features in this separate view crate. Do not imply this work implements SwiftUI `Map`, custom annotation views, arbitrary overlay management, user location, search, geocoding, directions, route calculation, offline map data, or complete MapKit parity
+The root lock contains `objc2-map-kit` 0.3.2 and the `ios-maps` dependency edges. B577 adds a separate `ios-map-view` edge without widening `ios-maps`' UIKit dependency graph. The native view uses a small local `objc2` declaration because this selected generated binding exposes `MKMapView` only under macOS/AppKit; its `MKCoordinateRegion`, `MKCoordinateSpan`, `MKPointAnnotation`, `MKAnnotation`, `MKPolyline`, renderer, and `MKUserTrackingMode` values use generated public bindings where available. Do not imply this work implements SwiftUI `Map`, custom annotation views, arbitrary overlay management, permission prompting, location-coordinate callbacks, search, geocoding, directions, route calculation, offline map data, or complete MapKit parity
 
 ## B577 implementation boundary
 
@@ -16,7 +16,7 @@ The root lock contains `objc2-map-kit` 0.3.2 and the `ios-maps` dependency edges
 - `ios-map-view::IosMapView` owns one retained, main-thread-bound `MKMapView`; `native_view()` returns a borrowed typed view for host UIKit embedding
 - `set_region` passes the validated center/span by value to public `setRegion:animated:`; `region` returns `None` if MapKit reports an invalid center or span
 - The host remains responsible for size, constraints, and view hierarchy. MapKit may adjust the region to fit the native view's dimensions
-- The wrapper does not enable user location or request location authorization, and it does not call search, geocoding, directions, or offline-map APIs; B581/B583 add only point annotations and one route overlay
+- B577 did not enable user location or request authorization. B586 adds only caller-controlled MapKit display/follow after a read-only authorization check; it does not request permission or expose coordinates. The wrapper does not call search, geocoding, directions, or offline-map APIs
 - MapKit controls basemap presentation and any content/network requests. Build/link/import validation does not prove tile fetches, visible map rendering, or device behavior
 - The inspected Xcode 26.6 / iOS 26.5 public `MKMapView.h` declares `MKMapView : UIView`, `initWithFrame:`, `region`, and `setRegion:animated:`; the class is available from iOS 3.0. The link profile's iOS 12.0 device and iOS 14.0 Simulator floors are validation-probe floors, not API availability claims
 
@@ -36,6 +36,14 @@ The root lock contains `objc2-map-kit` 0.3.2 and the `ios-maps` dependency edges
 - `MKPolyline` is public from iOS 4.0 and `MKPolylineRenderer`/`rendererForOverlay:` from iOS 7.0. The local `objc2` delegate declaration matches the public iOS `MKMapViewDelegate` renderer callback because objc2-map-kit 0.3.2 gates its generated `MKMapView` delegate surface to macOS/AppKit
 - `MKMapView.delegate` is a weak singleton slot. Route activation claims it only when empty and returns `MapRouteError::DelegateSlotOccupied` for a host delegate. While a route is active, the wrapper owns that slot and does not forward callbacks; host code must not replace it. `clear_route` and `Drop` remove only this wrapper's route and clear the delegate only if it still points to this wrapper
 - Route host tests cover point-count bounds and occupied-slot rejection. The registered iOS profile proves compilation/linkage and symbol selection, not visible route rendering, callback behavior, Simulator execution, or physical-device behavior
+
+## B586 caller-controlled user-location tracking boundary
+
+- `IosMapView::set_user_tracking_mode` accepts `IosUserTrackingMode::{None, Follow, FollowHeading}` and an animation flag. `None` is allowed without authorization and disables both native tracking and `showsUserLocation`
+- `Follow` and `FollowHeading` read the current status through the public `CLLocationManager.authorizationStatus` class method. Only existing `AuthorizedWhenInUse` or `AuthorizedAlways` status allows activation. `NotDetermined`, `Restricted`, `Denied`, and unknown values fail closed by disabling tracking/display and return `MapUserTrackingError::LocationAuthorizationRequired`
+- The crate never creates a `CLLocationManager`, calls an authorization request API, changes authorization, registers a location delegate, returns location coordinates, or enables background location. The embedding app owns permission UX and must provide `NSLocationWhenInUseUsageDescription` when it opts into this feature. The host handles authorization transitions and reapplies its desired mode
+- The public `MKUserTrackingMode`, `userTrackingMode`, and `setUserTrackingMode:animated:` APIs are available from iOS 5.0. The read-only `CLLocationManager.authorizationStatus` class method is available from iOS 4.2. Existing validator deployment floors remain iOS 12.0 device / iOS 14.0 Simulator
+- Tracking does not access `MKMapView.delegate`; B583's weak delegate ownership and route overlay behavior remain unchanged. Host policy tests cover no-permission disable, authorized mode selection, and rejection of all non-authorized/unknown states. The final `ios-map-view` validator profile passed 28/30 gates (0 FAIL, 0 BLOCKED) at snapshot `ff357e70a1fc9a5089098cfdc53bd2c171409ac1189c2f8bbe5ae2babd2d7908`; the two SKIPPED gates are Simulator execution and physical-device proof. Device/Simulator compile, Clippy, Rustdoc, and link/import gates do not prove a permission transition, prompt behavior, location update, visible blue dot, heading rotation, or runtime map behavior
 
 ## Implemented contract
 
@@ -79,11 +87,11 @@ Inspection used Xcode 26.6 build 17F113, iPhoneOS 26.5 SDK, and Rust/Cargo 1.94.
 - The selected APIs are synchronous C value calls with no callback, async sequence, view lifecycle, retained object, or delegate. The header assigns no actor or main-thread requirement. Do not extend this to UI-backed APIs or claim a wider undocumented thread-safety guarantee
 - `MapCoordinate` bounds are enforced by the portable constructor. The projection may return non-finite map-point values at an edge case; the adapter returns `None` rather than expose those values. Inverse conversion is returned only when MapKit's coordinate passes the same finite latitude/longitude ranges. `MapPoint` inputs are required finite but not constrained to the world rectangle; MapKit determines the projected conversion/distance result
 - `MKMapView` is a UIKit view, and Apple specifies that `MKMapViewDelegate` methods run on the app’s main thread. SwiftUI `Map` is a SwiftUI `View` marked `@MainActor`; these are outside the geometry facade
-- A future map-view or user-location slice would need separate host, main-thread/actor, and Core Location authorization analysis. Geometry support alone does not imply any map-service, network, or location behavior
+- The original geometry slice does not imply any map-service, network, or location behavior. B577/B586 separately record the host, main-thread, and Core Location authorization contract for the native view
 
-## Acceptance boundary
+## Geometry acceptance boundary
 
-This implementation claims only:
+The geometry-only slice claims only:
 
 - valid caller-supplied latitude/longitude degrees to MapKit projection and back, subject to finite/range validation on returned values
 - MapKit’s distance value for two caller-supplied map points

@@ -15,15 +15,19 @@ use objc2_core_location::CLLocationCoordinate2D;
 use objc2_foundation::{NSString, NSUInteger};
 use objc2_map_kit::{
     MKAnnotation, MKCoordinateRegion, MKCoordinateSpan, MKOverlay, MKOverlayRenderer,
-    MKPointAnnotation, MKPolyline, MKPolylineRenderer,
+    MKPointAnnotation, MKPolyline, MKPolylineRenderer, MKUserTrackingMode,
 };
 use objc2_ui_kit::{UIColor, UIView};
 use std::panic::{AssertUnwindSafe, catch_unwind};
 
 use crate::annotations::sorted_snapshot;
 use crate::route::validate_route_point_count;
+use crate::tracking::{
+    IosUserTrackingMode, current_location_authorization, validate_user_tracking_request,
+};
 use crate::{
     AnnotationSnapshotError, MapAnnotation, MapCoordinate, MapRegion, MapRouteError, MapSpan,
+    MapUserTrackingError,
 };
 
 struct AnnotationEntry {
@@ -263,6 +267,51 @@ impl IosMapView {
         unsafe { self.native.setRegion_animated(native_region, animated) };
     }
 
+    /// Sets caller-controlled MapKit user-location tracking without requesting authorization.
+    ///
+    /// `None` is always allowed and disables this map's user-location display. `Follow` and
+    /// `FollowHeading` require existing When In Use or Always authorization; on any other status
+    /// this method disables tracking and returns an error. The host owns location permission UX
+    /// and the `NSLocationWhenInUseUsageDescription` usage string. This method does not modify the
+    /// map's route delegate.
+    pub fn set_user_tracking_mode(
+        &self,
+        mode: IosUserTrackingMode,
+        animated: bool,
+    ) -> Result<(), MapUserTrackingError> {
+        let native_mode = match mode {
+            IosUserTrackingMode::None => {
+                self.apply_user_tracking_mode(MKUserTrackingMode::None, animated, false);
+                return Ok(());
+            }
+            IosUserTrackingMode::Follow => MKUserTrackingMode::Follow,
+            IosUserTrackingMode::FollowHeading => MKUserTrackingMode::FollowWithHeading,
+        };
+
+        let authorization = current_location_authorization();
+        if let Err(error) = validate_user_tracking_request(mode, authorization) {
+            self.apply_user_tracking_mode(MKUserTrackingMode::None, false, false);
+            return Err(error);
+        }
+
+        self.apply_user_tracking_mode(native_mode, animated, true);
+        Ok(())
+    }
+
+    fn apply_user_tracking_mode(
+        &self,
+        mode: MKUserTrackingMode,
+        animated: bool,
+        show_user_location: bool,
+    ) {
+        // SAFETY: This wrapper is main-thread-bound. Both methods are public iOS MKMapView
+        // selectors; display is enabled only after checking existing Core Location authorization.
+        unsafe {
+            self.native.setShowsUserLocation(show_user_location);
+            self.native.setUserTrackingMode_animated(mode, animated);
+        }
+    }
+
     /// Replaces the caller's complete marker snapshot while preserving native objects for
     /// identifiers that remain present. Duplicate identifiers reject the snapshot before any
     /// native annotation changes occur. MapKit copies each non-null title.
@@ -406,6 +455,20 @@ impl NativeMapView {
         #[unsafe(method(setRegion:animated:))]
         #[unsafe(method_family = none)]
         pub(super) unsafe fn setRegion_animated(&self, region: MKCoordinateRegion, animated: bool);
+
+        // SAFETY: Matches the public iOS MKMapView `showsUserLocation` BOOL property setter ABI.
+        #[unsafe(method(setShowsUserLocation:))]
+        #[unsafe(method_family = none)]
+        pub(super) unsafe fn setShowsUserLocation(&self, shows_user_location: bool);
+
+        // SAFETY: The generated public enum has the NSInteger encoding declared by the iOS SDK.
+        #[unsafe(method(setUserTrackingMode:animated:))]
+        #[unsafe(method_family = none)]
+        pub(super) unsafe fn setUserTrackingMode_animated(
+            &self,
+            mode: MKUserTrackingMode,
+            animated: bool,
+        );
 
         // SAFETY: Matches the public iOS MKMapView annotation API and its id<MKAnnotation> ABI.
         #[unsafe(method(addAnnotation:))]
