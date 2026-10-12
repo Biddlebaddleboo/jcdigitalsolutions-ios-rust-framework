@@ -99,9 +99,9 @@ impl<'a> Rgba8Frame<'a> {
     }
 }
 
-/// Deterministic errors for invalid framebuffer dimensions, row layout, or bytes.
+/// Deterministic errors for invalid 32-bit framebuffer dimensions, row layout, or bytes.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum Rgba8FrameError {
+pub enum FrameValidationError {
     /// Width or height is zero.
     EmptyDimension,
     /// Width or height exceeds the supported maximum of 16,384 pixels.
@@ -122,7 +122,10 @@ pub enum Rgba8FrameError {
     DamageOutOfBounds,
 }
 
-impl From<FrameShapeError> for Rgba8FrameError {
+/// Backward-compatible validation error name for [`Rgba8Frame`].
+pub type Rgba8FrameError = FrameValidationError;
+
+impl From<FrameShapeError> for FrameValidationError {
     fn from(error: FrameShapeError) -> Self {
         match error {
             FrameShapeError::EmptyDimension => Self::EmptyDimension,
@@ -138,13 +141,13 @@ impl From<FrameShapeError> for Rgba8FrameError {
     }
 }
 
-impl fmt::Display for Rgba8FrameError {
+impl fmt::Display for FrameValidationError {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(formatter, "invalid RGBA8 framebuffer: {self:?}")
+        write!(formatter, "invalid 32-bit framebuffer: {self:?}")
     }
 }
 
-impl std::error::Error for Rgba8FrameError {}
+impl std::error::Error for FrameValidationError {}
 
 /// A point-in-time UIKit application lifecycle state.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]

@@ -22,6 +22,8 @@ mod custom_render_touch_state;
 mod custom_render_text_input;
 #[cfg(any(test, target_os = "ios"))]
 mod custom_render_text_policy;
+#[cfg(all(target_os = "ios", feature = "custom-render-metal"))]
+mod custom_render_metal;
 #[cfg(any(test, target_os = "ios"))]
 mod disclosure_policy;
 /// Bounded CoreGraphics geometry operations over portable frames.
@@ -72,8 +74,12 @@ pub use custom_render_accessibility_policy::{
 };
 #[cfg(target_os = "ios")]
 pub use custom_render_host::{
-    CustomRenderHostError, HostApplicationState, HostGeometry, IosCustomRenderHost,
-    PixelDamageRect, Rgba8Frame, Rgba8FrameError,
+    CustomRenderHostError, FrameValidationError, HostApplicationState, HostGeometry,
+    IosCustomRenderHost, PixelDamageRect, Rgba8Frame, Rgba8FrameError,
+};
+#[cfg(all(target_os = "ios", feature = "custom-render-metal"))]
+pub use custom_render_metal::{
+    Bgra8Frame, Bgra8FrameError, CustomMetalHostError, IosCustomMetalHost,
 };
 #[cfg(target_os = "ios")]
 pub use custom_render_touch::{

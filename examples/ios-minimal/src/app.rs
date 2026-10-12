@@ -1,7 +1,13 @@
 use std::cell::{Cell, OnceCell, RefCell};
+#[cfg(feature = "custom-render-metal-demo")]
+use std::time::{Duration, Instant};
 
 use ios_runtime::{ffi::catch_unwind, main_thread::MainThread};
-use ios_ui::{IosCustomRenderHost, IosCustomTextInput, IosTextInputTraits, Rgba8Frame};
+#[cfg(feature = "custom-render-metal-demo")]
+use ios_ui::{Bgra8Frame, IosCustomMetalHost};
+use ios_ui::{
+    IosCustomRenderHost, IosCustomTextInput, IosTextInputTraits, Rgba8Frame,
+};
 use objc2::rc::{Allocated, Retained};
 use objc2::{ClassType, DefinedClass, MainThreadOnly, define_class, msg_send, sel};
 use objc2_core_foundation::{CGPoint, CGRect, CGSize};
@@ -16,6 +22,12 @@ struct AppState {
     window: OnceCell<Retained<UIWindow>>,
     target: OnceCell<Retained<ButtonTarget>>,
     render_host: OnceCell<IosCustomRenderHost>,
+    #[cfg(feature = "custom-render-metal-demo")]
+    metal_host: RefCell<Option<IosCustomMetalHost>>,
+    #[cfg(feature = "custom-render-metal-demo")]
+    metal_benchmark_cpu_host: RefCell<Option<IosCustomRenderHost>>,
+    #[cfg(feature = "custom-render-metal-demo")]
+    metal_benchmark_ran: Cell<bool>,
 }
 
 define_class!(
@@ -43,6 +55,18 @@ define_class!(
             _options: Option<&objc2_foundation::NSDictionary>,
         ) -> bool {
             catch_unwind(|| self.install_ui()).unwrap_or(false)
+        }
+
+        #[cfg(feature = "custom-render-metal-demo")]
+        #[unsafe(method(applicationDidBecomeActive:))]
+        fn did_become_active(&self, _application: &UIApplication) {
+            let _ = catch_unwind(|| {
+                if std::env::args_os().any(|arg| arg == "--custom-metal-render-benchmark") {
+                    self.run_custom_metal_benchmark();
+                } else {
+                    self.present_custom_metal_demo();
+                }
+            });
         }
     }
 
@@ -145,6 +169,55 @@ impl AppDelegate {
             .iter()
             .any(|arg| arg == "--exercise-custom-render-host-lifecycle");
         let exercise_text_input = args.iter().any(|arg| arg == "--exercise-custom-text-input");
+        let metal_render_demo = args.iter().any(|arg| arg == "--custom-metal-render-demo");
+        #[cfg(feature = "custom-render-metal-demo")]
+        let metal_render_benchmark = args
+            .iter()
+            .any(|arg| arg == "--custom-metal-render-benchmark");
+        #[cfg(feature = "custom-render-metal-demo")]
+        if metal_render_demo || metal_render_benchmark {
+            let Ok(mut host) = IosCustomMetalHost::new(mtm) else {
+                return false;
+            };
+            host.attach_to(
+                &root_view,
+                CGRect::new(
+                    CGPoint::new(24.0, 96.0),
+                    CGSize::new(bounds.size.width - 48.0, 240.0),
+                ),
+            );
+            if metal_render_benchmark {
+                let mut cpu_host = IosCustomRenderHost::new(mtm);
+                cpu_host.attach_to(
+                    &root_view,
+                    CGRect::new(
+                        CGPoint::new(24.0, 352.0),
+                        CGSize::new(bounds.size.width - 48.0, 240.0),
+                    ),
+                );
+                *self.ivars().metal_benchmark_cpu_host.borrow_mut() = Some(cpu_host);
+            }
+            controller.setView(Some(&root_view));
+            window.setRootViewController(Some(&controller));
+            *self.ivars().metal_host.borrow_mut() = Some(host);
+            if self.ivars().window.set(window).is_err() {
+                return false;
+            }
+            self.ivars()
+                .window
+                .get()
+                .expect("Metal demo retains its window")
+                .makeKeyAndVisible();
+            return true;
+        }
+        #[cfg(not(feature = "custom-render-metal-demo"))]
+        if metal_render_demo
+            || args
+                .iter()
+                .any(|arg| arg == "--custom-metal-render-benchmark")
+        {
+            return false;
+        }
         if render_demo || render_lifecycle {
             let mut host = IosCustomRenderHost::new(mtm);
             host.attach_to(
@@ -279,6 +352,136 @@ impl AppDelegate {
         }
         true
     }
+
+    #[cfg(feature = "custom-render-metal-demo")]
+    fn present_custom_metal_demo(&self) {
+        let mut host = self.ivars().metal_host.borrow_mut();
+        let Some(host) = host.as_mut() else {
+            return;
+        };
+        for frame_number in 0..=1 {
+            let pixels = demo_bgra_pixels(frame_number);
+            let frame = Bgra8Frame::new(64, 32, 64 * 4, &pixels, None)
+                .expect("fixed Metal demo frame is valid");
+            if host.present(&frame).is_err() {
+                return;
+            }
+        }
+    }
+
+    #[cfg(feature = "custom-render-metal-demo")]
+    fn run_custom_metal_benchmark(&self) {
+        if self.ivars().metal_benchmark_ran.replace(true) {
+            return;
+        }
+        let cpu_host_slot = self.ivars().metal_benchmark_cpu_host.borrow();
+        let Some(cpu_host) = cpu_host_slot.as_ref() else {
+            return;
+        };
+        let mut metal_slot = self.ivars().metal_host.borrow_mut();
+        let Some(metal_host) = metal_slot.as_mut() else {
+            return;
+        };
+        const WIDTH: u32 = 1179;
+        const HEIGHT: u32 = 2556;
+        const ROW_BYTES: u32 = WIDTH * 4;
+        const SAMPLES: usize = 8;
+        let mut rgba = vec![0u8; (ROW_BYTES * HEIGHT) as usize];
+        let mut bgra = vec![0u8; rgba.len()];
+        for (rgba_pixel, bgra_pixel) in rgba.chunks_exact_mut(4).zip(bgra.chunks_exact_mut(4)) {
+            rgba_pixel.copy_from_slice(&[0x28, 0x80, 0xd0, 0xff]);
+            bgra_pixel.copy_from_slice(&[0xd0, 0x80, 0x28, 0xff]);
+        }
+        let full_rgba = Rgba8Frame::new(WIDTH, HEIGHT, ROW_BYTES, &rgba, None)
+            .expect("fixed full benchmark frame is valid");
+        let full_bgra = Bgra8Frame::new(WIDTH, HEIGHT, ROW_BYTES, &bgra, None)
+            .expect("fixed full benchmark frame is valid");
+        if cpu_host.present(&full_rgba).is_err()
+            || metal_host.present(&full_bgra).is_err()
+            || metal_host.synchronize().is_err()
+        {
+            eprintln!("custom-render benchmark could not prime both presenters");
+            return;
+        }
+        let mut report = format!(
+            "{WIDTH}x{HEIGHT}, 2 warmups + {SAMPLES} samples/case; requested pacing is not display refresh or vsync\n"
+        );
+        println!("custom-render benchmark: {report}");
+        for rate_hz in [30u64, 60, 120] {
+            let cadence = Duration::from_micros(1_000_000 / rate_hz);
+            for (damage_name, damage) in [
+                ("full", None),
+                (
+                    "sparse-64x64",
+                    Some(ios_ui::PixelDamageRect {
+                        x: 0,
+                        y: 0,
+                        width: 64,
+                        height: 64,
+                    }),
+                ),
+            ] {
+                for path in ["cpu", "metal"] {
+                    let mut elapsed = Vec::with_capacity(SAMPLES);
+                    let mut intervals = Vec::with_capacity(SAMPLES - 1);
+                    let mut previous_start = None;
+                    let mut next_start = Instant::now();
+                    for sample in 0..(SAMPLES + 2) {
+                        std::thread::sleep(next_start.saturating_duration_since(Instant::now()));
+                        rgba[0] = sample as u8;
+                        bgra[0] = sample as u8;
+                        let rgba_frame = Rgba8Frame::new(WIDTH, HEIGHT, ROW_BYTES, &rgba, damage)
+                            .expect("fixed CPU benchmark frame is valid");
+                        let bgra_frame = Bgra8Frame::new(WIDTH, HEIGHT, ROW_BYTES, &bgra, damage)
+                            .expect("fixed Metal benchmark frame is valid");
+                        let start = Instant::now();
+                        let result = match path {
+                            "cpu" => cpu_host
+                                .present(&rgba_frame)
+                                .map_err(|error| error.to_string()),
+                            _ => metal_host
+                                .present(&bgra_frame)
+                                .and_then(|()| metal_host.synchronize())
+                                .map_err(|error| error.to_string()),
+                        };
+                        if let Err(error) = result {
+                            eprintln!(
+                                "custom-render benchmark stopped at {path}/{damage_name}/{rate_hz}Hz: {error}"
+                            );
+                            return;
+                        }
+                        if sample >= 2 {
+                            elapsed.push(start.elapsed());
+                            if let Some(previous) = previous_start {
+                                intervals.push(start.duration_since(previous));
+                            }
+                            previous_start = Some(start);
+                        }
+                        next_start = start + cadence;
+                    }
+                    elapsed.sort_unstable();
+                    let total_nanos: u128 = elapsed.iter().map(Duration::as_nanos).sum();
+                    let mean_micros = total_nanos / SAMPLES as u128 / 1_000;
+                    let p95_micros = elapsed[SAMPLES - 1].as_micros();
+                    let mean_interval_micros =
+                        intervals.iter().map(Duration::as_micros).sum::<u128>()
+                            / intervals.len() as u128;
+                    let observed_hz = 1_000_000 / mean_interval_micros.max(1);
+                    let line = format!(
+                        "path={path} damage={damage_name} requested_hz={rate_hz} observed_hz={observed_hz} mean_submit_us={mean_micros} p95_submit_us={p95_micros}\n"
+                    );
+                    println!("custom-render benchmark: {line}");
+                    report.push_str(&line);
+                }
+            }
+        }
+        if let Err(error) = std::fs::write(
+            std::env::temp_dir().join("custom-render-metal-benchmark.txt"),
+            report,
+        ) {
+            eprintln!("custom-render benchmark could not save results: {error}");
+        }
+    }
 }
 
 fn demo_pixels(frame_number: u32) -> Vec<u8> {
@@ -289,6 +492,20 @@ fn demo_pixels(frame_number: u32) -> Vec<u8> {
             let green = ((y * 7 + frame_number * 29) % 256) as u8;
             let blue = ((x + y * 5 + frame_number * 61) % 256) as u8;
             pixels.extend_from_slice(&[red, green, blue, 255]);
+        }
+    }
+    pixels
+}
+
+#[cfg(feature = "custom-render-metal-demo")]
+fn demo_bgra_pixels(frame_number: u32) -> Vec<u8> {
+    let mut pixels = Vec::with_capacity(64 * 32 * 4);
+    for y in 0..32u32 {
+        for x in 0..64u32 {
+            let red = ((x * 3 + frame_number * 47) % 256) as u8;
+            let green = ((y * 7 + frame_number * 29) % 256) as u8;
+            let blue = ((x + y * 5 + frame_number * 61) % 256) as u8;
+            pixels.extend_from_slice(&[blue, green, red, 255]);
         }
     }
     pixels

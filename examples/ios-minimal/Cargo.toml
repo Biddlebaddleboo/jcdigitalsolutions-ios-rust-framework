@@ -8,6 +8,9 @@ repository.workspace = true
 publish = false
 description = "Rust-owned UIKit application vertical slice"
 
+[features]
+custom-render-metal-demo = ["ios-ui/custom-render-metal"]
+
 [dependencies]
 ios-runtime = { path = "../../platform/ios/ios-runtime" }
 ios-ui = { path = "../../platform/ios/ios-ui" }
