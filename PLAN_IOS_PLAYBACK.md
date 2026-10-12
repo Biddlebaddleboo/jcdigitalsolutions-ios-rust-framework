@@ -95,3 +95,29 @@ B492 adds `IosFilePlayer::volume`, `set_volume`, `is_muted`, and `set_muted`. Al
 The iPhoneOS 26.5 SDK header declares both properties from iOS 7.0, and generated `objc2-av-foundation` 0.3.2 exposes typed `volume`, `setVolume:`, `isMuted`, and `setMuted:` methods under the existing `AVPlayer` feature. Host regressions cover inclusive endpoints, non-finite and out-of-range values, and invalid native reads. The exact registered command `ios-rust-validate --workspace-root "$PWD" --spec "$PWD/tools/validation/specs/validation-v1.json" --capability ios-playback --format json` passed 89 checks with 0 FAIL, 0 BLOCKED, and 2 SKIPPED of 91 at snapshot `6a06875c56dc8b8cb352351d376ce0d7f0143a4313d61f6ca7dc15f55015e12d` (`source_head` `d840895ad68b2e28fecc73c2b67e315f15665c82`, `stale=false`). The installed validator is `ios-rust-validate 0.1.0`, release `ios-rust-tools-0.1.0+350971094cc3b77191cd6b3d07e01af04d71943d`, source SHA `350971094cc3b77191cd6b3d07e01af04d71943d`. Host check, unit tests, Clippy, Rustdoc, iOS 13.4 device and iOS 14.0 Simulator compile/Clippy, device Rustdoc, link/import scan, source/docs/policy gates passed. Simulator execution and physical-device proof were skipped; no runtime or audible-output claim is made.
 
 Apple APIs: [AVPlayer.volume](https://developer.apple.com/documentation/avfoundation/avplayer/volume) and [AVPlayer.isMuted](https://developer.apple.com/documentation/avfoundation/avplayer/ismuted).
+
+## B543 — current AVPlayer item end observation
+
+B543 adds `IosFilePlayer::observe_current_item_end`. It returns `None` without a current item;
+otherwise `IosPlayerItemEndObservation` retains the exact item selected at registration, borrows
+the player, and removes its `NSNotificationCenter` token on drop. Replacing the player's item does
+not retarget the observation. The public `AVPlayerItemDidPlayToEndTimeNotification` is registered
+with an exact object filter and `nil` operation queue. AVFoundation may post on another thread, so
+the native block only sets an `AtomicBool`; `has_reached_end` exposes a latched snapshot without an
+app callback or implied queue. It reports notifications delivered after registration, not prior
+completion, replay policy, or displayed/audible output. Existing package deployment floors are
+unchanged.
+
+The registered command `ios-rust-validate --workspace-root "$PWD" --spec
+"$PWD/tools/validation/specs/validation-v1.json" --capability ios-playback --format json` passed 82
+checks with 0 FAIL, 0 BLOCKED, and 2 SKIPPED of 84. The selected validator is
+`ios-rust-validate 0.1.0`, release
+`ios-rust-tools-0.1.0+350971094cc3b77191cd6b3d07e01af04d71943d`, source SHA
+`350971094cc3b77191cd6b3d07e01af04d71943d`. Host unit tests include initial-false/latched state
+and cross-thread notification regressions. iOS 13.4 device and iOS 14.0 Simulator compilation,
+Clippy, device rustdoc, and Release link/import scans pass. Simulator execution and physical-device
+runtime proof remain skipped; no playback or output behavior is claimed.
+
+Apple APIs: [AVPlayer.currentItem](https://developer.apple.com/documentation/avfoundation/avplayer/currentitem),
+[AVPlayerItem.didPlayToEndTimeNotification](https://developer.apple.com/documentation/avfoundation/avplayeritem/didplaytoendtimenotification),
+[NotificationCenter.addObserver(forName:object:queue:using:)](https://developer.apple.com/documentation/foundation/notificationcenter/addobserver%28forname%3Aobject%3Aqueue%3Ausing%3A%29)

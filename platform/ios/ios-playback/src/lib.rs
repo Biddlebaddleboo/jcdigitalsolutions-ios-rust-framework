@@ -1,6 +1,6 @@
 #![deny(missing_docs)]
 #![deny(unsafe_op_in_unsafe_fn)]
-#![doc = "Main-thread AVPlayer playback controls, asynchronous seeking, and HDR eligibility for iOS."]
+#![doc = "Main-thread AVPlayer controls, item-end observation, asynchronous seeking, and HDR eligibility for iOS."]
 
 #[cfg(any(target_os = "ios", test))]
 use framework_media::MediaTime;
@@ -95,6 +95,8 @@ use core::task::{Context, Poll, Waker};
 use std::panic::{AssertUnwindSafe, catch_unwind};
 #[cfg(target_os = "ios")]
 use std::sync::Arc;
+#[cfg(any(target_os = "ios", test))]
+use std::sync::atomic::{AtomicBool, Ordering};
 #[cfg(any(target_os = "ios", test))]
 use std::sync::{Mutex, MutexGuard};
 
@@ -204,6 +206,29 @@ fn complete_seek_callback(cell: &SeekCompletion, finished: bool) {
     let _ = catch_unwind(AssertUnwindSafe(|| cell.complete(seek_outcome(finished))));
 }
 
+#[cfg(any(target_os = "ios", test))]
+struct PlayerItemEndState(AtomicBool);
+
+#[cfg(any(target_os = "ios", test))]
+impl PlayerItemEndState {
+    fn new() -> Self {
+        Self(AtomicBool::new(false))
+    }
+
+    fn report_end(&self) {
+        self.0.store(true, Ordering::Release);
+    }
+
+    fn has_reached_end(&self) -> bool {
+        self.0.load(Ordering::Acquire)
+    }
+}
+
+#[cfg(any(target_os = "ios", test))]
+fn complete_item_end_callback(state: &PlayerItemEndState) {
+    let _ = catch_unwind(AssertUnwindSafe(|| state.report_end()));
+}
+
 #[cfg(target_os = "ios")]
 fn cm_time_from_media_time(time: MediaTime) -> objc2_core_media::CMTime {
     let (value, timescale) = media_time_parts(time);
@@ -254,6 +279,55 @@ impl IosFilePlayer {
         // SAFETY: The caller supplies a main-thread marker; AVPlayer is main-thread-bound by its
         // Objective-C type.
         unsafe { self.player.pause() };
+    }
+
+    /// Observes the AVPlayer item that is current at this call, or returns `None` if there is no
+    /// current item.
+    ///
+    /// The observation retains that exact item and does not follow later player-item replacements.
+    /// It reports only an end notification delivered after registration; it does not infer that an
+    /// item already at its end has completed. The notification block runs synchronously on the
+    /// posting thread, which AVFoundation may choose independently of the registration thread. The
+    /// block only stores an atomic flag; [`IosPlayerItemEndObservation::has_reached_end`] is a
+    /// pollable snapshot with no app callback or queue guarantee. Drop the returned observation to
+    /// remove its notification registration.
+    pub fn observe_current_item_end(
+        &self,
+        main_thread: objc2::MainThreadMarker,
+    ) -> Option<IosPlayerItemEndObservation<'_>> {
+        // SAFETY: The marker proves the call is on the main thread required by AVPlayer, and
+        // `currentItem` returns an owned reference when an item exists.
+        let item = unsafe { self.player.currentItem() }?;
+        let center = objc2_foundation::NSNotificationCenter::defaultCenter();
+        let state = Arc::new(PlayerItemEndState::new());
+        let callback_state = Arc::clone(&state);
+        let callback =
+            move |_notification: core::ptr::NonNull<objc2_foundation::NSNotification>| {
+                complete_item_end_callback(&callback_state);
+            };
+        assert_item_end_handler_send_sync(&callback);
+        let block: block2::RcBlock<dyn Fn(core::ptr::NonNull<objc2_foundation::NSNotification>)> =
+            block2::RcBlock::new(callback);
+        // SAFETY: The notification name is AVFoundation's public item-end notification; the
+        // observed object is this exact AVPlayerItem; `None` selects synchronous delivery on the
+        // posting thread; and the block is Send + Sync, panic-contained, and captures only state.
+        let token = unsafe {
+            center.addObserverForName_object_queue_usingBlock(
+                Some(objc2_av_foundation::AVPlayerItemDidPlayToEndTimeNotification),
+                Some(&*item),
+                None,
+                &block,
+            )
+        };
+        Some(IosPlayerItemEndObservation {
+            center,
+            token,
+            _item: item,
+            state,
+            _player: self,
+            _main_thread: main_thread,
+            _not_send_or_sync: core::marker::PhantomData,
+        })
     }
 
     /// Reads AVPlayer's per-player volume on the main thread.
@@ -377,6 +451,51 @@ impl IosFilePlayer {
 }
 
 #[cfg(target_os = "ios")]
+fn assert_item_end_handler_send_sync<T: Send + Sync>(_: &T) {}
+
+/// A pollable observation of one AVPlayer item's end notification.
+///
+/// This value borrows its player, retains the specific item current when created, and removes its
+/// Foundation notification registration on drop. It is neither `Send` nor `Sync`; read its atomic
+/// snapshot on the main thread that created it. AVFoundation may post the notification on another
+/// thread, but the native block only updates the atomic state and invokes no app code.
+#[cfg(target_os = "ios")]
+pub struct IosPlayerItemEndObservation<'a> {
+    center: objc2::rc::Retained<objc2_foundation::NSNotificationCenter>,
+    token:
+        objc2::rc::Retained<objc2::runtime::ProtocolObject<dyn objc2::runtime::NSObjectProtocol>>,
+    _item: objc2::rc::Retained<objc2_av_foundation::AVPlayerItem>,
+    state: Arc<PlayerItemEndState>,
+    _player: &'a IosFilePlayer,
+    _main_thread: objc2::MainThreadMarker,
+    _not_send_or_sync: core::marker::PhantomData<std::rc::Rc<()>>,
+}
+
+#[cfg(target_os = "ios")]
+impl IosPlayerItemEndObservation<'_> {
+    /// Returns whether the observed item posted its end notification after this observation began.
+    ///
+    /// The result is latched once true and is not reset by a seek or replay. It does not establish
+    /// that media output was displayed or heard.
+    pub fn has_reached_end(&self) -> bool {
+        self.state.has_reached_end()
+    }
+}
+
+#[cfg(target_os = "ios")]
+impl Drop for IosPlayerItemEndObservation<'_> {
+    fn drop(&mut self) {
+        // SAFETY: `token` is the observer object returned by this center; removing it detaches the
+        // copied block before the retained item and state are released. The token remains valid.
+        let observer =
+            <objc2::runtime::ProtocolObject<dyn objc2::runtime::NSObjectProtocol> as AsRef<
+                objc2::runtime::AnyObject,
+            >>::as_ref(&self.token);
+        unsafe { self.center.removeObserver(observer) };
+    }
+}
+
+#[cfg(target_os = "ios")]
 fn assert_seek_handler_send_sync<T: Send + Sync>(_: &T) {}
 
 /// A nonblocking AVPlayer seek request tied to the player and main thread that started it.
@@ -448,9 +567,10 @@ pub fn hdr_playback_eligibility() -> Option<framework_audio::HdrPlaybackEligibil
 #[cfg(test)]
 mod tests {
     use super::{
-        IosPlayerOutputError, LocalFilePlayerError, SeekCompletion, SeekOutcome,
-        complete_seek_callback, media_time_parts, seek_outcome, validate_local_file_path,
-        validate_native_player_volume, validate_requested_player_volume,
+        IosPlayerOutputError, LocalFilePlayerError, PlayerItemEndState, SeekCompletion,
+        SeekOutcome, complete_item_end_callback, complete_seek_callback, media_time_parts,
+        seek_outcome, validate_local_file_path, validate_native_player_volume,
+        validate_requested_player_volume,
     };
     use core::task::{Context, Poll, Waker};
     use framework_media::MediaTime;
@@ -509,6 +629,29 @@ mod tests {
     fn seek_completion_maps_native_boolean_without_claiming_its_cause() {
         assert_eq!(seek_outcome(true), SeekOutcome::Completed);
         assert_eq!(seek_outcome(false), SeekOutcome::NotCompleted);
+    }
+
+    #[test]
+    fn item_end_snapshot_starts_false_and_latches_after_notification() {
+        let state = PlayerItemEndState::new();
+        assert!(!state.has_reached_end());
+
+        complete_item_end_callback(&state);
+        complete_item_end_callback(&state);
+
+        assert!(state.has_reached_end());
+    }
+
+    #[test]
+    fn item_end_notification_can_update_state_from_another_thread() {
+        let state = Arc::new(PlayerItemEndState::new());
+        let callback_state = Arc::clone(&state);
+
+        std::thread::spawn(move || complete_item_end_callback(&callback_state))
+            .join()
+            .unwrap();
+
+        assert!(state.has_reached_end());
     }
 
     #[test]

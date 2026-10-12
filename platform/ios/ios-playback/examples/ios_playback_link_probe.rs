@@ -13,6 +13,9 @@ fn main() {
             let _ = player.set_volume(0.5, main_thread);
             let _ = player.is_muted(main_thread);
             let _ = player.set_muted(false, main_thread);
+            if let Some(observation) = player.observe_current_item_end(main_thread) {
+                core::hint::black_box(observation.has_reached_end());
+            }
             player.pause(main_thread);
             let seek = player.seek_to(framework_media::MediaTime::new(3, 2).unwrap(), main_thread);
             core::hint::black_box(&seek);

@@ -36,6 +36,15 @@ Seek completion does not prove that a frame was decoded or displayed, that playb
 that output began. No current-time or duration observation is exposed because native values can be
 invalid or indefinite.
 
+`observe_current_item_end` returns `None` when AVPlayer has no current item; otherwise it returns
+`IosPlayerItemEndObservation` for the exact item current at registration. The observer retains that
+item and does not follow later item replacement. Apple may post
+`AVPlayerItemDidPlayToEndTimeNotification` on a thread other than the registration thread; the
+framework filters by the observed item and uses synchronous posting-thread delivery only to set an
+atomic flag. `has_reached_end` is a pollable, latched snapshot with no app callback. It reports a
+notification delivered after registration, not an item already at its end, replay policy, or
+displayed/audible output. Dropping the observer removes its Foundation notification token.
+
 `hdr_playback_eligibility()` remains a separate main-thread snapshot of
 `AVPlayer.eligibleForHDRPlayback`, available from iOS 13.4. It returns `None` off-main-thread,
 below iOS 13.4, or on a non-iOS target. The result concerns system HDR eligibility, not a particular
@@ -51,4 +60,5 @@ Apple APIs: [AVPlayer](https://developer.apple.com/documentation/avfoundation/av
 [AVPlayer.play](https://developer.apple.com/documentation/avfoundation/avplayer/play()),
 [AVPlayer.pause](https://developer.apple.com/documentation/avfoundation/avplayer/pause()),
 [AVPlayer.seekToTime:completionHandler:](https://developer.apple.com/documentation/avfoundation/avplayer/seek%28to%3Acompletionhandler%3A%29),
+[AVPlayerItem.didPlayToEndTimeNotification](https://developer.apple.com/documentation/avfoundation/avplayeritem/didplaytoendtimenotification),
 [AVPlayer.eligibleForHDRPlayback](https://developer.apple.com/documentation/avfoundation/avplayer/eligibleforhdrplayback)

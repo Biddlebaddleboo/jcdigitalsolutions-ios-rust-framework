@@ -45,8 +45,9 @@ for target in aarch64-apple-ios aarch64-apple-ios-sim; do
 
     nm -u "$binary" > "$symbols"
     grep -q '_objc_msgSend' "$symbols"
-    if grep -Eqi 'swift_|Py[A-Z_]|AVAudio|AVCapture|requestRecordPermission|AVPlayerItem|AVAsset' "$symbols"; then
-        echo "unexpected runtime, media-operation, or capture symbol import in $symbols" >&2
+    grep -q 'AVPlayerItemDidPlayToEndTimeNotification' "$symbols"
+    if grep -Eqi 'swift_|Py[A-Z_]|AVAudio|AVCapture|requestRecordPermission|AVAsset' "$symbols"; then
+        echo "unexpected runtime, asset-operation, or capture symbol import in $symbols" >&2
         exit 1
     fi
 
@@ -56,12 +57,15 @@ for target in aarch64-apple-ios aarch64-apple-ios-sim; do
     grep -Fxq 'play' "$strings_file"
     grep -Fxq 'pause' "$strings_file"
     grep -Fq 'seekToTime:completionHandler:' "$strings_file"
+    grep -Fxq 'currentItem' "$strings_file"
+    grep -Fq 'addObserverForName:object:queue:usingBlock:' "$strings_file"
+    grep -Fxq 'removeObserver:' "$strings_file"
     grep -Fxq 'volume' "$strings_file"
     grep -Fxq 'setVolume:' "$strings_file"
     grep -Fxq 'isMuted' "$strings_file"
     grep -Fxq 'setMuted:' "$strings_file"
-    if grep -Eqi 'availableHDRModes|AVAudio|AVCapture|requestRecordPermission|AVPlayerItem|AVAsset' "$strings_file"; then
-        echo "unexpected deprecated HDR, media-operation, or capture selector in $strings_file" >&2
+    if grep -Eqi 'availableHDRModes|AVAudio|AVCapture|requestRecordPermission|AVAsset' "$strings_file"; then
+        echo "unexpected deprecated HDR, asset-operation, or capture selector in $strings_file" >&2
         exit 1
     fi
 

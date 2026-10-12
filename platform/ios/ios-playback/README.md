@@ -1,7 +1,7 @@
 # iOS playback capability snapshot
 
 `ios-playback` exposes `IosFilePlayer` for main-thread local-file AVPlayer creation, play/pause,
-per-player volume and mute controls, and asynchronous seek completion.
+per-player volume and mute controls, exact-item end observation, and asynchronous seek completion.
 It also exposes `hdr_playback_eligibility()`, a separate main-thread query of
 `AVPlayer.eligibleForHDRPlayback`. AVPlayer local-file creation and play/pause are available from
 iOS 4.0; the HDR property remains iOS 13.4+ and returns `None` below its floor. The crate links
@@ -11,6 +11,13 @@ AVFoundation through `objc2-av-foundation` 0.3.2 and CoreMedia through `objc2-co
 asynchronous completion result. `NotCompleted` does not distinguish an absent current item from a
 seek interrupted or superseded by another operation. Completion is not proof of a decoded or
 displayed frame; dropping the future detaches Rust result interest without requesting cancellation.
+
+`observe_current_item_end` observes only the item current at registration and returns `None` when no
+item is attached. The observation retains that item, does not follow later replacements, and removes its
+Foundation notification observer on drop. `has_reached_end` is an atomic, latched snapshot set by
+`AVPlayerItemDidPlayToEndTimeNotification`; its native block runs synchronously on the posting
+thread, which may differ from the registration thread, and invokes no app callback. It does not
+restart or loop playback and does not prove output was heard or displayed.
 
 `volume`, `set_volume`, `is_muted`, and `set_muted` require a main-thread marker and use typed
 AVPlayer bindings. These properties have an iOS 7.0 floor; runtime guards preserve the existing
@@ -35,6 +42,7 @@ The crate does not request permission or mutate AVAudioSession. The HDR query re
 system eligibility snapshot; it does not inspect or play an asset.
 
 Apple APIs: [AVPlayer](https://developer.apple.com/documentation/avfoundation/avplayer),
+[AVPlayerItem.didPlayToEndTimeNotification](https://developer.apple.com/documentation/avfoundation/avplayeritem/didplaytoendtimenotification),
 [AVPlayer.eligibleForHDRPlayback](https://developer.apple.com/documentation/avfoundation/avplayer/eligibleforhdrplayback)
 
 Run `sh platform/ios/ios-playback/check.sh` from the workspace root for formatting, iOS device and
