@@ -641,6 +641,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "ios-contact-picker"
+version = "0.1.0"
+dependencies = [
+ "framework-contacts",
+ "ios-runtime",
+ "objc2",
+ "objc2-contacts",
+ "objc2-foundation",
+ "objc2-ui-kit",
+]
+
+[[package]]
 name = "ios-contacts"
 version = "0.1.0"
 dependencies = [

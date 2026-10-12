@@ -1,0 +1,22 @@
+[package]
+name = "ios-contact-picker"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "User-mediated single-contact selection through public ContactsUI"
+build = "build.rs"
+
+[dependencies]
+framework-contacts = { path = "../../../crates/framework-contacts" }
+
+[target.'cfg(target_os = "ios")'.dependencies]
+ios-runtime = { path = "../ios-runtime" }
+objc2 = { workspace = true, features = ["std"] }
+objc2-contacts = { workspace = true, features = ["CNContact", "CNLabeledValue", "CNPhoneNumber"] }
+objc2-foundation = { workspace = true, features = ["NSArray", "NSString"] }
+objc2-ui-kit = { workspace = true, features = ["std", "UIResponder", "UIViewController", "block2"] }
+
+[lints]
+workspace = true
