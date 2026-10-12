@@ -1,6 +1,7 @@
-use std::cell::{Cell, OnceCell};
+use std::cell::{Cell, OnceCell, RefCell};
 
 use ios_runtime::{ffi::catch_unwind, main_thread::MainThread};
+use ios_ui::{IosCustomRenderHost, Rgba8Frame};
 use objc2::rc::{Allocated, Retained};
 use objc2::{ClassType, DefinedClass, MainThreadOnly, define_class, msg_send, sel};
 use objc2_core_foundation::{CGPoint, CGRect, CGSize};
@@ -52,6 +53,7 @@ define_class!(
 
 struct TargetState {
     label: Retained<UILabel>,
+    render_host: RefCell<Option<IosCustomRenderHost>>,
     taps: Cell<u32>,
 }
 
@@ -71,8 +73,22 @@ define_class!(
             let _ = catch_unwind(|| {
                 let taps = self.ivars().taps.get().wrapping_add(1);
                 self.ivars().taps.set(taps);
-                let text = NSString::from_str(&format!("Rust callback: {taps} tap(s)"));
-                self.ivars().label.setText(Some(&text));
+                let pixels = demo_pixels(taps);
+                let frame = Rgba8Frame::new(64, 32, 64 * 4, &pixels, None)
+                    .expect("fixed demo frame is valid");
+                if self
+                    .ivars()
+                    .render_host
+                    .borrow()
+                    .as_ref()
+                    .is_some_and(|host| host.present(&frame).is_ok())
+                {
+                    let text = NSString::from_str(&format!("Rust callback: {taps} tap(s)"));
+                    self.ivars().label.setText(Some(&text));
+                } else {
+                    let text = NSString::from_str("Rust framebuffer presentation failed");
+                    self.ivars().label.setText(Some(&text));
+                }
             });
         }
     }
@@ -82,9 +98,14 @@ define_class!(
 );
 
 impl ButtonTarget {
-    fn with_label(mtm: objc2::MainThreadMarker, label: Retained<UILabel>) -> Retained<Self> {
+    fn with_state(
+        mtm: objc2::MainThreadMarker,
+        label: Retained<UILabel>,
+        render_host: IosCustomRenderHost,
+    ) -> Retained<Self> {
         let this = Self::alloc(mtm).set_ivars(TargetState {
             label,
+            render_host: RefCell::new(Some(render_host)),
             taps: Cell::new(0),
         });
         // SAFETY: `this` is a fresh allocation of this NSObject subclass and NSObject's `init` is valid.
@@ -114,6 +135,45 @@ impl AppDelegate {
         root_view.setFrame(bounds);
         root_view.setBackgroundColor(Some(&UIColor::systemBackgroundColor()));
 
+        let args = std::env::args_os().collect::<Vec<_>>();
+        let render_demo = args.iter().any(|arg| arg == "--custom-render-host-demo");
+        let render_lifecycle = args
+            .iter()
+            .any(|arg| arg == "--exercise-custom-render-host-lifecycle");
+        if render_demo || render_lifecycle {
+            let mut host = IosCustomRenderHost::new(mtm);
+            host.attach_to(
+                &root_view,
+                CGRect::new(
+                    CGPoint::new(24.0, 96.0),
+                    CGSize::new(bounds.size.width - 48.0, 240.0),
+                ),
+            );
+            for frame_number in 0..=1 {
+                let pixels = demo_pixels(frame_number);
+                let frame = Rgba8Frame::new(64, 32, 64 * 4, &pixels, None)
+                    .expect("fixed demo frame is valid");
+                if host.present(&frame).is_err() {
+                    return false;
+                }
+            }
+            if render_lifecycle {
+                host.set_frame(CGRect::new(
+                    CGPoint::new(36.0, 108.0),
+                    CGSize::new(bounds.size.width - 72.0, 208.0),
+                ));
+                let _geometry_after_resize = host.geometry();
+                host.set_hidden(true);
+                host.set_hidden(false);
+                host.detach();
+                drop(host);
+            }
+            controller.setView(Some(&root_view));
+            window.setRootViewController(Some(&controller));
+            window.makeKeyAndVisible();
+            return true;
+        }
+
         let label = UILabel::new(mtm);
         label.setFrame(label_frame);
         // SAFETY: a non-null adaptive UIKit system color is valid for UILabel text.
@@ -129,7 +189,20 @@ impl AppDelegate {
         button.setTitle_forState(Some(&title), UIControlState::Normal);
         button.setTitleColor_forState(Some(&UIColor::systemBlueColor()), UIControlState::Normal);
 
-        let target = ButtonTarget::with_label(mtm, label.clone());
+        let render_host_frame = CGRect::new(
+            CGPoint::new(24.0, 208.0),
+            CGSize::new(bounds.size.width - 48.0, 176.0),
+        );
+        let mut render_host = IosCustomRenderHost::new(mtm);
+        render_host.attach_to(&root_view, render_host_frame);
+        let pixels = demo_pixels(0);
+        let initial_frame =
+            Rgba8Frame::new(64, 32, 64 * 4, &pixels, None).expect("fixed demo frame is valid");
+        if render_host.present(&initial_frame).is_err() {
+            return false;
+        }
+
+        let target = ButtonTarget::with_state(mtm, label.clone(), render_host);
         // SAFETY: `target` is the retained Rust target object and implements the exact `buttonTapped:` selector.
         unsafe {
             button.addTarget_action_forControlEvents(
@@ -152,11 +225,27 @@ impl AppDelegate {
             .get()
             .expect("window retained")
             .makeKeyAndVisible();
-        if std::env::args_os().any(|arg| arg == "--exercise-rust-button-callback") {
+        if args
+            .iter()
+            .any(|arg| arg == "--exercise-rust-button-callback")
+        {
             button.sendActionsForControlEvents(UIControlEvents::TouchUpInside);
         }
         true
     }
+}
+
+fn demo_pixels(frame_number: u32) -> Vec<u8> {
+    let mut pixels = Vec::with_capacity(64 * 32 * 4);
+    for y in 0..32u32 {
+        for x in 0..64u32 {
+            let red = ((x * 3 + frame_number * 47) % 256) as u8;
+            let green = ((y * 7 + frame_number * 29) % 256) as u8;
+            let blue = ((x + y * 5 + frame_number * 61) % 256) as u8;
+            pixels.extend_from_slice(&[red, green, blue, 255]);
+        }
+    }
+    pixels
 }
 
 pub fn run() {

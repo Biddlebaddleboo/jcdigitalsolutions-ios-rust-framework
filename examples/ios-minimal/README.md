@@ -1,6 +1,6 @@
 # Rust-owned UIKit app slice
 
-This example enters UIKit from Rust, registers a Rust-defined `UIApplicationDelegate`, creates a `UIWindow` and native `UIViewController`, `UIView`, `UILabel`, and `UIButton`, then routes `UIControl` target/action back to a Rust method. The app runtime uses no Swift source or generated Swift. A minimal Xcode project is used only for unsigned archive packaging; the example uses no permission prompt, entitlement, or private API.
+This example enters UIKit from Rust, registers a Rust-defined `UIApplicationDelegate`, creates a `UIWindow` and native `UIViewController`, `UIView`, `UILabel`, and `UIButton`, then routes `UIControl` target/action back to a Rust method. It also embeds `IosCustomRenderHost` and presents Rust-owned RGBA framebuffer data directly through UIKit/CoreGraphics. The host remains an imperative native view primitive; it is not SwiftUI, a widget system, or a declarative renderer. The app runtime uses no Swift source or generated Swift. A minimal Xcode project is used only for unsigned archive packaging; the example uses no permission prompt, entitlement, or private API.
 
 ## Build
 
@@ -37,6 +37,8 @@ xcrun simctl launch --terminate-running-process booted dev.jcdigitalsolutions.io
 ```
 
 The app then calls `UIControl::sendActionsForControlEvents(UIControlEvents::TouchUpInside)`, and the Rust callback changes the label to `Rust callback: 1 tap(s)`. This verifies programmatic UIKit target/action dispatch only; it does not simulate a physical touch or establish arm64/device behavior.
+
+The same callback updates the 64×32 framebuffer from its initial frame, so the launch above submits two distinct images. To display only a Rust-painted framebuffer in a native `UIImageView`, pass `--custom-render-host-demo`; it submits two changing frames without creating a label or button, then leaves the second frame visible. For a create → present → update → resize → detach → drop lifecycle smoke, pass `--exercise-custom-render-host-lifecycle`; that mode runs the two submissions and removes the host at launch. See [the custom-render host contract](../../docs/ios/custom-render-host.md).
 
 The Rust target components are `aarch64-apple-ios-sim` and `aarch64-apple-ios`. The current execution host recorded by the backend guide is macOS 26.6.2, Xcode 26.6 (17F113), iOS and Simulator SDK 26.5. The planning baseline assumes Xcode 27.x; that toolchain is not present on this host.
 

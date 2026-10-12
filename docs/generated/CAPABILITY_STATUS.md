@@ -48,7 +48,7 @@
 | 030-networking-web-safari-system-browser-presentation | Networking/web | Safari/system browser presentation | not_implemented | partial | not_tested_live_behavior_or_Apple_parity |
 | 031-notifications-background-local-push-notification-client-apis | Notifications/background | local/push notification client APIs | partial | partial | not_tested_live_behavior_or_Apple_parity |
 | 032-notifications-background-notification-response-delegate | Notifications/background | notification response/delegate | partial | partial | not_tested_live_behavior_or_Apple_parity |
-| 033-notifications-background-pushkit | Notifications/background | PushKit | not_implemented | unsupported | not_tested_no_iOS_implementation |
+| 033-notifications-background-pushkit | Notifications/background | PushKit | not_implemented | partial | not_tested_live_APNs_or_device_behavior |
 | 034-notifications-background-backgroundtasks | Notifications/background | BackgroundTasks | partial | partial | not_tested_live_behavior_or_Apple_parity |
 | 035-notifications-background-uikit-background-execution | Notifications/background | UIKit background execution | partial | partial | not_tested_live_behavior_or_Apple_parity |
 | 036-notifications-background-backgroundassets-where-applicable | Notifications/background | BackgroundAssets where applicable | not_implemented | partial | not_tested_live_queue_or_Apple_parity |

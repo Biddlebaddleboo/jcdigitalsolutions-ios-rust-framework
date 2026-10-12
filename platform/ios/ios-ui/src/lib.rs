@@ -7,6 +7,10 @@ mod collection_grid_policy;
 #[cfg(any(test, target_os = "ios"))]
 mod context_menu_policy;
 #[cfg(any(test, target_os = "ios"))]
+mod custom_render_frame;
+#[cfg(target_os = "ios")]
+mod custom_render_host;
+#[cfg(any(test, target_os = "ios"))]
 mod disclosure_policy;
 /// Bounded CoreGraphics geometry operations over portable frames.
 #[cfg(target_os = "ios")]
@@ -44,6 +48,11 @@ pub use collection_grid_policy::{
     IosCollectionGridEvent, IosCollectionGridInsets, IosCollectionGridItem,
     IosCollectionGridItemContent, IosCollectionGridLayout, IosCollectionGridSection,
     IosCollectionGridSectionHeader,
+};
+#[cfg(target_os = "ios")]
+pub use custom_render_host::{
+    CustomRenderHostError, HostApplicationState, HostGeometry, IosCustomRenderHost,
+    PixelDamageRect, Rgba8Frame, Rgba8FrameError,
 };
 #[cfg(target_os = "ios")]
 pub use grid::IosGridView;

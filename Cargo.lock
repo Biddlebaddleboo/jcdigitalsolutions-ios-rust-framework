@@ -933,6 +933,7 @@ name = "ios-minimal"
 version = "0.1.0"
 dependencies = [
  "ios-runtime",
+ "ios-ui",
  "objc2",
  "objc2-core-foundation",
  "objc2-foundation",
@@ -1301,6 +1302,7 @@ dependencies = [
  "ios-runtime",
  "objc2",
  "objc2-core-foundation",
+ "objc2-core-graphics",
  "objc2-foundation",
  "objc2-ui-kit",
 ]
@@ -1322,6 +1324,18 @@ dependencies = [
  "objc2",
  "objc2-foundation",
  "objc2-vision",
+]
+
+[[package]]
+name = "ios-voip-pushkit"
+version = "0.1.0"
+dependencies = [
+ "block2",
+ "dispatch2",
+ "ios-call-provider",
+ "objc2",
+ "objc2-foundation",
+ "objc2-push-kit",
 ]
 
 [[package]]
@@ -1945,6 +1959,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "objc2-push-kit"
+version = "0.3.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "34a021f6e2cd480134c091ac9e173f4ea4bbc7213589232ff8ccb287b2c10b82"
+dependencies = [
+ "block2",
+ "dispatch2",
+ "objc2",
+ "objc2-foundation",
+]
+
+[[package]]
 name = "objc2-quartz-core"
 version = "0.3.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2046,6 +2072,7 @@ dependencies = [
  "block2",
  "objc2",
  "objc2-core-foundation",
+ "objc2-core-graphics",
  "objc2-foundation",
 ]
 

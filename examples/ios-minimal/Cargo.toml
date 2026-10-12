@@ -10,6 +10,7 @@ description = "Rust-owned UIKit application vertical slice"
 
 [dependencies]
 ios-runtime = { path = "../../platform/ios/ios-runtime" }
+ios-ui = { path = "../../platform/ios/ios-ui" }
 
 [target.'cfg(target_os = "ios")'.dependencies]
 objc2 = { workspace = true, features = ["std"] }

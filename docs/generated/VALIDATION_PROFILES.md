@@ -24,7 +24,7 @@ The following are configured validation profiles, not claims that every gate pas
 | ios-contacts-fetch | ios-contacts | 2 | 1 | 0 | False |
 | ios-calendar | ios-calendar | 2 | 1 | 0 | False |
 | ios-location-updates | ios-location | 2 | 1 | 0 | False |
-| ios-ui | ios-ui | 2 | 9 | 0 | False |
+| ios-ui | ios-ui | 2 | 10 | 0 | False |
 | ios-presentation | ios-presentation | 2 | 1 | 0 | True |
 | ios-background-execution | ios-background-execution | 2 | 1 | 0 | False |
 | ios-sharing | ios-sharing | 2 | 1 | 0 | False |
@@ -42,6 +42,7 @@ The following are configured validation profiles, not claims that every gate pas
 | ios-connectivity | ios-connectivity | 2 | 1 | 0 | True |
 | ios-contact-picker | ios-contact-picker | 2 | 1 | 0 | False |
 | ios-photo-picker | ios-photo-picker | 2 | 1 | 0 | False |
+| ios-voip-pushkit | ios-voip-pushkit | 2 | 1 | 0 | True |
 
 
 ## Inspect actual gates
