@@ -14,6 +14,10 @@ mod custom_render_host;
 mod custom_render_touch;
 #[cfg(any(test, target_os = "ios"))]
 mod custom_render_touch_state;
+#[cfg(target_os = "ios")]
+mod custom_render_text_input;
+#[cfg(any(test, target_os = "ios"))]
+mod custom_render_text_policy;
 #[cfg(any(test, target_os = "ios"))]
 mod disclosure_policy;
 /// Bounded CoreGraphics geometry operations over portable frames.
@@ -62,6 +66,13 @@ pub use custom_render_host::{
 pub use custom_render_touch::{
     IosCustomRenderTouchInput, IosTouchEvent, IosTouchInputFault, IosTouchKind, IosTouchPhase,
 };
+#[cfg(target_os = "ios")]
+pub use custom_render_text_input::{
+    IosCustomTextInput, IosCustomTextInputSnapshot, IosKeyboardFrame, IosTextCapitalization,
+    IosTextInputKeyboardType, IosTextInputTraits,
+};
+#[cfg(target_os = "ios")]
+pub use custom_render_text_policy::{Utf16Range, Utf16RangeError};
 #[cfg(target_os = "ios")]
 pub use grid::IosGridView;
 #[cfg(target_os = "ios")]

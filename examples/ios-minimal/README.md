@@ -1,6 +1,6 @@
 # Rust-owned UIKit app slice
 
-This example enters UIKit from Rust, registers a Rust-defined `UIApplicationDelegate`, creates a `UIWindow` and native `UIViewController`, `UIView`, `UILabel`, and `UIButton`, then routes `UIControl` target/action back to a Rust method. It also embeds `IosCustomRenderHost` and presents Rust-owned RGBA framebuffer data directly through UIKit/CoreGraphics. The host remains an imperative native view primitive; it is not SwiftUI, a widget system, or a declarative renderer. The app runtime uses no Swift source or generated Swift. A minimal Xcode project is used only for unsigned archive packaging; the example uses no permission prompt, entitlement, or private API.
+This example enters UIKit from Rust, registers a Rust-defined `UIApplicationDelegate`, creates a `UIWindow` and native `UIViewController`, `UIView`, `UILabel`, and `UIButton`, then routes `UIControl` target/action back to a Rust method. It also embeds `IosCustomRenderHost`, presents Rust-owned RGBA framebuffer data, and provides an opt-in `IosCustomTextInput` client that mirrors committed UIKit text snapshots into a Rust-owned `String`. These are imperative native view primitives; they are not SwiftUI, a widget system, or a declarative renderer. The app runtime uses no Swift source or generated Swift. A minimal Xcode project is used only for unsigned archive packaging; the example uses no permission prompt, entitlement, or private API.
 
 ## Build
 
@@ -40,6 +40,8 @@ The app then calls `UIControl::sendActionsForControlEvents(UIControlEvents::Touc
 
 The same callback updates the 64×32 framebuffer from its initial frame, so the launch above submits two distinct images. To display only a Rust-painted framebuffer in a native `UIImageView`, pass `--custom-render-host-demo`; it submits two changing frames without creating a label or button, then leaves the second frame visible. For a create → present → update → resize → detach → drop lifecycle smoke, pass `--exercise-custom-render-host-lifecycle`; that mode runs the two submissions and removes the host at launch. See [the custom-render host contract](../../docs/ios/custom-render-host.md).
 
+To attach a native `UITextView` input surface to the custom-render host, have the app request first-responder status at launch, and mirror only unmarked snapshots into its Rust-owned text model, pass `--exercise-custom-text-input`. UIKit owns the active text buffer and IME composition; the Rust callback receives complete text plus selection and marked ranges in UTF-16 code units. This mode is compile/link covered here; software keyboard and IME runtime behavior have not been verified. See [the custom-render text-input contract](../../docs/ios/custom-render-text-input.md).
+
 The Rust target components are `aarch64-apple-ios-sim` and `aarch64-apple-ios`. The current execution host recorded by the backend guide is macOS 26.6.2, Xcode 26.6 (17F113), iOS and Simulator SDK 26.5. The planning baseline assumes Xcode 27.x; that toolchain is not present on this host.
 
 ## Unsigned Xcode archive
@@ -67,6 +69,7 @@ This builds the Release device executable and creates `target/ios-minimal/archiv
 |---|---|---|---|
 | App entry and UI | Implemented minimal vertical slice | Public UIKit `UIApplicationMain` surface via `UIApplication::main`, `UIApplicationDelegate`, `UIWindow`, `UIViewController`, `UIView`, `UILabel`, `UIButton`, and `UIControl` | No permission or entitlement. Single-window app-delegate lifecycle; no scene lifecycle, layout engine, accessibility abstraction, pasteboard, share sheet, or broad UI facade. |
 | Runtime main-thread proof | Implemented | `objc2::MainThreadMarker` adapter in `ios-runtime` | iOS-only backend API; no portable type or scheduling facility. |
+| Custom-render text input | Implemented UIKit adapter | Public `UITextView`, `UITextInput`, `UITextViewDelegate`, and keyboard notifications | Full UTF-16 text/selection/marked-range snapshots, explicit composition cancellation, and per-handle teardown. Software keyboard/IME runtime behavior is not verified. |
 | Foreign callback panic containment | Implemented helper and used by both Rust callbacks | Rust `catch_unwind` around `define_class!` callback bodies | Panic hook still runs; abort-mode panics terminate the process. No panic payload is exposed. |
 | Other capability families | Deferred | No additional Apple frameworks linked by this example | Clipboard, sharing, files/preferences, security, network, background, sensors, camera/audio, graphics, ML, personal stores, cloud/accounts, maps/AR, and extensions remain unimplemented. No Swift-only residual was assessed or passed to Workstream C here. |
 

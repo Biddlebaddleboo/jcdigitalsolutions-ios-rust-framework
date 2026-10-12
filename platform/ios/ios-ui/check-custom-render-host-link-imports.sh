@@ -30,14 +30,19 @@ for target in aarch64-apple-ios aarch64-apple-ios-sim; do
         }
     done
     for symbol in objc_getClass objc_msgSend CGImageCreate CGDataProviderCreateWithCFData \
-        CGColorSpaceCreateDeviceRGB; do
+        CGColorSpaceCreateDeviceRGB UIKeyboardWillChangeFrameNotification \
+        UIKeyboardWillShowNotification UIKeyboardWillHideNotification \
+        UIKeyboardFrameEndUserInfoKey; do
         printf '%s\n' "$symbols" | grep -F "$symbol" >/dev/null || {
             echo "$target custom-render host probe is missing symbol $symbol" >&2
             exit 1
         }
     done
-    for selector in UIImageView 'imageWithCGImage:' 'setImage:' 'setHidden:' \
-        'safeAreaInsets' 'contentScaleFactor' 'applicationState'; do
+    for selector in UIImageView UITextView 'imageWithCGImage:' 'setImage:' 'setHidden:' \
+        'safeAreaInsets' 'contentScaleFactor' 'applicationState' 'textViewDidChange:' \
+        'textViewDidChangeSelection:' 'selectedTextRange' 'setSelectedTextRange:' \
+        'markedTextRange' 'unmarkText' 'becomeFirstResponder' 'resignFirstResponder' \
+        'keyboardWillChangeFrame:' 'keyboardWillShow:' 'keyboardWillHide:'; do
         printf '%s\n' "$binary_strings" | grep -F "$selector" >/dev/null || {
             echo "$target custom-render host probe is missing selector or class $selector" >&2
             exit 1

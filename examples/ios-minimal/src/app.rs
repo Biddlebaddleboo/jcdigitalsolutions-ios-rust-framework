@@ -1,7 +1,7 @@
 use std::cell::{Cell, OnceCell, RefCell};
 
 use ios_runtime::{ffi::catch_unwind, main_thread::MainThread};
-use ios_ui::{IosCustomRenderHost, Rgba8Frame};
+use ios_ui::{IosCustomRenderHost, IosCustomTextInput, IosTextInputTraits, Rgba8Frame};
 use objc2::rc::{Allocated, Retained};
 use objc2::{ClassType, DefinedClass, MainThreadOnly, define_class, msg_send, sel};
 use objc2_core_foundation::{CGPoint, CGRect, CGSize};
@@ -55,6 +55,7 @@ define_class!(
 struct TargetState {
     label: Retained<UILabel>,
     render_host: RefCell<Option<IosCustomRenderHost>>,
+    text_input: RefCell<Option<IosCustomTextInput>>,
     taps: Cell<u32>,
 }
 
@@ -103,10 +104,12 @@ impl ButtonTarget {
         mtm: objc2::MainThreadMarker,
         label: Retained<UILabel>,
         render_host: IosCustomRenderHost,
+        text_input: Option<IosCustomTextInput>,
     ) -> Retained<Self> {
         let this = Self::alloc(mtm).set_ivars(TargetState {
             label,
             render_host: RefCell::new(Some(render_host)),
+            text_input: RefCell::new(text_input),
             taps: Cell::new(0),
         });
         // SAFETY: `this` is a fresh allocation of this NSObject subclass and NSObject's `init` is valid.
@@ -141,6 +144,7 @@ impl AppDelegate {
         let render_lifecycle = args
             .iter()
             .any(|arg| arg == "--exercise-custom-render-host-lifecycle");
+        let exercise_text_input = args.iter().any(|arg| arg == "--exercise-custom-text-input");
         if render_demo || render_lifecycle {
             let mut host = IosCustomRenderHost::new(mtm);
             host.attach_to(
@@ -212,7 +216,32 @@ impl AppDelegate {
             return false;
         }
 
-        let target = ButtonTarget::with_state(mtm, label.clone(), render_host);
+        let text_input = if exercise_text_input {
+            let initial_text = String::from("Rust-owned text");
+            let mut rust_text = initial_text.clone();
+            let Ok(input) = IosCustomTextInput::attach(
+                render_host.native_view(),
+                CGRect::new(
+                    CGPoint::new(8.0, 116.0),
+                    CGSize::new(bounds.size.width - 64.0, 48.0),
+                ),
+                &initial_text,
+                IosTextInputTraits::default(),
+                move |event| {
+                    if let Ok(snapshot) = event {
+                        if snapshot.marked_text.is_none() {
+                            rust_text.clone_from(&snapshot.text);
+                        }
+                    }
+                },
+            ) else {
+                return false;
+            };
+            Some(input)
+        } else {
+            None
+        };
+        let target = ButtonTarget::with_state(mtm, label.clone(), render_host, text_input);
         // SAFETY: `target` is the retained Rust target object and implements the exact `buttonTapped:` selector.
         unsafe {
             button.addTarget_action_forControlEvents(
@@ -235,6 +264,13 @@ impl AppDelegate {
             .get()
             .expect("window retained")
             .makeKeyAndVisible();
+        if exercise_text_input
+            && let Some(target) = self.ivars().target.get()
+            && let Ok(mut input) = target.ivars().text_input.try_borrow_mut()
+            && let Some(input) = input.as_mut()
+        {
+            let _ = input.request_focus();
+        }
         if args
             .iter()
             .any(|arg| arg == "--exercise-rust-button-callback")
