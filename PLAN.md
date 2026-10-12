@@ -517,6 +517,10 @@ unchanged. Host regressions and the existing iOS 10.0 device / iOS 14.0 Simulato
 cover support rejection and selector retention; no flash firing or camera runtime behavior is
 claimed. See [the camera capture workstream](PLAN_IOS_CAMERA_CAPTURE_SESSION.md).
 
+### B546 — UIKit stack layout controls (row 003)
+
+B546 extends the existing `IosStackView` with typed alignment and distribution setters plus arranged-subview removal. Vertical baseline alignment is rejected; removal leaves the view visible in its hierarchy. The `ios-ui` profile passed 263 checks with two runtime-evidence skips; visible UIKit layout remains unverified.
+
 ### B547 — local-notification action categories (rows 031 and 032)
 
 B547 adds validated portable category identifiers and opt-in routing from local notification content.
@@ -525,3 +529,11 @@ foreground options, duplicate-ID rejection, and full-set replacement/clear throu
 UserNotifications APIs. Host regressions and the registered iOS notification profile cover the new
 contracts and link selectors; the response bridge remains separately installed, and live action
 presentation, text entry, and delivery remain unverified.
+
+### B548 — continuous network-path updates (row 027)
+
+B548 adds an opt-in status-only `NetworkPathMonitor` with explicit start, a single waiter, bounded latest-value coalescing, idempotent cancellation, and cancel-on-drop. The iOS backend preserves B18's one-shot path snapshot mode; path status does not prove endpoint reachability or gate requests. See [the connectivity workstream](PLAN_IOS_CONNECTIVITY.md).
+
+### B549 — significant-change location sessions (row 037)
+
+B549 adds opt-in `IosLocationBackend::start_significant_change_updates()` with device-support and existing-authorization preflight, no permission prompt, and matching stop-on-drop. The registered profile passed 40 checks with two runtime-evidence skips; delivery across suspension or termination remains unverified. See [the location workstream](PLAN_IOS_LOCATION.md).

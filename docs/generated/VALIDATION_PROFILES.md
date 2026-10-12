@@ -36,6 +36,8 @@ The following are configured validation profiles, not claims that every gate pas
 | ios-connection | ios-connection | 2 | 1 | 0 | True |
 | ios-pcm-audio-output | ios-pcm-audio-output | 2 | 1 | 0 | True |
 | ios-audio-session | ios-audio-session | 2 | 1 | 0 | True |
+| framework-connectivity | framework-connectivity | 2 | 0 | 0 | True |
+| ios-connectivity | ios-connectivity | 2 | 1 | 0 | True |
 
 
 ## Inspect actual gates
