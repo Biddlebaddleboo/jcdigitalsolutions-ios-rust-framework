@@ -5,8 +5,9 @@ authorization, read, create, selected-record update, single-record delete, and v
 public Contacts APIs. It can query status, explicitly request access, fetch one caller-selected
 record or its thumbnail, search names with a caller-supplied result cap, create exactly one new
 contact, update selected common fields on one caller-selected record, delete one caller-selected
-record, and export one record as vCard bytes. It does not fetch the whole store,
-present ContactsUI, or provide a picker or button.
+record, and export one record as vCard bytes. It does not fetch the whole store or present ContactsUI.
+The independent [`ios-contact-picker`](contact-picker.md) crate provides a user-mediated
+single-contact picker without adding ContactsUI to the storage backend.
 
 ```rust,ignore
 use framework_contacts::{Contacts, ContactsAuthorization};

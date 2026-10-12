@@ -2176,7 +2176,8 @@
       "capability": "Contacts",
       "crate_module": [
         "framework-contacts",
-        "ios-contacts"
+        "ios-contacts",
+        "ios-contact-picker"
       ],
       "crate_module_status": "portable_contract_and_ios_backend_partial",
       "portability_class": "portable_with_platform_extensions",
@@ -2184,14 +2185,16 @@
       "portable_contract_note": "framework-contacts defines authorization status/request values, optional single-record fetch and caller-limited name-search extensions, separate add-only create, one-record delete, thumbnail fetch, and one-record vCard export extensions, and a separate selected-record update patch over Rust-owned common fields.",
       "ios_implementation_class": "B",
       "implementation_status": "partial",
-      "status_reason": "B29 implements Contacts authorization; B462 adds read-only fetch of one caller-selected local identifier; B468 adds bounded public name-predicate search; B469 adds one synchronous add-only CNMutableContact save; B471 adds one synchronous selected-record patch update; B474 adds one synchronous caller-selected deletion through CNSaveRequest; B480 adds one selected-record vCard byte export through CNContactVCardSerialization; B484 adds one selected-contact thumbnail byte fetch through CNContactThumbnailImageDataKey. Fetch, search, create, update, delete, thumbnail fetch, and export recheck current Authorized or Limited access and never prompt. Full-store enumeration, picker UI, native search semantics, and live consent/data/fetch/search/create/update/delete/thumbnail/export behavior remain incomplete or unverified.",
+      "status_reason": "B29 implements Contacts authorization; B462 adds read-only fetch of one caller-selected local identifier; B468 adds bounded public name-predicate search; B469 adds one synchronous add-only CNMutableContact save; B471 adds one synchronous selected-record patch update; B474 adds one synchronous caller-selected deletion through CNSaveRequest; B480 adds one selected-record vCard byte export through CNContactVCardSerialization; B484 adds one selected-contact thumbnail byte fetch through CNContactThumbnailImageDataKey. Fetch, search, create, update, delete, thumbnail fetch, and export recheck current Authorized or Limited access and never prompt. Full-store enumeration, native search semantics, and live consent/data/fetch/search/create/update/delete/thumbnail/export behavior remain incomplete or unverified. B553 adds an independent user-mediated single-contact picker through ContactsUI; it returns only the selected contact and requires no Contacts authorization prompt. Full-store enumeration remains unimplemented, and live picker presentation/selection remains unverified.",
       "minimum_ios_version": "9.0",
       "required_frameworks": [
         "Contacts",
-        "Foundation"
+        "Foundation",
+        "ContactsUI",
+        "UIKit"
       ],
       "required_permissions": [
-        "Contacts authorization request is explicit and opt-in; fetch, search, create, update, delete, thumbnail fetch, and vCard export never prompt; data operations require current Authorized or Limited status, and Limited reads, edits, and deletes remain within contacts currently accessible to the app, including records it creates"
+        "Contacts authorization request is explicit and opt-in; fetch, search, create, update, delete, thumbnail fetch, and vCard export never prompt; data operations require current Authorized or Limited status, and Limited reads, edits, and deletes remain within contacts currently accessible to the app, including records it creates; the isolated ContactsUI picker requires no Contacts authorization and exposes only the user-selected contact"
       ],
       "required_info_plist_keys": [
         "NSContactsUsageDescription"
@@ -2199,7 +2202,7 @@
       "entitlements": null,
       "device_only_restrictions": null,
       "swift_abi_requirement": false,
-      "metadata_verification": "PLAN_IOS_CONTACTS.md verifies public Contacts authorization, single-record and thumbnail fetch, name search, add-only create, selected-record update, one-record delete, and selected-contact vCard serialization APIs in Xcode 26.6 / iPhoneOS 26.5 SDK headers and objc2-contacts 0.3.2. CNContactThumbnailImageDataKey and nullable thumbnailImageData are public from iOS 9.0; the thumbnail adapter requests that key alone and copies raw NSData bytes. CNContactVCardSerialization and its required-key descriptor/dataWithContacts:error APIs are public from iOS 9.0; fetched records must use descriptorForRequiredKeys. Apple documents that Limited access can create and access app-created contacts, but can fetch, edit, or delete only contacts granted to the app; CNAuthorizationStatusLimited is available from iOS 18.0. CNContact mutableCopy and CNSaveRequest updateContact/deleteContact are available from iOS 9.0. Host NSContactsUsageDescription is required for Contacts access. Rust 1.94.1 sets iOS device deployment minimum to 10.0. Registered host tests and device/Simulator compile-link checks do not prove live authorization UI, Limited visibility, fetch/search/create/update/delete/thumbnail behavior, thumbnail output, vCard output, save outcome, or contact data changes.",
+      "metadata_verification": "PLAN_IOS_CONTACTS.md verifies public Contacts authorization, single-record and thumbnail fetch, name search, add-only create, selected-record update, one-record delete, and selected-contact vCard serialization APIs in Xcode 26.6 / iPhoneOS 26.5 SDK headers and objc2-contacts 0.3.2. CNContactThumbnailImageDataKey and nullable thumbnailImageData are public from iOS 9.0; the thumbnail adapter requests that key alone and copies raw NSData bytes. CNContactVCardSerialization and its required-key descriptor/dataWithContacts:error APIs are public from iOS 9.0; fetched records must use descriptorForRequiredKeys. Apple documents that Limited access can create and access app-created contacts, but can fetch, edit, or delete only contacts granted to the app; CNAuthorizationStatusLimited is available from iOS 18.0. CNContact mutableCopy and CNSaveRequest updateContact/deleteContact are available from iOS 9.0. Host NSContactsUsageDescription is required for Contacts access. Rust 1.94.1 sets iOS device deployment minimum to 10.0. Registered host tests and device/Simulator compile-link checks do not prove live authorization UI, Limited visibility, fetch/search/create/update/delete/thumbnail behavior, thumbnail output, vCard output, save outcome, or contact data changes. B553 uses public ContactsUI CNContactPickerViewController and CNContactPickerDelegate APIs from iOS 9.0; the installed SDK documents that the app need not request Contacts access and receives only the final user selection. The isolated picker crate adds UIKit/ContactsUI without linking them through ios-contacts. Target compile/link and host policy tests do not prove live presentation or selection.",
       "parity_status": "not_tested_live_behavior_or_Apple_parity",
       "performance_status": "not_measured",
       "native_escape_handle_available": false,

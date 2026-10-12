@@ -549,3 +549,7 @@ B551 adds `IosStackView::pin_edges_to_safe_area` using UIKit's public `safeAreaL
 ### B552 — scene lifecycle event callback (row 001)
 
 B552 adds optional `IosSceneLifecycleEvents` callback install, replacement, clear, and overflow-count APIs while preserving polling semantics. Nested `FnMut` delivery is serialized through a bounded 32-event backlog; the registered profile passed 42 checks, with Simulator and device runtime evidence skipped.
+
+### B553 — user-mediated single-contact picker (row 069)
+
+B553 adds an independent `ios-contact-picker` crate over public ContactsUI. It presents a single-contact picker without Contacts authorization and returns only the user's selected owned contact snapshot; cancellation is one-shot and session drop detaches callbacks. The registered profile passed 35 checks; 2 runtime checks were skipped, so presentation and selection remain unverified. See [the picker guide](docs/ios/contact-picker.md).

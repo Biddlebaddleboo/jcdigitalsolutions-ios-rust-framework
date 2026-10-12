@@ -2,9 +2,11 @@
 
 `framework-contacts` defines a portable authorization contract and separate optional extensions
 for one-record fetch and thumbnail read, bounded name search, add-only creation, selected-record
-update and delete, and vCard export. It exposes no ContactsUI type or picker and does not enumerate
-the full store. Existing `ContactsBackend` implementors need not implement these operations; a
-backend opts in through the operation-specific extension trait.
+update and delete, and vCard export. It exposes no native ContactsUI type and does not enumerate
+the full store. The separate iOS [`ios-contact-picker`](../ios/contact-picker.md) crate presents a
+user-mediated picker without requiring store authorization. Existing `ContactsBackend`
+implementors need not implement these operations; a backend opts in through the
+operation-specific extension trait.
 
 ## Authorization states
 

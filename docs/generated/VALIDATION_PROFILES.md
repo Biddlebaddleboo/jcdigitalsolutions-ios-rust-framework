@@ -38,6 +38,7 @@ The following are configured validation profiles, not claims that every gate pas
 | ios-audio-session | ios-audio-session | 2 | 1 | 0 | True |
 | framework-connectivity | framework-connectivity | 2 | 0 | 0 | True |
 | ios-connectivity | ios-connectivity | 2 | 1 | 0 | True |
+| ios-contact-picker | ios-contact-picker | 2 | 1 | 0 | False |
 
 
 ## Inspect actual gates

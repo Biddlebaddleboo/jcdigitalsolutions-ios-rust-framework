@@ -151,3 +151,34 @@ nullable `thumbnailImageData()` property and key through the enabled `CNContact`
 dependency or feature change is needed. Registered iOS floors remain 10.0 device and 14.0
 Simulator. Host regressions and static compile/link checks do not prove selected-contact visibility,
 live thumbnail availability, Simulator execution, or physical-device behavior.
+
+## Additive increment B553 — user-mediated single-contact picker
+
+B553 adds an independent `ios-contact-picker` crate over the public ContactsUI
+`CNContactPickerViewController`, keeping UIKit/ContactsUI out of `ios-contacts` storage-only use.
+`IosContactPickerSession::present` accepts a caller-owned, visible `UIViewController` and a
+one-shot `FnOnce(ContactPickerEvent)`; `ContactPickerEvent` is either `Selected(Contact)` with an
+owned snapshot of common fields or `Cancelled`. The session retains the picker and its weak
+delegate target until a terminal delegate callback. User cancellation and explicit `cancel()` each
+deliver `Cancelled` at most once; drop detaches the callback without notification and requests
+picker dismissal. No synchronous dismissal or live presentation is claimed. All API use, callbacks,
+cancellation, and teardown are main-thread-only, and callback panics are contained.
+
+Use only the single-contact delegate selector and set `displayedPropertyKeys` to the common
+name/organization/phone/email keys needed for the owned snapshot. Preserve the selected contact's
+native identifier in the returned snapshot, but do not expose it in the picker detail card. Do not implement
+multi-selection or property selection. The picker itself must not query `CNContactStore`, request or
+require Contacts authorization, require `NSContactsUsageDescription`, or expose contacts other than
+the one selected by the user. Apple's public ContactsUI documentation says the app does not need
+contact access permission for this picker and sees only the final selection
+([picker](https://developer.apple.com/documentation/contactsui/cncontactpickerviewcontroller),
+[delegate](https://developer.apple.com/documentation/contactsui/cncontactpickerdelegate)).
+
+The iPhoneOS 26.5 SDK header marks the picker class and delegate public from iOS 9.0; registered
+device and Simulator profile floors remain iOS 10.0 and iOS 14.0. Because objc2 0.3.2 has no
+ContactsUI crate in the pinned workspace, add only the minimal local `objc2` declarations for this
+public class and its two required delegate methods; do not implement Objective-C dispatch or any
+private selector. Host regressions cover selected/user-cancel/explicit-cancel one-shot settlement,
+drop detachment and panic handling. The registered validator must check ContactsUI/UIKit imports,
+the required selectors and target floors, and reject ContactsStore authorization/request selectors.
+No simulator execution, user interaction, live selection or physical-device behavior may be claimed.
