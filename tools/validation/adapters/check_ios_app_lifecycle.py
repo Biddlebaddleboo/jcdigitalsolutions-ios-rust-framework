@@ -186,7 +186,7 @@ def check_profile_targets(spec_text):
     return False
  if LINK_CHECK_PATH not in pilot.get("abi_scripts", []):
   return False
- if LINK_CHECK_PATH not in pilot.get("shell_scripts", []) or LINK_CHECK_PATH not in pilot.get("scoped_files", []):
+ if LINK_CHECK_PATH not in pilot.get("shell_scripts", []):
   return False
  return True
 
@@ -255,7 +255,7 @@ def check_dispatch_contract(sources):
 def check_dispatch_negative_regressions(sources):
  cases = (
   (RUNTIME_MANIFEST_PATH, 'dispatch = ["dep:dispatch2"]', 'default = ["dispatch"]\ndispatch = ["dep:dispatch2"]'),
-  (RUNTIME_MANIFEST_PATH, "optional = true", "optional = false"),
+  (RUNTIME_MANIFEST_PATH, 'dispatch2 = { workspace = true, features = ["alloc"], optional = true }', 'dispatch2 = { workspace = true, features = ["alloc"], optional = false }'),
   (MAIN_THREAD_PATH, "pub(crate) unsafe fn assume_current", "pub unsafe fn assume_current"),
   (DISPATCH_PATH, "FnOnce(MainThread) + Send", "FnOnce(MainThread)"),
   (LINK_CHECK_PATH, "--features main-thread-dispatch", "--features missing-dispatch"),
@@ -346,25 +346,10 @@ def check_application_uri_contract(sources):
   return False
  spec = json.loads(sources[SPEC_PATH])
  pilot = next((item for item in spec.get("pilots", []) if item.get("id") == "ios-app-lifecycle"), None)
- required_scope = {
-  "docs/ios/runtime.md",
-  CARGO_PATH,
-  LINK_CHECK_PATH,
-  RUNTIME_MANIFEST_PATH,
-  DISPATCH_PATH,
-  RUNTIME_LIB_PATH,
-  MAIN_THREAD_PATH,
-  "PLAN.md",
-  "PLAN_RIDESHARE_BOT_MIGRATION.md",
-  DOC_PATH,
-  MANIFEST_PATH,
-  LINK_PROBE_PATH,
-  LIB_PATH,
-  PLATFORM_PATH,
-  "tools/validation/adapters/check_ios_app_lifecycle.py",
-  SPEC_PATH,
- }
- if pilot is None or not required_scope.issubset(set(pilot.get("scoped_files", []))):
+ if pilot is None or not pilot.get("adapters"):
+  return False
+ adapter = next((item for item in pilot["adapters"] if item.get("id") == ADAPTER_ID), None)
+ if adapter is None or not REQUIRED_INPUTS.issubset(set(adapter.get("input_paths", []))):
   return False
  return True
 
@@ -391,10 +376,77 @@ def check_application_uri_negative_regressions(sources):
  mutated = dict(sources)
  spec = json.loads(sources[SPEC_PATH])
  pilot = next(item for item in spec["pilots"] if item.get("id") == "ios-app-lifecycle")
- pilot["scoped_files"].remove(PLATFORM_PATH)
+ adapter = next(item for item in pilot["adapters"] if item.get("id") == ADAPTER_ID)
+ adapter["input_paths"].remove(PLATFORM_PATH)
  mutated[SPEC_PATH] = json.dumps(spec)
  if check_application_uri_contract(mutated):
   return False
+ return True
+
+
+def check_lifecycle_handler_contract(sources):
+ platform = rust_without_comments(sources[PLATFORM_PATH])
+ observers = rust_without_comments(sources[OBSERVERS_PATH])
+ queue = rust_without_comments(sources[QUEUE_PATH])
+ link_probe = rust_without_comments(sources[LINK_PROBE_PATH])
+ docs = " ".join(sources[DOC_PATH].split()).lower()
+ if not all(re.search(pattern, platform) for pattern in (
+  r"pub\s+fn\s+set_event_handler\s*\(\s*&mut\s+self",
+  r"pub\s+fn\s+clear_event_handler\s*\(\s*&mut\s+self",
+  r"pub\s+fn\s+dropped_handler_event_count\s*\(\s*&self\)\s*->\s*u64",
+  r"handler\s*:\s*Arc<LifecycleEventHandlerState>",
+  r"impl\s+Drop\s+for\s+IosApplicationLifecycle",
+ )):
+  return False
+ if not re.search(r"pub(?:\([^)]*\))?\s+fn\s+apply\s*\([^)]*\)\s*->\s*Option<LifecycleEvent>", queue):
+  return False
+ if not re.search(r"HANDLER_PENDING_CAPACITY\s*:\s*usize\s*=\s*16", observers):
+  return False
+ if not re.search(r"pending\s*:\s*\[Option<LifecycleEvent>;\s*HANDLER_PENDING_CAPACITY\]", observers):
+  return False
+ if not re.search(r"let event = events\s*\.lock\(\)\s*\.unwrap_or_else\(PoisonError::into_inner\)\s*\.apply\(notification\);\s*if let \(Some\(event\), Some\(handler\)\) = \(event, handler\.upgrade\(\)\)\s*\{\s*handler\.dispatch\(event\);", observers):
+  return False
+ if not all(fragment in link_probe for fragment in (
+  "lifecycle.set_event_handler(|_event| {});",
+  "lifecycle.dropped_handler_event_count()",
+  "lifecycle.clear_event_handler();",
+ )):
+  return False
+ if not all(name in observers for name in (
+  "direct_handler_runs_after_queue_update_and_polling_stays_available",
+  "direct_handler_receives_events_after_poll_queue_overflow",
+  "reentrant_handler_delivery_is_serialized_and_bounded",
+  "clear_rejects_nested_and_later_stale_events",
+  "replacement_does_not_restore_the_current_handler_or_deliver_stale_backlog",
+  "callback_panic_is_contained_and_handler_remains_installed",
+  "callback_does_not_retain_or_update_event_state_after_drop",
+ )):
+  return False
+ return all(fragment in docs for fragment in (
+  "synchronously on `nsoperationqueue::mainqueue()`",
+  "polling-queue overflow",
+  "16-event handler backlog",
+  "dropped_handler_event_count()",
+  "cannot interrupt a callback already executing",
+  "panics are contained",
+ ))
+
+
+def check_lifecycle_handler_negative_regressions(sources):
+ mutations = (
+  (PLATFORM_PATH, "pub fn set_event_handler", "fn set_event_handler"),
+  (PLATFORM_PATH, "pub fn clear_event_handler", "fn clear_event_handler"),
+  (OBSERVERS_PATH, "HANDLER_PENDING_CAPACITY: usize = 16", "HANDLER_PENDING_CAPACITY: usize = 8"),
+  (OBSERVERS_PATH, "fn clear_rejects_nested_and_later_stale_events", "fn clear_no_longer_rejects_stale_events"),
+  (OBSERVERS_PATH, "fn callback_panic_is_contained_and_handler_remains_installed", "fn callback_panic_is_not_contained"),
+ )
+ for path, before, after in mutations:
+  if before not in sources[path]:
+   return False
+  mutated = dict(sources)
+  mutated[path] = sources[path].replace(before, after, 1)
+  if check_lifecycle_handler_contract(mutated):
+   return False
  return True
 
 
@@ -433,6 +485,10 @@ def check_contract(root, sources):
   failures.append("generic absolute-URI open API, bounded errors, one-shot panic-contained completion, or caller-policy boundary is incomplete")
  elif not check_application_uri_negative_regressions(sources):
   failures.append("application URI scheme, Foundation, one-shot callback, panic, caller-policy, or generic link-probe regressions must fail")
+ if not check_lifecycle_handler_contract(sources):
+  failures.append("aggregate lifecycle direct handler, polling parity, bounded reentrancy, stale-clear/drop, or registered link coverage is incomplete")
+ elif not check_lifecycle_handler_negative_regressions(sources):
+  failures.append("aggregate lifecycle handler API, bounded backlog, clear, or panic regressions must fail")
  if not all(fragment in link_probe for fragment in (
   "MainThread::current()",
   "IosApplicationLifecycle::new(main_thread)",
@@ -540,7 +596,7 @@ def main():
   if failures:
    emit("FAIL", "; ".join(failures[:6]))
    return
-  emit("PASS", "iOS lifecycle, opt-in main-thread dispatch, generic application URI, deterministic negative regressions, API availability and deployment floors, registered link probe, and partial capability status are present; URI-open and runtime behavior are not proven")
+  emit("PASS", "iOS lifecycle, aggregate handler and polling, opt-in main-thread dispatch, generic application URI, deterministic negative regressions, API availability and deployment floors, registered link probe, and partial capability status are present; URI-open and runtime behavior are not proven")
  except Exception as error:
   emit("ERROR-BLOCKED", str(error)[:256])
 

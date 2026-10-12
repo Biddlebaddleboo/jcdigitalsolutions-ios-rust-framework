@@ -30,9 +30,9 @@ impl EventQueue {
         }
     }
 
-    pub(crate) fn apply(&mut self, notification: LifecycleNotification) {
+    pub(crate) fn apply(&mut self, notification: LifecycleNotification) -> Option<LifecycleEvent> {
         if self.terminating && !matches!(notification, LifecycleNotification::WillTerminate) {
-            return;
+            return None;
         }
         match notification {
             LifecycleNotification::DidBecomeActive => {
@@ -49,7 +49,11 @@ impl EventQueue {
                 if !self.terminating {
                     self.last_state = Some(ApplicationState::Terminating);
                     self.terminating = true;
-                    self.push(LifecycleEvent::TerminationRequested);
+                    let event = LifecycleEvent::TerminationRequested;
+                    self.push(event);
+                    Some(event)
+                } else {
+                    None
                 }
             }
         }
@@ -69,12 +73,14 @@ impl EventQueue {
         event
     }
 
-    fn state_changed(&mut self, state: ApplicationState) {
+    fn state_changed(&mut self, state: ApplicationState) -> Option<LifecycleEvent> {
         if self.last_state == Some(state) {
-            return;
+            return None;
         }
         self.last_state = Some(state);
-        self.push(LifecycleEvent::StateChanged(state));
+        let event = LifecycleEvent::StateChanged(state);
+        self.push(event);
+        Some(event)
     }
 
     fn push(&mut self, event: LifecycleEvent) {
@@ -100,10 +106,22 @@ mod tests {
     #[test]
     fn lifecycle_notifications_map_to_portable_states() {
         let mut events = EventQueue::new(Some(ApplicationState::Launching));
-        events.apply(LifecycleNotification::DidBecomeActive);
-        events.apply(LifecycleNotification::WillResignActive);
-        events.apply(LifecycleNotification::WillEnterForeground);
-        events.apply(LifecycleNotification::DidEnterBackground);
+        assert_eq!(
+            events.apply(LifecycleNotification::DidBecomeActive),
+            Some(state_event(ApplicationState::Foreground))
+        );
+        assert_eq!(
+            events.apply(LifecycleNotification::WillResignActive),
+            Some(state_event(ApplicationState::Inactive))
+        );
+        assert_eq!(
+            events.apply(LifecycleNotification::WillEnterForeground),
+            None
+        );
+        assert_eq!(
+            events.apply(LifecycleNotification::DidEnterBackground),
+            Some(state_event(ApplicationState::Background))
+        );
         assert_eq!(
             events.pop(),
             Some(state_event(ApplicationState::Foreground))
@@ -127,9 +145,15 @@ mod tests {
     #[test]
     fn consecutive_duplicate_state_changes_are_coalesced() {
         let mut events = EventQueue::new(Some(ApplicationState::Foreground));
-        events.apply(LifecycleNotification::DidBecomeActive);
-        events.apply(LifecycleNotification::WillResignActive);
-        events.apply(LifecycleNotification::WillEnterForeground);
+        assert_eq!(events.apply(LifecycleNotification::DidBecomeActive), None);
+        assert_eq!(
+            events.apply(LifecycleNotification::WillResignActive),
+            Some(state_event(ApplicationState::Inactive))
+        );
+        assert_eq!(
+            events.apply(LifecycleNotification::WillEnterForeground),
+            None
+        );
         assert_eq!(events.pop(), Some(state_event(ApplicationState::Inactive)));
         assert_eq!(events.pop(), None);
     }
@@ -137,9 +161,12 @@ mod tests {
     #[test]
     fn termination_reports_request_without_claiming_completion() {
         let mut events = EventQueue::new(Some(ApplicationState::Background));
-        events.apply(LifecycleNotification::WillTerminate);
-        events.apply(LifecycleNotification::DidBecomeActive);
-        events.apply(LifecycleNotification::WillTerminate);
+        assert_eq!(
+            events.apply(LifecycleNotification::WillTerminate),
+            Some(LifecycleEvent::TerminationRequested)
+        );
+        assert_eq!(events.apply(LifecycleNotification::DidBecomeActive), None);
+        assert_eq!(events.apply(LifecycleNotification::WillTerminate), None);
         assert!(events.is_terminating());
         assert_eq!(events.pop(), Some(LifecycleEvent::TerminationRequested));
         assert_eq!(events.pop(), None);

@@ -1,5 +1,7 @@
 use crate::mapping::application_state;
-use crate::observers::{ObserverOwner, ObserverRemover, make_observer_callback};
+use crate::observers::{
+    LifecycleEventHandlerState, ObserverOwner, ObserverRemover, make_observer_callback,
+};
 use crate::queue::{EventQueue, LifecycleNotification};
 use block2::RcBlock;
 use core::cell::RefCell;
@@ -113,12 +115,16 @@ pub fn open_application_uri(
 /// to preserve the most recent state changes. Consecutive duplicate state transitions are
 /// coalesced. After `UIApplicationWillTerminateNotification`, `state()` reports `Terminating` and
 /// the event queue emits only `TerminationRequested`; UIKit provides no notification that proves
-/// termination completed.
+/// termination completed. An optional direct event handler runs synchronously on the main
+/// operation queue after each accepted event is also added to the polling queue. Its independent
+/// reentrant backlog holds 16 events and drops oldest on overflow; use
+/// `dropped_handler_event_count()` to read that overflow count.
 pub struct IosApplicationLifecycle {
     _main_thread: MainThreadMarker,
     application: Retained<UIApplication>,
     _observers: ObserverSet,
     events: Arc<Mutex<EventQueue>>,
+    handler: Arc<LifecycleEventHandlerState>,
 }
 
 impl IosApplicationLifecycle {
@@ -128,6 +134,7 @@ impl IosApplicationLifecycle {
         let application = UIApplication::sharedApplication(marker);
         let initial_state = application_state(application.applicationState().0 as i32).ok();
         let events = Arc::new(Mutex::new(EventQueue::new(initial_state)));
+        let handler = Arc::new(LifecycleEventHandlerState::new());
         let center = NSNotificationCenter::defaultCenter();
         let queue = NSOperationQueue::mainQueue();
         // SAFETY: These generated UIKit extern statics are public, process-lifetime notification
@@ -140,6 +147,7 @@ impl IosApplicationLifecycle {
                     UIApplicationDidBecomeActiveNotification,
                     LifecycleNotification::DidBecomeActive,
                     &events,
+                    &handler,
                 ),
                 add_observer(
                     &center,
@@ -147,6 +155,7 @@ impl IosApplicationLifecycle {
                     UIApplicationWillResignActiveNotification,
                     LifecycleNotification::WillResignActive,
                     &events,
+                    &handler,
                 ),
                 add_observer(
                     &center,
@@ -154,6 +163,7 @@ impl IosApplicationLifecycle {
                     UIApplicationWillEnterForegroundNotification,
                     LifecycleNotification::WillEnterForeground,
                     &events,
+                    &handler,
                 ),
                 add_observer(
                     &center,
@@ -161,6 +171,7 @@ impl IosApplicationLifecycle {
                     UIApplicationDidEnterBackgroundNotification,
                     LifecycleNotification::DidEnterBackground,
                     &events,
+                    &handler,
                 ),
                 add_observer(
                     &center,
@@ -168,6 +179,7 @@ impl IosApplicationLifecycle {
                     UIApplicationWillTerminateNotification,
                     LifecycleNotification::WillTerminate,
                     &events,
+                    &handler,
                 ),
             ]
         };
@@ -176,6 +188,7 @@ impl IosApplicationLifecycle {
             application,
             _observers: ObserverOwner::new(center, observers),
             events,
+            handler,
         }
     }
 
@@ -192,8 +205,38 @@ impl IosApplicationLifecycle {
         Ok(self.lock_events().pop())
     }
 
+    /// Installs or replaces a direct callback for subsequent lifecycle events.
+    ///
+    /// The callback runs synchronously on `NSOperationQueue::mainQueue()` after the event is
+    /// added to the polling queue, and runs independently of polling-queue overflow. It must be
+    /// `Send` so the observer block satisfies Notification Center's sendability contract; UIKit
+    /// still invokes it on the main operation queue. A callback panic is contained. Nested
+    /// notifications are delivered after the current `FnMut` returns, through a 16-event
+    /// drop-oldest backlog. Replacing the handler discards pending events for the old handler.
+    /// Clearing or dropping the backend rejects pending and later stale delivery, but cannot
+    /// interrupt a callback already executing.
+    pub fn set_event_handler(&mut self, handler: impl FnMut(LifecycleEvent) + Send + 'static) {
+        self.handler.set(handler);
+    }
+
+    /// Clears the direct callback without changing polling-queue contents.
+    pub fn clear_event_handler(&mut self) {
+        self.handler.clear();
+    }
+
+    /// Returns the cumulative, saturating count of nested callback events dropped at the 16-event limit.
+    pub fn dropped_handler_event_count(&self) -> u64 {
+        self.handler.dropped()
+    }
+
     fn lock_events(&self) -> std::sync::MutexGuard<'_, EventQueue> {
         self.events.lock().unwrap_or_else(PoisonError::into_inner)
+    }
+}
+
+impl Drop for IosApplicationLifecycle {
+    fn drop(&mut self) {
+        self.handler.clear();
     }
 }
 
@@ -225,10 +268,12 @@ fn add_observer(
     name: &'static objc2_foundation::NSNotificationName,
     notification: LifecycleNotification,
     events: &Arc<Mutex<EventQueue>>,
+    handler: &Arc<LifecycleEventHandlerState>,
 ) -> ObserverToken {
     let callback = make_observer_callback(
         Arc::downgrade(events),
-        move |events| events.apply(notification),
+        Arc::downgrade(handler),
+        notification,
         contain_unwind,
     );
     let block: RcBlock<ObserverBlock> = RcBlock::new(move |_notification| callback());

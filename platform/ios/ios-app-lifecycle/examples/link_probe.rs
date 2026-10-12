@@ -2,6 +2,9 @@
 fn main() {
     if let Some(main_thread) = ios_runtime::main_thread::MainThread::current() {
         let mut lifecycle = ios_app_lifecycle::IosApplicationLifecycle::new(main_thread);
+        lifecycle.set_event_handler(|_event| {});
+        let _ = lifecycle.dropped_handler_event_count();
+        lifecycle.clear_event_handler();
         let _ = lifecycle.state();
         let _ = lifecycle.poll_event();
         if let Some(main_thread) = ios_runtime::main_thread::MainThread::current() {

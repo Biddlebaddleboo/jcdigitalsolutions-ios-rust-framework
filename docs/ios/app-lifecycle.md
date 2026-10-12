@@ -80,13 +80,34 @@ counter, so callers cannot recover the number or identity of dropped events. The
 remains the latest state known to the backend. Unknown future `UIApplicationState` values produce
 `framework_core::ErrorKind::Platform` with the raw signed native state value as the platform code.
 
+## Direct lifecycle event handler
+
+`IosApplicationLifecycle::set_event_handler` installs or replaces an optional
+`FnMut(LifecycleEvent) + Send + 'static` callback. Each accepted lifecycle transition is first
+added to the 16-event polling queue, then delivered synchronously on
+`NSOperationQueue::mainQueue()`. Handler delivery is independent of polling-queue overflow, so the
+handler may receive an event even if an older event was dropped from the poll queue. Duplicate
+state notifications that the queue coalesces do not invoke the handler, and installing a handler
+does not replay prior events. Polling remains available with or without a handler.
+
+If callback code synchronously causes nested lifecycle notifications, the same `FnMut` is not
+invoked recursively. The separate 16-event handler backlog drops its oldest event when full;
+`dropped_handler_event_count()` returns its cumulative, saturating overflow count across handler
+replacement and clear. `set_event_handler` replaces
+the callback and discards the old callback's pending backlog. `clear_event_handler` stops future
+and pending callback delivery without changing the polling queue. Clearing or dropping the backend
+cannot interrupt a callback already executing. The callback must be `Send` for Notification
+Center's escaping-block contract; execution remains on the main operation queue. Panics are
+contained before returning through Objective-C.
+
 ## Threading, ownership, and availability
 
 Create, query, poll, and drop the backend on UIKit's main thread. The backend owns its five
 Notification Center observer tokens and removes each token on drop. Native callback closures hold
-only a weak reference to backend event state; they do not retain the backend or observer-token
-collection. A callback that arrives after teardown cannot update or resurrect that state. Callbacks
-run on the main queue, and panics are contained before a callback returns through Objective-C.
+only weak references to backend event and handler state; they do not retain the backend or
+observer-token collection. A callback that arrives after teardown cannot update or resurrect that
+state. Callbacks run on the main queue, and panics are contained before a callback returns through
+Objective-C.
 
 The backend is available in an iOS application after construction. It needs no user permission,
 entitlement, or usage-description key. It is not app-extension-safe because
@@ -116,9 +137,11 @@ Run `sh platform/ios/ios-app-lifecycle/check.sh`, then the registered
 `ios-app-lifecycle` profile. The profile's link/import fixture links a small Rust consumer for
 device and Simulator, checks public framework and Objective-C imports, rejects Swift runtime
 imports, and verifies deployment metadata. Host regression tests use synthetic native state and
-notification values. Device and Simulator target checks establish compilation; link/import checks
-establish linkage only. These checks do not launch an app, deliver a UIKit notification, exercise
-scene transitions, show runtime availability, or prove termination behavior.
+notification values, including handler/poll parity, reentrancy, bounded overflow, replacement,
+clear, panic containment, and stale delivery. Device and Simulator target checks establish
+compilation; link/import checks establish linkage only. These checks do not launch an app, deliver
+a UIKit notification, exercise scene transitions, show runtime availability, or prove termination
+behavior.
 
 The iOS 4.0 API-availability floor is supported by the installed Xcode 26.6 build 17F113 /
 iPhoneOS SDK 26.5
