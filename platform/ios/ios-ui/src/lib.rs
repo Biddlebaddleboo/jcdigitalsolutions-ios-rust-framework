@@ -109,4 +109,4 @@ pub use platform::{
 #[cfg(target_os = "ios")]
 pub use platform::{IosContextMenu, IosContextMenuAction};
 #[cfg(target_os = "ios")]
-pub use platform::{IosListRow, IosListView};
+pub use platform::{IosListRow, IosListSection, IosListView, IosSectionedListView};

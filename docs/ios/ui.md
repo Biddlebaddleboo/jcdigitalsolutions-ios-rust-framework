@@ -13,7 +13,7 @@ editable-text, disclosure-group, reusable-list, and fixed context-menu operation
   updates require the main thread. A failed runtime main-thread proof returns
   `framework_core::ErrorKind::Unavailable`. Backend and handle values are `!Send`/`!Sync`
 - `IosView`, `IosLabel`, `IosButton`, `IosImageView`, `IosScrollView`, `IosTextField`,
-  `IosSelectableTextView`, `IosTextEditor`, and `IosListView` retain
+  `IosSelectableTextView`, `IosTextEditor`, `IosListView`, and `IosSectionedListView` retain
   their native UIKit objects. The caller owns hierarchy placement and must attach
   `IosView::native_view()` to a caller-owned controller or parent view
 - UIKit retains added child views in its native hierarchy. The Rust `IosButton` handle also owns
@@ -129,6 +129,36 @@ bindings, automatic observation, or declarative view tree. Host regressions cove
 transactional replacement, panic containment, and callback reentry. Device/Simulator compile-link
 checks verify UIKit symbols and deployment floors only; they do not establish live row rendering,
 selection, scrolling, or accessibility behavior
+
+## Reusable sectioned UIKit list
+
+`IosUiBackend::add_sectioned_list_view` adds a native `UITableView` whose `IosListSection` values
+own optional nonempty header titles and ordered `IosListRow` snapshots. `IosListSection::new` adds a
+native text header; `IosListSection::untitled` creates a group without header text. Row IDs remain
+unique across the complete snapshot, and the synchronous selection callback
+receives the selected row's stable `u64` ID. UIKit reuses the same subtitle cells as `IosListView`.
+
+```rust,ignore
+let mut list = backend.add_sectioned_list_view(
+    &mut parent,
+    frame,
+    vec![IosListSection::new(
+        "Available",
+        vec![IosListRow::new(7, "Peer").with_detail("Nearby")],
+    )],
+    |row_id| select_peer(row_id),
+)?;
+list.replace_sections(updated_sections)?;
+```
+
+Replacement validates all section titles, UIKit-representable section and per-section row counts,
+and globally unique row IDs before mutation. A failed replacement preserves the previous snapshot;
+the accepted replacement reloads the full table rather than diffing. The existing `IosListView` and
+`replace_rows` API remain the flat-list path. This is still an imperative UIKit snapshot primitive,
+not SwiftUI `List`/`Section`: there are no view builders, bindings, automatic state observation, or
+declarative row composition. Host tests cover duplicate IDs across sections, invalid titles, and
+transactional replacement; native compile/link checks do not prove section-header rendering,
+selection, scrolling, or accessibility at runtime
 
 ## Reusable sectioned UIKit collection
 

@@ -74,6 +74,7 @@ for target in aarch64-apple-ios aarch64-apple-ios-sim; do
     done
     for symbol in UITableView UITableViewCell 'setDataSource:' 'setDelegate:' \
         'tableView:numberOfRowsInSection:' 'tableView:cellForRowAtIndexPath:' \
+        'numberOfSectionsInTableView:' 'tableView:titleForHeaderInSection:' \
         'tableView:didSelectRowAtIndexPath:' 'dequeueReusableCellWithIdentifier:' \
         'initWithStyle:reuseIdentifier:' textLabel detailTextLabel reloadData \
         'setAccessibilityLabel:' 'setAccessibilityHint:' 'setAccessibilityIdentifier:'; do

@@ -3,7 +3,7 @@ use framework_ui::{Frame, UiBackend};
 #[cfg(target_os = "ios")]
 use ios_runtime::main_thread::MainThread;
 #[cfg(target_os = "ios")]
-use ios_ui::{IosListRow, IosUiBackend};
+use ios_ui::{IosListRow, IosListSection, IosUiBackend};
 
 #[cfg(target_os = "ios")]
 fn main() {
@@ -23,6 +23,22 @@ fn main() {
         return;
     };
     let _ = list.replace_rows(vec![IosListRow::new(303, "updated")]);
+    let sections = vec![
+        IosListSection::new(
+            "Recent",
+            vec![IosListRow::new(401, "trip").with_detail("available")],
+        ),
+        IosListSection::untitled(vec![IosListRow::new(402, "other")]),
+    ];
+    let Ok(mut sectioned_list) =
+        backend.add_sectioned_list_view(&mut parent, frame, sections, |_| {})
+    else {
+        return;
+    };
+    let _ = sectioned_list.replace_sections(vec![IosListSection::new(
+        "Updated",
+        vec![IosListRow::new(403, "replacement")],
+    )]);
     let Ok(mut copy_button) = backend.add_button(
         &mut parent,
         Frame::new(0.0, 0.0, 44.0, 44.0).expect("valid button frame"),
@@ -38,6 +54,7 @@ fn main() {
     let _ = copy_button.set_accessibility_hint(None);
     let _ = copy_button.set_accessibility_identifier(None);
     core::hint::black_box(list.native_table_view());
+    core::hint::black_box(sectioned_list.native_table_view());
     core::hint::black_box(copy_button.native_button());
 }
 

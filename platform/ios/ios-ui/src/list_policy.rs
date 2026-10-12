@@ -33,6 +33,31 @@ impl IosListRow {
     }
 }
 
+/// One independently titled group in a reusable UIKit list.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct IosListSection {
+    /// Optional native table-header title; `None` omits the header text.
+    pub title: Option<String>,
+    /// Ordered rows in this section.
+    pub rows: Vec<IosListRow>,
+}
+
+impl IosListSection {
+    /// Creates a titled section with an owned row snapshot.
+    pub fn new(title: impl Into<String>, rows: Vec<IosListRow>) -> Self {
+        Self {
+            title: Some(title.into()),
+            rows,
+        }
+    }
+
+    /// Creates a section without header text.
+    pub fn untitled(rows: Vec<IosListRow>) -> Self {
+        Self { title: None, rows }
+    }
+}
+
+#[cfg(test)]
 pub(crate) fn replace_rows(
     current: &mut Vec<IosListRow>,
     replacement: Vec<IosListRow>,
@@ -42,6 +67,50 @@ pub(crate) fn replace_rows(
     Ok(())
 }
 
+pub(crate) fn replace_sections(
+    current: &mut Vec<IosListSection>,
+    replacement: Vec<IosListSection>,
+) -> Result<()> {
+    validate_sections(&replacement)?;
+    *current = replacement;
+    Ok(())
+}
+
+fn validate_sections(sections: &[IosListSection]) -> Result<()> {
+    validate_section_count(sections.len())?;
+    let mut row_count = 0usize;
+    for section in sections {
+        if section.title.as_ref().is_some_and(String::is_empty) {
+            return Err(Error::new(ErrorKind::InvalidInput));
+        }
+        validate_row_count(section.rows.len())?;
+        row_count = row_count
+            .checked_add(section.rows.len())
+            .ok_or_else(|| Error::new(ErrorKind::ResourceExhausted))?;
+    }
+
+    let mut ids = Vec::new();
+    ids.try_reserve_exact(row_count)
+        .map_err(|_| Error::new(ErrorKind::ResourceExhausted))?;
+    ids.extend(
+        sections
+            .iter()
+            .flat_map(|section| section.rows.iter().map(|row| row.id)),
+    );
+    ids.sort_unstable();
+    if ids.windows(2).any(|pair| pair[0] == pair[1]) {
+        return Err(Error::new(ErrorKind::InvalidInput));
+    }
+    Ok(())
+}
+
+fn validate_section_count(count: usize) -> Result<()> {
+    isize::try_from(count)
+        .map(|_| ())
+        .map_err(|_| Error::new(ErrorKind::ResourceExhausted))
+}
+
+#[cfg(test)]
 fn validate_rows(rows: &[IosListRow]) -> Result<()> {
     validate_row_count(rows.len())?;
     let mut ids = Vec::new();
@@ -83,7 +152,10 @@ fn catch_callback(callback: impl FnOnce()) {
 
 #[cfg(test)]
 mod tests {
-    use super::{IosListRow, invoke_selection_callback, replace_rows, validate_row_count};
+    use super::{
+        IosListRow, IosListSection, invoke_selection_callback, replace_rows, replace_sections,
+        validate_row_count, validate_section_count,
+    };
     use core::cell::{Cell, RefCell};
     use framework_core::ErrorKind;
     use std::rc::{Rc, Weak};
@@ -93,6 +165,10 @@ mod tests {
 
     fn row(id: u64, title: &str) -> IosListRow {
         IosListRow::new(id, String::from(title))
+    }
+
+    fn section(title: &str, rows: Vec<IosListRow>) -> IosListSection {
+        IosListSection::new(title, rows)
     }
 
     #[test]
@@ -129,6 +205,50 @@ mod tests {
     #[test]
     fn rejects_row_count_that_cannot_fit_uikit_integer() {
         let error = validate_row_count(usize::MAX).unwrap_err();
+        assert_eq!(error.kind(), ErrorKind::ResourceExhausted);
+    }
+
+    #[test]
+    fn accepts_unique_row_ids_across_titled_and_untitled_sections() {
+        let mut sections = Vec::new();
+        let result = replace_sections(
+            &mut sections,
+            vec![
+                section("Recent", vec![row(0, "zero")]),
+                IosListSection::untitled(vec![row(u64::MAX, "maximum")]),
+            ],
+        );
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn rejects_duplicate_row_ids_across_sections() {
+        let previous = vec![section("Current", vec![row(1, "kept")])];
+        let mut sections = previous.clone();
+        let error = replace_sections(
+            &mut sections,
+            vec![
+                section("First", vec![row(7, "first")]),
+                section("Second", vec![row(7, "duplicate")]),
+            ],
+        )
+        .unwrap_err();
+        assert_eq!(error.kind(), ErrorKind::InvalidInput);
+        assert_eq!(sections, previous);
+    }
+
+    #[test]
+    fn rejects_empty_header_and_preserves_existing_snapshot() {
+        let mut sections = vec![section("Kept", vec![row(1, "old")])];
+        let error =
+            replace_sections(&mut sections, vec![section("", vec![row(2, "new")])]).unwrap_err();
+        assert_eq!(error.kind(), ErrorKind::InvalidInput);
+        assert_eq!(sections, vec![section("Kept", vec![row(1, "old")])]);
+    }
+
+    #[test]
+    fn rejects_section_count_that_cannot_fit_uikit_integer() {
+        let error = validate_section_count(usize::MAX).unwrap_err();
         assert_eq!(error.kind(), ErrorKind::ResourceExhausted);
     }
 

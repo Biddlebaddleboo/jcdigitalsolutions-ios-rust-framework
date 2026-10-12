@@ -43,7 +43,7 @@ pub use activity_indicator::IosActivityIndicator;
 pub use collection_grid::IosCollectionGrid;
 pub use context_menu::{IosContextMenu, IosContextMenuAction};
 pub use disclosure_group::IosDisclosureGroup;
-pub use list::{IosListRow, IosListView};
+pub use list::{IosListRow, IosListSection, IosListView, IosSectionedListView};
 pub use selectable_text::{IosSelectableTextView, IosTextEditor};
 
 /// A UIKit backend for caller-owned native controls.

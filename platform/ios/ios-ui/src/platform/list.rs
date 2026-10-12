@@ -16,13 +16,13 @@ use objc2_ui_kit::{
     UITableViewCellStyle, UITableViewDataSource, UITableViewDelegate, UITableViewStyle,
 };
 
-pub use crate::list_policy::IosListRow;
-use crate::list_policy::{invoke_selection_callback, replace_rows};
+pub use crate::list_policy::{IosListRow, IosListSection};
+use crate::list_policy::{invoke_selection_callback, replace_sections};
 
 use super::{IosUiBackend, IosView, main_thread_marker, native_frame};
 
 struct ListTargetState {
-    rows: RefCell<Vec<IosListRow>>,
+    sections: RefCell<Vec<IosListSection>>,
     selection: RefCell<Box<dyn FnMut(u64)>>,
     reuse_identifier: Retained<NSString>,
     fallback_cell: Retained<UITableViewCell>,
@@ -56,17 +56,55 @@ define_class!(
         ) -> NSInteger {
             let _keep_alive = self.retain();
             catch_unwind(|| {
-                if section != 0 {
-                    return 0;
-                }
-                self.ivars()
-                    .rows
-                    .try_borrow()
+                usize::try_from(section)
                     .ok()
-                    .and_then(|rows| NSInteger::try_from(rows.len()).ok())
+                    .and_then(|section| {
+                        self.ivars()
+                            .sections
+                            .try_borrow()
+                            .ok()?
+                            .get(section)
+                            .and_then(|section| NSInteger::try_from(section.rows.len()).ok())
+                    })
                     .unwrap_or(0)
             })
             .unwrap_or(0)
+        }
+
+        #[unsafe(method(numberOfSectionsInTableView:))]
+        fn numberOfSectionsInTableView(&self, _table_view: &UITableView) -> NSInteger {
+            let _keep_alive = self.retain();
+            catch_unwind(|| {
+                self.ivars()
+                    .sections
+                    .try_borrow()
+                    .ok()
+                    .and_then(|sections| NSInteger::try_from(sections.len()).ok())
+                    .unwrap_or(0)
+            })
+            .unwrap_or(0)
+        }
+
+        #[unsafe(method_id(tableView:titleForHeaderInSection:))]
+        fn tableView_titleForHeaderInSection(
+            &self,
+            _table_view: &UITableView,
+            section: NSInteger,
+        ) -> Option<Retained<NSString>> {
+            let _keep_alive = self.retain();
+            catch_unwind(|| {
+                let section = usize::try_from(section).ok()?;
+                self.ivars()
+                    .sections
+                    .try_borrow()
+                    .ok()?
+                    .get(section)?
+                    .title
+                    .as_deref()
+                    .map(NSString::from_str)
+            })
+            .ok()
+            .flatten()
         }
 
         #[unsafe(method_id(tableView:cellForRowAtIndexPath:))]
@@ -96,14 +134,14 @@ define_class!(
         ) {
             let _keep_alive = self.retain();
             let row_id = catch_unwind(|| {
-                if index_path.section() != 0 {
-                    return None;
-                }
+                let section = usize::try_from(index_path.section()).ok()?;
                 let row = usize::try_from(index_path.row()).ok()?;
                 self.ivars()
-                    .rows
+                    .sections
                     .try_borrow()
                     .ok()?
+                    .get(section)?
+                    .rows
                     .get(row)
                     .map(|row| row.id)
             })
@@ -128,13 +166,11 @@ impl ListTarget {
         table_view: &UITableView,
         index_path: &NSIndexPath,
     ) -> Option<Retained<UITableViewCell>> {
-        if index_path.section() != 0 {
-            return None;
-        }
+        let section_index = usize::try_from(index_path.section()).ok()?;
         let row_index = usize::try_from(index_path.row()).ok()?;
         let (title, detail) = {
-            let rows = self.ivars().rows.try_borrow().ok()?;
-            let row = rows.get(row_index)?;
+            let sections = self.ivars().sections.try_borrow().ok()?;
+            let row = sections.get(section_index)?.rows.get(row_index)?;
             (
                 NSString::from_str(&row.title),
                 row.detail.as_deref().map(NSString::from_str),
@@ -169,6 +205,18 @@ impl ListTarget {
 /// no bindings, automatic observation, diffing, or app-state ownership. Keep the handle alive while
 /// selection callbacks and row updates should remain active.
 pub struct IosListView {
+    inner: NativeList,
+}
+
+/// A native `UITableView` with independently titled sections and reused row cells.
+///
+/// The caller owns section meaning and snapshot timing. This remains an imperative snapshot API:
+/// it has no bindings, automatic observation, or diffing.
+pub struct IosSectionedListView {
+    inner: NativeList,
+}
+
+struct NativeList {
     native: Retained<UITableView>,
     _target: Retained<ListTarget>,
     _not_send: PhantomData<Rc<()>>,
@@ -189,9 +237,47 @@ impl IosUiBackend {
     where
         F: FnMut(u64) + 'static,
     {
+        self.add_list_with_sections(
+            parent,
+            frame,
+            vec![IosListSection::untitled(rows)],
+            selection,
+        )
+        .map(|inner| IosListView { inner })
+    }
+
+    /// Adds a UIKit table with titled sections and one globally unique row-ID namespace.
+    ///
+    /// UIKit reuses native subtitle cells, and the callback receives the selected row's stable ID.
+    /// Empty header titles, duplicate row IDs, and section or row counts UIKit cannot represent are
+    /// rejected before the native table is attached.
+    pub fn add_sectioned_list_view<F>(
+        &mut self,
+        parent: &mut IosView,
+        frame: Frame,
+        sections: Vec<IosListSection>,
+        selection: F,
+    ) -> Result<IosSectionedListView>
+    where
+        F: FnMut(u64) + 'static,
+    {
+        self.add_list_with_sections(parent, frame, sections, selection)
+            .map(|inner| IosSectionedListView { inner })
+    }
+
+    fn add_list_with_sections<F>(
+        &mut self,
+        parent: &mut IosView,
+        frame: Frame,
+        sections: Vec<IosListSection>,
+        selection: F,
+    ) -> Result<NativeList>
+    where
+        F: FnMut(u64) + 'static,
+    {
         let marker = main_thread_marker()?;
-        let mut validated_rows = Vec::new();
-        replace_rows(&mut validated_rows, rows)?;
+        let mut validated_sections = Vec::new();
+        replace_sections(&mut validated_sections, sections)?;
 
         let native = UITableView::initWithFrame_style(
             UITableView::alloc(marker),
@@ -203,7 +289,7 @@ impl IosUiBackend {
         let target = ListTarget::with_state(
             marker,
             ListTargetState {
-                rows: RefCell::new(validated_rows),
+                sections: RefCell::new(validated_sections),
                 selection: RefCell::new(Box::new(selection)),
                 reuse_identifier,
                 fallback_cell,
@@ -216,7 +302,7 @@ impl IosUiBackend {
         // stores its delegate weakly and is confined to this same main thread.
         unsafe { native.setDelegate(Some(delegate)) };
         parent.native.addSubview(&native);
-        Ok(IosListView {
+        Ok(NativeList {
             native,
             _target: target,
             _not_send: PhantomData,
@@ -230,21 +316,47 @@ impl IosListView {
     /// Duplicate identities and row counts outside UIKit's signed index range are rejected before
     /// mutation. A rejected update leaves the old rows and displayed contents unchanged.
     pub fn replace_rows(&mut self, rows: Vec<IosListRow>) -> Result<()> {
+        self.inner
+            .replace_sections(vec![IosListSection::untitled(rows)])
+    }
+
+    /// Borrows the native table for UIKit configuration not provided by this wrapper.
+    pub fn native_table_view(&self) -> &UITableView {
+        self.inner.native_table_view()
+    }
+}
+
+impl IosSectionedListView {
+    /// Atomically replaces every section and reloads UIKit's visible cells.
+    ///
+    /// IDs must remain unique across the complete snapshot. Invalid titles, duplicate IDs, or
+    /// unrepresentable UIKit counts fail before mutation, preserving the displayed snapshot.
+    pub fn replace_sections(&mut self, sections: Vec<IosListSection>) -> Result<()> {
+        self.inner.replace_sections(sections)
+    }
+
+    /// Borrows the native table for UIKit configuration not provided by this wrapper.
+    pub fn native_table_view(&self) -> &UITableView {
+        self.inner.native_table_view()
+    }
+}
+
+impl NativeList {
+    fn replace_sections(&mut self, sections: Vec<IosListSection>) -> Result<()> {
         let _main_thread = main_thread_marker()?;
         let mut current = self
             ._target
             .ivars()
-            .rows
+            .sections
             .try_borrow_mut()
             .map_err(|_| Error::new(ErrorKind::Unavailable))?;
-        replace_rows(&mut current, rows)?;
+        replace_sections(&mut current, sections)?;
         drop(current);
         self.native.reloadData();
         Ok(())
     }
 
-    /// Borrows the native table for UIKit configuration not provided by this wrapper.
-    pub fn native_table_view(&self) -> &UITableView {
+    fn native_table_view(&self) -> &UITableView {
         &self.native
     }
 }

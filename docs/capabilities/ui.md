@@ -81,3 +81,8 @@ cards, metrics, actions, and switches; stable `u64` IDs feed typed caller-owned 
 iOS-only UIKit extension rather than a portable view, binding, or observation contract. Optional
 `IosCollectionGridSectionHeader` values provide reusable text-only labels keyed by stable section ID;
 they do not add arbitrary header composition or automatic state observation
+
+For text-first content, `IosSectionedListView` reuses native `UITableView` subtitle cells across
+caller-owned sections and optional UIKit header titles. Its full-snapshot API validates globally
+unique stable row IDs before mutation; it is an imperative native list, not SwiftUI `List` or
+automatic state observation
