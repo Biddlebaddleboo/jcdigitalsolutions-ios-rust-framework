@@ -1,3 +1,4 @@
+use crate::actions::validate_categories;
 use crate::authorization::{DEFAULT_AUTHORIZATION_OPTIONS, IosNotificationAuthorizationOptions};
 use crate::conversion::{
     UtcDateComponents, authorization_state_from_native, utc_trigger_components,
@@ -17,15 +18,21 @@ use objc2::runtime::{AnyObject, Bool};
 use objc2::sel;
 use objc2_foundation::{
     NSArray, NSCalendar, NSDateComponents, NSError, NSMutableDictionary, NSNumber,
-    NSObjectProtocol, NSString, NSTimeZone,
+    NSObjectProtocol, NSSet, NSString, NSTimeZone,
 };
 use objc2_user_notifications::{
     UNAuthorizationOptions, UNCalendarNotificationTrigger, UNMutableNotificationContent,
-    UNNotificationRequest, UNNotificationSettings, UNNotificationSound, UNUserNotificationCenter,
+    UNNotificationAction, UNNotificationActionOptions, UNNotificationCategory,
+    UNNotificationCategoryOptions, UNNotificationRequest, UNNotificationSettings,
+    UNNotificationSound, UNTextInputNotificationAction, UNUserNotificationCenter,
 };
 use std::panic::{AssertUnwindSafe, catch_unwind};
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 use std::time::{SystemTime, UNIX_EPOCH};
+
+use crate::{IosNotificationAction, IosNotificationCategory, IosNotificationConfigurationError};
+
+static CATEGORY_REGISTRATION_LOCK: Mutex<()> = Mutex::new(());
 
 type Completion<T> = Arc<CompletionCell<T, NotificationError>>;
 type StartOperation<T, O> = fn(Retained<UNUserNotificationCenter>, O, Completion<T>);
@@ -190,6 +197,32 @@ impl IosNotificationsBackend {
     /// portable backend and can race with its pending-request query/removal sequence.
     pub fn native_notification_center(&self) -> &UNUserNotificationCenter {
         &self.center
+    }
+
+    /// Replaces the app-wide UserNotifications category set.
+    ///
+    /// Pass the complete set owned by the application; this does not merge with categories
+    /// registered by other app code. An empty slice clears the set. Framework calls from all
+    /// backend handles are serialized, but direct mutations through
+    /// [`Self::native_notification_center`] bypass that serialization. The native center owns
+    /// registered category state after this call, so no registration handle or Rust borrow must
+    /// remain alive. This does not cancel pending notifications or install a response delegate.
+    /// Standard and text-input action results are delivered only if the app separately retains
+    /// an `IosNotificationResponses` handle.
+    pub fn register_categories(
+        &self,
+        categories: &[IosNotificationCategory],
+    ) -> Result<(), IosNotificationConfigurationError> {
+        validate_categories(categories)?;
+        let _guard = CATEGORY_REGISTRATION_LOCK
+            .lock()
+            .unwrap_or_else(|poison| poison.into_inner());
+        autoreleasepool(|_| {
+            let native_categories = categories.iter().map(make_category).collect::<Vec<_>>();
+            let native_categories = NSSet::from_retained_slice(&native_categories);
+            self.center.setNotificationCategories(&native_categories);
+        });
+        Ok(())
     }
 
     /// Return this app's local-request queue count at native callback time
@@ -626,6 +659,9 @@ fn make_request(
         if let Some(thread_identifier) = notification.content().thread_identifier() {
             content.setThreadIdentifier(&NSString::from_str(thread_identifier));
         }
+        if let Some(category_identifier) = notification.content().category_identifier() {
+            content.setCategoryIdentifier(&NSString::from_str(category_identifier));
+        }
         if !notification.content().user_info_entries().is_empty() {
             let user_info = NSMutableDictionary::<NSString, NSString>::new();
             for (key, value) in notification.content().user_info_entries() {
@@ -665,6 +701,60 @@ fn make_request(
             ),
         )
     })
+}
+
+fn make_category(category: &IosNotificationCategory) -> Retained<UNNotificationCategory> {
+    let native_actions = category
+        .actions()
+        .iter()
+        .map(make_action)
+        .collect::<Vec<_>>();
+    let native_actions = NSArray::from_retained_slice(&native_actions);
+    let intent_identifiers = NSArray::<NSString>::from_retained_slice(&[]);
+    let mut options = UNNotificationCategoryOptions::empty();
+    if category.has_custom_dismiss_action() {
+        options |= UNNotificationCategoryOptions::CustomDismissAction;
+    }
+    let identifier = NSString::from_str(category.identifier().as_str());
+    UNNotificationCategory::categoryWithIdentifier_actions_intentIdentifiers_options(
+        &identifier,
+        &native_actions,
+        &intent_identifiers,
+        options,
+    )
+}
+
+fn make_action(action: &IosNotificationAction) -> Retained<UNNotificationAction> {
+    let identifier = NSString::from_str(action.identifier().as_str());
+    let title = NSString::from_str(action.title());
+    let configured_options = action.options();
+    let mut options = UNNotificationActionOptions::empty();
+    if configured_options.contains(crate::IosNotificationActionOptions::AUTHENTICATION_REQUIRED) {
+        options |= UNNotificationActionOptions::AuthenticationRequired;
+    }
+    if configured_options.contains(crate::IosNotificationActionOptions::DESTRUCTIVE) {
+        options |= UNNotificationActionOptions::Destructive;
+    }
+    if configured_options.contains(crate::IosNotificationActionOptions::FOREGROUND) {
+        options |= UNNotificationActionOptions::Foreground;
+    }
+    match action.text_input_details() {
+        Some((button_title, placeholder)) => {
+            let button_title = NSString::from_str(button_title);
+            let placeholder = NSString::from_str(placeholder);
+            UNTextInputNotificationAction::actionWithIdentifier_title_options_textInputButtonTitle_textInputPlaceholder(
+                &identifier,
+                &title,
+                options,
+                &button_title,
+                &placeholder,
+            )
+            .into_super()
+        }
+        None => {
+            UNNotificationAction::actionWithIdentifier_title_options(&identifier, &title, options)
+        }
+    }
 }
 
 fn make_calendar_trigger(

@@ -47,11 +47,39 @@ impl NotificationId {
     }
 }
 
+/// A caller-supplied local-notification category identifier owned by the framework.
+///
+/// Category identifiers are exact, case-sensitive UTF-8 values. Construction rejects an empty
+/// value and NUL bytes and performs no normalization or truncation. A backend may require the
+/// application to register a matching platform category before scheduling the notification.
+#[derive(Clone, Debug, Eq, Hash, PartialEq)]
+pub struct NotificationCategoryId(String);
+
+impl NotificationCategoryId {
+    /// Creates a category identifier from an owned non-empty string that contains no NUL byte.
+    pub fn new(value: String) -> Result<Self, NotificationError> {
+        if value.is_empty() || value.as_bytes().contains(&0) {
+            return Err(NotificationError::InvalidCategoryIdentifier);
+        }
+        Ok(Self(value))
+    }
+
+    /// Borrows the exact category identifier text.
+    pub fn as_str(&self) -> &str {
+        &self.0
+    }
+
+    /// Transfers the owned category identifier string to the caller.
+    pub fn into_string(self) -> String {
+        self.0
+    }
+}
+
 /// Owned portable text fields for one user-visible notification.
 ///
-/// The contract contains a title, optional body, an opt-in system-default sound, and an optional
-/// application badge count. It does not model custom sounds, actions, categories, attachments, or
-/// platform-specific options.
+/// The contract contains a title, optional body, an opt-in system-default sound, an optional
+/// application badge count, and an optional category identifier. It does not model custom sounds,
+/// action definitions, attachments, or platform-specific options.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct NotificationContent {
     title: String,
@@ -63,6 +91,7 @@ pub struct NotificationContent {
 
 #[derive(Clone, Debug, Default, Eq, PartialEq)]
 struct NotificationMetadata {
+    category_identifier: Option<NotificationCategoryId>,
     thread_identifier: Option<String>,
     user_info_entries: Vec<(String, String)>,
 }
@@ -91,6 +120,25 @@ impl NotificationContent {
     /// Returns the requested application badge count, or `None` when the content leaves it alone.
     pub const fn badge_count(&self) -> Option<u32> {
         self.badge_count
+    }
+
+    /// Sets the exact category identifier for platform action routing.
+    ///
+    /// The identifier is owned without normalization. The backend does not register categories
+    /// as a side effect; when the platform requires registration, the application must register
+    /// the matching category before scheduling. When omitted, native category behavior is
+    /// unchanged.
+    pub fn with_category_identifier(mut self, identifier: NotificationCategoryId) -> Self {
+        self.metadata_mut().category_identifier = Some(identifier);
+        self
+    }
+
+    /// Borrows the exact optional category identifier.
+    pub fn category_identifier(&self) -> Option<&str> {
+        self.metadata
+            .as_deref()
+            .and_then(|metadata| metadata.category_identifier.as_ref())
+            .map(NotificationCategoryId::as_str)
     }
 
     /// Sets an exact platform-neutral notification grouping identifier.
@@ -270,6 +318,8 @@ impl Notification {
 pub enum NotificationError {
     /// An identifier is empty or contains a NUL byte.
     InvalidIdentifier,
+    /// A category identifier is empty or contains a NUL byte.
+    InvalidCategoryIdentifier,
     /// An absolute timestamp is outside the supported signed-millisecond range.
     InvalidTimestamp,
     /// The selected backend returned a framework error.
@@ -280,7 +330,9 @@ impl NotificationError {
     /// Returns the stable portable error category.
     pub const fn kind(self) -> ErrorKind {
         match self {
-            Self::InvalidIdentifier | Self::InvalidTimestamp => ErrorKind::InvalidInput,
+            Self::InvalidIdentifier
+            | Self::InvalidCategoryIdentifier
+            | Self::InvalidTimestamp => ErrorKind::InvalidInput,
             Self::Backend(error) => error.kind(),
         }
     }
@@ -288,7 +340,9 @@ impl NotificationError {
     /// Returns the optional backend-native code.
     pub const fn platform_code(self) -> Option<PlatformErrorCode> {
         match self {
-            Self::InvalidIdentifier | Self::InvalidTimestamp => None,
+            Self::InvalidIdentifier | Self::InvalidCategoryIdentifier | Self::InvalidTimestamp => {
+                None
+            }
             Self::Backend(error) => error.platform_code(),
         }
     }
@@ -688,6 +742,21 @@ mod tests {
     }
 
     #[test]
+    fn category_identifiers_reject_empty_and_nul_values_without_normalization() {
+        assert_eq!(
+            NotificationCategoryId::new(String::new()).err(),
+            Some(NotificationError::InvalidCategoryIdentifier)
+        );
+        assert_eq!(
+            NotificationCategoryId::new(String::from("with\0nul")).err(),
+            Some(NotificationError::InvalidCategoryIdentifier)
+        );
+        let identifier = NotificationCategoryId::new(String::from("chat.reply.v1")).unwrap();
+        assert_eq!(identifier.as_str(), "chat.reply.v1");
+        assert_eq!(identifier.into_string(), "chat.reply.v1");
+    }
+
+    #[test]
     fn trigger_forms_and_timestamp_bounds_are_explicit() {
         let immediate = NotificationTrigger::immediate();
         assert!(immediate.is_immediate());
@@ -718,6 +787,16 @@ mod tests {
 
         let maximum = content.with_badge_count(u32::MAX);
         assert_eq!(maximum.badge_count(), Some(u32::MAX));
+    }
+
+    #[test]
+    fn category_identifier_is_absent_by_default_and_preserves_exact_text() {
+        let content = NotificationContent::new(String::from("title"), None);
+        assert_eq!(content.category_identifier(), None);
+        let content = content.with_category_identifier(
+            NotificationCategoryId::new(String::from("chat.reply.é")).unwrap(),
+        );
+        assert_eq!(content.category_identifier(), Some("chat.reply.é"));
     }
 
     #[test]

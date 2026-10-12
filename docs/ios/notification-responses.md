@@ -60,7 +60,7 @@ omitted individually without dropping an otherwise valid response. Empty strings
 native entries are sorted by exact key for deterministic iteration. The portable builder replaces
 duplicate keys in place, retaining the first insertion position.
 
-`UNPushNotificationTrigger` responses are ignored, so this crate does not route remote-push responses into D9 local values. It does not register APNs, call a permission API, schedule notifications, or define categories/actions. A custom or text-input action needs app-owned category setup outside this crate
+`UNPushNotificationTrigger` responses are ignored, so this crate does not route remote-push responses into D9 local values. It does not register APNs, call a permission API, schedule notifications, or define categories/actions. Configure custom and text-input actions with `IosNotificationsBackend::register_categories` from the separate `ios-notifications` crate, then set the matching `NotificationCategoryId` on the scheduled content. This response crate continues to map the selected action ID and owned text; category setup does not install its delegate for the app
 
 The crate uses `objc2-user-notifications` 0.3.2 with default features off and only `block2`, `UNNotification`, `UNNotificationContent`, `UNNotificationRequest`, `UNNotificationResponse`, `UNNotificationTrigger`, and `UNUserNotificationCenter`. `UNNotificationTrigger` permits the `UNPushNotificationTrigger` check
 

@@ -3,10 +3,17 @@
 #![cfg_attr(not(target_os = "ios"), allow(dead_code))]
 #![doc = "Executor-neutral local notifications through public iOS UserNotifications APIs."]
 
+extern crate alloc;
+
+mod actions;
 mod authorization;
 mod conversion;
 mod operation;
 
+pub use actions::{
+    IosNotificationAction, IosNotificationActionOptions, IosNotificationCategory,
+    IosNotificationConfigurationError,
+};
 pub use authorization::IosNotificationAuthorizationOptions;
 
 #[cfg(target_os = "ios")]
@@ -24,7 +31,7 @@ pub use platform::{
 
 #[cfg(test)]
 mod notification_content_tests {
-    use framework_notifications::NotificationContent;
+    use framework_notifications::{NotificationCategoryId, NotificationContent, NotificationError};
 
     #[test]
     fn existing_content_keeps_system_default_sound_disabled() {
@@ -42,8 +49,29 @@ mod notification_content_tests {
     #[test]
     fn content_metadata_is_absent_by_default() {
         let content = NotificationContent::new(String::from("Title"), None);
+        assert_eq!(content.category_identifier(), None);
         assert_eq!(content.thread_identifier(), None);
         assert!(content.user_info_entries().is_empty());
+    }
+
+    #[test]
+    fn content_category_identifier_is_opt_in_and_exact() {
+        let category = NotificationCategoryId::new(String::from("reply.é")).unwrap();
+        let content = NotificationContent::new(String::from("Title"), None)
+            .with_category_identifier(category);
+        assert_eq!(content.category_identifier(), Some("reply.é"));
+    }
+
+    #[test]
+    fn invalid_category_identifiers_are_rejected() {
+        assert_eq!(
+            NotificationCategoryId::new(String::new()).err(),
+            Some(NotificationError::InvalidCategoryIdentifier)
+        );
+        assert_eq!(
+            NotificationCategoryId::new(String::from("bad\0category")).err(),
+            Some(NotificationError::InvalidCategoryIdentifier)
+        );
     }
 
     #[test]

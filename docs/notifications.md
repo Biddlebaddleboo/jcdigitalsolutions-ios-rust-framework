@@ -1,6 +1,6 @@
 # Local notifications
 
-`framework-notifications` defines a portable, `no_std` + `alloc` contract for owned local-notification content, optional system-default sound and badge count, and one-shot scheduling. The D3 crate does not link `UserNotifications` or implement a native backend; B4's iOS adapter is documented in the [iOS local-notifications guide](ios/notifications.md). Neither crate implements remote push/APNs/PushKit.
+`framework-notifications` defines a portable, `no_std` + `alloc` contract for owned local-notification content, optional system-default sound and badge count, an optional category identifier, and one-shot scheduling. The D3 crate does not link `UserNotifications` or implement a native backend; B4's iOS adapter is documented in the [iOS local-notifications guide](ios/notifications.md). Neither crate implements remote push/APNs/PushKit.
 
 D9 adds portable [notification interaction response values](notification-responses.md). Those values do not add a delivery callback, delegate, or response backend; B12 owns native response delivery.
 
@@ -23,7 +23,7 @@ let request = Notification::new(identifier, content, trigger);
 # Ok::<(), framework_notifications::NotificationError>(())
 ```
 
-`NotificationId` owns an exact, case-sensitive UTF-8 string. An empty ID or one containing NUL is invalid. The crate does not normalize or truncate identifiers. `NotificationContent` owns its title and optional body; `with_system_default_sound()` opts into the system default sound, and `with_badge_count(u32)` records an optional badge value. `None` leaves the badge unchanged; zero is preserved as an explicit clear request. Actions, categories, attachments, custom sounds, and other platform-specific presentation fields are not modeled.
+`NotificationId` and `NotificationCategoryId` own exact, case-sensitive UTF-8 strings. Empty values and values containing NUL are invalid; neither type normalizes or truncates identifiers. `NotificationContent` owns its title and optional body; `with_system_default_sound()` opts into the system default sound, `with_badge_count(u32)` records an optional badge value, and `with_category_identifier` opts into a category ID. `None` leaves the badge and native category unchanged; zero is preserved as an explicit badge-clear request. Action definitions, attachments, custom sounds, and other platform-specific presentation fields are not modeled by the portable contract. The iOS backend can register action categories separately.
 
 `NotificationTrigger` is deliberately bounded to `Immediate` or an absolute Unix timestamp in milliseconds from zero through `MAX_UNIX_TIMESTAMP_MILLIS` (`i64::MAX`). Repeating, calendar, relative-delay, and interval triggers are outside this contract. A timestamp in the past is eligible as soon as a backend permits, but no exact delivery time is promised. A backend with a smaller date range must report the limitation rather than silently change the timestamp.
 
@@ -41,7 +41,7 @@ Backend futures are executor-neutral and do not require `Send`. Wake behavior an
 
 ## Scope and support
 
-This contract is portable and contains no iOS, Android, desktop, or web types. The portable crate makes no platform availability claim. The iOS adapter uses `UserNotifications` from iOS 10.0; compile and import evidence does not establish live prompt or delivery behavior. Push notifications/APNs/PushKit, category/action setup, attachments, repeat and calendar triggers, critical alerts, custom sounds, and other platform-specific presentation remain outside D3 scope. Badge count is content only: it does not request authorization or establish delivery or app-icon state. Response values are portable; D3 does not deliver responses or own a delegate. The separate opt-in [B12 iOS bridge](ios/notification-responses.md) maps valid local responses to D9 values
+This contract is portable and contains no iOS, Android, desktop, or web types. The portable crate makes no platform availability claim. The iOS adapter uses `UserNotifications` from iOS 10.0; compile and import evidence does not establish live prompt or delivery behavior. Push notifications/APNs/PushKit, attachments, repeat and calendar triggers, critical alerts, custom sounds, and other platform-specific presentation remain outside D3 scope. Badge count is content only: it does not request authorization or establish delivery or app-icon state. A category identifier is only a routing value until an iOS category is registered; it does not define actions or promise they will be presented. Response values are portable; D3 does not deliver responses or own a delegate. The separate opt-in [B12 iOS bridge](ios/notification-responses.md) maps valid local responses to D9 values
 
 ## Costs and validation
 

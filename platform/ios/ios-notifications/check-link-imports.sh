@@ -29,6 +29,12 @@ if ! grep -Fq 'backend.request_authorization_with_options(' "$probe_source"; the
     echo "iOS notifications link probe must retain the explicit authorization-options API call" >&2
     exit 1
 fi
+for expression in 'backend.register_categories(' 'IosNotificationAction::button(' 'IosNotificationAction::text_input(' '.with_category_identifier(category_identifier)'; do
+    if ! grep -Fq "$expression" "$probe_source"; then
+        echo "iOS notifications link probe must retain the category/action API call: $expression" >&2
+        exit 1
+    fi
+done
 authorization_source=platform/ios/ios-notifications/src/platform.rs
 for option in Alert Badge Sound; do
     if ! grep -Fq "native_options |= UNAuthorizationOptions::$option;" "$authorization_source"; then
@@ -57,6 +63,34 @@ if ! grep -Fq 'backend.notification_settings_surface_raw_values()' "$probe_sourc
     exit 1
 fi
 settings_source=platform/ios/ios-notifications/src/platform.rs
+for expression in 'content.setCategoryIdentifier(&NSString::from_str(category_identifier));' 'self.center.setNotificationCategories(&native_categories);' 'CATEGORY_REGISTRATION_LOCK' 'UNNotificationAction::actionWithIdentifier_title_options(' 'UNTextInputNotificationAction::actionWithIdentifier_title_options_textInputButtonTitle_textInputPlaceholder(' 'UNNotificationCategory::categoryWithIdentifier_actions_intentIdentifiers_options('; do
+    if ! grep -Fq "$expression" "$settings_source"; then
+        echo "iOS notification action/category mapping must retain: $expression" >&2
+        exit 1
+    fi
+done
+for option in AuthenticationRequired Destructive Foreground; do
+    if ! grep -Fq "UNNotificationActionOptions::$option" "$settings_source"; then
+        echo "iOS notification action must map the $option option" >&2
+        exit 1
+    fi
+done
+for regression in duplicate_actions_are_rejected_without_reordering_existing_actions duplicate_categories_are_rejected_and_empty_set_is_valid_cleanup text_input_action_owns_exact_prompt_and_action_values; do
+    if ! grep -Fq "fn $regression()" platform/ios/ios-notifications/src/actions.rs; then
+        echo "iOS notification category regression is required: $regression" >&2
+        exit 1
+    fi
+done
+for regression in category_identifiers_reject_empty_and_nul_values_without_normalization category_identifier_is_absent_by_default_and_preserves_exact_text; do
+    if ! grep -Fq "fn $regression()" crates/framework-notifications/src/lib.rs; then
+        echo "portable notification category regression is required: $regression" >&2
+        exit 1
+    fi
+done
+if ! grep -Fq 'NotificationCategoryId::new' crates/framework-notifications/src/lib.rs; then
+    echo "portable notification category identifiers must keep their validated constructor" >&2
+    exit 1
+fi
 if ! grep -Fq 'notification.content().badge_count()' "$settings_source" || \
     ! grep -Fq 'content.setBadge(Some(&badge));' "$settings_source"; then
     echo "iOS notification requests must map a present badge count to UserNotifications" >&2

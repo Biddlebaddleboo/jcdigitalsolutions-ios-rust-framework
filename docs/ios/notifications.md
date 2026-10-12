@@ -46,6 +46,10 @@ calendar-trigger APIs in this backend have an iOS 10.0 floor per Xcode 26.6 iPho
 `UNAuthorizationStatusProvisional`
 has an iOS 12.0 floor; `UNAuthorizationStatusEphemeral` has an iOS 14.0 floor
 
+The public `UNNotificationCategory`, `UNNotificationAction`, `UNTextInputNotificationAction`,
+and `setNotificationCategories:` APIs used for category registration also have an iOS 10.0 floor
+in these SDK headers
+
 Native `NotDetermined` and `Denied` map to the matching `framework_core::AuthorizationState`.
 Native `Authorized`, `Provisional`, and `Ephemeral` map to portable `Authorized`; this intentionally
 loses the provisional/temporary distinction and does not imply that banners, lock-screen display,
@@ -61,6 +65,44 @@ method, and its native prompt starts only when the returned future is first poll
 method remains alert-only. Notification content has separate opt-ins for system-default sound and
 badge count; neither changes authorization options. The options do not expose critical or
 provisional authorization and do not register for remote notifications.
+
+## Categories and actions
+
+The iOS-only `IosNotificationsBackend::register_categories` registers standard buttons and text-input actions with the shared notification center. Build each `IosNotificationCategory` with a validated `NotificationCategoryId`, add unique `NotificationActionId` values, and set the matching ID on `NotificationContent::with_category_identifier`. `IosNotificationActionOptions` selects authentication-required, destructive, and foreground behavior; `with_custom_dismiss_action(true)` opts into a dismissal response
+
+```rust,ignore
+use framework_notifications::{
+    NotificationCategoryId, NotificationContent, response::NotificationActionId,
+};
+use ios_notifications::{
+    IosNotificationAction, IosNotificationActionOptions, IosNotificationCategory,
+    IosNotificationsBackend,
+};
+use alloc::string::String;
+
+let category_id = NotificationCategoryId::new(String::from("messages"))
+    .expect("valid category identifier");
+let mut category = IosNotificationCategory::new(category_id.clone());
+category.add_action(IosNotificationAction::button(
+    NotificationActionId::new(String::from("open")).expect("valid action identifier"),
+    String::from("Open"),
+    IosNotificationActionOptions::FOREGROUND,
+)).expect("unique action identifier");
+category.add_action(IosNotificationAction::text_input(
+    NotificationActionId::new(String::from("reply")).expect("valid action identifier"),
+    String::from("Reply"),
+    String::from("Send"),
+    String::from("Write a reply"),
+    IosNotificationActionOptions::AUTHENTICATION_REQUIRED,
+)).expect("unique action identifier");
+let backend = IosNotificationsBackend::new();
+backend.register_categories(&[category.with_custom_dismiss_action(true)])
+    .expect("unique category identifiers");
+let content = NotificationContent::new(String::from("Message"), None)
+    .with_category_identifier(category_id);
+```
+
+Registration is synchronous and does not prompt, install a delegate, or alter existing requests. The call replaces the complete app-wide category set, so pass all categories the app wants to retain; an empty slice clears that set. A duplicate category or duplicate action ID within one category is rejected before native mutation. Framework registration calls serialize across backend handles; direct calls through `native_notification_center()` bypass the lock. Configuration values are converted to native strings, actions, categories, and a set for the synchronous call; Rust values can be dropped after it returns. Replacing or clearing categories does not cancel pending notifications. Keep the separate `IosNotificationResponses` handle alive to receive the custom or text-input response values; action registration does not change its delegate lifecycle or callback-thread behavior
 
 B86 extends B4 with the iOS-only `IosNotificationsBackend::authorization_status_raw_value` future.
 It returns the raw signed `NSInteger` from `UNNotificationSettings.authorizationStatus` without
@@ -114,17 +156,19 @@ for this scope decision and the validation record
 
 Local notification authorization does not require a notification-specific `Info.plist` usage
 description or push entitlement. The app should request authorization in a user-understandable
-context. This backend does not register for remote notifications and has no APNs, PushKit, category,
-action, response-delegate, or notification-service-extension behavior.
+context. This backend does not register for remote notifications, APNs, PushKit, or notification
+service extensions. Category registration remains opt-in and separate from authorization and
+response-delegate installation.
 
 ## Request and trigger semantics
 
 - Caller IDs are passed unchanged through `NSString`; the backend adds no prefix, truncation, or
   normalization. D3's constructor remains responsible for rejecting empty and NUL-containing IDs.
 - Title and optional body strings are copied into `UNMutableNotificationContent`. Content created
-  by `NotificationContent::new` has no sound. Call `with_system_default_sound` to set the public
-  `UNNotificationSound.defaultSound`; custom sounds, actions, categories, and attachments are not
-  represented.
+  by `NotificationContent::new` has no sound or category. Call `with_system_default_sound` to set
+  the public `UNNotificationSound.defaultSound`; call `with_category_identifier` to select a
+  separately registered action category. Custom sounds, attachments, and action definitions are
+  not part of the portable request.
 - `with_badge_count(count)` maps the exact `u32` count to `UNMutableNotificationContent.badge`.
   `None` leaves the native content default unchanged; `Some(0)` requests clearing the badge.
   Authorization, scheduling success, delivery, and the resulting app-icon state remain controlled
