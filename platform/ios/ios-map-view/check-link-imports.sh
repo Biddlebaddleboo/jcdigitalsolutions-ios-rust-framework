@@ -31,6 +31,9 @@ grep -F 'fn polygon_rejects_too_few_coordinates_before_delegate_policy()' platfo
 grep -F 'fn polygon_accepts_three_and_the_maximum_coordinate_count()' platform/ios/ios-map-view/src/polygon.rs >/dev/null
 grep -F 'fn polygon_rejects_coordinates_over_the_bounded_limit()' platform/ios/ios-map-view/src/polygon.rs >/dev/null
 grep -F 'fn polygon_rejects_an_unrelated_host_delegate()' platform/ios/ios-map-view/src/polygon.rs >/dev/null
+grep -F 'fn delegate_claim_rejects_an_unowned_host_delegate()' platform/ios/ios-map-view/src/delegate.rs >/dev/null
+grep -F 'fn delegate_claim_rejects_active_builtin_overlays()' platform/ios/ios-map-view/src/delegate.rs >/dev/null
+grep -F 'fn cleanup_does_not_clear_a_delegate_replaced_by_the_host()' platform/ios/ios-map-view/src/delegate.rs >/dev/null
 grep -F 'pub fn replace_polygon(' platform/ios/ios-map-view/src/platform.rs >/dev/null
 grep -F 'validate_polygon_point_count(coordinates.len())?' platform/ios/ios-map-view/src/platform.rs >/dev/null
 grep -F 'validate_polygon_delegate_slot(current_delegate.is_none(), owns_current)?;' platform/ios/ios-map-view/src/platform.rs >/dev/null
@@ -75,8 +78,8 @@ for target in aarch64-apple-ios aarch64-apple-ios-sim; do
     nm -u "$binary" > "$symbols"
     grep -q '_objc_getClass' "$symbols"
     grep -q '_objc_msgSend' "$symbols"
-    if grep -Eqi 'swift_|Py[A-Z_]|CLGeocoder|MKLocalSearch|MKDirections|MKMapItem|MKMapSnapshotter|MKAnnotationView|MKTileOverlay' "$symbols"; then
-        echo "unexpected Swift, Python, geocoder, search, directions, custom annotation, or tile overlay import in $symbols" >&2
+    if grep -Eqi 'swift_|Py[A-Z_]|CLGeocoder|MKLocalSearch|MKDirections|MKMapItem|MKMapSnapshotter|MKTileOverlay' "$symbols"; then
+        echo "unexpected Swift, Python, geocoder, search, directions, or tile overlay import in $symbols" >&2
         exit 1
     fi
 
@@ -94,26 +97,51 @@ for target in aarch64-apple-ios aarch64-apple-ios-sim; do
     grep -F 'polylineWithCoordinates:count:' "$strings_file" >/dev/null
     grep -F 'polygonWithCoordinates:count:' "$strings_file" >/dev/null
     grep -F 'mapView:rendererForOverlay:' "$strings_file" >/dev/null
+    grep -F 'mapView:regionWillChangeAnimated:' "$strings_file" >/dev/null
+    grep -F 'mapView:regionDidChangeAnimated:' "$strings_file" >/dev/null
+    grep -F 'mapViewDidChangeVisibleRegion:' "$strings_file" >/dev/null
+    grep -F 'mapView:didSelectAnnotationView:' "$strings_file" >/dev/null
+    grep -F 'mapView:didDeselectAnnotationView:' "$strings_file" >/dev/null
     grep -F 'initWithPolygon:' "$strings_file" >/dev/null
     grep -F 'addOverlay:' "$strings_file" >/dev/null
     grep -F 'removeOverlay:' "$strings_file" >/dev/null
+    grep -F 'addOverlay:level:' "$strings_file" >/dev/null
+    grep -F 'rendererForOverlay:' "$strings_file" >/dev/null
+    grep -F 'visibleMapRect' "$strings_file" >/dev/null
+    grep -F 'setVisibleMapRect:animated:' "$strings_file" >/dev/null
+    grep -F 'setVisibleMapRect:edgePadding:animated:' "$strings_file" >/dev/null
+    grep -F 'mapRectThatFits:' "$strings_file" >/dev/null
+    grep -F 'mapRectThatFits:edgePadding:' "$strings_file" >/dev/null
+    grep -F 'camera' "$strings_file" >/dev/null
+    grep -F 'setCamera:animated:' "$strings_file" >/dev/null
+    grep -F 'selectAnnotation:animated:' "$strings_file" >/dev/null
+    grep -F 'deselectAnnotation:animated:' "$strings_file" >/dev/null
     grep -F 'blueColor' "$strings_file" >/dev/null
     grep -F 'colorWithAlphaComponent:' "$strings_file" >/dev/null
     grep -F 'setStrokeColor:' "$strings_file" >/dev/null
     grep -F 'setFillColor:' "$strings_file" >/dev/null
     grep -F 'setLineWidth:' "$strings_file" >/dev/null
+    grep -F 'setLineDashPattern:' "$strings_file" >/dev/null
     grep -F 'setCoordinate:' "$strings_file" >/dev/null
     grep -F 'setTitle:' "$strings_file" >/dev/null
     grep -Fx 'CLLocationManager' "$strings_file" >/dev/null
     grep -F 'authorizationStatus' "$strings_file" >/dev/null
     grep -F 'setShowsUserLocation:' "$strings_file" >/dev/null
     grep -F 'setUserTrackingMode:animated:' "$strings_file" >/dev/null
+    grep -F 'addSubview:' "$strings_file" >/dev/null
+    grep -F 'removeFromSuperview' "$strings_file" >/dev/null
+    grep -F 'setFrame:' "$strings_file" >/dev/null
+    grep -F 'setBounds:' "$strings_file" >/dev/null
+    grep -F 'setHidden:' "$strings_file" >/dev/null
+    grep -F 'setNeedsLayout' "$strings_file" >/dev/null
+    grep -F 'layoutIfNeeded' "$strings_file" >/dev/null
+    grep -F 'hitTest:withEvent:' "$strings_file" >/dev/null
     if grep -Eqi 'requestWhenInUseAuthorization|requestAlwaysAuthorization|requestTemporaryFullAccuracyAuthorization' "$strings_file"; then
         echo "unexpected location authorization request selector in $strings_file" >&2
         exit 1
     fi
-    if grep -Eqi 'swift_|CLGeocoder|MKLocalSearch|MKDirections|MKMapItem|MKMapSnapshotter|MKAnnotationView|MKTileOverlay' "$strings_file"; then
-        echo "unexpected Swift, geocoder, search, directions, custom annotation, or tile overlay selector in $strings_file" >&2
+    if grep -Eqi 'swift_|CLGeocoder|MKLocalSearch|MKDirections|MKMapItem|MKMapSnapshotter|MKTileOverlay' "$strings_file"; then
+        echo "unexpected Swift, geocoder, search, directions, or tile overlay selector in $strings_file" >&2
         exit 1
     fi
 

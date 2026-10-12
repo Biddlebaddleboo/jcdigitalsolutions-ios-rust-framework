@@ -1,13 +1,39 @@
 # ios-map-view
 
-`ios-map-view` creates a main-thread-bound public `MKMapView`, exposes its borrowed native view for UIKit embedding, gets/sets a finite `MapRegion`, replaces caller-owned marker snapshots, draws one caller-supplied route path and one polygon, and offers caller-controlled user-location tracking. The host owns layout and hierarchy; MapKit can adjust the requested region to the current view dimensions.
+`ios-map-view` owns a main-thread UIKit `MKMapView` and exposes both the prior convenience slice
+and low-level native MapKit access. `IosMapView` keeps validated region access, stable marker
+snapshots, one bounded route, one bounded polygon, and opt-in foreground user tracking. These
+helpers preserve their prior bounds and behavior.
 
-`MKMapView` is an imperative native UIKit view, not SwiftUI or a declarative map framework. `MapAnnotation` holds an application-defined stable id, validated coordinate, and optional borrowed title. `replace_annotations` rejects duplicate ids, reuses native `MKPointAnnotation` objects for ids that persist, updates coordinates and titles, and removes omitted ids. MapKit copies titles. `replace_route` accepts 2 through 4,096 validated coordinates and replaces the one route overlay; `clear_route` removes it without changing annotations. The route style is fixed to `UIColor.blueColor()` at 5 points. `replace_polygon` accepts 3 through 4,096 coordinates and replaces one `MKPolygon`; MapKit closes the final edge. `clear_polygon` removes only that shape. The polygon style is fixed to a 20%-alpha blue fill with a 2-point blue stroke. One route and one polygon can coexist using the same owned delegate; neither overlay can replace a preinstalled host delegate, and the delegate is released only after both are cleared. User location is off by default; the typed B586 API is opt-in, requires existing authorization, and never requests permission. Search, geocoding, directions, offline maps, polygon holes, custom overlay styles, and arbitrary overlay collections are not included. MapKit owns basemap content and any native network fetch behavior; this crate does not promise map content availability or prove runtime fetching.
+`native_view()` borrows the typed `NativeMapView`; `ui_view()` borrows the same object as `UIView`.
+The host owns its parent/child hierarchy, frame, bounds, visibility, constraints, layout, hit testing,
+and removal. Native UIKit methods on `UIView` remain available through the borrowed superclass view.
 
-`IosMapView::set_user_tracking_mode` accepts `IosUserTrackingMode::{None, Follow, FollowHeading}`. `None` is available without location authorization and stops this map's user-location display. The follow modes first read the current `CLLocationManager` authorization status and succeed only for `AuthorizedWhenInUse` or `AuthorizedAlways`; otherwise they stop tracking/display and return `MapUserTrackingError::LocationAuthorizationRequired`. The method does not create a location manager, call an authorization request API, or change authorization. The host owns permission UX and must add `NSLocationWhenInUseUsageDescription` when its app uses this location feature. Reapply a desired mode after the app handles authorization changes; this API does not observe or request them. It is foreground map presentation only, not background location tracking or a location-coordinate feed. Tracking does not read or change `MKMapView.delegate`, so active route and polygon renderers remain owned as before.
+`NativeMapView` adds direct native region, visible map rectangle, camera, overlay, annotation,
+selection, renderer lookup, and weak delegate reads. It supports any number of simultaneous native
+overlays through repeated `add_overlay` or `add_overlay_at_level` calls; the host owns each retained
+overlay handle and removes only overlays it added. The crate re-exports generated `objc2-map-kit`
+types for coordinates, geometry, annotations, overlays, cameras, and renderers. Native
+`MKOverlayPathRenderer` properties include stroke/fill, line width, and dash pattern setters.
 
-`MKMapView.delegate` is a weak singleton slot. While either overlay is active, `IosMapView` owns this slot and retains its narrow `MKMapViewDelegate` object. Route or polygon activation fails with the corresponding `DelegateSlotOccupied` error when a host delegate is already set. The host must not replace the native delegate while an overlay is active. If it does, later overlay replacement fails; clear/drop still remove only owned overlays and preserve the host's replacement delegate. Marker annotations remain independent of this delegate.
+`IosMapViewDelegate` maps the public iOS `MKMapViewDelegate` protocol. It exposes region-change,
+annotation-view selection, and nullable overlay-renderer callbacks. `set_delegate` retains the
+delegate while it owns MapKit's weak slot; `clear_delegate` and drop clear only that slot if it still
+points to this wrapper. Delegate implementations must uphold the Objective-C ABI, avoid panic across
+callbacks, and handle synchronous reentrancy. Built-in route/polygon rendering uses its own delegate;
+the wrapper rejects a host delegate while either built-in overlay is active and rejects built-in
+overlay activation while a host delegate owns the slot.
 
-The selected `objc2-map-kit 0.3.2` generated `MKMapView` binding is gated behind macOS/AppKit, so this iOS crate defines the public iOS `MKMapView` class and the exact `MKMapViewDelegate` renderer callback ABI with `objc2`. It reuses the generated public region, annotation, polyline, polygon, and renderer bindings. `MKPolygon` is available from iOS 4.0; `MKPolygonRenderer` and MapKit's public overlay renderer callback are available from iOS 7.0. The map and marker APIs remain available from iOS 3.0 and 4.0. No Swift source is used.
+`MKMapView` is imperative native UIKit, not SwiftUI. MapKit may adjust a requested region or
+rectangle to fit the current view size. The native API does not add route calculation, search,
+geocoding, directions, offline maps, or a custom renderer. MapKit owns basemap data and any native
+network requests. Build/link checks do not prove visible rendering, tile fetch, touch behavior, or
+device runtime.
 
-See the [MapKit capability guide](../../../docs/capabilities/mapkit.md), [iOS MapKit guide](../../../docs/ios/mapkit.md), and [registered validation plan](../../../PLAN_VALIDATION_IOS_MAPKIT.md).
+The selected `objc2-map-kit 0.3.2` generated `MKMapView` and `MKAnnotationView` classes are
+macOS/AppKit-only, so this crate supplies narrow iOS class declarations for their public UIKit
+superclasses. It reuses generated MapKit geometry, camera, annotation, overlay, and renderer types.
+The edge-padding methods use UIKit's public `UIEdgeInsets` ABI. No Swift source, private symbols, or
+special entitlement is used.
+
+See the [MapKit capability guide](../../../docs/capabilities/mapkit.md), [iOS MapKit guide](../../../docs/ios/mapkit.md), [implementation plan](../../../PLAN_CAPABILITIES_MAPKIT.md), and [registered validation plan](../../../PLAN_VALIDATION_IOS_MAPKIT.md).

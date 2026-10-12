@@ -1,18 +1,21 @@
 # iOS MapKit
 
 `ios-maps` contains MapKit coordinate projection and distance calls. The independent
-`ios-map-view` crate creates a native, main-thread-bound `MKMapView` that a host UIKit controller
-can embed, then gets or sets its center/span `MapRegion`, replaces caller-owned marker snapshots,
-displays one caller-supplied route path and one polygon, and offers caller-controlled user-location
-tracking.
+`ios-map-view` crate creates a native, main-thread-bound `MKMapView` that a host UIKit or Rust UI
+engine can embed. It keeps validated `MapRegion` access, caller-owned marker snapshots, one route and
+one polygon convenience overlay, and caller-controlled user-location tracking. B602 adds direct
+native UIKit composition and MapKit overlay, delegate, camera, viewport, and annotation-selection
+APIs.
 
 `MapSpan::new` rejects non-finite, non-positive, or over-world deltas (latitude `(0, 180]`,
 longitude `(0, 360]`). The center uses `MapCoordinate`, which bounds finite latitude to `-90..=90`
 and longitude to `-180..=180`. MapKit can adjust a requested region to fit the view's dimensions;
 the getter returns `None` if the native center or span fails portable validation.
 
-The view is a lower-level imperative UIKit primitive, not SwiftUI `Map`. The host controls its
-frame, constraints, and view hierarchy. User-location display is off by default; B586 adds an
+The view is a lower-level imperative UIKit primitive, not SwiftUI `Map`. `IosMapView::native_view`
+borrows `NativeMapView`; `IosMapView::ui_view` borrows its UIKit `UIView` superclass. The host
+controls its frame, constraints, parent/child hierarchy, layout, and teardown with native UIKit
+methods. User-location display is off by default; B586 adds an
 explicit typed tracking mode that requires existing authorization and never requests or changes
 authorization. Search, geocoding, directions, and offline maps remain out of scope.
 MapKit owns basemap content and any native content/network fetch behavior. No claim is made that
@@ -26,6 +29,34 @@ generated `MKCoordinateRegion` struct ABI. It also declares the exact iOS `MKMap
 overlay callback because the selected binding omits that iOS protocol method. It uses no Swift
 source, private symbols, or special entitlement.
 
+## Native UIKit and MapKit surface
+
+`NativeMapView` wraps native region, visible `MKMapRect`, edge-padding, `MKMapCamera`, overlay,
+annotation, selection, and renderer-lookup selectors. It supports repeated `add_overlay` and
+`add_overlay_at_level` calls for multiple independent native overlays. The host retains native
+overlay objects and removes only the overlays it added. Re-exported types include MapKit geometry,
+camera, annotations, overlays, polyline/polygon models, and overlay renderers. `MKOverlayPathRenderer`
+exposes native fill/stroke, line-width, and line-dash APIs.
+
+`IosMapViewDelegate` is the local iOS declaration for Apple's `MKMapViewDelegate` protocol subset.
+It includes region-will/did-change, visible-region, annotation-view selection, and nullable
+`rendererForOverlay:` callbacks. `IosMapView::set_delegate` retains a Rust delegate for MapKit's
+weak slot; explicit clear or wrapper drop clears that slot only when it still points to the owned
+delegate. The unsafe protocol implementation contract requires exact Objective-C ABI, main-thread
+callbacks, no panic across the foreign boundary, valid callback state, and reentrancy safety.
+
+The selected `objc2-map-kit 0.3.2` class declarations for `MKMapView` and `MKAnnotationView` are
+macOS/AppKit-only. This crate supplies narrow iOS `UIView` subclass declarations and reuses the
+generated public MapKit value/object/renderer bindings. UIKit edge-padding uses the SDK's
+`UIEdgeInsets` struct encoding. The host delegate cannot share MapKit's weak slot with the
+convenience route/polygon renderer: host delegate install rejects active convenience overlays, and
+the convenience overlay methods reject a host-owned delegate. Native overlays added through
+`NativeMapView` remain independent and can share the host's own delegate.
+
+The registered device/Simulator probes compile and link this surface, but do not execute MapKit.
+Visible overlays, callbacks, annotation touches, camera motion, view rotation, basemap requests, and
+physical-device behavior remain runtime-unverified.
+
 ## Marker snapshots
 
 `MapAnnotation::new(id, coordinate, title)` builds a portable, caller-owned marker value. The
@@ -37,9 +68,9 @@ ids. Call the method on the main thread; `IosMapView`'s `MainThreadMarker`-bound
 enforces this at the Rust type boundary.
 
 This increment uses public `MKPointAnnotation` (available from iOS 4.0) and `MKMapView` add/remove
-selectors. It supplies only MapKit's built-in point annotation behavior; there is no custom view,
-selection callback, subtitle, image, clustering policy, arbitrary overlay collection, or
-SwiftUI-style state renderer.
+selectors. It supplies only MapKit's built-in point annotation behavior; it does not create custom
+view objects or expose subtitle, image, clustering policy, or a SwiftUI-style state renderer. Native
+selection and annotation-view delegate callbacks are available through B602.
 The registered tests prove value and duplicate-id policy; device and Simulator link checks prove
 compile/link symbols only, not visible pins, title callouts, touch behavior, or runtime map content.
 
@@ -65,15 +96,17 @@ prove a visible route on Simulator or device.
 one public `MKPolygon`; MapKit connects the final vertex to the first. `clear_polygon` and drop
 remove only this owned polygon. The fixed renderer uses a 20%-alpha UIKit blue fill and 2-point
 blue stroke. Invalid counts reject before native map state changes. Polygon holes, caller styles,
-and arbitrary overlay collections are not exposed.
+and arbitrary overlay collections are not part of this convenience API; native MapKit models and
+renderer styles remain available through B602.
 
 The route and polygon share one wrapper-owned delegate and one of each can coexist. Each activation
 returns its corresponding `DelegateSlotOccupied` error if a host delegate already occupies MapKit's
 weak singleton slot. The host must not replace this delegate through `native_view()` while either
 overlay is active. Clear/drop remove only the corresponding owned overlay and release the slot only
-after both are gone and only if it still points to this wrapper. The delegate does not alter marker
-annotations or forward host callbacks. Device/Simulator link checks prove public selectors, not
-rendered route or polygon pixels.
+after both are gone and only if it still points to this wrapper. This convenience delegate does not
+forward host callbacks. These limits apply to the route/polygon helpers; B602 exposes native overlay
+and delegate control for other MapKit models. Device/Simulator link checks prove public selectors,
+not rendered route or polygon pixels.
 
 ## Caller-controlled user location
 

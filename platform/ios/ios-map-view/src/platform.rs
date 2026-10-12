@@ -14,14 +14,15 @@ use objc2_core_foundation::CGRect;
 use objc2_core_location::CLLocationCoordinate2D;
 use objc2_foundation::{NSString, NSUInteger};
 use objc2_map_kit::{
-    MKAnnotation, MKCoordinateRegion, MKCoordinateSpan, MKOverlay, MKOverlayRenderer,
-    MKPointAnnotation, MKPolygon, MKPolygonRenderer, MKPolyline, MKPolylineRenderer,
-    MKUserTrackingMode,
+    MKAnnotation, MKCoordinateRegion, MKCoordinateSpan, MKMapCamera, MKMapRect, MKOverlay,
+    MKOverlayLevel, MKOverlayRenderer, MKPointAnnotation, MKPolygon, MKPolygonRenderer, MKPolyline,
+    MKPolylineRenderer, MKUserTrackingMode,
 };
-use objc2_ui_kit::{UIColor, UIView};
+use objc2_ui_kit::{UIColor, UIEdgeInsets, UIView};
 use std::panic::{AssertUnwindSafe, catch_unwind};
 
 use crate::annotations::sorted_snapshot;
+use crate::delegate::{delegate_slot_can_be_claimed, delegate_slot_can_be_cleared};
 use crate::polygon::{validate_polygon_delegate_slot, validate_polygon_point_count};
 use crate::route::{
     overlay_delegate_is_required, overlay_delegate_slot_is_available, validate_route_point_count,
@@ -30,8 +31,8 @@ use crate::tracking::{
     IosUserTrackingMode, current_location_authorization, validate_user_tracking_request,
 };
 use crate::{
-    AnnotationSnapshotError, MapAnnotation, MapCoordinate, MapPolygonError, MapRegion,
-    MapRouteError, MapSpan, MapUserTrackingError,
+    AnnotationSnapshotError, MapAnnotation, MapCoordinate, MapDelegateError, MapPolygonError,
+    MapRegion, MapRouteError, MapSpan, MapUserTrackingError,
 };
 
 struct AnnotationEntry {
@@ -44,16 +45,73 @@ struct OverlayDelegateState {
     polygon: RefCell<Option<Retained<MKPolygon>>>,
 }
 
+extern_class!(
+    /// Local iOS declaration for the public `MKAnnotationView` UIKit subclass omitted by the selected binding.
+    #[unsafe(super(UIView))]
+    #[thread_kind = MainThreadOnly]
+    #[name = "MKAnnotationView"]
+    pub struct NativeMapAnnotationView;
+);
+
 extern_protocol!(
-    /// The iOS overlay-render callback subset of Apple's public map-view delegate protocol.
+    /// The public iOS delegate callbacks needed by native map hosts.
     ///
     /// # Safety
     ///
-    /// The protocol name, selector, object arguments, non-null return contract, and main-thread
-    /// callback behavior match the public iOS `MKMapView.h` declaration.
+    /// The protocol name, selectors, argument and return ABI, and main-thread callback behavior
+    /// match Apple's public iOS `MKMapView.h` declarations. Implementors must not unwind through
+    /// an Objective-C callback, must account for synchronous reentrant map calls, and must keep
+    /// callback state valid until the map no longer holds this delegate.
     #[allow(clippy::missing_safety_doc)]
     #[name = "MKMapViewDelegate"]
-    unsafe trait IosMapViewDelegate: NSObjectProtocol + MainThreadOnly {
+    pub unsafe trait IosMapViewDelegate: NSObjectProtocol + MainThreadOnly {
+        /// Called before MapKit changes the visible region.
+        #[optional]
+        #[unsafe(method(mapView:regionWillChangeAnimated:))]
+        #[unsafe(method_family = none)]
+        unsafe fn map_view_region_will_change_animated(
+            &self,
+            map_view: &NativeMapView,
+            animated: bool,
+        );
+
+        /// Called after MapKit changes the visible region.
+        #[optional]
+        #[unsafe(method(mapView:regionDidChangeAnimated:))]
+        #[unsafe(method_family = none)]
+        unsafe fn map_view_region_did_change_animated(
+            &self,
+            map_view: &NativeMapView,
+            animated: bool,
+        );
+
+        /// Called as the visible region changes during a gesture or animation.
+        #[optional]
+        #[unsafe(method(mapViewDidChangeVisibleRegion:))]
+        #[unsafe(method_family = none)]
+        unsafe fn map_view_did_change_visible_region(&self, map_view: &NativeMapView);
+
+        /// Called when MapKit selects an annotation view.
+        #[optional]
+        #[unsafe(method(mapView:didSelectAnnotationView:))]
+        #[unsafe(method_family = none)]
+        unsafe fn map_view_did_select_annotation_view(
+            &self,
+            map_view: &NativeMapView,
+            view: &NativeMapAnnotationView,
+        );
+
+        /// Called when MapKit deselects an annotation view.
+        #[optional]
+        #[unsafe(method(mapView:didDeselectAnnotationView:))]
+        #[unsafe(method_family = none)]
+        unsafe fn map_view_did_deselect_annotation_view(
+            &self,
+            map_view: &NativeMapView,
+            view: &NativeMapAnnotationView,
+        );
+
+        /// Returns the native renderer for an overlay, or `None` to leave it unrendered.
         #[optional]
         #[unsafe(method(mapView:rendererForOverlay:))]
         #[unsafe(method_family = none)]
@@ -61,7 +119,7 @@ extern_protocol!(
             &self,
             map_view: &NativeMapView,
             overlay: &ProtocolObject<dyn MKOverlay>,
-        ) -> Retained<MKOverlayRenderer>;
+        ) -> Option<Retained<MKOverlayRenderer>>;
     }
 );
 
@@ -86,10 +144,12 @@ define_class!(
             &self,
             _map_view: &NativeMapView,
             overlay: &ProtocolObject<dyn MKOverlay>,
-        ) -> Retained<MKOverlayRenderer> {
+        ) -> Option<Retained<MKOverlayRenderer>> {
             let _keep_alive = self.retain();
-            catch_unwind(AssertUnwindSafe(|| self.renderer_for_overlay(overlay)))
-                .unwrap_or_else(|_| empty_overlay_renderer(overlay))
+            Some(
+                catch_unwind(AssertUnwindSafe(|| self.renderer_for_overlay(overlay)))
+                    .unwrap_or_else(|_| empty_overlay_renderer(overlay)),
+            )
         }
     }
 );
@@ -192,6 +252,15 @@ fn delegate_is_owned(
     ptr::eq(current_pointer, owned_pointer)
 }
 
+fn map_delegate_is_same(
+    first: &ProtocolObject<dyn IosMapViewDelegate>,
+    second: &ProtocolObject<dyn IosMapViewDelegate>,
+) -> bool {
+    let first_pointer = first as *const ProtocolObject<dyn IosMapViewDelegate> as *const ();
+    let second_pointer = second as *const ProtocolObject<dyn IosMapViewDelegate> as *const ();
+    ptr::eq(first_pointer, second_pointer)
+}
+
 /// A retained native MapKit view bound to the main thread.
 ///
 /// The type is a UIKit `UIView` subclass and can be embedded in a host controller's view
@@ -201,6 +270,7 @@ pub struct IosMapView {
     native: Retained<NativeMapView>,
     annotations: Vec<AnnotationEntry>,
     overlay_delegate: Option<Retained<OverlayDelegate>>,
+    host_delegate: Option<Retained<ProtocolObject<dyn IosMapViewDelegate>>>,
     marker: MainThreadMarker,
 }
 
@@ -215,6 +285,7 @@ impl IosMapView {
             native,
             annotations: Vec::new(),
             overlay_delegate: None,
+            host_delegate: None,
             marker,
         }
     }
@@ -228,7 +299,7 @@ impl IosMapView {
     pub fn replace_route(&mut self, coordinates: &[MapCoordinate]) -> Result<(), MapRouteError> {
         validate_route_point_count(coordinates.len())?;
 
-        let current_delegate = unsafe { self.native.delegate() };
+        let current_delegate = unsafe { self.native.native_delegate() };
         let owns_current = current_delegate.as_ref().is_some_and(|current| {
             self.overlay_delegate
                 .as_ref()
@@ -255,7 +326,7 @@ impl IosMapView {
             // SAFETY: The map view is main-thread-bound and this wrapper retains the weak delegate.
             unsafe {
                 self.native
-                    .setDelegate(Some(ProtocolObject::from_ref(&*delegate)))
+                    .set_native_delegate(Some(ProtocolObject::from_ref(&*delegate)))
             };
         }
 
@@ -284,7 +355,7 @@ impl IosMapView {
     ) -> Result<(), MapPolygonError> {
         validate_polygon_point_count(coordinates.len())?;
 
-        let current_delegate = unsafe { self.native.delegate() };
+        let current_delegate = unsafe { self.native.native_delegate() };
         let owns_current = current_delegate.as_ref().is_some_and(|current| {
             self.overlay_delegate
                 .as_ref()
@@ -309,7 +380,7 @@ impl IosMapView {
             // SAFETY: The map view is main-thread-bound and this wrapper retains the weak delegate.
             unsafe {
                 self.native
-                    .setDelegate(Some(ProtocolObject::from_ref(&*delegate)))
+                    .set_native_delegate(Some(ProtocolObject::from_ref(&*delegate)))
             };
         }
 
@@ -361,13 +432,13 @@ impl IosMapView {
         if delegate.has_overlays() {
             return;
         }
-        let current_delegate = unsafe { self.native.delegate() };
+        let current_delegate = unsafe { self.native.native_delegate() };
         if current_delegate
             .as_ref()
             .is_some_and(|current| delegate_is_owned(current, delegate))
         {
             // SAFETY: Clear only this wrapper's weak delegate slot, on the map's main thread.
-            unsafe { self.native.setDelegate(None) };
+            unsafe { self.native.set_native_delegate(None) };
         }
         self.overlay_delegate = None;
     }
@@ -496,7 +567,7 @@ impl IosMapView {
     pub fn region(&self) -> Option<MapRegion> {
         // SAFETY: `NativeMapView` is main-thread-only and cannot be moved to another thread. The
         // getter returns the public by-value `MKCoordinateRegion` struct.
-        let region = unsafe { self.native.region() };
+        let region = unsafe { self.native.native_region() };
         let center = MapCoordinate::new(region.center.latitude, region.center.longitude)?;
         let span = MapSpan::new(region.span.latitudeDelta, region.span.longitudeDelta)?;
         Some(MapRegion::new(center, span))
@@ -508,12 +579,69 @@ impl IosMapView {
     pub fn native_view(&self) -> &NativeMapView {
         &self.native
     }
+
+    /// Borrows the same native object as UIKit's `UIView` superclass.
+    pub fn ui_view(&self) -> &UIView {
+        &self.native
+    }
+
+    /// Installs a host delegate and retains it for as long as it owns the native weak slot.
+    ///
+    /// The wrapper updates the weak slot before releasing the previous delegate. It rejects a delegate
+    /// while a built-in route or polygon renderer is active, and never displaces another owner.
+    pub fn set_delegate<D>(&mut self, delegate: Retained<D>) -> Result<(), MapDelegateError>
+    where
+        D: IosMapViewDelegate + Message + 'static,
+    {
+        let current_delegate = unsafe { self.native.native_delegate() };
+        let owns_current = current_delegate.as_ref().is_some_and(|current| {
+            self.host_delegate
+                .as_ref()
+                .is_some_and(|owned| map_delegate_is_same(current, owned))
+        });
+        let has_builtin_overlays = self
+            .overlay_delegate
+            .as_ref()
+            .is_some_and(|owned| owned.has_overlays());
+        if !delegate_slot_can_be_claimed(
+            current_delegate.is_none(),
+            owns_current,
+            has_builtin_overlays,
+        ) {
+            return Err(MapDelegateError::DelegateSlotOccupied);
+        }
+
+        let delegate = ProtocolObject::from_retained(delegate);
+        // SAFETY: `delegate` is retained by this wrapper before the map receives its weak slot.
+        unsafe {
+            self.native
+                .set_native_delegate(Some(ProtocolObject::from_ref(&*delegate)))
+        };
+        self.host_delegate = Some(delegate);
+        Ok(())
+    }
+
+    /// Clears this wrapper's host delegate without changing a delegate that replaced it.
+    pub fn clear_delegate(&mut self) {
+        let current_delegate = unsafe { self.native.native_delegate() };
+        let owns_current = current_delegate.as_ref().is_some_and(|current| {
+            self.host_delegate
+                .as_ref()
+                .is_some_and(|owned| map_delegate_is_same(current, owned))
+        });
+        if delegate_slot_can_be_cleared(owns_current) {
+            // SAFETY: Clear only the weak slot that still points at this wrapper's retained delegate.
+            unsafe { self.native.set_native_delegate(None) };
+        }
+        self.host_delegate = None;
+    }
 }
 
 impl Drop for IosMapView {
     fn drop(&mut self) {
         self.clear_route();
         self.clear_polygon();
+        self.clear_delegate();
     }
 }
 
@@ -565,6 +693,138 @@ extern_class!(
     pub struct NativeMapView;
 );
 
+impl NativeMapView {
+    /// Reads MapKit's native coordinate region.
+    pub fn region(&self) -> MKCoordinateRegion {
+        // SAFETY: The local declaration matches the public by-value region property ABI.
+        unsafe { self.native_region() }
+    }
+
+    /// Sets a native coordinate region with MapKit's public selector.
+    pub fn set_region(&self, region: MKCoordinateRegion, animated: bool) {
+        // SAFETY: `MKCoordinateRegion` has the SDK's exact C struct ABI.
+        unsafe { self.setRegion_animated(region, animated) };
+    }
+
+    /// Reads MapKit's visible rectangle in projected map coordinates.
+    pub fn visible_map_rect(&self) -> MKMapRect {
+        // SAFETY: Matches the public MKMapRect property ABI.
+        unsafe { self.visibleMapRect() }
+    }
+
+    /// Sets the visible projected map rectangle.
+    pub fn set_visible_map_rect(&self, rect: MKMapRect, animated: bool) {
+        // SAFETY: `MKMapRect` matches the public MapKit by-value struct ABI.
+        unsafe { self.setVisibleMapRect_animated(rect, animated) };
+    }
+
+    /// Returns the projected rectangle adjusted to this map view's aspect ratio.
+    pub fn map_rect_that_fits(&self, rect: MKMapRect) -> MKMapRect {
+        // SAFETY: `MKMapRect` matches the public MapKit by-value struct ABI.
+        unsafe { self.mapRectThatFits(rect) }
+    }
+
+    /// Sets the visible projected rectangle with UIKit edge padding.
+    pub fn set_visible_map_rect_with_edge_padding(
+        &self,
+        rect: MKMapRect,
+        padding: UIEdgeInsets,
+        animated: bool,
+    ) {
+        // SAFETY: The iOS SDK declares `UIEdgeInsets` for this selector; the local type preserves
+        // its `{UIEdgeInsets=CGFloat,CGFloat,CGFloat,CGFloat}` encoding.
+        unsafe { self.setVisibleMapRect_edgePadding_animated(rect, padding, animated) };
+    }
+
+    /// Returns the projected rectangle adjusted for aspect ratio and UIKit edge padding.
+    pub fn map_rect_that_fits_with_edge_padding(
+        &self,
+        rect: MKMapRect,
+        padding: UIEdgeInsets,
+    ) -> MKMapRect {
+        // SAFETY: The iOS SDK declares `UIEdgeInsets` for this selector; the local type preserves
+        // its `{UIEdgeInsets=CGFloat,CGFloat,CGFloat,CGFloat}` encoding.
+        unsafe { self.mapRectThatFits_edgePadding(rect, padding) }
+    }
+
+    /// Retains and returns MapKit's current camera.
+    pub fn camera(&self) -> Retained<MKMapCamera> {
+        // SAFETY: The public `camera` property returns a retained MKMapCamera.
+        unsafe { self.native_camera() }
+    }
+
+    /// Sets MapKit's camera.
+    pub fn set_camera(&self, camera: &MKMapCamera, animated: bool) {
+        // SAFETY: `camera` is a live public MKMapCamera; MapKit copies the property value.
+        unsafe { self.setCamera_animated(camera, animated) };
+    }
+
+    /// Adds one native overlay at MapKit's default level.
+    pub fn add_overlay(&self, overlay: &ProtocolObject<dyn MKOverlay>) {
+        // SAFETY: MapKit accepts a live object conforming to its public MKOverlay protocol.
+        unsafe { self.addOverlay(overlay) };
+    }
+
+    /// Adds one native overlay at the requested MapKit level.
+    pub fn add_overlay_at_level(
+        &self,
+        overlay: &ProtocolObject<dyn MKOverlay>,
+        level: MKOverlayLevel,
+    ) {
+        // SAFETY: The object and enum match the public `addOverlay:level:` signature.
+        unsafe { self.addOverlay_level(overlay, level) };
+    }
+
+    /// Removes one native overlay without changing other overlays.
+    pub fn remove_overlay(&self, overlay: &ProtocolObject<dyn MKOverlay>) {
+        // SAFETY: MapKit accepts a live object conforming to its public MKOverlay protocol.
+        unsafe { self.removeOverlay(overlay) };
+    }
+
+    /// Retains the renderer MapKit assigned to a native overlay, if it has one.
+    pub fn renderer_for_overlay(
+        &self,
+        overlay: &ProtocolObject<dyn MKOverlay>,
+    ) -> Option<Retained<MKOverlayRenderer>> {
+        // SAFETY: The overlay is live and the public selector returns a nullable renderer object.
+        unsafe { self.rendererForOverlay(overlay) }
+    }
+
+    /// Adds a native annotation.
+    pub fn add_annotation(&self, annotation: &ProtocolObject<dyn MKAnnotation>) {
+        // SAFETY: MapKit accepts a live object conforming to its public MKAnnotation protocol.
+        unsafe { self.addAnnotation(annotation) };
+    }
+
+    /// Removes a native annotation.
+    pub fn remove_annotation(&self, annotation: &ProtocolObject<dyn MKAnnotation>) {
+        // SAFETY: MapKit accepts a live object conforming to its public MKAnnotation protocol.
+        unsafe { self.removeAnnotation(annotation) };
+    }
+
+    /// Selects a native annotation and asks the delegate for its annotation view.
+    pub fn select_annotation(&self, annotation: &ProtocolObject<dyn MKAnnotation>, animated: bool) {
+        // SAFETY: The annotation conforms to MapKit's public protocol and the BOOL ABI is exact.
+        unsafe { self.selectAnnotation_animated(annotation, animated) };
+    }
+
+    /// Deselects one native annotation, or all selected annotations when passed `None`.
+    pub fn deselect_annotation(
+        &self,
+        annotation: Option<&ProtocolObject<dyn MKAnnotation>>,
+        animated: bool,
+    ) {
+        // SAFETY: The optional object and BOOL match the public selector's nullable ABI.
+        unsafe { self.deselectAnnotation_animated(annotation, animated) };
+    }
+
+    /// Retains and returns the current weak native delegate, if one is installed.
+    pub fn delegate(&self) -> Option<Retained<ProtocolObject<dyn IosMapViewDelegate>>> {
+        // SAFETY: The getter returns the weak Objective-C protocol object as an owned retain.
+        unsafe { self.native_delegate() }
+    }
+}
+
 #[allow(non_snake_case)]
 impl NativeMapView {
     extern_methods!(
@@ -576,12 +836,56 @@ impl NativeMapView {
         // SAFETY: Matches the public `MKCoordinateRegion` property getter in `MKMapView.h`.
         #[unsafe(method(region))]
         #[unsafe(method_family = none)]
-        pub(super) unsafe fn region(&self) -> MKCoordinateRegion;
+        pub(super) unsafe fn native_region(&self) -> MKCoordinateRegion;
 
         // SAFETY: Matches the public `setRegion:animated:` declaration and by-value region ABI.
         #[unsafe(method(setRegion:animated:))]
         #[unsafe(method_family = none)]
         pub(super) unsafe fn setRegion_animated(&self, region: MKCoordinateRegion, animated: bool);
+
+        // SAFETY: Matches the public MKMapView projected visible-map-rectangle getter.
+        #[unsafe(method(visibleMapRect))]
+        #[unsafe(method_family = none)]
+        pub(super) unsafe fn visibleMapRect(&self) -> MKMapRect;
+
+        // SAFETY: Matches the public iOS by-value MKMapRect setter ABI.
+        #[unsafe(method(setVisibleMapRect:animated:))]
+        #[unsafe(method_family = none)]
+        pub(super) unsafe fn setVisibleMapRect_animated(&self, rect: MKMapRect, animated: bool);
+
+        // SAFETY: Matches the public iOS by-value MKMapRect fitting ABI.
+        #[unsafe(method(mapRectThatFits:))]
+        #[unsafe(method_family = none)]
+        pub(super) unsafe fn mapRectThatFits(&self, rect: MKMapRect) -> MKMapRect;
+
+        // SAFETY: The iOS SDK declares UIEdgeInsets, not NSEdgeInsets, for this public selector.
+        #[unsafe(method(setVisibleMapRect:edgePadding:animated:))]
+        #[unsafe(method_family = none)]
+        pub(super) unsafe fn setVisibleMapRect_edgePadding_animated(
+            &self,
+            rect: MKMapRect,
+            padding: UIEdgeInsets,
+            animated: bool,
+        );
+
+        // SAFETY: The iOS SDK declares UIEdgeInsets, not NSEdgeInsets, for this public selector.
+        #[unsafe(method(mapRectThatFits:edgePadding:))]
+        #[unsafe(method_family = none)]
+        pub(super) unsafe fn mapRectThatFits_edgePadding(
+            &self,
+            rect: MKMapRect,
+            padding: UIEdgeInsets,
+        ) -> MKMapRect;
+
+        // SAFETY: Matches the public copied MKMapCamera property getter ABI.
+        #[unsafe(method(camera))]
+        #[unsafe(method_family = none)]
+        pub(super) unsafe fn native_camera(&self) -> Retained<MKMapCamera>;
+
+        // SAFETY: Matches the public setCamera:animated: selector and object argument ABI.
+        #[unsafe(method(setCamera:animated:))]
+        #[unsafe(method_family = none)]
+        pub(super) unsafe fn setCamera_animated(&self, camera: &MKMapCamera, animated: bool);
 
         // SAFETY: Matches the public iOS MKMapView `showsUserLocation` BOOL property setter ABI.
         #[unsafe(method(setShowsUserLocation:))]
@@ -611,14 +915,14 @@ impl NativeMapView {
         // contains the locally declared exact renderer selector used by this crate.
         #[unsafe(method(delegate))]
         #[unsafe(method_family = none)]
-        pub(super) unsafe fn delegate(
+        pub(super) unsafe fn native_delegate(
             &self,
         ) -> Option<Retained<ProtocolObject<dyn IosMapViewDelegate>>>;
 
         // SAFETY: Mirrors the public weak iOS MKMapViewDelegate property and its object ABI.
         #[unsafe(method(setDelegate:))]
         #[unsafe(method_family = none)]
-        pub(super) unsafe fn setDelegate(
+        pub(super) unsafe fn set_native_delegate(
             &self,
             delegate: Option<&ProtocolObject<dyn IosMapViewDelegate>>,
         );
@@ -628,9 +932,44 @@ impl NativeMapView {
         #[unsafe(method_family = none)]
         pub(super) unsafe fn addOverlay(&self, overlay: &ProtocolObject<dyn MKOverlay>);
 
+        // SAFETY: Matches the public iOS addOverlay:level: selector and enum ABI.
+        #[unsafe(method(addOverlay:level:))]
+        #[unsafe(method_family = none)]
+        pub(super) unsafe fn addOverlay_level(
+            &self,
+            overlay: &ProtocolObject<dyn MKOverlay>,
+            level: MKOverlayLevel,
+        );
+
         // SAFETY: Mirrors the public MKMapView overlay methods and id<MKOverlay> argument ABI.
         #[unsafe(method(removeOverlay:))]
         #[unsafe(method_family = none)]
         pub(super) unsafe fn removeOverlay(&self, overlay: &ProtocolObject<dyn MKOverlay>);
+
+        // SAFETY: Matches the public nullable rendererForOverlay: selector and object ABI.
+        #[unsafe(method(rendererForOverlay:))]
+        #[unsafe(method_family = none)]
+        pub(super) unsafe fn rendererForOverlay(
+            &self,
+            overlay: &ProtocolObject<dyn MKOverlay>,
+        ) -> Option<Retained<MKOverlayRenderer>>;
+
+        // SAFETY: Matches the public annotation-selection selector and BOOL ABI.
+        #[unsafe(method(selectAnnotation:animated:))]
+        #[unsafe(method_family = none)]
+        pub(super) unsafe fn selectAnnotation_animated(
+            &self,
+            annotation: &ProtocolObject<dyn MKAnnotation>,
+            animated: bool,
+        );
+
+        // SAFETY: Matches the public nullable annotation-deselection selector and BOOL ABI.
+        #[unsafe(method(deselectAnnotation:animated:))]
+        #[unsafe(method_family = none)]
+        pub(super) unsafe fn deselectAnnotation_animated(
+            &self,
+            annotation: Option<&ProtocolObject<dyn MKAnnotation>>,
+            animated: bool,
+        );
     );
 }

@@ -5,7 +5,8 @@
 G68 validates D77/B73's finite geographic coordinates, projected map points, non-negative meter
 distances, and iOS MapKit conversion/distance calls. The `ios-map-view` profile also validates
 B577's native map region API, B581's point-marker snapshot contract, B583's route overlay, B586's
-caller-controlled user tracking, and B601's bounded polygon overlay. It does not cover user
+caller-controlled user tracking, B601's bounded polygon overlay, and B602's native UIKit/MapKit
+host surface. It does not cover user
 location, permissions, network services, search, directions, or full MapKit parity.
 
 ## Gate
@@ -53,3 +54,20 @@ existing profile source directories already cover `polygon.rs`, `platform.rs`, t
 probe script; no new profile or schema fields are required. Test and gate results are recorded in
 `PLAN.md` after the implementation run. Static probes do not establish overlay render pixels or
 runtime coexistence.
+
+## B602 registered native UIKit/MapKit host surface gate
+
+The existing `ios-map-view` profile requires guards for retained host-delegate lifecycle, the typed
+`UIView` borrow, caller-selected overlay levels, iOS `UIEdgeInsets`, native annotation selection,
+and delegate replacement cleanup. Its host test gate runs negative delegate-slot and active-overlay
+policy tests. The Release device and Simulator link probe uses two distinct `MKPolyline` objects,
+native renderer width/dash selectors, region/map-rect/camera selectors, annotation selection,
+delegate region/selection callbacks, and UIKit add/frame/bounds/layout/hit-test/remove methods.
+
+Both `aarch64-apple-ios` and `aarch64-apple-ios-sim` links retain the existing iOS 12.0 and 14.0
+probe floors. The import scan keeps MapKit, UIKit, CoreLocation, Foundation, CoreFoundation,
+`libSystem.B.dylib`, and `libobjc.A.dylib` as the complete dependency set. These probes are linked,
+not run; delegate delivery, simultaneous display, native touches, rotation, and physical-device
+behavior remain unverified.
+
+The registered command `ios-rust-validate --workspace-root "$PWD" --spec "$PWD/tools/validation/specs/validation-v1.json" --capability ios-map-view` passed 28 checks with 0 FAIL, 0 BLOCKED, and 2 SKIPPED at snapshot `8969148fa6e63b259be93b1ee7d56fa382593026bb31305ae4d5b2061f62da4a`. The installed validator identity is `0.1.0+b6d422528c80671d828a4b0d40e9fc739652409a`, binary SHA-256 `4835271071ca3b7292f09a50d6d6c682f0c58f7d219045dd05e556553a451262`. The skips are Simulator execution and physical-device proof; no MapKit runtime behavior is claimed.
