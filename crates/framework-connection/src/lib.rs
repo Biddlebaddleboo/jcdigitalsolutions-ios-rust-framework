@@ -267,6 +267,34 @@ pub trait TcpListenerBackend {
     fn cancel(&mut self);
 }
 
+/// An optional service-advertisement extension for a caller-owned TCP listener backend.
+///
+/// Advertisement registration is separate from listener binding. A backend may store the
+/// descriptor before bind or apply it to the active listener. `update_advertisement` replaces the
+/// current descriptor; `stop_advertising` removes it while leaving the listener active. These
+/// methods report whether the backend accepted the request, not whether Bonjour registration has
+/// completed. Dropping the containing [`TcpListener`] must stop the advertisement as part of
+/// listener cancellation.
+pub trait TcpListenerAdvertisementBackend: TcpListenerBackend {
+    /// A portable descriptor accepted by this listener backend.
+    type Advertisement;
+
+    /// Registers one descriptor; returns [`ConnectionError::InvalidState`] if one is active.
+    fn register_advertisement(
+        &mut self,
+        advertisement: Self::Advertisement,
+    ) -> Result<(), ConnectionError>;
+
+    /// Replaces the active descriptor; returns [`ConnectionError::InvalidState`] if none exists.
+    fn update_advertisement(
+        &mut self,
+        advertisement: Self::Advertisement,
+    ) -> Result<(), ConnectionError>;
+
+    /// Removes the active descriptor without closing the TCP listener; safe to call more than once.
+    fn stop_advertising(&mut self) -> Result<(), ConnectionError>;
+}
+
 /// A thin facade over caller-owned, statically selected connection-backend state.
 pub struct Connection<B: ConnectionBackend> {
     backend: B,
@@ -390,6 +418,29 @@ impl<B: TcpListenerBackend> TcpListener<B> {
     /// Stops accepting new streams without waiting for native callbacks to finish.
     pub fn cancel(&mut self) {
         self.backend.cancel();
+    }
+}
+
+impl<B: TcpListenerAdvertisementBackend> TcpListener<B> {
+    /// Registers a descriptor on this listener or stores it for the next bind.
+    pub fn register_advertisement(
+        &mut self,
+        advertisement: B::Advertisement,
+    ) -> Result<(), ConnectionError> {
+        self.backend.register_advertisement(advertisement)
+    }
+
+    /// Replaces this listener's active advertisement descriptor.
+    pub fn update_advertisement(
+        &mut self,
+        advertisement: B::Advertisement,
+    ) -> Result<(), ConnectionError> {
+        self.backend.update_advertisement(advertisement)
+    }
+
+    /// Removes this listener's advertisement without closing its TCP accept path.
+    pub fn stop_advertising(&mut self) -> Result<(), ConnectionError> {
+        self.backend.stop_advertising()
     }
 }
 

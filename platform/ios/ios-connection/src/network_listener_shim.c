@@ -89,14 +89,29 @@ static void request_cancel_from_callback_queue(framework_listener_t *listener) {
     pthread_mutex_unlock(&listener->lifecycle_lock);
 }
 
+static nw_advertise_descriptor_t create_advertisement(
+    const char *name,
+    const char *service_type,
+    const char *domain) {
+    if (service_type == NULL) {
+        return NULL;
+    }
+    return nw_advertise_descriptor_create_bonjour_service(name, service_type, domain);
+}
+
 int32_t framework_listener_start(
     void *context,
     framework_listener_event_callback_t event_callback,
     framework_listener_accept_callback_t accept_callback,
     uint16_t port,
+    const char *advertisement_name,
+    const char *advertisement_service_type,
+    const char *advertisement_domain,
     framework_listener_t **out_listener) {
     if (context == NULL || event_callback == NULL || accept_callback == NULL
-        || out_listener == NULL) {
+        || out_listener == NULL
+        || (advertisement_service_type == NULL
+            && (advertisement_name != NULL || advertisement_domain != NULL))) {
         return FRAMEWORK_LISTENER_STATUS_INVALID;
     }
     *out_listener = NULL;
@@ -127,6 +142,18 @@ int32_t framework_listener_start(
     nw_release(parameters);
     if (native_listener == NULL) {
         return FRAMEWORK_LISTENER_STATUS_INVALID;
+    }
+    nw_advertise_descriptor_t advertisement = create_advertisement(
+        advertisement_name,
+        advertisement_service_type,
+        advertisement_domain);
+    if (advertisement_service_type != NULL && advertisement == NULL) {
+        nw_release(native_listener);
+        return FRAMEWORK_LISTENER_STATUS_INVALID;
+    }
+    nw_listener_set_advertise_descriptor(native_listener, advertisement);
+    if (advertisement != NULL) {
+        nw_release(advertisement);
     }
 
     framework_listener_t *listener = calloc(1, sizeof(*listener));
@@ -238,6 +265,51 @@ int32_t framework_listener_start(
     nw_listener_set_new_connection_handler(listener->native_listener, listener->accept_handler);
     nw_listener_start(listener->native_listener);
     *out_listener = listener;
+    return FRAMEWORK_LISTENER_STATUS_OK;
+}
+
+int32_t framework_listener_set_advertisement(
+    framework_listener_t *listener,
+    const char *advertisement_name,
+    const char *advertisement_service_type,
+    const char *advertisement_domain) {
+    if (listener == NULL
+        || (advertisement_service_type == NULL
+            && (advertisement_name != NULL || advertisement_domain != NULL))) {
+        return FRAMEWORK_LISTENER_STATUS_INVALID;
+    }
+    nw_advertise_descriptor_t advertisement = create_advertisement(
+        advertisement_name,
+        advertisement_service_type,
+        advertisement_domain);
+    if (advertisement_service_type != NULL && advertisement == NULL) {
+        return FRAMEWORK_LISTENER_STATUS_INVALID;
+    }
+
+    pthread_mutex_lock(&listener->lifecycle_lock);
+    if (listener->cancel_requested || listener->cancellation_finished
+        || listener->callback_queue == NULL || listener->native_listener == NULL) {
+        pthread_mutex_unlock(&listener->lifecycle_lock);
+        if (advertisement != NULL) {
+            nw_release(advertisement);
+        }
+        return FRAMEWORK_LISTENER_STATUS_INVALID;
+    }
+    retain_listener(listener);
+    dispatch_async(listener->callback_queue, ^{
+        pthread_mutex_lock(&listener->lifecycle_lock);
+        nw_listener_t native_listener = listener->native_listener;
+        bool should_update = native_listener != NULL && !listener->cancellation_finished;
+        pthread_mutex_unlock(&listener->lifecycle_lock);
+        if (should_update) {
+            nw_listener_set_advertise_descriptor(native_listener, advertisement);
+        }
+        if (advertisement != NULL) {
+            nw_release(advertisement);
+        }
+        release_listener(listener);
+    });
+    pthread_mutex_unlock(&listener->lifecycle_lock);
     return FRAMEWORK_LISTENER_STATUS_OK;
 }
 

@@ -24,8 +24,8 @@ pub struct BonjourQuery {
 impl BonjourQuery {
     /// Creates a query for one specific `_name._tcp` or `_name._udp` service type.
     ///
-    /// The optional domain must be an ASCII DNS name; `None` asks the backend to browse its
-    /// default domains. Input is preserved exactly and is not canonicalized.
+    /// The optional domain must be an ASCII DNS name within DNS wire-length bounds; `None` asks
+    /// the backend to browse its default domains. Input is preserved exactly and is not canonicalized.
     pub fn new(service_type: &str, domain: Option<&str>) -> Result<Self, BonjourBrowseError> {
         if !valid_service_type(service_type) {
             return Err(BonjourBrowseError::InvalidServiceType);
@@ -51,6 +51,79 @@ impl BonjourQuery {
     pub fn domain(&self) -> Option<&str> {
         self.domain.as_deref()
     }
+}
+
+/// A caller-selected Bonjour TCP service descriptor for an existing TCP listener.
+///
+/// The listener supplies the advertised port. An absent name or domain asks the platform to use
+/// its default value. Name and domain text are retained exactly; no normalization is performed.
+#[derive(Clone, Debug, Eq, Hash, PartialEq)]
+pub struct BonjourAdvertisement {
+    name: Option<String>,
+    service_type: String,
+    domain: Option<String>,
+}
+
+impl BonjourAdvertisement {
+    /// Creates a bounded Bonjour TCP advertisement descriptor.
+    ///
+    /// The service type must be one ASCII `_name._tcp` type. The optional UTF-8 instance name is
+    /// limited to 63 bytes as required by DNS-SD. The optional domain is limited to 253 bytes
+    /// after an optional trailing dot (255 bytes in DNS wire format).
+    pub fn new(
+        name: Option<&str>,
+        service_type: &str,
+        domain: Option<&str>,
+    ) -> Result<Self, BonjourAdvertisementError> {
+        let name = match name {
+            Some(value) if valid_bounded_component(value, 63) => Some(copy_string(value)?),
+            Some(_) => return Err(BonjourAdvertisementError::InvalidName),
+            None => None,
+        };
+        if !valid_service_type(service_type) || !service_type.ends_with("._tcp") {
+            return Err(BonjourAdvertisementError::InvalidServiceType);
+        }
+        let service_type = copy_string(service_type)?;
+        let domain = match domain {
+            Some(value) if valid_domain(value) => Some(copy_string(value)?),
+            Some(_) => return Err(BonjourAdvertisementError::InvalidDomain),
+            None => None,
+        };
+        Ok(Self {
+            name,
+            service_type,
+            domain,
+        })
+    }
+
+    /// Returns the exact UTF-8 service instance name, or `None` for the system default.
+    pub fn name(&self) -> Option<&str> {
+        self.name.as_deref()
+    }
+
+    /// Returns the exact selected Bonjour service type.
+    pub fn service_type(&self) -> &str {
+        &self.service_type
+    }
+
+    /// Returns the exact selected registration domain, or `None` for platform defaults.
+    pub fn domain(&self) -> Option<&str> {
+        self.domain.as_deref()
+    }
+}
+
+/// A caller-selected Bonjour advertisement input error.
+#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
+#[non_exhaustive]
+pub enum BonjourAdvertisementError {
+    /// The instance name is empty, contains NUL, or exceeds 63 UTF-8 bytes.
+    InvalidName,
+    /// The service type is not one bounded ASCII `_name._tcp` type.
+    InvalidServiceType,
+    /// The domain is not a bounded ASCII DNS name.
+    InvalidDomain,
+    /// An owned advertisement component could not be allocated.
+    ResourceExhausted,
 }
 
 /// The exact Bonjour endpoint identity reported for one discovered service.
@@ -271,17 +344,23 @@ fn copy_bounded(value: &str) -> Result<String, BonjourBrowseError> {
     if !valid_component(value) {
         return Err(BonjourBrowseError::InvalidNativeService);
     }
+    copy_string(value).map_err(|_| BonjourBrowseError::ResourceExhausted)
+}
+
+fn copy_string(value: &str) -> Result<String, BonjourAdvertisementError> {
     let mut copy = String::new();
     copy.try_reserve_exact(value.len())
-        .map_err(|_| BonjourBrowseError::ResourceExhausted)?;
+        .map_err(|_| BonjourAdvertisementError::ResourceExhausted)?;
     copy.push_str(value);
     Ok(copy)
 }
 
 fn valid_component(value: &str) -> bool {
-    !value.is_empty()
-        && value.len() <= MAX_BONJOUR_COMPONENT_BYTES
-        && !value.as_bytes().contains(&0)
+    valid_bounded_component(value, MAX_BONJOUR_COMPONENT_BYTES)
+}
+
+fn valid_bounded_component(value: &str, maximum_bytes: usize) -> bool {
+    !value.is_empty() && value.len() <= maximum_bytes && !value.as_bytes().contains(&0)
 }
 
 fn valid_service_type(value: &str) -> bool {
@@ -311,7 +390,7 @@ fn valid_domain(value: &str) -> bool {
         return false;
     }
     let value = value.strip_suffix('.').unwrap_or(value);
-    if value.is_empty() {
+    if value.is_empty() || value.len() > 253 {
         return false;
     }
     value.split('.').all(|label| {

@@ -7,8 +7,10 @@ use core::ptr::NonNull;
 use core::task::{Context, Poll, Waker};
 use framework_connection::{
     AcceptedConnectionBackend, ConnectionBackend, ConnectionError, Endpoint, MAX_CHUNK_BYTES,
-    MAX_QUEUED_ACCEPTS, NativeConnectionError, ReadChunk, ReadTerminal, TcpListenerBackend,
+    MAX_QUEUED_ACCEPTS, NativeConnectionError, ReadChunk, ReadTerminal,
+    TcpListenerAdvertisementBackend, TcpListenerBackend,
 };
+use framework_service_discovery::{BonjourAdvertisement, MAX_BONJOUR_COMPONENT_BYTES};
 use std::ffi::CString;
 use std::panic::{AssertUnwindSafe, catch_unwind};
 use std::sync::{Arc, Mutex, MutexGuard};
@@ -106,7 +108,16 @@ unsafe extern "C" {
         event_callback: NativeListenerEventCallback,
         accept_callback: NativeListenerAcceptCallback,
         port: u16,
+        advertisement_name: *const c_char,
+        advertisement_service_type: *const c_char,
+        advertisement_domain: *const c_char,
         out_listener: *mut *mut NativeListener,
+    ) -> i32;
+    fn framework_listener_set_advertisement(
+        listener: *mut NativeListener,
+        advertisement_name: *const c_char,
+        advertisement_service_type: *const c_char,
+        advertisement_domain: *const c_char,
     ) -> i32;
     fn framework_listener_cancel(listener: *mut NativeListener);
     fn framework_listener_release(listener: *mut NativeListener);
@@ -513,6 +524,42 @@ fn status_error(status: i32) -> ConnectionError {
         STATUS_INVALID => ConnectionError::InvalidState,
         _ => ConnectionError::BackendFailure,
     }
+}
+
+fn c_advertisement_component(
+    output: &mut [u8; MAX_BONJOUR_COMPONENT_BYTES + 1],
+    value: &str,
+) -> Result<*const c_char, ConnectionError> {
+    let bytes = value.as_bytes();
+    if bytes.is_empty() || bytes.len() > MAX_BONJOUR_COMPONENT_BYTES || bytes.contains(&0) {
+        return Err(ConnectionError::InvalidState);
+    }
+    output[..bytes.len()].copy_from_slice(bytes);
+    output[bytes.len()] = 0;
+    Ok(output.as_ptr().cast())
+}
+
+fn c_advertisement(
+    advertisement: Option<&BonjourAdvertisement>,
+    name: &mut [u8; MAX_BONJOUR_COMPONENT_BYTES + 1],
+    service_type: &mut [u8; MAX_BONJOUR_COMPONENT_BYTES + 1],
+    domain: &mut [u8; MAX_BONJOUR_COMPONENT_BYTES + 1],
+) -> Result<(*const c_char, *const c_char, *const c_char), ConnectionError> {
+    let Some(advertisement) = advertisement else {
+        return Ok((core::ptr::null(), core::ptr::null(), core::ptr::null()));
+    };
+    let name = advertisement
+        .name()
+        .map(|value| c_advertisement_component(name, value))
+        .transpose()?
+        .unwrap_or(core::ptr::null());
+    let service_type = c_advertisement_component(service_type, advertisement.service_type())?;
+    let domain = advertisement
+        .domain()
+        .map(|value| c_advertisement_component(domain, value))
+        .transpose()?
+        .unwrap_or(core::ptr::null());
+    Ok((name, service_type, domain))
 }
 
 unsafe extern "C" fn native_event(
@@ -1401,6 +1448,7 @@ unsafe extern "C" fn native_listener_accept(
 pub struct IosTcpListenerBackend {
     shared: Arc<ListenerShared>,
     native: Option<NonNull<NativeListener>>,
+    advertisement: Option<BonjourAdvertisement>,
 }
 
 impl IosTcpListenerBackend {
@@ -1409,11 +1457,53 @@ impl IosTcpListenerBackend {
         Self {
             shared: Arc::new(ListenerShared::new()),
             native: None,
+            advertisement: None,
+        }
+    }
+
+    fn apply_advertisement(
+        &mut self,
+        advertisement: Option<&BonjourAdvertisement>,
+    ) -> Result<(), ConnectionError> {
+        let Some(native) = self.native else {
+            return Ok(());
+        };
+        let mut name = [0; MAX_BONJOUR_COMPONENT_BYTES + 1];
+        let mut service_type = [0; MAX_BONJOUR_COMPONENT_BYTES + 1];
+        let mut domain = [0; MAX_BONJOUR_COMPONENT_BYTES + 1];
+        let (name, service_type, domain) =
+            c_advertisement(advertisement, &mut name, &mut service_type, &mut domain)?;
+        // SAFETY: The C shim creates/retains the descriptor before returning and queues the
+        // mutation on this NWListener's private serial queue. Null service_type removes it.
+        let status = unsafe {
+            framework_listener_set_advertisement(native.as_ptr(), name, service_type, domain)
+        };
+        if status == STATUS_OK {
+            Ok(())
+        } else {
+            Err(status_error(status))
+        }
+    }
+
+    fn ensure_advertisement_open(&self) -> Result<(), ConnectionError> {
+        match self.shared.lock().phase {
+            ListenerPhase::Idle | ListenerPhase::Binding | ListenerPhase::Ready(_) => Ok(()),
+            ListenerPhase::Failed(error) => Err(error),
+            ListenerPhase::Cancelling | ListenerPhase::Closed => Err(ConnectionError::Cancelled),
         }
     }
 
     fn begin_bind(&mut self, port: u16) -> Result<(), ConnectionError> {
         self.shared.begin_bind()?;
+        let mut name = [0; MAX_BONJOUR_COMPONENT_BYTES + 1];
+        let mut service_type = [0; MAX_BONJOUR_COMPONENT_BYTES + 1];
+        let mut domain = [0; MAX_BONJOUR_COMPONENT_BYTES + 1];
+        let (name, service_type, domain) = c_advertisement(
+            self.advertisement.as_ref(),
+            &mut name,
+            &mut service_type,
+            &mut domain,
+        )?;
         let context = Arc::into_raw(Arc::clone(&self.shared))
             .cast_mut()
             .cast::<c_void>();
@@ -1426,6 +1516,9 @@ impl IosTcpListenerBackend {
                 native_listener_event,
                 native_listener_accept,
                 port,
+                name,
+                service_type,
+                domain,
                 &mut native,
             )
         };
@@ -1528,6 +1621,46 @@ impl TcpListenerBackend for IosTcpListenerBackend {
 
     fn cancel(&mut self) {
         self.request_cancel();
+    }
+}
+
+impl TcpListenerAdvertisementBackend for IosTcpListenerBackend {
+    type Advertisement = BonjourAdvertisement;
+
+    fn register_advertisement(
+        &mut self,
+        advertisement: Self::Advertisement,
+    ) -> Result<(), ConnectionError> {
+        self.ensure_advertisement_open()?;
+        if self.advertisement.is_some() {
+            return Err(ConnectionError::InvalidState);
+        }
+        self.apply_advertisement(Some(&advertisement))?;
+        self.advertisement = Some(advertisement);
+        Ok(())
+    }
+
+    fn update_advertisement(
+        &mut self,
+        advertisement: Self::Advertisement,
+    ) -> Result<(), ConnectionError> {
+        self.ensure_advertisement_open()?;
+        if self.advertisement.is_none() {
+            return Err(ConnectionError::InvalidState);
+        }
+        self.apply_advertisement(Some(&advertisement))?;
+        self.advertisement = Some(advertisement);
+        Ok(())
+    }
+
+    fn stop_advertising(&mut self) -> Result<(), ConnectionError> {
+        if self.advertisement.is_none() {
+            return Ok(());
+        }
+        self.ensure_advertisement_open()?;
+        self.apply_advertisement(None)?;
+        self.advertisement = None;
+        Ok(())
     }
 }
 

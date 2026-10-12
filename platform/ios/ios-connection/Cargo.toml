@@ -10,6 +10,7 @@ build = "build.rs"
 
 [dependencies]
 framework-connection = { path = "../../../crates/framework-connection" }
+framework-service-discovery = { path = "../../../crates/framework-service-discovery" }
 
 [build-dependencies]
 cc = { version = "1.2", default-features = false }

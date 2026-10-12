@@ -6,8 +6,8 @@ use std::collections::VecDeque;
 use std::rc::Rc;
 
 use framework_service_discovery::{
-    BonjourBrowseError, BonjourBrowser, BonjourBrowserBackend, BonjourBrowserEvent,
-    BonjourBrowserState, BonjourQuery, BonjourService,
+    BonjourAdvertisement, BonjourAdvertisementError, BonjourBrowseError, BonjourBrowser,
+    BonjourBrowserBackend, BonjourBrowserEvent, BonjourBrowserState, BonjourQuery, BonjourService,
 };
 
 struct FakeBrowserBackend {
@@ -101,6 +101,69 @@ fn native_identity_rejects_invalid_utf8_and_over_bound_components() {
         BonjourService::from_utf8_components(b"Speaker", b"_speaker._tcp", &vec![b'a'; 256])
             .unwrap_err(),
         BonjourBrowseError::InvalidNativeService
+    );
+}
+
+#[test]
+fn advertisement_preserves_values_and_uses_tcp_listener_port() {
+    let advertisement =
+        BonjourAdvertisement::new(Some("Café service"), "_demo._tcp", Some("local.")).unwrap();
+    assert_eq!(advertisement.name(), Some("Café service"));
+    assert_eq!(advertisement.service_type(), "_demo._tcp");
+    assert_eq!(advertisement.domain(), Some("local."));
+
+    let defaults = BonjourAdvertisement::new(None, "_demo._tcp", None).unwrap();
+    assert_eq!(defaults.name(), None);
+    assert_eq!(defaults.domain(), None);
+}
+
+#[test]
+fn advertisement_rejects_udp_invalid_text_and_dns_sd_over_bounds() {
+    assert_eq!(
+        BonjourAdvertisement::new(None, "_demo._udp", None).unwrap_err(),
+        BonjourAdvertisementError::InvalidServiceType
+    );
+    assert_eq!(
+        BonjourAdvertisement::new(Some(""), "_demo._tcp", None).unwrap_err(),
+        BonjourAdvertisementError::InvalidName
+    );
+    assert_eq!(
+        BonjourAdvertisement::new(Some("bad\0name"), "_demo._tcp", None).unwrap_err(),
+        BonjourAdvertisementError::InvalidName
+    );
+    assert_eq!(
+        BonjourAdvertisement::new(Some(&"n".repeat(64)), "_demo._tcp", None).unwrap_err(),
+        BonjourAdvertisementError::InvalidName
+    );
+    assert_eq!(
+        BonjourAdvertisement::new(None, "_printer._sub._ipp._tcp", None).unwrap_err(),
+        BonjourAdvertisementError::InvalidServiceType
+    );
+    assert_eq!(
+        BonjourAdvertisement::new(None, "_demo._tcp", Some("local..")).unwrap_err(),
+        BonjourAdvertisementError::InvalidDomain
+    );
+    let domain_253 = format!(
+        "{}.{}.{}.{}",
+        "a".repeat(63),
+        "b".repeat(63),
+        "c".repeat(63),
+        "d".repeat(61)
+    );
+    assert_eq!(domain_253.len(), 253);
+    assert!(BonjourAdvertisement::new(None, "_demo._tcp", Some(&domain_253)).is_ok());
+    assert!(BonjourAdvertisement::new(None, "_demo._tcp", Some(&format!("{domain_253}."))).is_ok());
+    let domain_254 = format!(
+        "{}.{}.{}.{}",
+        "a".repeat(63),
+        "b".repeat(63),
+        "c".repeat(63),
+        "d".repeat(62)
+    );
+    assert_eq!(domain_254.len(), 254);
+    assert_eq!(
+        BonjourAdvertisement::new(None, "_demo._tcp", Some(&domain_254)).unwrap_err(),
+        BonjourAdvertisementError::InvalidDomain
     );
 }
 

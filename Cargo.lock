@@ -633,6 +633,7 @@ version = "0.1.0"
 dependencies = [
  "cc",
  "framework-connection",
+ "framework-service-discovery",
 ]
 
 [[package]]

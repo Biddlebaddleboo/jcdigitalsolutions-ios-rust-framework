@@ -63,12 +63,21 @@ native listener cancellation and does not close streams already returned to the 
 drop request nonblocking cancellation. Accepted streams reuse the existing bounded send/receive,
 explicit close, and cancellation contract. The portable API requires no global executor
 
-The listener binds a wildcard local endpoint, but does not add Bonjour advertising, service
-discovery, multicast, UDP, TLS, or an application protocol. Host apps that access the local network
-must provide `NSLocalNetworkUsageDescription` and handle the system's Local Network authorization,
-per [Apple's local-network privacy guidance](https://developer.apple.com/documentation/technotes/tn3179-understanding-local-network-privacy);
-this crate does not request permission or modify the host app's Info.plist. The selected API floor is
-iOS 12.0; the registered device and Simulator link probes use iOS 12.0 and 14.0 deployment floors
+The listener optionally advertises a caller-selected `BonjourAdvertisement` through
+`nw_advertise_descriptor_create_bonjour_service` and
+`nw_listener_set_advertise_descriptor`. It uses the same `NWListener`, bound port, accept queue,
+and cancellation lifecycle; it does not open a second listener. `register_advertisement` may run
+before or after bind, `update_advertisement` replaces the descriptor, and `stop_advertising`
+removes it while leaving the TCP accept path active. These methods report that the descriptor
+request was accepted or queued, not that Bonjour publication or peer connectivity succeeded. The
+listener does not add multicast, UDP, TLS, or an application protocol
+
+Host apps that access or advertise local-network services must provide
+`NSLocalNetworkUsageDescription`, handle Apple's Local Network authorization, and include each
+advertised service type in `NSBonjourServices`, per [Apple's local-network privacy guidance](https://developer.apple.com/documentation/technotes/tn3179-understanding-local-network-privacy).
+This crate does not request permission or modify the host app's Info.plist. The Network.framework
+advertisement APIs are declared for iOS 12.0; the registered device and Simulator link probes use
+iOS 12.0 and 14.0 deployment floors
 
 ## Evidence limits
 

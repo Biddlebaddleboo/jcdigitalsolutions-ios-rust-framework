@@ -629,3 +629,11 @@ B572 adds `IosCameraCaptureSession::set_preview_orientation(MainThreadMarker, Io
 ### B580 — typed sectioned UIKit list (row 003)
 
 B580 adds `IosSectionedListView` and owned `IosListSection` snapshots over `UITableView` while preserving the flat `IosListView` API. Full replacement validates section and row bounds, nonempty optional headers, and globally unique row IDs before mutation; host regressions cover invalid snapshots and transactional preservation. The `ios-ui` profile passed 272 checks with 0 FAIL, 0 BLOCKED, and 2 SKIPPED at snapshot `9890e5ed86cf6355bdda280b26561fae0396b57c8e0ddc0b194cb85536b5f30e`; the skips are Simulator execution and physical-device proof. Live UIKit behavior remains unverified; this is an imperative native list, not SwiftUI composition or automatic observation.
+
+### B581 — stable MapKit point annotations (row 093)
+
+B581 adds borrowed `MapAnnotation<'title>` snapshots and `IosMapView::replace_annotations`. It validates unique stable IDs before native mutation, reuses existing `MKPointAnnotation` objects by ID, updates coordinates/titles, and removes omitted markers. The `ios-map-view` profile passed 28 checks with 0 FAIL, 0 BLOCKED, and 2 SKIPPED; device/Simulator compile and link checks passed. Simulator execution, physical-device rendering, and selection behavior remain unverified.
+
+### B582 — Bonjour TCP listener advertising (row 027)
+
+B582 adds portable `BonjourAdvertisement` validation and register/update/stop methods on the existing `TcpListener`/`NWListener`, so advertising does not create a second listener or port. Service type, optional instance name, and optional DNS domain have bounded validation, including the 253-byte textual DNS-name limit and final-dot cases. Listener lifecycle tests cover advertisement state and drop cleanup; descriptor regressions cover malformed and overlong names. The installed `ios-rust-validate` profiles passed `ios-connection` 31 checks and `ios-service-discovery` 24 checks, each with 0 FAIL, 0 BLOCKED, and 2 SKIPPED for Simulator execution and physical-device proof. Device/Simulator compilation and Network.framework link/import checks passed; actual browse/advertisement delivery and Local Network permission behavior remain unverified. Hosts own `NSLocalNetworkUsageDescription` and `NSBonjourServices`.

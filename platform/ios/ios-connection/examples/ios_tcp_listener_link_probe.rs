@@ -7,11 +7,16 @@ use core::task::{Context, Waker};
 #[cfg(target_os = "ios")]
 use framework_connection::TcpListener;
 #[cfg(target_os = "ios")]
+use framework_service_discovery::BonjourAdvertisement;
+#[cfg(target_os = "ios")]
 use ios_connection::IosTcpListenerBackend;
 
 #[cfg(target_os = "ios")]
 fn main() {
     let mut listener = TcpListener::new(IosTcpListenerBackend::new());
+    let advertisement = BonjourAdvertisement::new(Some("Rust listener"), "_demo._tcp", None)
+        .expect("static Bonjour descriptor is valid");
+    let _ = listener.register_advertisement(advertisement);
     let mut context = Context::from_waker(Waker::noop());
 
     {
@@ -48,6 +53,13 @@ fn main() {
         if core::hint::black_box(false) {
             let _ = close.as_mut().poll(&mut context);
         }
+    }
+
+    if core::hint::black_box(false) {
+        let replacement = BonjourAdvertisement::new(Some("Updated listener"), "_demo._tcp", None)
+            .expect("static Bonjour descriptor is valid");
+        let _ = listener.update_advertisement(replacement);
+        let _ = listener.stop_advertising();
     }
 }
 
