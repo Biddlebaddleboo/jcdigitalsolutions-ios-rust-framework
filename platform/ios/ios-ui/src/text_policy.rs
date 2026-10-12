@@ -4,6 +4,7 @@ use framework_core::Result;
 use framework_ui::TextFieldInputMode;
 
 pub(crate) type TextFieldCallback = Box<dyn FnMut(Result<Option<String>>)>;
+pub(crate) type TextEditorCallback = Box<dyn FnMut(Result<String>)>;
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) enum KeyboardHint {
@@ -42,9 +43,34 @@ pub(crate) fn invoke_text_callback(
     });
 }
 
+pub(crate) fn invoke_text_editor_callback(
+    callback: &RefCell<TextEditorCallback>,
+    text: Result<String>,
+) {
+    catch_text_panic(|| {
+        if let Ok(mut callback) = callback.try_borrow_mut() {
+            callback(text);
+        }
+    });
+}
+
+pub(crate) fn replace_text_editor_callback(
+    callback: &RefCell<TextEditorCallback>,
+    replacement: TextEditorCallback,
+) -> Result<()> {
+    let mut callback = callback
+        .try_borrow_mut()
+        .map_err(|_| framework_core::Error::new(framework_core::ErrorKind::Unavailable))?;
+    *callback = replacement;
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
-    use super::{KeyboardHint, TextFieldCallback, input_traits, invoke_text_callback};
+    use super::{
+        KeyboardHint, TextEditorCallback, TextFieldCallback, input_traits, invoke_text_callback,
+        invoke_text_editor_callback, replace_text_editor_callback,
+    };
     use core::cell::{Cell, RefCell};
     use framework_core::{Error, ErrorKind, Result};
     use framework_ui::{
@@ -58,6 +84,11 @@ mod tests {
     type Callback = Rc<CallbackCell>;
     type WeakCallback = Weak<CallbackCell>;
     type CallbackSlot = Rc<RefCell<Option<WeakCallback>>>;
+
+    type EditorCallbackCell = RefCell<TextEditorCallback>;
+    type EditorCallback = Rc<EditorCallbackCell>;
+    type WeakEditorCallback = Weak<EditorCallbackCell>;
+    type EditorCallbackSlot = Rc<RefCell<Option<WeakEditorCallback>>>;
 
     struct ModeField {
         input_mode: TextFieldInputMode,
@@ -372,5 +403,90 @@ mod tests {
 
         invoke_text_callback(&callback, Err(invalid));
         assert_eq!(received.get(), Some(invalid));
+    }
+
+    #[test]
+    fn editor_callback_panic_is_contained_and_releases_its_borrow() {
+        let callback = RefCell::new(
+            Box::new(|_| -> () { panic!("text editor callback panic") }) as TextEditorCallback
+        );
+        invoke_text_editor_callback(&callback, Ok(String::from("edit")));
+        assert!(callback.try_borrow_mut().is_ok());
+    }
+
+    #[test]
+    fn editor_reentrant_callback_is_ignored_while_mutably_borrowed() {
+        let callback_slot: EditorCallbackSlot = Rc::new(RefCell::new(None));
+        let calls = Rc::new(Cell::new(0));
+        let nested_slot = callback_slot.clone();
+        let nested_calls = calls.clone();
+        let callback: EditorCallback =
+            Rc::new(RefCell::new(Box::new(move |text: Result<String>| {
+                nested_calls.set(nested_calls.get() + 1);
+                if let Some(callback) = nested_slot.borrow().as_ref().and_then(Weak::upgrade) {
+                    invoke_text_editor_callback(&callback, text.clone());
+                }
+            })));
+        *callback_slot.borrow_mut() = Some(Rc::downgrade(&callback));
+
+        invoke_text_editor_callback(&callback, Ok(String::from("edit")));
+        assert_eq!(calls.get(), 1);
+    }
+
+    #[test]
+    fn editor_callback_receives_invalid_utf16_error_unchanged() {
+        let received = Rc::new(Cell::new(None::<Error>));
+        let action_received = received.clone();
+        let callback = RefCell::new(Box::new(move |text: Result<String>| {
+            action_received.set(Some(text.unwrap_err()));
+        }) as TextEditorCallback);
+        let invalid = Error::new(ErrorKind::InvalidInput);
+
+        invoke_text_editor_callback(&callback, Err(invalid));
+        assert_eq!(received.get(), Some(invalid));
+    }
+
+    #[test]
+    fn editor_callback_replacement_releases_old_callback_and_drop_releases_new() {
+        struct DropSignal(Rc<Cell<bool>>);
+        impl Drop for DropSignal {
+            fn drop(&mut self) {
+                self.0.set(true);
+            }
+        }
+
+        let old_dropped = Rc::new(Cell::new(false));
+        let old_signal = DropSignal(old_dropped.clone());
+        let callback = RefCell::new(Box::new(move |_| {
+            let _ = &old_signal;
+        }) as TextEditorCallback);
+        let new_dropped = Rc::new(Cell::new(false));
+        let new_signal = DropSignal(new_dropped.clone());
+        replace_text_editor_callback(
+            &callback,
+            Box::new(move |_| {
+                let _ = &new_signal;
+            }),
+        )
+        .unwrap();
+        assert!(old_dropped.get());
+        assert!(!new_dropped.get());
+
+        drop(callback);
+        assert!(new_dropped.get());
+    }
+
+    #[test]
+    fn editor_replacement_while_active_is_rejected_and_preserves_current_callback() {
+        let calls = Rc::new(Cell::new(0));
+        let current_calls = calls.clone();
+        let callback = RefCell::new(Box::new(move |_| current_calls.set(1)) as TextEditorCallback);
+        let _active = callback.borrow_mut();
+
+        assert_eq!(
+            replace_text_editor_callback(&callback, Box::new(|_| {})),
+            Err(Error::new(ErrorKind::Unavailable))
+        );
+        assert_eq!(calls.get(), 0);
     }
 }

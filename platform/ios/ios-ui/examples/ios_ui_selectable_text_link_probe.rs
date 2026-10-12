@@ -27,6 +27,21 @@ fn main() {
     let _ = core::hint::black_box(text_view.text());
     let _ = text_view.set_text("updated\ntext");
     let _ = text_view.set_text("");
+    let Ok(mut editor) = backend.add_text_editor(
+        &mut parent,
+        Frame::new(0.0, 0.0, 320.0, 240.0).expect("valid editor frame"),
+        "first\0line\nsecond",
+        |_| {},
+    ) else {
+        return;
+    };
+    core::hint::black_box(editor.native_text_view());
+    let _ = core::hint::black_box(editor.text());
+    let _ = editor.set_text("updated\ntext");
+    let _ = editor.set_text("");
+    let _ = editor.set_edit_action(|_| {});
+    let _ = editor.request_first_responder();
+    let _ = editor.resign_first_responder();
 }
 
 #[cfg(not(target_os = "ios"))]

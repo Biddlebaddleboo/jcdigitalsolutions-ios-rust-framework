@@ -154,7 +154,9 @@ for target in aarch64-apple-ios aarch64-apple-ios-sim; do
             exit 1
         }
     done
-    for symbol in UITextView 'setEditable:' 'setSelectable:' 'setScrollEnabled:' 'setText:' text; do
+    for symbol in UITextView UITextViewDelegate 'setEditable:' 'setSelectable:' \
+        'setScrollEnabled:' 'setText:' 'setDelegate:' 'textViewDidChange:' \
+        'becomeFirstResponder' 'resignFirstResponder' text; do
         printf '%s\n' "$selectable_text_strings" | grep -F "$symbol" >/dev/null || {
             echo "$target selectable-text probe is missing UIKit class or selector $symbol" >&2
             exit 1
@@ -177,6 +179,14 @@ for target in aarch64-apple-ios aarch64-apple-ios-sim; do
         echo "$target selectable-text view is missing its selection policy" >&2
         exit 1
     }
-    printf '%s UITextView read-only and selection selectors verified at iOS %s; probe not executed\n' \
+    grep -F 'native.setEditable(true);' platform/ios/ios-ui/src/platform/selectable_text.rs >/dev/null || {
+        echo "$target text editor is missing its edit policy" >&2
+        exit 1
+    }
+    grep -F 'textViewDidChange:' platform/ios/ios-ui/src/platform/selectable_text.rs >/dev/null || {
+        echo "$target text editor is missing its edit callback" >&2
+        exit 1
+    }
+    printf '%s UITextView read-only/editable policies and delegate selectors verified at iOS %s; probe not executed\n' \
         "$target" "$deployment_target"
 done

@@ -4,7 +4,7 @@
 native `UIView`, adds native `UILabel`, `UIButton`, `UIImageView`, `UIScrollView`, `UIStackView`,
 `UITableView`, `UIContextMenuInteraction`, single-line `UITextField`, and multiline `UITextView`
 children, and supports synchronous label, button, image, scroll-host, field, selectable-text,
-disclosure-group, reusable-list, and fixed context-menu operations. `Frame` maps to
+editable-text, disclosure-group, reusable-list, and fixed context-menu operations. `Frame` maps to
 `CGRect` in the parent view's local coordinate system; its logical units are UIKit points
 
 ## Main-thread and ownership rules
@@ -13,7 +13,7 @@ disclosure-group, reusable-list, and fixed context-menu operations. `Frame` maps
   updates require the main thread. A failed runtime main-thread proof returns
   `framework_core::ErrorKind::Unavailable`. Backend and handle values are `!Send`/`!Sync`
 - `IosView`, `IosLabel`, `IosButton`, `IosImageView`, `IosScrollView`, `IosTextField`,
-  `IosSelectableTextView`, and `IosListView` retain
+  `IosSelectableTextView`, `IosTextEditor`, and `IosListView` retain
   their native UIKit objects. The caller owns hierarchy placement and must attach
   `IosView::native_view()` to a caller-owned controller or parent view
 - UIKit retains added child views in its native hierarchy. The Rust `IosButton` handle also owns
@@ -140,6 +140,18 @@ observe application state, provide a custom copy menu, or define clipboard polic
 length-aware text and malformed-surrogate regressions. Device/Simulator compilation and link probes
 verify the UIKit type, selectors, imports, and deployment floors; they do not establish live
 selection, menu, or clipboard behavior
+
+`IosUiBackend::add_text_editor` adds an editable, selectable, scrollable `UITextView` with an
+initial Rust string and synchronous edit callback. `IosTextEditor::text` returns an owned strict
+UTF-16 snapshot; `set_text` replaces it without an edit callback. The callback receives exact
+embedded NUL and supplementary Unicode values, while malformed UTF-16 reaches it as
+`InvalidInput`. Panics are contained, reentrant callback delivery is ignored, and replacing an
+active callback returns `Unavailable`. The main-thread-bound handle owns the native view and its
+delegate, detaches its delegate on drop, and exposes typed UIKit integration through
+`native_text_view`. This is an imperative UIKit control, not a SwiftUI state-binding or rendering
+system; layout, application state, and editor lifetime remain caller-owned. Device/Simulator
+compile-link evidence verifies `UITextViewDelegate` and its edit selector but does not prove live
+keyboard, text-edit, or callback behavior
 
 ## Native scrolling
 

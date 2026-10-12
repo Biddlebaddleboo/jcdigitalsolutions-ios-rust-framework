@@ -46,7 +46,7 @@ pub use platform::IosDisclosureGroup;
 #[cfg(target_os = "ios")]
 pub use platform::{
     IosButton, IosImageView, IosLabel, IosScrollView, IosSelectableTextView, IosStackAxis,
-    IosStackView, IosTextField, IosToggle, IosUiBackend, IosView,
+    IosStackView, IosTextEditor, IosTextField, IosToggle, IosUiBackend, IosView,
 };
 #[cfg(target_os = "ios")]
 pub use platform::{IosContextMenu, IosContextMenuAction};
