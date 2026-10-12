@@ -1,31 +1,41 @@
-# NFC reader availability
+# NFC reader support and NDEF reads
 
-**framework-nfc** provides a portable `no_std` contract for a one-time snapshot of NFC tag-reader support. It is not a portable NFC session or tag API. The separate [iOS guide](../ios/nfc.md) documents the Core NFC query.
+**framework-nfc** provides a portable `no_std` contract for NFC reader support, owned NDEF
+messages, and a statically dispatched one-shot read facade. The iOS backend uses Apple's public
+Core NFC `NFCNDEFReaderSession`; it does not make the portable API depend on Apple types.
 
 ```rust
-use framework_nfc::{NfcReader, NfcReaderAvailabilityBackend};
+use framework_nfc::{NdefMessage, NdefReader, NdefReadError};
+use ios_nfc::CoreNfcNdefBackend;
+use objc2::MainThreadMarker;
 
-fn inspect_support<B: NfcReaderAvailabilityBackend>(reader: &NfcReader<B>) {
-    match reader.snapshot() {
-        framework_nfc::NfcReaderAvailability::Supported => { /* device reports reader support */ }
-        framework_nfc::NfcReaderAvailability::Unsupported => { /* device reports no reader support */ }
-        framework_nfc::NfcReaderAvailability::Unknown => { /* backend cannot classify support */ }
-        _ => unreachable!("NfcReaderAvailability is non-exhaustive"),
-    }
+async fn read_ndef(
+    main_thread: MainThreadMarker,
+) -> Result<NdefMessage, NdefReadError> {
+    let backend = CoreNfcNdefBackend::new(main_thread, "Hold your iPhone near an NFC tag")?;
+    let mut reader = NdefReader::new(backend);
+    reader.read().await
 }
 ```
 
-`NfcReaderAvailability` is a copied one-byte semantic value. `NfcReader<B>` owns the explicitly supplied static backend; the crate has no platform lookup, global registry, allocation, executor, dynamic dispatch, prompt, or hidden initialization. The query is synchronous and each call is a fresh backend snapshot, not a subscription or cached session state.
+The future starts native work on its first poll and does not require a framework-owned executor.
+Drop a pending future to cancel and close the active session. NDEF record type, identifier, and
+payload remain byte slices; the backend does not interpret records as UTF-8. The support snapshot
+is still a separate synchronous query and does not imply permission or session readiness.
 
-`Supported` means only that the backend reports device support for NFC tag reading. It does not establish app permission, `NFCReaderUsageDescription`, an NFC reader-session entitlement, a usable or started session, scan success, tag presence, readable tag data, or background NFC support. `Unknown` allows a backend with no reliable support query to avoid reporting a false negative or positive.
+The iOS reader session requires iOS 11.0 or later, an NFC-capable device, a non-empty
+`NFCReaderUsageDescription`, and the `com.apple.developer.nfc.readersession.formats` entitlement
+with the NDEF format enabled. `new` reports unsupported reader hardware immediately; provisioning,
+system access, user cancellation, radio-disabled, timeout, busy, and app-interruption outcomes are
+reported distinctly when Core NFC invalidates the session. `UnsupportedOrNotProvisioned` preserves
+Core NFC's ambiguous unsupported-feature result instead of claiming which prerequisite failed.
 
-This slice does not implement sessions, NDEF, tag discovery, tag protocols, tag reads/writes, card emulation, prompting, or background tag reading. Thus it is only a partial facet of the broader NFC session/tag-operations capability.
+This increment reads one NDEF message and lets Core NFC invalidate after its first successful
+read. It does not write NDEF data, expose native tag handles, implement ISO7816 or MIFARE commands,
+support arbitrary `NFCTagReaderSession` protocols, or perform background reads. Compile and link
+checks do not establish entitlement provisioning, the system prompt, physical tag reads, or
+Simulator/device runtime behavior.
 
-Portable checks:
-
-```sh
-cargo fmt --all -- --check
-cargo test -p framework-nfc
-cargo check -p framework-nfc --no-default-features
-git diff --check
-```
+The prior availability-only increment and its query safety boundary remain in
+[the iOS NFC guide](../ios/nfc.md). The scoped implementation record is
+[PLAN_IOS_NFC.md](../../PLAN_IOS_NFC.md).

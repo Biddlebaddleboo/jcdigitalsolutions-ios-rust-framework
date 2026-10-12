@@ -29,10 +29,14 @@ fi
 
 for target in aarch64-apple-ios aarch64-apple-ios-sim; do
     dependencies="target/ios-nfc-dependencies-$target.txt"
-    cargo tree --locked --target "$target" --edges normal --prefix none -p ios-nfc > "$dependencies"
+    cargo tree --locked --target "$target" --features ndef-read --edges normal --prefix none -p ios-nfc > "$dependencies"
 
     if ! grep -Eq '^objc2-core-nfc v[0-9]' "$dependencies"; then
         echo "objc2-core-nfc is not selected for $target" >&2
+        exit 1
+    fi
+    if ! grep -Eq '^dispatch2 v[0-9]' "$dependencies"; then
+        echo "dispatch2 callback queue support is not selected for $target" >&2
         exit 1
     fi
     if grep -Eiq '^(pyo3|cpython|python3-sys|rustpython|swift-bridge|swift-rs)([- ]|$)' "$dependencies"; then
@@ -44,7 +48,7 @@ for target in aarch64-apple-ios aarch64-apple-ios-sim; do
         exit 1
     fi
 
-    cargo build --locked --release -p ios-nfc --example ios_nfc_link_import_probe --target "$target"
+    cargo build --locked --release -p ios-nfc --example ios_nfc_link_import_probe --features ndef-read --target "$target"
     binary="target/$target/release/examples/ios_nfc_link_import_probe"
     imports="target/ios-nfc-link-imports-$target.txt"
     frameworks="target/ios-nfc-frameworks-$target.txt"

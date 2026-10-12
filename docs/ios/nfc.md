@@ -1,23 +1,75 @@
-# iOS NFC reader-support snapshot
+# iOS Core NFC reader support and NDEF reads
 
-**ios-nfc** implements the narrow `framework-nfc` snapshot with the public Core NFC readonly class property `NFCReaderSession.readingAvailable`. Apple defines it as a Boolean that reports whether the device supports NFC tag reading. The iOS SDK header marks the property available starting at iOS 11.0. That is the API floor; the installed Xcode 26.6 / iOS SDK 26.5 is build-environment evidence, not a new minimum Xcode baseline.
+`ios-nfc` exposes two separate operations through public Core NFC APIs.
+
+## Reader support snapshot
+
+The stateless `CoreNfcReaderBackend` maps the readonly `NFCReaderSession.readingAvailable`
+property to `NfcReaderAvailability::Supported` or `Unsupported`. It is a device-capability query,
+not an authorization, entitlement, configuration, session, scan, or tag-read check. The property
+is available from iOS 11.0. Construction is inert, and calling `snapshot` does not prompt, start
+polling, or access tag data.
 
 ```rust
 use framework_nfc::NfcReader;
 use ios_nfc::CoreNfcReaderBackend;
 
 let reader = NfcReader::new(CoreNfcReaderBackend);
-let snapshot = reader.snapshot();
+let availability = reader.snapshot();
 ```
 
-Backend construction is inert. `snapshot` calls the typed `objc2-core-nfc` 0.3.2 `NFCReaderSession::readingAvailable()` binding and maps `true` to `Supported` and `false` to `Unsupported`. The method is unsafe in the generated binding; this crate confines that call and documents its safety basis. It calls no session initializer, selector other than the documented property, prompt API, polling API, delegate, or tag operation. There is no global runtime, native handle, callback, background task, or cancellation behavior in this snapshot.
+The support query conservatively requires a non-empty `NFCReaderUsageDescription` in the app's
+`Info.plist`. This key does not request permission or start a session. The query alone does not
+claim the reader-session entitlement is required or sufficient.
 
-## App configuration and capability limits
+## One-shot NDEF read session
 
-Apple documents `NFCReaderUsageDescription` as required when an app uses APIs that access NFC hardware. This guide conservatively requires a non-empty `NFCReaderUsageDescription` string in the app's `Info.plist`; Apple does not explicitly discuss whether the standalone `readingAvailable` property is exempt from the general requirement. This key is a usage-description declaration and does not itself request permission or start a session. Apple documents `com.apple.developer.nfc.readersession.formats` for formats an app may read through NFC tag-reader sessions. This query does not create/use a tag-reader session and does not claim that entitlement is required for the query. A future session/tag implementation must independently verify and satisfy the applicable session-specific entitlement and Info.plist requirements.
+With the default `ndef-read` Cargo feature, `CoreNfcNdefBackend::new` creates an inert
+`NFCNDEFReaderSession` on the iOS main thread. The first poll of `NdefReader::read` begins polling
+and presents Apple's user-mediated system reader UI; the first successful NDEF message is copied
+into portable owned records in record order. The portable record type, identifier, and payload
+are raw bytes, not assumed UTF-8 strings.
 
-The returned support bit is not a promise that an app is provisioned, configured, permitted, or able to start a session. It does not imply that NFC is available in the current environment or that a tag can be discovered. No live-device or simulator NFC result is part of compile/lint validation. This backend does not support prompting, sessions, scans, polling, NDEF, any tag read/write protocol, card emulation, or background tag reading.
+```rust
+use framework_nfc::{NdefMessage, NdefReader, NdefReadError};
+use ios_nfc::CoreNfcNdefBackend;
+use objc2::MainThreadMarker;
 
-The `objc2-core-nfc` dependency is target-gated to iOS with default features disabled. Version 0.3.2 has no per-type Cargo feature for `NFCReaderSession`; its generated binding is available without enabling its optional `block2` or `dispatch2` features. The binding crate also depends on `objc2-foundation` and links Foundation, so the native framework dependency set is CoreNFC plus this binding-required Foundation dependency, not CoreNFC alone. No unrelated capability framework, Swift source, or raw ABI declaration is used.
+async fn read_ndef(
+    main_thread: MainThreadMarker,
+) -> Result<NdefMessage, NdefReadError> {
+    let backend = CoreNfcNdefBackend::new(main_thread, "Hold your iPhone near an NFC tag")?;
+    let mut reader = NdefReader::new(backend);
+    reader.read().await
+}
+```
 
-See [PLAN_IOS_NFC.md](../../PLAN_IOS_NFC.md) and [PLAN_VALIDATION_IOS_NFC.md](../../PLAN_VALIDATION_IOS_NFC.md) for the scoped gates and boundaries.
+The read future starts native work on its first poll; dropping it while pending closes the active
+session. The backend strongly retains its Rust delegate while the Core NFC session holds its
+documented weak delegate reference. Native callbacks run on the supplied main dispatch queue,
+update a small `RefCell` result slot, then wake the caller's future task after releasing the borrow.
+No app-owned executor or global state is used.
+
+NDEF session use requires a non-empty `NFCReaderUsageDescription` plus the
+`com.apple.developer.nfc.readersession.formats` entitlement with the NDEF format enabled. The
+constructor checks only `readingAvailable`; it cannot preflight signing entitlements, Info.plist,
+or user/system access. It reports unsupported hardware immediately and keeps Core NFC outcomes
+distinct: unsupported-or-not-provisioned feature, security requirements, disabled radio, denied
+access, ineligibility, cancellation, timeout, interruption, and a busy reader. Core NFC error code
+1 can mean unsupported hardware or missing entitlement, so it maps to
+`UnsupportedOrNotProvisioned`, not a false hardware-only diagnosis.
+
+`NFCNDEFReaderSession` and the reader-support query both have an iOS 11.0 API floor. The installed
+Xcode 26.6 / iOS SDK 26.5 is build-environment evidence, not a new minimum Xcode baseline.
+`objc2-core-nfc` 0.3.2 supplies the typed Objective-C bindings. NDEF session construction uses its
+`dispatch2`-gated initializer with `DispatchQueue::main()` for main-thread delegate delivery.
+The dependency remains target-gated to iOS; no Swift source, raw ABI, or unrelated Apple framework
+is used.
+
+This increment reads one valid NDEF message from NFC Forum tag types 1–5 and allows Core NFC to
+invalidate after the first successful read. It does not write a tag, expose a native tag handle,
+implement custom `NFCTagReaderSession` protocols, ISO7816 APDUs, MIFARE commands, card emulation,
+or background reading. Host tests and device/Simulator compile/link checks are not proof of
+provisioning, prompt behavior, physical tag access, or Simulator NFC runtime support.
+
+The original reader-support query remains described in [PLAN_IOS_NFC.md](../../PLAN_IOS_NFC.md).

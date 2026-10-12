@@ -5,13 +5,20 @@ edition.workspace = true
 rust-version.workspace = true
 license.workspace = true
 repository.workspace = true
-description = "Narrow Core NFC reader-support query for iOS"
+description = "Core NFC reader support and one-shot NDEF reads for iOS"
+
+[features]
+default = ["ndef-read"]
+ndef-read = ["dep:dispatch2", "dep:objc2", "dep:objc2-foundation", "objc2-core-nfc/dispatch2"]
 
 [dependencies]
 framework-nfc = { path = "../../../crates/framework-nfc" }
 
 [target.'cfg(target_os = "ios")'.dependencies]
 objc2-core-nfc = { workspace = true }
+objc2 = { workspace = true, optional = true, features = ["std"] }
+objc2-foundation = { workspace = true, optional = true, features = ["alloc", "NSArray", "NSData", "NSError", "NSObject", "NSString"] }
+dispatch2 = { workspace = true, optional = true }
 
 [lints]
 workspace = true
