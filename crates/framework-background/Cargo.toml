@@ -5,7 +5,7 @@ edition.workspace = true
 rust-version.workspace = true
 license.workspace = true
 repository.workspace = true
-description = "Portable app-refresh task contract"
+description = "Portable background refresh and processing task contracts"
 
 [dependencies]
 framework-core.workspace = true

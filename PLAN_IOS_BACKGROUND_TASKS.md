@@ -47,7 +47,7 @@ Root owns Cargo.lock, shared workspace manifests, the capability manifest and co
 - When `BGTaskSchedulerPermittedIdentifiers` is set, iOS 13+ disables legacy `application:performFetchWithCompletionHandler:` and `setMinimumBackgroundFetchInterval:` APIs
 - Run Rust launch setup on every process launch and call each register method once before launch ends
 
-## Not in scope
+## Not in scope for B25
 
 - No `BGProcessingTask`, `BGContinuedProcessingTask`, `BGHealthResearchTask`, GPU resource, Health Research entitlement, or continued-work UI
 - No UIKit background task, app delegate, BackgroundAssets, URLSession, B13 transfer, local notification, PushKit, APNs, C ABI, or Swift
@@ -65,3 +65,34 @@ Root owns Cargo.lock, shared workspace manifests, the capability manifest and co
 ## Handoff
 
 Report public names, exact checks, direct imports, API floor, host plist/mode needs, deviations, and unresolved assumptions. Compile and link evidence does not prove host launch setup, schedule acceptance, runtime launch, task time, expiry, or native execution
+
+## B569 extension — BGProcessingTask
+
+### Objective and baseline
+
+Add a second, independently named path to `ios-background-tasks` for public `BGProcessingTask` registration, submission, and cancellation. The current B25/D20 `BGAppRefreshTask` contract is complete and remains unchanged; its explicit processing-task exclusion is historical scope, not a blocker for this extension. Generated `objc2-background-tasks` 0.3.2 exposes `BGProcessingTaskRequest`, `setRequiresNetworkConnectivity:`, and `setRequiresExternalPower:` through the existing `BGTaskRequest` feature set
+
+### Portable API and behavior
+
+- Add `ProcessingTaskId`, with B25's exact non-empty/no-NUL validation semantics and no normalization
+- Add `NetworkConnectivityRequirement::{NotRequired, Required}` and `ExternalPowerRequirement::{NotRequired, Required}` in `ProcessingTaskRequirements`; both default to `NotRequired`
+- Add `ProcessingTaskRequest`, `ProcessingTaskContext`, `ProcessingTaskOutcome`, and `ProcessingTaskBackend`
+- Keep callbacks synchronous, `Send + Sync`, no-executor, with cooperative expiry and one completion attempt; catch panic and finish failure
+- Submit sets both typed request requirements on the native request before scheduler acceptance; preserve B25 scheduler error category and `PlatformErrorCode` mapping
+- Cancellation removes pending requests only. Registration is once per ID/process before launch ends; duplicate native registration may terminate the app. Do not promise launch or execution time
+
+### Native and host requirements
+
+- Use only generated `BGProcessingTaskRequest`, inherited `BGTask`, `BGTaskScheduler`, `block2`, and existing Foundation/dispatch bindings; iOS API floor 13.0
+- Add exact processing IDs to host `BGTaskSchedulerPermittedIdentifiers` and `processing` to host `UIBackgroundModes`; host owns plist, launch integration, signing, and callback state. No entitlement, app delegate, or host metadata writer is added
+- No Swift, private API, C ABI, BGContinuedProcessingTask, BGHealthResearchTask, GPU-resource request, or runtime promise
+
+### Validation
+
+- Host tests cover identifier validation, typed requirements and defaults, request/context accessors, and expiry/completion one-shot race policy
+- Extend `ios_background_tasks_link_import_probe.rs` and `check-link-imports.sh` to require `BGProcessingTaskRequest`, both requirement setters, scheduler operations, BackgroundTasks imports, and the existing iOS 13.0 device / iOS 14.0 Simulator deployment floors
+- Report direct cargo and link/import evidence separately until root registers and verifies an applicable profile in `validation-v1.json`; do not claim source checks prove scheduler runtime behavior
+
+### Ownership
+
+This extension owns `crates/framework-background/src/lib.rs`, `platform/ios/ios-background-tasks/**`, and `docs/ios/background-tasks.md`. Root retains `PLAN.md`, `PLAN_CAPABILITIES_BACKGROUND_TASKS.md`, capability status, validation specs, shared indexes, manifests, push, and integration

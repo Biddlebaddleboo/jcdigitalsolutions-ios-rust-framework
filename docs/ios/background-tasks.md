@@ -1,6 +1,6 @@
-# iOS app refresh tasks
+# iOS background tasks
 
-`ios-background-tasks` adapts D20 to public `BGTaskScheduler` and `BGAppRefreshTask` APIs. The API floor is iOS 13.0 in Xcode 26.6 / iOS SDK 26.5 `BGTask.h`, `BGTaskRequest.h`, and `BGTaskScheduler.h`
+`ios-background-tasks` adapts D20 to public `BGTaskScheduler` and `BGAppRefreshTask` APIs and B569 to public `BGProcessingTask` APIs. Both have an iOS 13.0 API floor in Xcode 26.6 / iOS SDK 26.5 BackgroundTasks headers
 
 ```rust,ignore
 use framework_background::{
@@ -47,9 +47,55 @@ Use a reverse-DNS task ID and list the exact same string in the host app's `BGTa
 
 The app owns these plist values, launch setup, task IDs, and callback state. This crate uses no entitlement and does not create an app delegate. When `BGTaskSchedulerPermittedIdentifiers` is set, iOS 13+ disables legacy `application:performFetchWithCompletionHandler:` and `setMinimumBackgroundFetchInterval:` APIs
 
+## Background processing
+
+Use `ProcessingTaskId`, explicit typed requirements, and the same scheduler adapter for work that can be deferred until system conditions are favorable
+
+```rust,ignore
+use framework_background::{
+    ExternalPowerRequirement, NetworkConnectivityRequirement, ProcessingTaskBackend,
+    ProcessingTaskId, ProcessingTaskOutcome, ProcessingTaskRequest,
+    ProcessingTaskRequirements,
+};
+use ios_background_tasks::IosBackgroundTasks;
+
+fn register_and_submit() -> framework_core::Result<()> {
+    let backend = IosBackgroundTasks::new();
+    let task_id = ProcessingTaskId::new("com.example.app.maintenance")?;
+    let requirements = ProcessingTaskRequirements::new()
+        .with_network_connectivity(NetworkConnectivityRequirement::Required)
+        .with_external_power(ExternalPowerRequirement::Required);
+    let request = ProcessingTaskRequest::new(task_id.clone(), requirements);
+    backend.register_processing_task(&task_id, |task| {
+        if task.is_expired() {
+            return ProcessingTaskOutcome::Failed;
+        }
+        ProcessingTaskOutcome::Succeeded
+    })?;
+    backend.submit_processing_task(&request)
+}
+```
+
+Register each app-owned ID once per process before launch ends. List the exact ID in `BGTaskSchedulerPermittedIdentifiers` and add `processing` to host `UIBackgroundModes`; preserve all existing values. The same permitted-identifier list can contain both refresh and processing IDs. No entitlement or app delegate is provided by this crate
+
+```xml
+<key>BGTaskSchedulerPermittedIdentifiers</key>
+<array>
+    <string>com.example.app.maintenance</string>
+</array>
+<key>UIBackgroundModes</key>
+<array>
+    <string>processing</string>
+</array>
+```
+
+The callback is synchronous `Send + Sync` work on Apple's default background queue, not a `Future`; no order or main-thread promise exists. Processing tasks can run for minutes but the system controls launch and may interrupt them. The system runs them while the device is idle and can terminate them when the user starts using the device. The callback must poll `task.is_expired()`, stop cooperatively, and return promptly. The adapter catches Rust panic, maps it to failure, and makes one native completion call. Expiry wins over successful return when it wins the atomic finish race; it does not stop Rust work or finish the task itself
+
+`NetworkConnectivityRequirement::Required` asks the system to launch only with network connectivity; without it, the task may have no network access. `ExternalPowerRequirement::Required` asks the system to launch only while connected to external power and disables the CPU Monitor feature for that request. `NotRequired` does not promise execution on battery power. Accepted requests may run zero or one time, at a time selected by the OS; submit again for another run. Submitting the same ID replaces its pending request. Cancel removes pending work only and does not stop a launched callback
+
 ## Link and runtime limits
 
-The adapter uses generated `objc2-background-tasks` 0.3.2 bindings with only `BGTask`, `BGTaskRequest`, `BGTaskScheduler`, `block2`, and `dispatch2` features. It adds no Swift or handwritten Apple ABI
+The adapter uses generated `objc2-background-tasks` 0.3.2 bindings with only `BGTask`, `BGTaskRequest`, `BGTaskScheduler`, `block2`, and `dispatch2` features, including `BGProcessingTaskRequest` and its network/power setters. It adds no Swift or handwritten Apple ABI
 
 `sh platform/ios/ios-background-tasks/check-link-imports.sh` builds device and Simulator probes and inspects Mach-O imports and symbols; it never runs either probe. Target check and link evidence do not prove app launch setup, request acceptance, OS launch, task time, callback delivery, expiry, runtime behavior, or device behavior. This host toolchain is Xcode 26.6 / SDK 26.5, below the planned Xcode 27.x baseline
 

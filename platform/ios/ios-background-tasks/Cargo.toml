@@ -5,7 +5,7 @@ edition.workspace = true
 rust-version.workspace = true
 license.workspace = true
 repository.workspace = true
-description = "BGTaskScheduler app-refresh adapter for iOS"
+description = "BGTaskScheduler refresh and processing adapter for iOS"
 
 [dependencies]
 framework-background = { path = "../../../crates/framework-background", version = "0.1.0" }

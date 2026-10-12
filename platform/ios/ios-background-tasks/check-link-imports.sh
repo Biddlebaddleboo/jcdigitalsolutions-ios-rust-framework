@@ -21,10 +21,13 @@ IMPORTS
 
 cat > target/ios-background-tasks-selectors-expected.txt <<'SELECTORS'
 BGAppRefreshTaskRequest
+BGProcessingTaskRequest
 BGTaskScheduler
 cancelTaskRequestWithIdentifier:
 registerForTaskWithIdentifier:usingQueue:launchHandler:
 setExpirationHandler:
+setRequiresExternalPower:
+setRequiresNetworkConnectivity:
 setTaskCompletedWithSuccess:
 submitTaskRequest:error:
 SELECTORS

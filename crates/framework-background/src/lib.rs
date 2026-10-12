@@ -18,9 +18,7 @@ impl AppRefreshTaskId {
     /// Creates an ID from a non-empty string with no NUL byte
     pub fn new(value: impl Into<String>) -> Result<Self> {
         let value = value.into();
-        if value.is_empty() || value.contains('\0') {
-            return Err(Error::new(ErrorKind::InvalidInput));
-        }
+        validate_task_id(&value)?;
         Ok(Self(value))
     }
 
@@ -121,4 +119,271 @@ pub trait AppRefreshBackend {
     ///
     /// This does not stop a task closure that has already begun
     fn cancel_app_refresh(&self, task_id: &AppRefreshTaskId) -> Result<()>;
+}
+
+/// One caller-assigned, process-registered background-processing task ID
+///
+/// The value remains exact and case-sensitive, with no trim or normalization
+#[derive(Clone, Debug, Eq, Hash, PartialEq)]
+pub struct ProcessingTaskId(String);
+
+impl ProcessingTaskId {
+    /// Creates an ID from a non-empty string with no NUL byte
+    pub fn new(value: impl Into<String>) -> Result<Self> {
+        let value = value.into();
+        validate_task_id(&value)?;
+        Ok(Self(value))
+    }
+
+    /// Returns the exact task ID string
+    pub fn as_str(&self) -> &str {
+        &self.0
+    }
+}
+
+/// Whether a processing task request requires network connectivity
+#[derive(Clone, Copy, Debug, Default, Eq, Hash, PartialEq)]
+pub enum NetworkConnectivityRequirement {
+    /// Network connectivity is not required by the request
+    #[default]
+    NotRequired,
+    /// Ask the system to run the request only when network connectivity is available
+    Required,
+}
+
+/// Whether a processing task request requires external power
+#[derive(Clone, Copy, Debug, Default, Eq, Hash, PartialEq)]
+pub enum ExternalPowerRequirement {
+    /// External power is not required by the request
+    #[default]
+    NotRequired,
+    /// Ask the system to run the request only while connected to external power
+    Required,
+}
+
+/// Typed system conditions for one background-processing task request
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
+pub struct ProcessingTaskRequirements {
+    network_connectivity: NetworkConnectivityRequirement,
+    external_power: ExternalPowerRequirement,
+}
+
+impl ProcessingTaskRequirements {
+    /// Creates requirements that do not require network connectivity or external power
+    pub const fn new() -> Self {
+        Self {
+            network_connectivity: NetworkConnectivityRequirement::NotRequired,
+            external_power: ExternalPowerRequirement::NotRequired,
+        }
+    }
+
+    /// Returns the network-connectivity requirement
+    pub const fn network_connectivity(self) -> NetworkConnectivityRequirement {
+        self.network_connectivity
+    }
+
+    /// Returns the external-power requirement
+    pub const fn external_power(self) -> ExternalPowerRequirement {
+        self.external_power
+    }
+
+    /// Returns requirements with the requested network-connectivity condition
+    pub const fn with_network_connectivity(
+        mut self,
+        requirement: NetworkConnectivityRequirement,
+    ) -> Self {
+        self.network_connectivity = requirement;
+        self
+    }
+
+    /// Returns requirements with the requested external-power condition
+    pub const fn with_external_power(mut self, requirement: ExternalPowerRequirement) -> Self {
+        self.external_power = requirement;
+        self
+    }
+}
+
+/// One request for a background-processing task under a caller-assigned ID
+///
+/// The system decides if and when the request runs; no start time or recurrence is promised
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ProcessingTaskRequest {
+    task_id: ProcessingTaskId,
+    requirements: ProcessingTaskRequirements,
+}
+
+impl ProcessingTaskRequest {
+    /// Creates a request with explicit system requirements
+    pub const fn new(task_id: ProcessingTaskId, requirements: ProcessingTaskRequirements) -> Self {
+        Self {
+            task_id,
+            requirements,
+        }
+    }
+
+    /// Returns the caller-assigned ID for this request
+    pub const fn task_id(&self) -> &ProcessingTaskId {
+        &self.task_id
+    }
+
+    /// Returns the typed system requirements for this request
+    pub const fn requirements(&self) -> ProcessingTaskRequirements {
+        self.requirements
+    }
+}
+
+/// The return value from one background-processing task callback
+#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
+pub enum ProcessingTaskOutcome {
+    /// The callback reports its work as complete
+    Succeeded,
+    /// The callback reports its work as incomplete or failed
+    Failed,
+}
+
+/// Borrowed data for one synchronous background-processing callback
+pub struct ProcessingTaskContext<'a> {
+    task_id: &'a ProcessingTaskId,
+    expiry: &'a dyn ExpirySignal,
+}
+
+impl<'a> ProcessingTaskContext<'a> {
+    /// Creates callback data from an ID and a live expiry signal
+    pub const fn new(task_id: &'a ProcessingTaskId, expiry: &'a dyn ExpirySignal) -> Self {
+        Self { task_id, expiry }
+    }
+
+    /// Returns the ID for this run
+    pub const fn task_id(&self) -> &ProcessingTaskId {
+        self.task_id
+    }
+
+    /// Returns the live expiry state for this run
+    pub fn is_expired(&self) -> bool {
+        self.expiry.is_expired()
+    }
+}
+
+/// A static backend for background-processing task register, submit, and cancel calls
+///
+/// `Ok` from submit means only backend acceptance, not a run or time promise
+/// The callback is synchronous work, not a `Future`; it must return promptly after expiry
+/// The callback runs on a backend-owned thread or queue, with no order or main-thread promise
+/// The backend retains each callback while its ID remains registered; no unregister call exists
+pub trait ProcessingTaskBackend {
+    /// Registers one synchronous work closure for `task_id`
+    ///
+    /// Register each ID once per app process before launch ends; a native duplicate call can end the app
+    /// The backend must catch a Rust panic and finish with failure once
+    /// Expiry is a cooperative signal only; it does not stop Rust work
+    /// No finish call is assured after process kill or abort
+    fn register_processing_task<F>(&self, task_id: &ProcessingTaskId, handler: F) -> Result<()>
+    where
+        F: for<'a> Fn(ProcessingTaskContext<'a>) -> ProcessingTaskOutcome + Send + Sync + 'static;
+
+    /// Asks the OS to add or replace the pending request for this ID
+    ///
+    /// Success means accepted by the backend only, not a run time or launch promise
+    fn submit_processing_task(&self, request: &ProcessingTaskRequest) -> Result<()>;
+
+    /// Asks the OS to cancel the pending request for this ID
+    ///
+    /// This does not stop a task closure that has already begun
+    fn cancel_processing_task(&self, task_id: &ProcessingTaskId) -> Result<()>;
+}
+
+fn validate_task_id(value: &str) -> Result<()> {
+    if value.is_empty() || value.contains('\0') {
+        Err(Error::new(ErrorKind::InvalidInput))
+    } else {
+        Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use core::cell::Cell;
+
+    struct TestExpiry(Cell<bool>);
+
+    impl ExpirySignal for TestExpiry {
+        fn is_expired(&self) -> bool {
+            self.0.get()
+        }
+    }
+
+    #[test]
+    fn processing_task_id_preserves_exact_string_and_rejects_invalid_values() {
+        let id = ProcessingTaskId::new(" com.Example.Processing ").unwrap();
+        assert_eq!(id.as_str(), " com.Example.Processing ");
+        assert_eq!(
+            ProcessingTaskId::new("").unwrap_err().kind(),
+            ErrorKind::InvalidInput
+        );
+        assert_eq!(
+            ProcessingTaskId::new("com.example\0processing")
+                .unwrap_err()
+                .kind(),
+            ErrorKind::InvalidInput
+        );
+    }
+
+    #[test]
+    fn app_refresh_id_uses_the_same_identifier_validation() {
+        assert_eq!(
+            AppRefreshTaskId::new("").unwrap_err().kind(),
+            ErrorKind::InvalidInput
+        );
+        assert_eq!(
+            AppRefreshTaskId::new("refresh\0task").unwrap_err().kind(),
+            ErrorKind::InvalidInput
+        );
+    }
+
+    #[test]
+    fn processing_requirements_are_typed_and_default_to_unrestricted() {
+        let defaults = ProcessingTaskRequirements::default();
+        assert_eq!(
+            defaults.network_connectivity(),
+            NetworkConnectivityRequirement::NotRequired
+        );
+        assert_eq!(
+            defaults.external_power(),
+            ExternalPowerRequirement::NotRequired
+        );
+
+        let constrained = defaults
+            .with_network_connectivity(NetworkConnectivityRequirement::Required)
+            .with_external_power(ExternalPowerRequirement::Required);
+        assert_eq!(
+            constrained.network_connectivity(),
+            NetworkConnectivityRequirement::Required
+        );
+        assert_eq!(
+            constrained.external_power(),
+            ExternalPowerRequirement::Required
+        );
+    }
+
+    #[test]
+    fn processing_request_keeps_its_id_and_requirements() {
+        let id = ProcessingTaskId::new("com.example.maintenance").unwrap();
+        let requirements = ProcessingTaskRequirements::new()
+            .with_network_connectivity(NetworkConnectivityRequirement::Required);
+        let request = ProcessingTaskRequest::new(id.clone(), requirements);
+        assert_eq!(request.task_id(), &id);
+        assert_eq!(request.requirements(), requirements);
+    }
+
+    #[test]
+    fn processing_context_reads_live_expiry_without_owning_the_task() {
+        let id = ProcessingTaskId::new("com.example.maintenance").unwrap();
+        let expiry = TestExpiry(Cell::new(false));
+        let context = ProcessingTaskContext::new(&id, &expiry);
+        assert_eq!(context.task_id(), &id);
+        assert!(!context.is_expired());
+        expiry.0.set(true);
+        assert!(context.is_expired());
+    }
 }
