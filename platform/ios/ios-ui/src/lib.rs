@@ -6,6 +6,10 @@
 mod collection_grid_policy;
 #[cfg(any(test, target_os = "ios"))]
 mod context_menu_policy;
+#[cfg(target_os = "ios")]
+mod custom_render_accessibility;
+#[cfg(any(test, target_os = "ios"))]
+mod custom_render_accessibility_policy;
 #[cfg(any(test, target_os = "ios"))]
 mod custom_render_frame;
 #[cfg(target_os = "ios")]
@@ -56,6 +60,15 @@ pub use collection_grid_policy::{
     IosCollectionGridEvent, IosCollectionGridInsets, IosCollectionGridItem,
     IosCollectionGridItemContent, IosCollectionGridLayout, IosCollectionGridSection,
     IosCollectionGridSectionHeader,
+};
+#[cfg(target_os = "ios")]
+pub use custom_render_accessibility::{
+    IosCustomRenderAccessibility, SemanticAccessibilityAction, SemanticAccessibilityNode,
+};
+#[cfg(any(test, target_os = "ios"))]
+pub use custom_render_accessibility_policy::{
+    AccessibilityActionEvent, AccessibilityActionId, AccessibilityNodeId, SemanticActionKind,
+    SemanticFrame, SemanticTreeError,
 };
 #[cfg(target_os = "ios")]
 pub use custom_render_host::{
