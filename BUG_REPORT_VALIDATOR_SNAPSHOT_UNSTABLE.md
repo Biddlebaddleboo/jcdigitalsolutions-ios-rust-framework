@@ -64,3 +64,18 @@ ios-rust-validate --workspace-root "$PWD" \
 It returned the same `snapshot-unstable: source changed during capture` diagnostic. Repeated root-checkout attempts for `ios-camera-capture-session`, one attempt for `ios-audio-session`, and an attempt with detailed diagnostics produced the same error. `--version --format json` still reported release `ios-rust-tools-0.1.0+350971094cc3b77191cd6b3d07e01af04d71943d`; the installed binary SHA-256 remained `77f9c7aa941ba1335827ffc6ce274898987ce1d5f408d91d1a7c1daf34527944`. The updated spec parsed, was 260,261 bytes (under the 262,144-byte limit), `--explain ios-camera-capture-session` succeeded, and `generate-reports --check` passed before the update commit. The failed run after that commit used a clean worktree.
 
 The camera profile now has five B545 source guards for the flash API, preflight, unchanged default path, unsupported-mode regression, and link probe. A separate workstream run on earlier source snapshot `4a665e1f9ab882455b3717d44ea6850499a03f97a6be6ce8a4000ca143666506` passed its then-current profile with 265 PASS, 0 FAIL, 0 BLOCKED, and 2 SKIPPED; that profile predates these five guards. The new guards and integrated profile remain unverified. The two earlier skips were Simulator execution and physical-device proof, not passing runtime evidence.
+
+## Additional reproduction — 2026-10-12 (B554)
+
+The same suspected defect blocks the integrated B554 `ios-ui` profile. The B554 implementation commit `ac5fd9d` and registration commit `07fe85e39a4f7887b1b119deac6f7a788c7f646b` are on local `main`. After correcting the initial profile-registration mistakes, the following commands failed before any gate ran on a clean tree at `07fe85e`:
+
+```sh
+ios-rust-validate --workspace-root "$PWD" --spec "$PWD/tools/validation/specs/validation-v1.json" --capability ios-ui --format human --diagnostics short
+ios-rust-validate --workspace-root "$PWD" --spec "$PWD/tools/validation/specs/validation-v1.json" --changed 85de85d --format human --diagnostics short
+```
+
+Both returned `error-blocked: snapshot-unstable: source changed during capture`. Six corrected profile attempts failed before checks, including attempts with staged and unstaged integration files and a clean committed tree. `--explain ios-ui` succeeds and shows the corrected registration: nine ABI/link fixtures, two shell syntax checks, ten collection-grid guards, and unchanged device iOS 12.0 / Simulator iOS 14.0 floors. The 62 declared `ios-ui` inputs were byte-stable during a separate two-second hash check, and no validator or build process was active.
+
+The initial integrated profile attempt used a superseded spec snapshot and reported 278 pass, 7 fail, 0 blocked, and 2 skipped. The seven failures were the outdated Foundation feature guard and Rust files mistakenly listed as shell/ABI scripts; those spec errors were corrected. This result is not a pass for the corrected profile.
+
+The unchanged B554 implementation source had 62 passing host tests, device and Simulator compilation/link probes, strict device Clippy, formatting, and a passing collection-grid link probe before integration. Those direct results do not replace the blocked registered profile or establish Simulator/device runtime behavior. The framework docs record this B554-specific impact in `PLAN.md`.
