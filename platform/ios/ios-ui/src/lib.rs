@@ -43,6 +43,7 @@ mod toggle_policy;
 pub use collection_grid_policy::{
     IosCollectionGridEvent, IosCollectionGridInsets, IosCollectionGridItem,
     IosCollectionGridItemContent, IosCollectionGridLayout, IosCollectionGridSection,
+    IosCollectionGridSectionHeader,
 };
 #[cfg(target_os = "ios")]
 pub use grid::IosGridView;

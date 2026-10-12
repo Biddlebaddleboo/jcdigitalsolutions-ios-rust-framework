@@ -33,13 +33,14 @@ for target in aarch64-apple-ios aarch64-apple-ios-sim; do
     }
     symbols=$(nm -u "$binary")
     binary_strings=$(strings "$binary")
-    for symbol in objc_getClass objc_msgSend; do
+    for symbol in objc_getClass objc_msgSend UICollectionElementKindSectionHeader; do
         printf '%s\n' "$symbols" | grep -F "$symbol" >/dev/null || {
             echo "$target collection-grid probe is missing Objective-C symbol $symbol" >&2
             exit 1
         }
     done
-    for symbol in UICollectionView UICollectionViewCell UICollectionViewCompositionalLayout \
+    for symbol in UICollectionView UICollectionViewCell UICollectionReusableView \
+        UICollectionViewCompositionalLayout NSCollectionLayoutBoundarySupplementaryItem \
         UICollectionViewDiffableDataSource NSDiffableDataSourceSnapshot \
         NSCollectionLayoutSection NSCollectionLayoutGroup NSCollectionLayoutItem \
         NSCollectionLayoutSize NSCollectionLayoutDimension \
@@ -50,6 +51,10 @@ for target in aarch64-apple-ios aarch64-apple-ios-sim; do
         numberWithUnsignedLongLong unsignedLongLongValue \
         'dequeueReusableCellWithReuseIdentifier:forIndexPath:' \
         'applySnapshot:animatingDifferences:completion:' \
+        'setSupplementaryViewProvider:' 'reloadSectionsWithIdentifiers:' \
+        'registerClass:forSupplementaryViewOfKind:withReuseIdentifier:' \
+        'dequeueReusableSupplementaryViewOfKind:withReuseIdentifier:forIndexPath:' \
+        'initWithFrame:' \
         'itemIdentifierForIndexPath:' 'collectionView:shouldSelectItemAtIndexPath:' \
         'collectionView:didSelectItemAtIndexPath:' 'gridActionTapped:' 'gridToggleChanged:' \
         'setOn:animated:' 'setEnabled:'; do

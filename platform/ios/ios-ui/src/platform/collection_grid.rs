@@ -18,25 +18,32 @@ use objc2::{
 use objc2_core_foundation::{CGPoint, CGRect, CGSize};
 use objc2_foundation::{NSArray, NSIndexPath, NSNumber, NSObjectProtocol, NSString};
 use objc2_ui_kit::{
-    NSCollectionLayoutContainer, NSCollectionLayoutDimension, NSCollectionLayoutEnvironment,
-    NSCollectionLayoutGroup, NSCollectionLayoutItem, NSCollectionLayoutSection,
-    NSCollectionLayoutSize, NSCollectionLayoutSpacing, NSDirectionalEdgeInsets, UIButton,
-    UIButtonType, UICollectionLayoutSectionOrthogonalScrollingBehavior, UICollectionView,
-    UICollectionViewCell, UICollectionViewCompositionalLayout, UICollectionViewDelegate,
-    UICollectionViewDiffableDataSource, UICollectionViewDiffableDataSourceCellProvider,
-    UIControlEvents, UIControlState, UILabel, UIScrollViewDelegate, UISwitch, UIViewAutoresizing,
+    NSCollectionLayoutBoundarySupplementaryItem, NSCollectionLayoutContainer,
+    NSCollectionLayoutDimension, NSCollectionLayoutEnvironment, NSCollectionLayoutGroup,
+    NSCollectionLayoutItem, NSCollectionLayoutSection, NSCollectionLayoutSize,
+    NSCollectionLayoutSpacing, NSDirectionalEdgeInsets, NSIndexPathUIKitAdditions, NSRectAlignment,
+    UIButton, UIButtonType, UICollectionElementKindSectionHeader,
+    UICollectionLayoutSectionOrthogonalScrollingBehavior, UICollectionReusableView,
+    UICollectionView, UICollectionViewCell, UICollectionViewCompositionalLayout,
+    UICollectionViewDelegate, UICollectionViewDiffableDataSource,
+    UICollectionViewDiffableDataSourceCellProvider,
+    UICollectionViewDiffableDataSourceSupplementaryViewProvider, UIControlEvents, UIControlState,
+    UILabel, UIScrollViewDelegate, UISwitch, UIViewAutoresizing,
 };
 
 use crate::collection_grid_policy::{
     IosCollectionGridEvent, IosCollectionGridInsets, IosCollectionGridItem,
-    IosCollectionGridItemContent, IosCollectionGridLayout, IosCollectionGridSection, action_event,
-    changed_item_ids, complete_snapshot_apply, ensure_snapshot_apply_idle, invoke_event_callback,
-    replace_for_snapshot_apply, selection_event, toggle_event, validate_snapshot,
+    IosCollectionGridItemContent, IosCollectionGridLayout, IosCollectionGridSection,
+    IosCollectionGridSectionHeader, action_event, changed_header_section_ids, changed_item_ids,
+    complete_snapshot_apply, ensure_snapshot_apply_idle, invoke_event_callback,
+    replace_for_snapshot_apply, selection_event, toggle_event, validate_snapshot_with_headers,
 };
 
 use super::{IosUiBackend, IosView, main_thread_marker, native_frame};
 
 const CELL_REUSE: &str = "JcdIosUiCollectionGridCell";
+const HEADER_REUSE: &str = "JcdIosUiCollectionGridHeader";
+const HEADER_HEIGHT: f64 = 32.0;
 
 type GridSectionProvider = dyn Fn(
     NSInteger,
@@ -47,9 +54,15 @@ type GridCellProvider = dyn Fn(
     NonNull<NSIndexPath>,
     NonNull<AnyObject>,
 ) -> *mut UICollectionViewCell;
+type GridSupplementaryProvider = dyn Fn(
+    NonNull<UICollectionView>,
+    NonNull<NSString>,
+    NonNull<NSIndexPath>,
+) -> *mut UICollectionReusableView;
 
 struct GridData {
     sections: Vec<IosCollectionGridSection>,
+    headers: Vec<IosCollectionGridSectionHeader>,
     item_indices: HashMap<u64, (usize, usize)>,
 }
 
@@ -58,10 +71,32 @@ impl GridData {
         let (section, item) = *self.item_indices.get(&id)?;
         self.sections.get(section)?.items.get(item)
     }
+
+    fn section_for_item(&self, id: u64) -> Option<u64> {
+        let (section, _) = *self.item_indices.get(&id)?;
+        self.sections.get(section).map(|section| section.id)
+    }
+
+    fn has_header(&self, section_id: u64) -> bool {
+        self.headers
+            .binary_search_by_key(&section_id, |header| header.section_id)
+            .is_ok()
+    }
+
+    fn header_title(&self, section_id: u64) -> Option<&str> {
+        self.headers
+            .binary_search_by_key(&section_id, |header| header.section_id)
+            .ok()
+            .map(|index| self.headers[index].title.as_str())
+    }
 }
 
-fn make_grid_data(sections: Vec<IosCollectionGridSection>) -> Result<GridData> {
-    validate_snapshot(&sections)?;
+fn make_grid_data_with_headers(
+    sections: Vec<IosCollectionGridSection>,
+    mut headers: Vec<IosCollectionGridSectionHeader>,
+) -> Result<GridData> {
+    validate_snapshot_with_headers(&sections, &headers)?;
+    headers.sort_unstable_by_key(|header| header.section_id);
     let count: usize = sections.iter().map(|section| section.items.len()).sum();
     let mut item_indices = HashMap::new();
     item_indices
@@ -74,6 +109,7 @@ fn make_grid_data(sections: Vec<IosCollectionGridSection>) -> Result<GridData> {
     }
     Ok(GridData {
         sections,
+        headers,
         item_indices,
     })
 }
@@ -326,6 +362,56 @@ impl GridCell {
     }
 }
 
+#[derive(Default)]
+struct GridHeaderState {
+    title: RefCell<Option<Retained<UILabel>>>,
+}
+
+define_class!(
+    #[unsafe(super(UICollectionReusableView))]
+    #[thread_kind = MainThreadOnly]
+    #[name = "JcdIosUiCollectionGridHeader"]
+    #[ivars = GridHeaderState]
+    struct GridHeader;
+
+    impl GridHeader {
+        #[unsafe(method_id(initWithFrame:))]
+        fn init_with_frame(this: Allocated<Self>, frame: CGRect) -> Retained<Self> {
+            let this = this.set_ivars(GridHeaderState::default());
+            // SAFETY: UIKit creates supplementary views on the main thread with this initializer.
+            let this: Retained<Self> = unsafe { msg_send![super(this), initWithFrame: frame] };
+            Self::install_label(this)
+        }
+    }
+
+    unsafe impl NSObjectProtocol for GridHeader {}
+);
+
+impl GridHeader {
+    fn install_label(this: Retained<Self>) -> Retained<Self> {
+        // SAFETY: UIKit constructs this reusable view on the main thread.
+        let marker = unsafe { MainThreadMarker::new_unchecked() };
+        let label = UILabel::new(marker);
+        label.setNumberOfLines(1);
+        label.setAutoresizingMask(UIViewAutoresizing::FlexibleWidth);
+        this.addSubview(&label);
+        *this.ivars().title.borrow_mut() = Some(label);
+        this
+    }
+
+    fn render(&self, title: &str) {
+        let label = self.ivars().title.borrow();
+        if let Some(label) = label.as_ref() {
+            set_label(label, title);
+            let width = self.bounds().size.width;
+            label.setFrame(CGRect::new(
+                CGPoint::new(8.0, 4.0),
+                CGSize::new((width - 16.0).max(0.0), HEADER_HEIGHT - 8.0),
+            ));
+        }
+    }
+}
+
 fn set_label(label: &UILabel, text: &str) {
     let text = NSString::from_str(text);
     label.setText(Some(&text));
@@ -462,6 +548,8 @@ fn native_insets(insets: IosCollectionGridInsets) -> NSDirectionalEdgeInsets {
 fn build_section(
     layout: IosCollectionGridLayout,
     available_width: f64,
+    has_header: bool,
+    header_kind: &'static NSString,
     marker: MainThreadMarker,
 ) -> Retained<NSCollectionLayoutSection> {
     let (group, insets, row_spacing, item_spacing, carousel) = match layout {
@@ -539,6 +627,19 @@ fn build_section(
             UICollectionLayoutSectionOrthogonalScrollingBehavior::Continuous,
         );
     }
+    if has_header {
+        let width = NSCollectionLayoutDimension::fractionalWidthDimension(1.0, marker);
+        let height = NSCollectionLayoutDimension::absoluteDimension(HEADER_HEIGHT, marker);
+        let size = NSCollectionLayoutSize::sizeWithWidthDimension_heightDimension(&width, &height);
+        let supplementary =
+            NSCollectionLayoutBoundarySupplementaryItem::boundarySupplementaryItemWithLayoutSize_elementKind_alignment(
+                &size,
+                header_kind,
+                NSRectAlignment::Top,
+            );
+        let items = NSArray::from_retained_slice(&[supplementary]);
+        section.setBoundarySupplementaryItems(&items);
+    }
     section
 }
 
@@ -581,6 +682,7 @@ fn grid_group(
 fn make_snapshot(
     sections: &[IosCollectionGridSection],
     changed: &[u64],
+    changed_sections: &[u64],
 ) -> Retained<objc2_ui_kit::NSDiffableDataSourceSnapshot<NSNumber, NSNumber>> {
     let snapshot = objc2_ui_kit::NSDiffableDataSourceSnapshot::new();
     let section_ids: Vec<_> = sections
@@ -602,6 +704,15 @@ fn make_snapshot(
         let changed_ids: Vec<_> = changed.iter().copied().map(NSNumber::new_u64).collect();
         let changed_array = NSArray::from_retained_slice(&changed_ids);
         snapshot.reloadItemsWithIdentifiers(&changed_array);
+    }
+    if !changed_sections.is_empty() {
+        let changed_ids: Vec<_> = changed_sections
+            .iter()
+            .copied()
+            .map(NSNumber::new_u64)
+            .collect();
+        let changed_array = NSArray::from_retained_slice(&changed_ids);
+        snapshot.reloadSectionsWithIdentifiers(&changed_array);
     }
     snapshot
 }
@@ -634,19 +745,43 @@ impl IosUiBackend {
     where
         F: FnMut(IosCollectionGridEvent) + 'static,
     {
+        self.add_collection_grid_with_headers(parent, frame, sections, Vec::new(), on_event)
+    }
+
+    /// Adds a native collection with optional typed text headers keyed by stable section ID.
+    ///
+    /// Header IDs must be unique and refer to a supplied section; titles must be nonempty. Sections
+    /// without headers retain the existing layout. iOS 12 returns `Unavailable` before collection
+    /// creation because compositional layouts require iOS 13.
+    pub fn add_collection_grid_with_headers<F>(
+        &mut self,
+        parent: &mut IosView,
+        frame: Frame,
+        sections: Vec<IosCollectionGridSection>,
+        headers: Vec<IosCollectionGridSectionHeader>,
+        on_event: F,
+    ) -> Result<IosCollectionGrid>
+    where
+        F: FnMut(IosCollectionGridEvent) + 'static,
+    {
         let marker = main_thread_marker()?;
         if !objc2::available!(ios = 13.0, ..) {
             return Err(Error::new(ErrorKind::Unavailable));
         }
-        let data = Rc::new(RefCell::new(make_grid_data(sections)?));
+        // SAFETY: UIKit exports this immutable public supplementary-element string.
+        let header_kind = unsafe { UICollectionElementKindSectionHeader };
+        let data = Rc::new(RefCell::new(make_grid_data_with_headers(
+            sections, headers,
+        )?));
         let layout_data = data.clone();
         let provider: RcBlock<GridSectionProvider> = RcBlock::new(move |section_index: NSInteger, environment: NonNull<ProtocolObject<dyn NSCollectionLayoutEnvironment>>| {
             let section = catch_unwind(|| {
                 let index = usize::try_from(section_index).ok()?;
-                let layout = layout_data.try_borrow().ok()?.sections.get(index)?.layout;
+                let data = layout_data.try_borrow().ok()?;
+                let section_data = data.sections.get(index)?;
                 let container = unsafe { environment.as_ref() }.container();
-                Some(build_section(layout, container.effectiveContentSize().width, marker))
-            }).ok().flatten().unwrap_or_else(|| build_section(IosCollectionGridLayout::FixedGrid { columns: 1, item_height: 1.0, row_spacing: 0.0, column_spacing: 0.0, insets: IosCollectionGridInsets::ZERO }, 1.0, marker));
+                Some(build_section(section_data.layout, container.effectiveContentSize().width, data.has_header(section_data.id), header_kind, marker))
+            }).ok().flatten().unwrap_or_else(|| build_section(IosCollectionGridLayout::FixedGrid { columns: 1, item_height: 1.0, row_spacing: 0.0, column_spacing: 0.0, insets: IosCollectionGridInsets::ZERO }, 1.0, false, header_kind, marker));
             Retained::autorelease_return(section)
         });
         // SAFETY: the valid retained block is copied by UIKit during initialization.
@@ -662,9 +797,15 @@ impl IosUiBackend {
             &layout,
         );
         let reuse = NSString::from_str(CELL_REUSE);
+        let header_reuse = NSString::from_str(HEADER_REUSE);
         // SAFETY: GridCell is a registered UICollectionViewCell subclass with a frame initializer.
         unsafe {
             native.registerClass_forCellWithReuseIdentifier(Some(GridCell::class()), &reuse);
+            native.registerClass_forSupplementaryViewOfKind_withReuseIdentifier(
+                Some(GridHeader::class()),
+                header_kind,
+                &header_reuse,
+            );
         }
         native.setAllowsSelection(true);
         let provider_data = data.clone();
@@ -723,7 +864,61 @@ impl IosUiBackend {
             },
         );
         *provider_target.borrow_mut() = Some(Weak::from_retained(&target));
-        let initial_snapshot = make_snapshot(&data.borrow().sections, &[]);
+        let supplementary_data = data.clone();
+        let supplementary_target = Weak::from_retained(&target);
+        let supplementary_provider: RcBlock<GridSupplementaryProvider> = RcBlock::new(
+            move |collection: NonNull<UICollectionView>,
+                  element_kind: NonNull<NSString>,
+                  index_path: NonNull<NSIndexPath>| {
+                let title = catch_unwind(|| {
+                    // SAFETY: UIKit supplies valid borrowed objects for this synchronous provider.
+                    let element_kind = unsafe { element_kind.as_ref() };
+                    if !element_kind.isEqualToString(header_kind) {
+                        return None;
+                    }
+                    let target = supplementary_target.load()?;
+                    let index_path = unsafe { index_path.as_ref() };
+                    let section = target
+                        .ivars()
+                        .data_source
+                        .sectionIdentifierForIndex(index_path.section())?;
+                    let data = supplementary_data.try_borrow().ok()?;
+                    Some(
+                        data.header_title(section.as_u64())
+                            .unwrap_or_default()
+                            .to_owned(),
+                    )
+                })
+                .ok()
+                .flatten();
+                let Some(title) = title else {
+                    return core::ptr::null_mut();
+                };
+                // SAFETY: UIKit supplies a valid collection view for this synchronous callback.
+                let collection = unsafe { collection.as_ref() };
+                let view = collection
+                    .dequeueReusableSupplementaryViewOfKind_withReuseIdentifier_forIndexPath(
+                        header_kind,
+                        &header_reuse,
+                        unsafe { index_path.as_ref() },
+                    );
+                let view = match view.downcast::<GridHeader>() {
+                    Ok(view) => view,
+                    Err(view) => return Retained::autorelease_return(view),
+                };
+                view.render(&title);
+                Retained::autorelease_return(view.into_super())
+            },
+        );
+        // SAFETY: UIKit copies this retained provider block; its target reference is weak.
+        unsafe {
+            target
+                .ivars()
+                .data_source
+                .setSupplementaryViewProvider(RcBlock::as_ptr(&supplementary_provider)
+                    as UICollectionViewDiffableDataSourceSupplementaryViewProvider);
+        }
+        let initial_snapshot = make_snapshot(&data.borrow().sections, &[], &[]);
         target
             .ivars()
             .data_source
@@ -755,16 +950,42 @@ impl IosCollectionGrid {
         sections: Vec<IosCollectionGridSection>,
         animating_differences: bool,
     ) -> Result<()> {
+        self.replace_snapshot_with_headers(sections, Vec::new(), animating_differences)
+    }
+
+    /// Replaces sections and optional typed text headers as one validated snapshot.
+    ///
+    /// Header IDs must be unique and refer to a supplied section; titles must be nonempty. A
+    /// changed title on an existing section reloads that section's supplementary view without
+    /// changing item identifiers or event semantics. Invalid input preserves the current snapshot.
+    pub fn replace_snapshot_with_headers(
+        &mut self,
+        sections: Vec<IosCollectionGridSection>,
+        headers: Vec<IosCollectionGridSectionHeader>,
+        animating_differences: bool,
+    ) -> Result<()> {
         let _main_thread = main_thread_marker()?;
         let in_flight = &self.target.ivars().snapshot_apply_in_flight;
         ensure_snapshot_apply_idle(in_flight)?;
-        let replacement = make_grid_data(sections)?;
+        let replacement = make_grid_data_with_headers(sections, headers)?;
         let current = self
             .data
             .try_borrow()
             .map_err(|_| Error::new(ErrorKind::Unavailable))?;
-        let changed = changed_item_ids(&current.sections, &replacement.sections)?;
-        let snapshot = make_snapshot(&replacement.sections, &changed);
+        let mut changed_sections = changed_header_section_ids(
+            &current.sections,
+            &current.headers,
+            &replacement.sections,
+            &replacement.headers,
+        )?;
+        changed_sections.sort_unstable();
+        let mut changed = changed_item_ids(&current.sections, &replacement.sections)?;
+        changed.retain(|item_id| {
+            replacement
+                .section_for_item(*item_id)
+                .is_none_or(|section_id| changed_sections.binary_search(&section_id).is_err())
+        });
+        let snapshot = make_snapshot(&replacement.sections, &changed, &changed_sections);
         drop(current);
         let weak_target = Weak::from_retained(&self.target);
         let completion = RcBlock::new(move || {

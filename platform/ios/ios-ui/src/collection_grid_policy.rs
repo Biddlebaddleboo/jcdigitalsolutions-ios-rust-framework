@@ -251,6 +251,25 @@ impl IosCollectionGridSection {
     }
 }
 
+/// Optional text displayed above one stable collection section.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct IosCollectionGridSectionHeader {
+    /// Stable identity of the section that owns this header.
+    pub section_id: u64,
+    /// Nonempty visible header title.
+    pub title: String,
+}
+
+impl IosCollectionGridSectionHeader {
+    /// Creates an owned title for a stable section identity.
+    pub fn new(section_id: u64, title: impl Into<String>) -> Self {
+        Self {
+            section_id,
+            title: title.into(),
+        }
+    }
+}
+
 /// Validates a complete snapshot before any native state is changed.
 pub(crate) fn validate_snapshot(sections: &[IosCollectionGridSection]) -> Result<()> {
     validate_index_count(sections.len())?;
@@ -284,12 +303,61 @@ pub(crate) fn validate_snapshot(sections: &[IosCollectionGridSection]) -> Result
     Ok(())
 }
 
+/// Validates optional headers before any native collection state changes.
+pub(crate) fn validate_snapshot_with_headers(
+    sections: &[IosCollectionGridSection],
+    headers: &[IosCollectionGridSectionHeader],
+) -> Result<()> {
+    validate_snapshot(sections)?;
+    let mut section_ids = Vec::new();
+    section_ids
+        .try_reserve_exact(sections.len())
+        .map_err(|_| Error::new(ErrorKind::ResourceExhausted))?;
+    section_ids.extend(sections.iter().map(|section| section.id));
+    section_ids.sort_unstable();
+    let mut header_ids = Vec::new();
+    header_ids
+        .try_reserve_exact(headers.len())
+        .map_err(|_| Error::new(ErrorKind::ResourceExhausted))?;
+    for header in headers {
+        if header.title.is_empty() {
+            return Err(Error::new(ErrorKind::InvalidInput));
+        }
+        header_ids.push(header.section_id);
+    }
+    header_ids.sort_unstable();
+    if header_ids.windows(2).any(|pair| pair[0] == pair[1])
+        || header_ids
+            .iter()
+            .any(|section_id| section_ids.binary_search(section_id).is_err())
+    {
+        return Err(Error::new(ErrorKind::InvalidInput));
+    }
+    Ok(())
+}
+
 #[cfg(test)]
 pub(crate) fn replace_snapshot(
     current: &mut Vec<IosCollectionGridSection>,
     replacement: Vec<IosCollectionGridSection>,
 ) -> Result<()> {
     validate_snapshot(&replacement)?;
+    *current = replacement;
+    Ok(())
+}
+
+#[cfg(test)]
+fn replace_snapshot_with_headers_for_test(
+    current: &mut (
+        Vec<IosCollectionGridSection>,
+        Vec<IosCollectionGridSectionHeader>,
+    ),
+    replacement: (
+        Vec<IosCollectionGridSection>,
+        Vec<IosCollectionGridSectionHeader>,
+    ),
+) -> Result<()> {
+    validate_snapshot_with_headers(&replacement.0, &replacement.1)?;
     *current = replacement;
     Ok(())
 }
@@ -418,6 +486,45 @@ pub(crate) fn changed_item_ids(
         }
     }
     Ok(changed)
+}
+
+/// Stable sections whose optional visible header title changed.
+///
+/// Header slices must be sorted by `section_id`; snapshot data sorts them after validation.
+pub(crate) fn changed_header_section_ids(
+    old_sections: &[IosCollectionGridSection],
+    old_headers: &[IosCollectionGridSectionHeader],
+    new_sections: &[IosCollectionGridSection],
+    new_headers: &[IosCollectionGridSectionHeader],
+) -> Result<Vec<u64>> {
+    let mut new_section_ids = Vec::new();
+    new_section_ids
+        .try_reserve_exact(new_sections.len())
+        .map_err(|_| Error::new(ErrorKind::ResourceExhausted))?;
+    new_section_ids.extend(new_sections.iter().map(|section| section.id));
+    new_section_ids.sort_unstable();
+    let mut changed = Vec::new();
+    changed
+        .try_reserve_exact(old_sections.len().min(new_sections.len()))
+        .map_err(|_| Error::new(ErrorKind::ResourceExhausted))?;
+    for section in old_sections {
+        if new_section_ids.binary_search(&section.id).is_err() {
+            continue;
+        }
+        let old_title = header_title(old_headers, section.id);
+        let new_title = header_title(new_headers, section.id);
+        if old_title != new_title {
+            changed.push(section.id);
+        }
+    }
+    Ok(changed)
+}
+
+fn header_title(headers: &[IosCollectionGridSectionHeader], section_id: u64) -> Option<&str> {
+    headers
+        .binary_search_by_key(&section_id, |header| header.section_id)
+        .ok()
+        .map(|index| headers[index].title.as_str())
 }
 
 pub(crate) type EventCallback = Box<dyn FnMut(IosCollectionGridEvent)>;
@@ -615,6 +722,37 @@ mod tests {
     }
 
     #[test]
+    fn invalid_section_headers_reject_duplicates_unknown_and_empty_titles_transactionally() {
+        let current_section = section(1, vec![IosCollectionGridItem::new(11, "kept")]);
+        let current_header = IosCollectionGridSectionHeader::new(1, "Current");
+        let original = (vec![current_section.clone()], vec![current_header.clone()]);
+        let mut current = original.clone();
+        let invalid_headers = [
+            vec![
+                IosCollectionGridSectionHeader::new(1, "First"),
+                IosCollectionGridSectionHeader::new(1, "Duplicate"),
+            ],
+            vec![IosCollectionGridSectionHeader::new(2, "Unknown")],
+            vec![IosCollectionGridSectionHeader::new(1, "")],
+        ];
+        for headers in invalid_headers {
+            let replacement = (vec![section(1, vec![])], headers);
+            assert_eq!(
+                replace_snapshot_with_headers_for_test(&mut current, replacement)
+                    .unwrap_err()
+                    .kind(),
+                ErrorKind::InvalidInput
+            );
+            assert_eq!(current, original);
+        }
+        let valid = (
+            vec![current_section],
+            vec![IosCollectionGridSectionHeader::new(1, "Updated")],
+        );
+        assert!(replace_snapshot_with_headers_for_test(&mut current, valid).is_ok());
+    }
+
+    #[test]
     fn invalid_replacement_does_not_mutate_current_snapshot() {
         let mut current = vec![section(1, vec![IosCollectionGridItem::new(11, "kept")])];
         let replacement = vec![section(
@@ -677,6 +815,24 @@ mod tests {
             ],
         )];
         assert_eq!(changed_item_ids(&old, &new).unwrap(), vec![u64::MAX]);
+    }
+
+    #[test]
+    fn header_title_changes_reload_stable_section_without_changing_item_ids_or_events() {
+        let old = vec![section(1, vec![IosCollectionGridItem::new(10, "Card")])];
+        let new = old.clone();
+        let old_headers = vec![IosCollectionGridSectionHeader::new(1, "Before")];
+        let new_headers = vec![IosCollectionGridSectionHeader::new(1, "After")];
+        assert_eq!(changed_item_ids(&old, &new).unwrap(), Vec::<u64>::new());
+        assert_eq!(
+            changed_header_section_ids(&old, &old_headers, &new, &new_headers).unwrap(),
+            vec![1]
+        );
+        assert_eq!(old[0].items[0].id, new[0].items[0].id);
+        assert_eq!(
+            selection_event(&old[0].items[0]),
+            selection_event(&new[0].items[0])
+        );
     }
 
     #[test]

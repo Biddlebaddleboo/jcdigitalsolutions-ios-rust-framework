@@ -78,4 +78,6 @@ copy policy remain with the app
 The iOS backend also exposes `IosCollectionGrid`, a typed section/snapshot API backed by native
 `UICollectionView` compositional layouts and diffable snapshots. Its reusable cell content covers
 cards, metrics, actions, and switches; stable `u64` IDs feed typed caller-owned events. It remains an
-iOS-only UIKit extension rather than a portable view, binding, or observation contract
+iOS-only UIKit extension rather than a portable view, binding, or observation contract. Optional
+`IosCollectionGridSectionHeader` values provide reusable text-only labels keyed by stable section ID;
+they do not add arbitrary header composition or automatic state observation

@@ -5,7 +5,8 @@ use ios_runtime::main_thread::MainThread;
 #[cfg(target_os = "ios")]
 use ios_ui::{
     IosCollectionGridEvent, IosCollectionGridInsets, IosCollectionGridItem,
-    IosCollectionGridLayout, IosCollectionGridSection, IosUiBackend,
+    IosCollectionGridLayout, IosCollectionGridSection, IosCollectionGridSectionHeader,
+    IosUiBackend,
 };
 
 #[cfg(target_os = "ios")]
@@ -59,7 +60,7 @@ fn main() {
         ),
     ];
     let Ok(mut grid) =
-        backend.add_collection_grid(&mut parent, frame, sections, |event| match event {
+        backend.add_collection_grid(&mut parent, frame, sections.clone(), |event| match event {
             IosCollectionGridEvent::Selected { item_id } => {
                 core::hint::black_box(item_id);
             }
@@ -85,7 +86,30 @@ fn main() {
         vec![IosCollectionGridItem::metric(102, "Trips", "13")],
     )];
     let _ = grid.replace_snapshot(next, true);
+    let headers = vec![IosCollectionGridSectionHeader::new(1, "Trips")];
+    let Ok(mut headed_grid) =
+        backend.add_collection_grid_with_headers(&mut parent, frame, sections, headers, |_| {})
+    else {
+        return;
+    };
+    let next = vec![IosCollectionGridSection::new(
+        1,
+        IosCollectionGridLayout::FixedGrid {
+            columns: 2,
+            item_height: 96.0,
+            row_spacing: 8.0,
+            column_spacing: 8.0,
+            insets: IosCollectionGridInsets::ZERO,
+        },
+        vec![IosCollectionGridItem::metric(102, "Trips", "13")],
+    )];
+    let _ = headed_grid.replace_snapshot_with_headers(
+        next,
+        vec![IosCollectionGridSectionHeader::new(1, "Recent trips")],
+        true,
+    );
     core::hint::black_box(grid.native_collection_view());
+    core::hint::black_box(headed_grid.native_collection_view());
 }
 
 #[cfg(not(target_os = "ios"))]

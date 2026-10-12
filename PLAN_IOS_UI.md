@@ -229,16 +229,15 @@ unverified.
 
 ## B555 — typed collection section headers
 
-B555 extends `IosCollectionGrid` with optional typed text headers for stable section IDs while keeping
-the existing `IosCollectionGridSection` layout and constructor source-compatible. Add
-`IosCollectionGridSectionHeader`, `IosUiBackend::add_collection_grid_with_headers`, and
-`IosCollectionGrid::replace_snapshot_with_headers`; omitted headers preserve the current no-header
-behavior. Reject duplicate or unknown header section IDs and empty titles before native mutation.
-Changing a title for an existing section must refresh its visible supplementary view without
-replacing item identity or event semantics. Use a reusable native `UICollectionReusableView` and
-public UIKit supplementary-item APIs; retain iOS 12 device / iOS 14 Simulator link floors and the
-iOS 13 runtime availability guard. Add deterministic host tests for validation, transactional
-replacement, and title-change policy; register source guards and the public class/selectors in the
-existing `ios-ui` profile. Keep `framework-ui`, `IosGridView`, arbitrary view composition, bindings,
-and SwiftUI-style state observation unchanged. Runtime header rendering and accessibility remain
-unverified without Simulator/device execution.
+B555 adds optional typed text headers to UIKit `IosCollectionGrid` without changing
+`IosCollectionGridSection` or the existing no-header API. `IosCollectionGridSectionHeader`,
+`IosUiBackend::add_collection_grid_with_headers`, and
+`IosCollectionGrid::replace_snapshot_with_headers` validate duplicate/unknown section IDs and empty
+titles before mutation. Stable-section title changes reload supplementary content without changing
+item identity or event semantics. The implementation uses public reusable UIKit supplementary
+views, preserves the iOS 13 runtime guard and iOS 12 device / iOS 14 Simulator link floors, and
+registers header API, negative regression, UIKit selectors, and link checks in `ios-ui`. Host tests
+pass 64/64; iOS device and Simulator target compiles, strict device Clippy, formatting, and the
+two-target collection-grid link probe pass. `framework-ui`, `IosGridView`, arbitrary view
+composition, bindings, and SwiftUI-style state observation remain unchanged. Simulator execution,
+header rendering/accessibility, and physical-device behavior remain unverified.

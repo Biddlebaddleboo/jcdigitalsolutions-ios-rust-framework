@@ -126,6 +126,13 @@ toggle content; UIKit reuses one native cell class with labels, a button, and a 
 and switch enabled state is explicit. IDs remain unsigned 64-bit values through UIKit diffable
 snapshots, and selection/action/toggle callbacks report stable IDs rather than index paths
 
+`IosCollectionGridSectionHeader::new(section_id, title)` adds an optional text-only section label
+without changing `IosCollectionGridSection`. `add_collection_grid_with_headers` creates a collection
+with headers keyed by stable section ID, and `replace_snapshot_with_headers` replaces them with the
+data snapshot. Duplicate or unknown section IDs and empty titles return `InvalidInput` before native
+mutation. A title change reloads its stable section's supplementary view; item IDs and event semantics
+remain unchanged
+
 ```rust,ignore
 let mut dashboard = backend.add_collection_grid(&mut parent, frame, sections, |event| match event {
     IosCollectionGridEvent::Selected { item_id } => select(item_id),
@@ -133,6 +140,21 @@ let mut dashboard = backend.add_collection_grid(&mut parent, frame, sections, |e
     IosCollectionGridEvent::ToggleChanged { item_id, is_on } => request_toggle(item_id, is_on),
 })?;
 dashboard.replace_snapshot(updated_sections, true)?;
+```
+
+```rust,ignore
+let mut dashboard = backend.add_collection_grid_with_headers(
+    &mut parent,
+    frame,
+    sections,
+    vec![IosCollectionGridSectionHeader::new(1, "Recent trips")],
+    |_| {},
+)?;
+dashboard.replace_snapshot_with_headers(
+    updated_sections,
+    vec![IosCollectionGridSectionHeader::new(1, "Today's trips")],
+    true,
+)?;
 ```
 
 The callback is an event request, not an automatic state binding. A toggle reverts to the current
@@ -145,7 +167,7 @@ must not replace its data source, delegate, layout, or registered cell identifie
 
 This uses typed data and explicit snapshots over UIKit's native composition; it is not SwiftUI-style
 declarative view composition. The caller owns app state and decides when to submit a complete snapshot;
-there is no arbitrary view builder, section-header content, `Binding`, automatic state observation, or
+there is no arbitrary view builder or custom section-header composition, `Binding`, automatic state observation, or
 virtual view tree. `IosGridView` remains the simpler eager `UIStackView` helper. Compositional layout
 and diffable data sources require iOS 13; the package's iOS 12 device and iOS 14 Simulator compile
 floors remain, and runtime creation below iOS 13 returns `Unavailable`. Host policy tests and static
