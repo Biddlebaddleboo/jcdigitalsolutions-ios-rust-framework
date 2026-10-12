@@ -5,9 +5,7 @@ use std::time::{Duration, Instant};
 use ios_runtime::{ffi::catch_unwind, main_thread::MainThread};
 #[cfg(feature = "custom-render-metal-demo")]
 use ios_ui::{Bgra8Frame, IosCustomMetalHost};
-use ios_ui::{
-    IosCustomRenderHost, IosCustomTextInput, IosTextInputTraits, Rgba8Frame,
-};
+use ios_ui::{IosCustomRenderHost, IosCustomTextInput, IosTextInputTraits, Rgba8Frame};
 use objc2::rc::{Allocated, Retained};
 use objc2::{ClassType, DefinedClass, MainThreadOnly, define_class, msg_send, sel};
 use objc2_core_foundation::{CGPoint, CGRect, CGSize};

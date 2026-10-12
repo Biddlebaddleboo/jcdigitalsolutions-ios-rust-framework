@@ -14,16 +14,16 @@ mod custom_render_accessibility_policy;
 mod custom_render_frame;
 #[cfg(target_os = "ios")]
 mod custom_render_host;
-#[cfg(target_os = "ios")]
-mod custom_render_touch;
-#[cfg(any(test, target_os = "ios"))]
-mod custom_render_touch_state;
+#[cfg(all(target_os = "ios", feature = "custom-render-metal"))]
+mod custom_render_metal;
 #[cfg(target_os = "ios")]
 mod custom_render_text_input;
 #[cfg(any(test, target_os = "ios"))]
 mod custom_render_text_policy;
-#[cfg(all(target_os = "ios", feature = "custom-render-metal"))]
-mod custom_render_metal;
+#[cfg(target_os = "ios")]
+mod custom_render_touch;
+#[cfg(any(test, target_os = "ios"))]
+mod custom_render_touch_state;
 #[cfg(any(test, target_os = "ios"))]
 mod disclosure_policy;
 /// Bounded CoreGraphics geometry operations over portable frames.
@@ -82,16 +82,16 @@ pub use custom_render_metal::{
     Bgra8Frame, Bgra8FrameError, CustomMetalHostError, IosCustomMetalHost,
 };
 #[cfg(target_os = "ios")]
-pub use custom_render_touch::{
-    IosCustomRenderTouchInput, IosTouchEvent, IosTouchInputFault, IosTouchKind, IosTouchPhase,
-};
-#[cfg(target_os = "ios")]
 pub use custom_render_text_input::{
     IosCustomTextInput, IosCustomTextInputSnapshot, IosKeyboardFrame, IosTextCapitalization,
     IosTextInputKeyboardType, IosTextInputTraits,
 };
 #[cfg(target_os = "ios")]
 pub use custom_render_text_policy::{Utf16Range, Utf16RangeError};
+#[cfg(target_os = "ios")]
+pub use custom_render_touch::{
+    IosCustomRenderTouchInput, IosTouchEvent, IosTouchInputFault, IosTouchKind, IosTouchPhase,
+};
 #[cfg(target_os = "ios")]
 pub use grid::IosGridView;
 #[cfg(target_os = "ios")]

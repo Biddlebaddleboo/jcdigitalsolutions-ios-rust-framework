@@ -1760,7 +1760,7 @@
       "portable_contract_note": "No portable facade for this capability is included in D1.",
       "ios_implementation_class": "B",
       "implementation_status": "partial",
-      "status_reason": "B21 performs one CoreGraphics CGRectIntersection operation. ios-ui additionally exposes IosCustomRenderHost, a main-thread UIKit UIImageView host for synchronous, copied, bounded RGBA8 framebuffer presentation, geometry snapshots, attachment, visibility, and teardown; iOS 18 Simulator smoke displayed submitted pixels. It remains an imperative native surface with no widget/layout system, damage-region optimization, touch/text/accessibility semantics, or Metal path; these are separate custom-host phases.",
+      "status_reason": "B21 performs one CoreGraphics CGRectIntersection operation. ios-ui exposes IosCustomRenderHost for main-thread UIKit UIImageView hosting and copied, bounded RGBA8 frames, plus separate IosCustomRenderTouchInput, IosCustomTextInput, and IosCustomRenderAccessibility adapters. Optional IosCustomMetalHost adds a feature-gated CAMetalLayer presenter. These are imperative native surfaces, not a widget/layout system or SwiftUI. CPU and Metal frames and host lifecycle were observed in iOS 18 Simulator; live touch delivery, keyboard/IME, and VoiceOver remain unverified, with no physical-device performance result.",
       "minimum_ios_version": "2.0",
       "required_frameworks": [
         "CoreGraphics",
@@ -1776,7 +1776,7 @@
       "parity_status": "not_tested_live_behavior_or_Apple_parity",
       "performance_status": "not_measured",
       "native_escape_handle_available": true,
-      "native_escape_handle_note": "IosCustomRenderHost::native_view exposes its caller-owned UIKit UIImageView; the broader CoreGraphics/QuartzCore facade remains partial."
+      "native_escape_handle_note": "IosCustomRenderHost::native_view and IosCustomMetalHost::native_view expose the caller-owned UIKit UIImageView; the broader CoreGraphics/QuartzCore facade remains partial."
     },
     {
       "id": "056-graphics-gpu-text-layout-platform-extension",
@@ -1854,7 +1854,7 @@
       "portable_contract_note": "framework-metal defines a scalar default-device-presence snapshot; it does not submit GPU work.",
       "ios_implementation_class": "B",
       "implementation_status": "partial",
-      "status_reason": "B41 reports only whether MTLCreateSystemDefaultDevice returns a device; it submits no work and claims no MetalKit, rendering, compute, or performance support.",
+      "status_reason": "B41 reports whether MTLCreateSystemDefaultDevice returns a device. Separately, the feature-gated ios-ui/custom-render-metal adapter adds IosCustomMetalHost for BGRA8 framebuffer presentation through a shared Metal texture and public CAMetalLayer. CPU fallback remains available. One iOS 18 x86_64 Simulator run found full-frame Metal slower than CPU and 64x64 damage faster at requested 60/120 Hz, but unstable at 30 Hz; this is not physical-device or general performance evidence. MetalKit, compute, and automatic scheduling remain unsupported.",
       "minimum_ios_version": "8.0",
       "required_frameworks": [
         "Metal",
@@ -1865,7 +1865,7 @@
       "entitlements": [],
       "device_only_restrictions": [],
       "swift_abi_requirement": false,
-      "metadata_verification": "PLAN_IOS_METAL.md verifies MTLCreateSystemDefaultDevice from iOS 8.0; device/Simulator Release imports are Metal and Foundation; no permission, Info.plist key, entitlement, MetalKit, GPU work, or performance result is claimed.",
+      "metadata_verification": "PLAN_IOS_METAL.md verifies MTLCreateSystemDefaultDevice from iOS 8.0. The optional ios-ui custom-render host uses public Metal and CAMetalLayer APIs; its device/Simulator Release link probes retain the registered iOS 12.0 device and 14.0 Simulator floors. No permission, Info.plist key, entitlement, MetalKit, compute, physical-device performance, or display-vsync result is claimed.",
       "parity_status": "not_tested_live_behavior_or_Apple_parity",
       "performance_status": "not_measured",
       "native_escape_handle_available": false,
