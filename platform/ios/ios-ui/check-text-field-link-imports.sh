@@ -9,9 +9,15 @@ for assertion in \
     '#[unsafe(method(textFieldSubmitted:))]' \
     'UIControlEvents::EditingDidEndOnExit' \
     'invoke_text_callback(&self.ivars().callback, text);' \
-    'Some(sel!(textFieldSubmitted:))'; do
+    'Some(sel!(textFieldSubmitted:))' \
+    'pub fn set_accessibility_label(&mut self, label: Option<&str>) -> Result<()>' \
+    'pub fn set_accessibility_hint(&mut self, hint: Option<&str>) -> Result<()>' \
+    'pub fn set_accessibility_identifier(&mut self, identifier: Option<&str>) -> Result<()>' \
+    'self.native.setAccessibilityLabel(label.as_deref(), marker);' \
+    'self.native.setAccessibilityHint(hint.as_deref(), marker);' \
+    '.setAccessibilityIdentifier(identifier.as_deref());'; do
     grep -F "$assertion" "$source_file" >/dev/null || {
-        echo "iOS text-field submit implementation is missing $assertion" >&2
+        echo "iOS text-field source contract is missing $assertion" >&2
         exit 1
     }
 done
@@ -56,6 +62,7 @@ for target in aarch64-apple-ios aarch64-apple-ios-sim; do
     for selector in 'setText:' 'text' 'setPlaceholder:' 'placeholder' \
         'becomeFirstResponder' 'resignFirstResponder' 'setSecureTextEntry:' \
         'setKeyboardType:' 'textFieldChanged:' 'textFieldSubmitted:' 'endEditing:' \
+        'setAccessibilityLabel:' 'setAccessibilityHint:' 'setAccessibilityIdentifier:' \
         'removeTarget:action:forControlEvents:'; do
         printf '%s\n' "$binary_strings" | grep -F "$selector" >/dev/null || {
             echo "$target text-field probe is missing the $selector selector" >&2

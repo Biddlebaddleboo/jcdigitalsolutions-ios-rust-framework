@@ -25,6 +25,12 @@ fn main() {
     let _ = field.set_text(Some("replacement"));
     let _ = field.set_placeholder(None);
     let _ = field.set_placeholder(Some("new hint"));
+    let _ = field.set_accessibility_label(None);
+    let _ = field.set_accessibility_label(Some("Label\0 🚗"));
+    let _ = field.set_accessibility_hint(None);
+    let _ = field.set_accessibility_hint(Some("Enter a value"));
+    let _ = field.set_accessibility_identifier(None);
+    let _ = field.set_accessibility_identifier(Some("connection.host"));
     let _ = field.request_first_responder();
     let _ = field.resign_first_responder();
     let _ = parent.end_editing();

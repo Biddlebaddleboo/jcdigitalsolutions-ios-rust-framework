@@ -577,6 +577,58 @@ impl IosTextField {
         Ok(())
     }
 
+    /// Sets or clears the text field's accessibility label.
+    ///
+    /// `None` writes native `nil`; `Some("")` sets an empty label. UTF-8 text, including embedded
+    /// NUL characters, is copied through length-aware `NSString` conversion. This does not prove
+    /// that VoiceOver or another assistive technology will announce the value.
+    pub fn set_accessibility_label(&mut self, label: Option<&str>) -> Result<()> {
+        let marker = main_thread_marker()?;
+        autoreleasepool(|_| {
+            let label = AccessibilityText::from_optional(label)
+                .as_optional()
+                .map(NSString::from_str);
+            self.native.setAccessibilityLabel(label.as_deref(), marker);
+        });
+        Ok(())
+    }
+
+    /// Sets or clears the text field's accessibility hint.
+    ///
+    /// `None` removes the hint; `Some("")` sets an empty hint. UTF-8 text, including embedded NUL
+    /// characters, is copied through length-aware `NSString` conversion. This does not prove
+    /// that an assistive technology will announce the value.
+    pub fn set_accessibility_hint(&mut self, hint: Option<&str>) -> Result<()> {
+        let marker = main_thread_marker()?;
+        autoreleasepool(|_| {
+            let hint = AccessibilityText::from_optional(hint)
+                .as_optional()
+                .map(NSString::from_str);
+            self.native.setAccessibilityHint(hint.as_deref(), marker);
+        });
+        Ok(())
+    }
+
+    /// Sets or clears the text field's non-user-facing accessibility identifier.
+    ///
+    /// `None` clears the identifier; `Some("")` sets an empty identifier. UTF-8 text, including
+    /// embedded NUL characters, is copied through length-aware `NSString` conversion. Identifiers
+    /// should be unique within the app's accessibility hierarchy; this API does not enforce
+    /// uniqueness or expose a testing framework.
+    pub fn set_accessibility_identifier(&mut self, identifier: Option<&str>) -> Result<()> {
+        let _identifier_thread = main_thread_marker()?;
+        autoreleasepool(|_| {
+            let identifier = AccessibilityText::from_optional(identifier)
+                .as_optional()
+                .map(NSString::from_str);
+            self.native
+                .as_super()
+                .as_super()
+                .setAccessibilityIdentifier(identifier.as_deref());
+        });
+        Ok(())
+    }
+
     /// Requests first-responder status and returns UIKit's result.
     ///
     /// The returned value does not establish that a keyboard became visible.

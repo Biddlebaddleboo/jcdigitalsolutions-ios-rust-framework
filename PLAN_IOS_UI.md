@@ -255,3 +255,14 @@ conversion. Host regressions cover nil/empty distinction and exact text preserva
 Simulator iOS 14.0; live VoiceOver announcements and identifier behavior remain unverified. This
 closes the metadata API gap used by Rideshare Bot's `BinaryLogViewerView` row copy button but does
 not add portable accessibility or SwiftUI state APIs.
+
+## B566 — text-field accessibility metadata
+
+B566 adds main-thread `IosTextField::set_accessibility_label`, `set_accessibility_hint`, and
+`set_accessibility_identifier` through public UIKit metadata setters. Each accepts `Option<&str>`:
+`None` clears the native value, `Some("")` preserves an explicitly empty string, and UTF-8,
+including embedded NUL, uses the existing length-aware `NSString` conversion. Existing host
+`AccessibilityText` regressions cover clearing, empty strings, Unicode, and embedded NUL; the
+registered `ios-ui` text-field link fixture now compiles the setters and verifies their selectors at
+iOS 12.0 device and iOS 14.0 Simulator floors. No portable accessibility tree is added, and live
+VoiceOver or identifier behavior remains unverified.

@@ -287,6 +287,15 @@ not prove keyboard visibility or text-input runtime behavior. The handle is reta
 `!Send`/`!Sync`; all operations require the current main thread. This slice adds no delegate,
 keyboard management, controller/window ownership, or runtime UI proof
 
+`IosTextField::set_accessibility_label`, `set_accessibility_hint`, and
+`set_accessibility_identifier` set the field's public UIKit accessibility metadata on the main
+thread. Each accepts `Option<&str>`: `None` clears the native value, while `Some("")` sets an empty
+string. UTF-8 text, including embedded NUL, is copied through length-aware `NSString` conversion.
+Identifiers should be unique in the accessibility hierarchy; uniqueness is not enforced. Host
+conversion tests cover clear/empty distinction and Unicode/NUL preservation, and the existing
+device/Simulator link fixture checks the three selectors at iOS 12.0 / iOS 14.0. These static checks
+do not prove VoiceOver announcements or other live assistive-technology behavior
+
 `IosView::end_editing()` forces UIKit to end editing in that view or one of its descendants through
 the public `UIView.endEditing(true)` API. It searches only the passed view hierarchy and is not a
 process-wide responder search. `Ok(true)` means UIKit reports that the scoped view resigned first
