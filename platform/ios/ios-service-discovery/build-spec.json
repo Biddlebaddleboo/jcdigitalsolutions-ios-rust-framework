@@ -1,0 +1,17 @@
+{
+  "schema_version": 1,
+  "capability": "Bonjour service discovery",
+  "library": "ios_service_discovery_network_shim",
+  "sources": ["src/network_browser_shim.c"],
+  "headers": ["src/network_browser_shim.h"],
+  "frameworks": ["Network"],
+  "minimum_os": "13.0",
+  "targets": [
+    {"triple": "aarch64-apple-ios", "sdk": "iphoneos"},
+    {"triple": "aarch64-apple-ios-sim", "sdk": "iphonesimulator"}
+  ],
+  "feature_guards": [],
+  "compiler_options": ["-std=c11", "-fblocks", "-Wall", "-Wextra", "-Werror"],
+  "compile_description": "Network.framework NWBrowser C bridge compile",
+  "archive_description": "Network.framework Bonjour browser C archive"
+}

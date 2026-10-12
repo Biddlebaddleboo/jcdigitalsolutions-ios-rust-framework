@@ -54,6 +54,14 @@ from D1 `framework-network` foreground HTTP and D15 `framework-connectivity` pat
 - No user callback invoked on a native queue
 - No claim of concurrent read/write operation support in this first contract
 
+These are non-goals of the `framework-connection` stream contract only. B578 adds separate
+`framework-service-discovery` and `ios-service-discovery` crates for caller-selected Bonjour
+browsing under capability 027. The portable contract validates one query and exposes bounded,
+exact service-identity and state events; the iOS backend uses public Network.framework
+`NWBrowser`. It does not add discovery behavior to either connection crate or include app
+protocols. Host apps own Local Network usage text and `NSBonjourServices` declarations;
+discovery and cancellation runtime behavior remain unverified on Apple hardware.
+
 ## Write scope
 
 - `PLAN_CAPABILITIES_CONNECTION.md`

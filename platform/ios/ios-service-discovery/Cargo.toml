@@ -1,0 +1,18 @@
+[package]
+name = "ios-service-discovery"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "iOS Bonjour browsing through public Network.framework APIs"
+build = "build.rs"
+
+[dependencies]
+framework-service-discovery = { path = "../../../crates/framework-service-discovery" }
+
+[build-dependencies]
+serde_json = "1.0"
+
+[lints]
+workspace = true

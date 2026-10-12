@@ -46,6 +46,7 @@ The following are configured validation profiles, not claims that every gate pas
 | framework-nfc | framework-nfc | 2 | 0 | 1 | True |
 | ios-nfc | ios-nfc | 2 | 1 | 0 | True |
 | ios-map-view | ios-map-view | 2 | 1 | 0 | True |
+| ios-service-discovery | ios-service-discovery | 2 | 1 | 0 | True |
 
 
 ## Inspect actual gates
