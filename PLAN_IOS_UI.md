@@ -193,3 +193,14 @@ The integrated command `ios-rust-validate --workspace-root "$PWD" --spec
 PASS, 0 FAIL, 0 BLOCKED, and 2 SKIPPED of 273 at snapshot
 `2b0a501c10b79e12943a818681f768ffac24b10bb3bb88567c94476585ef462b`. Skips are Simulator
 execution and physical-device proof; no live UI behavior is claimed.
+
+## B546 — stack layout controls
+
+B546 extends the existing imperative `IosStackView` with typed UIKit alignment and distribution,
+vertical-stack baseline rejection, and arranged-subview removal that ends stack layout management
+while leaving the view in the stack hierarchy. The registered `ios-ui` profile reported 263 PASS,
+0 FAIL, 0 BLOCKED,
+and 2 SKIPPED of 265 at snapshot
+`ad5d8b51bba3d0b8ffc204415570cac73a757c5dc5d193414d63b2500613a7ae`. Device and Simulator
+compile, Clippy, Rustdoc, and link/import checks passed; Simulator execution and physical-device
+proof remain skipped, so runtime layout and visual behavior are not claimed.

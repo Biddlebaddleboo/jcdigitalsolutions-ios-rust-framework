@@ -17,14 +17,15 @@ use objc2_core_foundation::{CGPoint, CGRect, CGSize};
 use objc2_foundation::{NSObjectProtocol, NSRange, NSString};
 use objc2_ui_kit::{
     UIApplication, UIButton, UIColor, UIControlEvents, UIControlState, UIImage, UIImageView,
-    UIKeyboardType, UILabel, UILayoutConstraintAxis, UIScrollView, UIStackView, UISwitch,
-    UITextField, UITextInputTraits, UIView,
+    UIKeyboardType, UILabel, UILayoutConstraintAxis, UIScrollView, UIStackView,
+    UIStackViewAlignment, UIStackViewDistribution, UISwitch, UITextField, UITextInputTraits,
+    UIView,
 };
 
 use crate::keyboard_action_policy::run_with_main_thread_marker;
 use crate::layout_policy::{OneShotConstraints, ScrollLayoutPolicy};
 use crate::scroll_policy::validated_content_size;
-use crate::stack_spacing::is_valid_stack_spacing;
+use crate::stack_spacing::{is_valid_stack_alignment, is_valid_stack_spacing};
 use crate::system_symbol_policy::{resolve_system_symbol, validate_system_symbol_name};
 use crate::text_conversion::{Utf16Error, decode_utf16};
 use crate::text_policy::{KeyboardHint, TextFieldCallback, input_traits, invoke_text_callback};
@@ -100,6 +101,38 @@ pub enum IosStackAxis {
     Horizontal,
     /// Arrange children top to bottom.
     Vertical,
+}
+
+/// Cross-axis alignment for a native `IosStackView`.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum IosStackAlignment {
+    /// Stretch arranged children to fill the stack's cross axis.
+    Fill,
+    /// Align children to the leading edge, or the top edge for a vertical stack.
+    Leading,
+    /// Center children on the stack's cross axis.
+    Center,
+    /// Align children to the trailing edge, or the bottom edge for a vertical stack.
+    Trailing,
+    /// Align text baselines; valid only for a horizontal stack.
+    FirstBaseline,
+    /// Align last text baselines; valid only for a horizontal stack.
+    LastBaseline,
+}
+
+/// Distribution of arranged children along an `IosStackView`'s axis.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum IosStackDistribution {
+    /// Fill available space according to the children's intrinsic sizes.
+    Fill,
+    /// Give each arranged child an equal size.
+    FillEqually,
+    /// Size children in proportion to their intrinsic sizes.
+    FillProportionally,
+    /// Keep child sizes and distribute equal spacing between them.
+    EqualSpacing,
+    /// Keep child sizes and distribute equal spacing between their centers.
+    EqualCentering,
 }
 
 /// A retained UIKit button and its Rust target/action callback owner.
@@ -621,6 +654,58 @@ impl IosStackView {
     pub fn add_arranged_subview(&mut self, view: &UIView) -> Result<()> {
         let _stack_thread = main_thread_marker()?;
         self.native.addArrangedSubview(view);
+        Ok(())
+    }
+
+    /// Removes a view from UIKit's arranged-subview list.
+    ///
+    /// UIKit leaves the view in the stack's subview hierarchy and keeps it visible. Call
+    /// `view.removeFromSuperview()` through the native escape when it should also leave that
+    /// hierarchy.
+    pub fn remove_arranged_subview(&mut self, view: &UIView) -> Result<()> {
+        let _stack_thread = main_thread_marker()?;
+        self.native.removeArrangedSubview(view);
+        Ok(())
+    }
+
+    /// Sets the stack's cross-axis alignment.
+    ///
+    /// Baseline alignment is valid only when the native stack axis is horizontal. Leading and
+    /// trailing alignment map to top and bottom for a vertical stack.
+    pub fn set_alignment(&mut self, alignment: IosStackAlignment) -> Result<()> {
+        let _stack_thread = main_thread_marker()?;
+        let axis = self.native.axis();
+        let horizontal = axis == UILayoutConstraintAxis::Horizontal;
+        let baseline_alignment = matches!(
+            alignment,
+            IosStackAlignment::FirstBaseline | IosStackAlignment::LastBaseline
+        );
+        if (axis != UILayoutConstraintAxis::Horizontal && axis != UILayoutConstraintAxis::Vertical)
+            || !is_valid_stack_alignment(horizontal, baseline_alignment)
+        {
+            return Err(Error::new(ErrorKind::InvalidInput));
+        }
+        self.native.setAlignment(match alignment {
+            IosStackAlignment::Fill => UIStackViewAlignment::Fill,
+            IosStackAlignment::Leading => UIStackViewAlignment::Leading,
+            IosStackAlignment::Center => UIStackViewAlignment::Center,
+            IosStackAlignment::Trailing => UIStackViewAlignment::Trailing,
+            IosStackAlignment::FirstBaseline => UIStackViewAlignment::FirstBaseline,
+            IosStackAlignment::LastBaseline => UIStackViewAlignment::LastBaseline,
+        });
+        Ok(())
+    }
+
+    /// Sets how UIKit distributes arranged children along the stack's axis.
+    pub fn set_distribution(&mut self, distribution: IosStackDistribution) -> Result<()> {
+        let _stack_thread = main_thread_marker()?;
+        self.native.setDistribution(match distribution {
+            IosStackDistribution::Fill => UIStackViewDistribution::Fill,
+            IosStackDistribution::FillEqually => UIStackViewDistribution::FillEqually,
+            IosStackDistribution::FillProportionally => UIStackViewDistribution::FillProportionally,
+            IosStackDistribution::EqualSpacing => UIStackViewDistribution::EqualSpacing,
+            IosStackDistribution::EqualCentering => UIStackViewDistribution::EqualCentering,
+        });
         Ok(())
     }
 

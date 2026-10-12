@@ -3,7 +3,7 @@ use framework_ui::{Frame, UiBackend};
 #[cfg(target_os = "ios")]
 use ios_runtime::main_thread::MainThread;
 #[cfg(target_os = "ios")]
-use ios_ui::{IosStackAxis, IosUiBackend};
+use ios_ui::{IosStackAlignment, IosStackAxis, IosStackDistribution, IosUiBackend};
 
 #[cfg(target_os = "ios")]
 fn main() {
@@ -26,7 +26,11 @@ fn main() {
         return;
     };
     let _ = stack.add_arranged_subview(label.native_label());
+    let _ = stack.set_alignment(IosStackAlignment::Leading);
+    let _ = stack.set_distribution(IosStackDistribution::FillProportionally);
     let _ = stack.set_spacing(4.0);
+    let _ = stack.remove_arranged_subview(label.native_label());
+    let _ = stack.add_arranged_subview(label.native_label());
     core::hint::black_box(stack.native_stack_view());
 }
 

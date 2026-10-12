@@ -47,8 +47,12 @@ horizontal or vertical `IosStackAxis`; spacing is expressed in UIKit points and 
 Finite negative spacing is passed through to UIKit and can overlap arranged children.
 `IosStackView::add_arranged_subview` passes a native `UIView` to UIKit, which retains and reparents
 it as an arranged child. The `ios-ui` control handle remains caller-owned; keep an `IosButton` handle
-alive for as long as its action should remain active. `set_spacing` updates UIKit's spacing, and
-`native_stack_view` exposes the native stack for app-owned UIKit integration.
+alive for as long as its action should remain active. Typed `set_alignment` and `set_distribution`
+methods select UIKit's cross-axis alignment and main-axis distribution; baseline alignment is valid
+only for horizontal stacks. `remove_arranged_subview` removes UIKit's layout management but leaves
+the view visible in the stack's subview hierarchy. `set_spacing` updates UIKit's spacing, and
+`native_stack_view` exposes the native stack for app-owned UIKit integration. These operations are
+main-thread-bound.
 
 UIKit arranges only the stack's child views. The caller remains responsible for placing and resizing
 the stack in its parent; this API adds no custom constraint engine, screen/root ownership, navigation,
@@ -63,6 +67,8 @@ let mut stack = backend.add_stack_view(
 )?;
 let title = backend.add_label(&mut parent, child_frame, "Settings")?;
 stack.add_arranged_subview(title.native_label())?;
+stack.set_alignment(IosStackAlignment::Leading)?;
+stack.set_distribution(IosStackDistribution::FillProportionally)?;
 ```
 
 ## Equal-column grid
