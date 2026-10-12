@@ -421,6 +421,19 @@ Release link/import checks pass at iOS 10.0 / 14.0. The integrated profile repor
 `2dbb1b68803921183c0eb0ab3b72cd0432bc07cfa8466681409147e78037a852`; no CallKit runtime behavior
 is claimed.
 
+### B541 — bounded iOS PCM output (row 047)
+
+B541 adds `ios-pcm-audio-output`, a public `AVAudioSourceNode` / `AVAudioEngine` path that copies
+interleaved Int16 or Float32 frames into a bounded preallocated queue. Writes are all-or-nothing;
+render underruns produce silence. The host owns `AVAudioSession` policy, and the crate does not
+request permission or mutate session configuration. Host queue regressions and device/Simulator
+compile, Clippy, Rustdoc, syntax, and link/import gates do not prove audible output, route behavior,
+timing, interruption recovery, Simulator execution, or physical-device behavior; see
+`docs/ios/pcm-audio-output.md`. The integrated command
+`ios-rust-validate --workspace-root "$PWD" --spec "$PWD/tools/validation/specs/validation-v1.json" --capability ios-pcm-audio-output --format json`
+passed 21 checks with 0 FAIL, 0 BLOCKED, and 2 runtime SKIPPED at snapshot
+`0a0760d7434d9ec12a591b377e738a8315ebc7f9b58faeee1039518dd9ef0dc0` on `759e5cf`.
+
 ### B542 — UIKit multiline text editor (row 003)
 
 B542 adds a main-thread-bound editable `UITextView` handle with strict UTF-16 snapshots, owned
