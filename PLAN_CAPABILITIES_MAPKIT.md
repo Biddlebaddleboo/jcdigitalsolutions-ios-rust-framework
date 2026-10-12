@@ -1,4 +1,4 @@
-# PLAN_CAPABILITIES_MAPKIT.md — D77/B73 Geometry and B577/B581 Native Map View for Row 093
+# PLAN_CAPABILITIES_MAPKIT.md — D77/B73 Geometry and B577/B581/B583 Native Map View for Row 093
 
 ## Objective
 
@@ -6,9 +6,9 @@ Implement the narrow MapKit geometry-only subset for row `093-maps-ar-spatial-ma
 
 ## Status and recommendation
 
-A real, narrowly bounded MapKit slice is available and is implemented in `framework-maps` and `ios-maps`: caller-supplied coordinate/map-point conversion and MapKit distance functions. B577 adds validated center/span regions and a separate `ios-map-view` crate for a native UIKit-embeddable `MKMapView`. B581 adds basic point-marker snapshots with stable caller ids and optional titles. These slices remain partial; they do not access device location or promise native map-content availability
+A real, narrowly bounded MapKit slice is available and is implemented in `framework-maps` and `ios-maps`: caller-supplied coordinate/map-point conversion and MapKit distance functions. B577 adds validated center/span regions and a separate `ios-map-view` crate for a native UIKit-embeddable `MKMapView`. B581 adds stable point-marker snapshots with optional titles; B583 adds one caller-supplied route polyline. These slices remain partial; they do not access device location or promise native map-content availability
 
-The root lock contains `objc2-map-kit` 0.3.2 and the `ios-maps` dependency edges. B577 adds a separate `ios-map-view` edge without widening `ios-maps`' UIKit dependency graph. The native view uses a small local `objc2` declaration because this selected generated binding exposes `MKMapView` only under macOS/AppKit; its `MKCoordinateRegion`, `MKCoordinateSpan`, `MKPointAnnotation`, and `MKAnnotation` values come from generated public bindings. B581 enables only `MKAnnotation`, `MKPointAnnotation`, and `MKShape` in this separate view crate. Do not imply this work implements SwiftUI `Map`, custom annotation views, overlays, user location, search, geocoding, directions, route planning, offline map data, or complete MapKit parity
+The root lock contains `objc2-map-kit` 0.3.2 and the `ios-maps` dependency edges. B577 adds a separate `ios-map-view` edge without widening `ios-maps`' UIKit dependency graph. The native view uses a small local `objc2` declaration because this selected generated binding exposes `MKMapView` only under macOS/AppKit; its `MKCoordinateRegion`, `MKCoordinateSpan`, `MKPointAnnotation`, `MKAnnotation`, `MKPolyline`, and renderer values use generated public bindings where available. B581 and B583 add only their required MapKit features in this separate view crate. Do not imply this work implements SwiftUI `Map`, custom annotation views, arbitrary overlay management, user location, search, geocoding, directions, route calculation, offline map data, or complete MapKit parity
 
 ## B577 implementation boundary
 
@@ -16,7 +16,7 @@ The root lock contains `objc2-map-kit` 0.3.2 and the `ios-maps` dependency edges
 - `ios-map-view::IosMapView` owns one retained, main-thread-bound `MKMapView`; `native_view()` returns a borrowed typed view for host UIKit embedding
 - `set_region` passes the validated center/span by value to public `setRegion:animated:`; `region` returns `None` if MapKit reports an invalid center or span
 - The host remains responsible for size, constraints, and view hierarchy. MapKit may adjust the region to fit the native view's dimensions
-- The wrapper does not enable user location or request location authorization, and it does not add annotations/overlays or call search, geocoding, directions, or offline-map APIs
+- The wrapper does not enable user location or request location authorization, and it does not call search, geocoding, directions, or offline-map APIs; B581/B583 add only point annotations and one route overlay
 - MapKit controls basemap presentation and any content/network requests. Build/link/import validation does not prove tile fetches, visible map rendering, or device behavior
 - The inspected Xcode 26.6 / iOS 26.5 public `MKMapView.h` declares `MKMapView : UIView`, `initWithFrame:`, `region`, and `setRegion:animated:`; the class is available from iOS 3.0. The link profile's iOS 12.0 device and iOS 14.0 Simulator floors are validation-probe floors, not API availability claims
 
@@ -25,9 +25,17 @@ The root lock contains `objc2-map-kit` 0.3.2 and the `ios-maps` dependency edges
 - `framework-maps::MapAnnotation<'title>` is a borrowed, caller-owned value with a caller-defined `u64` id, validated `MapCoordinate`, and optional title. The id must be stable across snapshots and unique within each snapshot
 - `ios-map-view::IosMapView::replace_annotations` validates duplicate ids before changing MapKit state, preserves the native `MKPointAnnotation` object for ids present in both snapshots, updates its coordinate and copied title, adds new ids, and removes omitted ids
 - `MKPointAnnotation` is declared public from iOS 4.0 in `MKPointAnnotation.h`. The Rust crate uses generated `MKPointAnnotation`/`MKAnnotation` types and narrow local add/remove method declarations on the iOS `MKMapView` binding
-- The app owns every snapshot and marker meaning. This API does not define app protocols, custom annotation view/delegate behavior, subtitle, icon styling, user location, overlays, or selection callbacks. `MKMapView`/MapKit decide visual presentation
+- The app owns every snapshot and marker meaning. This API does not define app protocols, custom annotation view/delegate behavior, subtitle, icon styling, user location, other overlays, or selection callbacks. `MKMapView`/MapKit decide visual presentation
 - The native view remains main-thread-bound and keeps strong references to active annotation objects. Replacing the snapshot reuses retained objects for stable ids and releases removed objects after calling `removeAnnotation:`
 - Host tests prove the portable value and duplicate-id policy; device/Simulator compile, Clippy, Rustdoc, and link/import checks do not prove visible markers, callout interaction, map content, or device runtime behavior
+
+## B583 route overlay boundary
+
+- `IosMapView::replace_route` accepts 2 through 4,096 already validated `MapCoordinate` values, replaces the one route overlay, and rejects invalid point counts before native mutation
+- The native path uses public `MKPolyline` and `MKPolylineRenderer` APIs. Its fixed style is `UIColor.blueColor()` at 5 points to preserve the crate's iOS 12 deployment floor; there is no route calculation or caller style surface
+- `MKPolyline` is public from iOS 4.0 and `MKPolylineRenderer`/`rendererForOverlay:` from iOS 7.0. The local `objc2` delegate declaration matches the public iOS `MKMapViewDelegate` renderer callback because objc2-map-kit 0.3.2 gates its generated `MKMapView` delegate surface to macOS/AppKit
+- `MKMapView.delegate` is a weak singleton slot. Route activation claims it only when empty and returns `MapRouteError::DelegateSlotOccupied` for a host delegate. While a route is active, the wrapper owns that slot and does not forward callbacks; host code must not replace it. `clear_route` and `Drop` remove only this wrapper's route and clear the delegate only if it still points to this wrapper
+- Route host tests cover point-count bounds and occupied-slot rejection. The registered iOS profile proves compilation/linkage and symbol selection, not visible route rendering, callback behavior, Simulator execution, or physical-device behavior
 
 ## Implemented contract
 

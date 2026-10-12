@@ -23,6 +23,12 @@ libobjc.A.dylib
 IMPORTS
 
 grep -F 'fn duplicate_ids_reject_snapshot_before_native_changes()' platform/ios/ios-map-view/src/annotations.rs >/dev/null
+grep -F 'fn route_rejects_empty_and_single_point_paths()' platform/ios/ios-map-view/src/route.rs >/dev/null
+grep -F 'fn route_rejects_paths_over_the_bounded_coordinate_limit()' platform/ios/ios-map-view/src/route.rs >/dev/null
+grep -F 'fn route_delegate_policy_accepts_only_empty_or_owned_slots()' platform/ios/ios-map-view/src/route.rs >/dev/null
+grep -F 'return Err(MapRouteError::DelegateSlotOccupied);' platform/ios/ios-map-view/src/platform.rs >/dev/null
+grep -F 'pub fn clear_route(&mut self)' platform/ios/ios-map-view/src/platform.rs >/dev/null
+grep -F 'impl Drop for IosMapView' platform/ios/ios-map-view/src/platform.rs >/dev/null
 
 for target in aarch64-apple-ios aarch64-apple-ios-sim; do
     case "$target" in
@@ -51,8 +57,8 @@ for target in aarch64-apple-ios aarch64-apple-ios-sim; do
     nm -u "$binary" > "$symbols"
     grep -q '_objc_getClass' "$symbols"
     grep -q '_objc_msgSend' "$symbols"
-    if grep -Eqi 'swift_|Py[A-Z_]|CLLocationManager|CLGeocoder|MKLocalSearch|MKDirections|MKMapItem|MKMapSnapshotter|MKAnnotation|MKOverlay|showsUserLocation|userLocation' "$symbols"; then
-        echo "unexpected Swift, Python, location service, search, directions, annotation, overlay, or user-location import in $symbols" >&2
+    if grep -Eqi 'swift_|Py[A-Z_]|CLLocationManager|CLGeocoder|MKLocalSearch|MKDirections|MKMapItem|MKMapSnapshotter|MKAnnotationView|MKTileOverlay|showsUserLocation|userLocation' "$symbols"; then
+        echo "unexpected Swift, Python, location service, search, directions, custom annotation, tile overlay, or user-location import in $symbols" >&2
         exit 1
     fi
 
@@ -63,10 +69,19 @@ for target in aarch64-apple-ios aarch64-apple-ios-sim; do
     grep -F 'region' "$strings_file" >/dev/null
     grep -F 'addAnnotation:' "$strings_file" >/dev/null
     grep -F 'removeAnnotation:' "$strings_file" >/dev/null
+    grep -Fx 'MKPolyline' "$strings_file" >/dev/null
+    grep -Fx 'MKPolylineRenderer' "$strings_file" >/dev/null
+    grep -F 'polylineWithCoordinates:count:' "$strings_file" >/dev/null
+    grep -F 'mapView:rendererForOverlay:' "$strings_file" >/dev/null
+    grep -F 'addOverlay:' "$strings_file" >/dev/null
+    grep -F 'removeOverlay:' "$strings_file" >/dev/null
+    grep -F 'blueColor' "$strings_file" >/dev/null
+    grep -F 'setStrokeColor:' "$strings_file" >/dev/null
+    grep -F 'setLineWidth:' "$strings_file" >/dev/null
     grep -F 'setCoordinate:' "$strings_file" >/dev/null
     grep -F 'setTitle:' "$strings_file" >/dev/null
-    if grep -Eqi 'swift_|CLLocationManager|CLGeocoder|MKLocalSearch|MKDirections|MKMapItem|MKMapSnapshotter|MKAnnotationView|MKOverlay|showsUserLocation|userLocation' "$strings_file"; then
-        echo "unexpected Swift, location service, search, directions, annotation, overlay, or user-location selector in $strings_file" >&2
+    if grep -Eqi 'swift_|CLLocationManager|CLGeocoder|MKLocalSearch|MKDirections|MKMapItem|MKMapSnapshotter|MKAnnotationView|MKTileOverlay|showsUserLocation|userLocation' "$strings_file"; then
+        echo "unexpected Swift, location service, search, directions, custom annotation, tile overlay, or user-location selector in $strings_file" >&2
         exit 1
     fi
 

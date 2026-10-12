@@ -7,6 +7,9 @@ pub use framework_maps::{MapAnnotation, MapCoordinate, MapRegion, MapSpan};
 mod annotations;
 pub use annotations::AnnotationSnapshotError;
 
+mod route;
+pub use route::{MAX_ROUTE_COORDINATES, MapRouteError};
+
 #[cfg(target_os = "ios")]
 mod platform;
 

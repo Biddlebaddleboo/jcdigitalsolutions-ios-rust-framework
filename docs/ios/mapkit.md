@@ -2,7 +2,8 @@
 
 `ios-maps` contains MapKit coordinate projection and distance calls. The independent
 `ios-map-view` crate creates a native, main-thread-bound `MKMapView` that a host UIKit controller
-can embed, then gets or sets its center/span `MapRegion` and replaces caller-owned marker snapshots.
+can embed, then gets or sets its center/span `MapRegion`, replaces caller-owned marker snapshots,
+and displays one caller-supplied route path.
 
 `MapSpan::new` rejects non-finite, non-positive, or over-world deltas (latitude `(0, 180]`,
 longitude `(0, 360]`). The center uses `MapCoordinate`, which bounds finite latitude to `-90..=90`
@@ -11,15 +12,17 @@ the getter returns `None` if the native center or span fails portable validation
 
 The view is a lower-level imperative UIKit primitive, not SwiftUI `Map`. The host controls its
 frame, constraints, and view hierarchy. This slice does not enable user location, prompt for
-permissions, create overlays, search, geocode, calculate directions, or provide offline maps.
+permissions, search, geocode, calculate directions, or provide offline maps.
 MapKit owns basemap content and any native content/network fetch behavior. No claim is made that
 map tiles load successfully or that compile/link validation proves live rendering.
 
 `MKMapView` and its `region`/`setRegion:animated:` APIs are public since iOS 3.0 in the inspected
 iOS SDK. `objc2-map-kit 0.3.2` exposes its generated `MKMapView` only under macOS/AppKit, so
 `ios-map-view` uses a narrow `objc2` declaration that matches the public iOS `MKMapView.h` class,
-initializer, getter, setter, and by-value generated `MKCoordinateRegion` struct ABI. It uses no
-Swift source, private symbols, location service, or special entitlement.
+initializer, region, annotation, delegate, and overlay selectors, plus the by-value generated
+`MKCoordinateRegion` struct ABI. It also declares the exact iOS `MKMapViewDelegate` route callback
+because the selected binding omits that iOS protocol method. It uses no Swift source, private
+symbols, location service, or special entitlement.
 
 ## Marker snapshots
 
@@ -33,9 +36,25 @@ enforces this at the Rust type boundary.
 
 This increment uses public `MKPointAnnotation` (available from iOS 4.0) and `MKMapView` add/remove
 selectors. It supplies only MapKit's built-in point annotation behavior; there is no custom view,
-selection callback, subtitle, image, clustering policy, overlay, or SwiftUI-style state renderer.
+selection callback, subtitle, image, clustering policy, extra overlay type, or SwiftUI-style state renderer.
 The registered tests prove value and duplicate-id policy; device and Simulator link checks prove
 compile/link symbols only, not visible pins, title callouts, touch behavior, or runtime map content.
+
+## One route path
+
+`IosMapView::replace_route(&[MapCoordinate])` accepts 2 through 4,096 coordinates and replaces its
+one route path. Each coordinate is already range-checked by `MapCoordinate`; the wrapper passes the
+corresponding `CLLocationCoordinate2D` values to public `MKPolyline` and applies a fixed
+`MKPolylineRenderer` style of UIKit blue at 5 points. `clear_route` and drop remove only this route
+overlay, not marker annotations. The API does not calculate or simplify routes.
+
+`MKMapView.delegate` is a weak singleton slot. A route needs that slot for public
+`mapView:rendererForOverlay:` callbacks, so route activation fails with
+`MapRouteError::DelegateSlotOccupied` if a host delegate already owns it. While a route is active,
+the host must not replace this delegate through `native_view()`. A later replacement request detects
+such a foreign delegate and fails; clear/drop remove the route and clear the slot only if it still
+holds this wrapper's delegate. The delegate does not alter marker annotations. Link checks do not
+prove a visible route on Simulator or device.
 
 ## Geometry conversion
 
@@ -54,8 +73,10 @@ projection values without asserting world-rectangle membership. Distance uses Ma
 surface distance, not a Euclidean calculation over map points.
 
 The geometry adapter uses `objc2-map-kit` 0.3.2 with default features disabled and only `MKGeometry`
-and `objc2-core-location` enabled. `ios-map-view` additionally enables `MKAnnotation`,
-`MKPointAnnotation`, and `MKShape` from the same generated crate. `ios-maps` also has a direct
+and `objc2-core-location` enabled. `ios-map-view` additionally enables annotation and shape
+features plus `MKMultiPoint`, `MKOverlay`, `MKOverlayRenderer`, `MKOverlayPathRenderer`, `MKPolyline`,
+and `MKPolylineRenderer` from the same generated crate. It enables the `UIColor` UIKit binding for
+the fixed route style. `ios-maps` also has a direct
 `objc2-core-location` 0.3.2 dependency
 with only `CLLocation` enabled to import the coordinate value type. This feature closure links
 `MapKit.framework` and the binding's `objc2-core-location` dependency also contributes

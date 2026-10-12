@@ -17,6 +17,12 @@ fn main() {
             .expect("unique marker id");
         view.replace_annotations(&[])
             .expect("empty marker snapshot");
+        let route = [
+            MapCoordinate::new(43.6532, -79.3832).unwrap(),
+            MapCoordinate::new(43.6540, -79.3820).unwrap(),
+        ];
+        view.replace_route(&route).expect("valid route");
+        view.clear_route();
     }
     let _ = core::hint::black_box((view.region(), view.native_view()));
 }

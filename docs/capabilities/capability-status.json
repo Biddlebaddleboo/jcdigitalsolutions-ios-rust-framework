@@ -2955,7 +2955,7 @@
       "portable_contract_note": "framework-maps defines finite geographic coordinates, MapKit projection points, non-negative meter distances, and validated map spans/regions; no portable map view or location service is modeled.",
       "ios_implementation_class": "B",
       "implementation_status": "partial",
-      "status_reason": "D77/B73 adds MapKit coordinate-to-map-point conversion, inverse conversion, and surface distance. B577 adds a separate UIKit-embeddable native MKMapView with validated center/span region access. No user-location permission flow, annotations, overlays, search, directions, offline maps, map-content availability, or full MapKit parity is claimed.",
+      "status_reason": "D77/B73 adds MapKit coordinate-to-map-point conversion, inverse conversion, and surface distance. B577 adds a separate UIKit-embeddable native MKMapView with validated center/span region access. B581 adds stable caller-ID point-annotation snapshots. B583 adds replacement/removal of one bounded caller-supplied route polyline using public MKPolyline and MKPolylineRenderer APIs; it claims no route calculation or general overlay engine. The route renderer owns the map's weak delegate slot while active and rejects activation when a host delegate already occupies it. User-location permission flow, search, directions, offline maps, map-content availability, and full MapKit parity are not claimed.",
       "minimum_ios_version": "3.0",
       "required_frameworks": [
         "CoreLocation",
@@ -2967,11 +2967,11 @@
       "entitlements": [],
       "device_only_restrictions": [],
       "swift_abi_requirement": false,
-      "metadata_verification": "Xcode 26.6 build 17F113 and iOS SDK 26.5 public MKGeometry.h/MKMapView.h; objc2-map-kit 0.3.2 generated MKGeometry/MKCoordinateRegion types and narrow local objc2 MKMapView declaration because generated MKMapView is macOS/AppKit-only. Device/Simulator Release link/import probes verify MapKit/UIKit/CoreLocation and expected Objective-C class/message references at iOS 12.0/14.0 probe floors; MKMapView/region API floor is iOS 3.0.",
-      "parity_status": "not_tested_live_map_projection_distance_or_map_rendering",
+      "metadata_verification": "Xcode 26.6 build 17F113 and iOS SDK 26.5 public MKGeometry.h/MKMapView.h/MKPolyline.h/MKPolylineRenderer.h; objc2-map-kit 0.3.2 generated MKGeometry, MKCoordinateRegion, MKPointAnnotation, MKPolyline, and MKPolylineRenderer types and narrow local objc2 MKMapView/delegate declarations because generated MKMapView is macOS/AppKit-only. MKPolyline is public from iOS 4.0; MKPolylineRenderer and rendererForOverlay: are public from iOS 7.0. Device/Simulator Release link/import probes verify MapKit/UIKit/CoreLocation and expected Objective-C class/message references at iOS 12.0/14.0 probe floors; MKMapView/region API floor is iOS 3.0.",
+      "parity_status": "not_tested_live_map_projection_distance_or_annotation_and_route_rendering",
       "performance_status": "not_measured",
       "native_escape_handle_available": true,
-      "native_escape_handle_note": "ios-map-view::IosMapView::native_view borrows the main-thread-bound native MKMapView for host UIKit embedding; no portable Apple handle is exposed."
+      "native_escape_handle_note": "ios-map-view::IosMapView::native_view borrows the main-thread-bound native MKMapView for host UIKit embedding; while a route is active the wrapper owns the weak delegate slot, rejects a preexisting host delegate, and does not support delegate forwarding. No portable Apple handle is exposed."
     },
     {
       "id": "094-maps-ar-spatial-arkit",
