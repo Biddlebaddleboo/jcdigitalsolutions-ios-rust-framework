@@ -24,7 +24,8 @@ use objc2_user_notifications::{
     UNAuthorizationOptions, UNCalendarNotificationTrigger, UNMutableNotificationContent,
     UNNotificationAction, UNNotificationActionOptions, UNNotificationCategory,
     UNNotificationCategoryOptions, UNNotificationRequest, UNNotificationSettings,
-    UNNotificationSound, UNTextInputNotificationAction, UNUserNotificationCenter,
+    UNNotificationSound, UNNotificationTrigger, UNTextInputNotificationAction,
+    UNTimeIntervalNotificationTrigger as TimeIntervalTrigger, UNUserNotificationCenter,
 };
 use std::panic::{AssertUnwindSafe, catch_unwind};
 use std::sync::{Arc, Mutex};
@@ -685,19 +686,26 @@ fn make_request(
             let sound = UNNotificationSound::defaultSound();
             content.setSound(Some(&sound));
         }
-        let now = SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .map_err(|_| NotificationError::Backend(Error::new(ErrorKind::Unavailable)))?;
-        let components =
-            utc_trigger_components(notification.trigger().unix_timestamp_millis(), now)?;
-        let trigger = components.map(make_calendar_trigger).transpose()?;
+        let notification_trigger = notification.trigger();
+        let trigger = if let Some(seconds) = notification_trigger.repeating_interval_seconds() {
+            Some(make_repeating_trigger(seconds))
+        } else {
+            let now = SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .map_err(|_| NotificationError::Backend(Error::new(ErrorKind::Unavailable)))?;
+            let components =
+                utc_trigger_components(notification_trigger.unix_timestamp_millis(), now)?;
+            components
+                .map(make_calendar_trigger)
+                .transpose()?
+                .map(|trigger| trigger.into_super())
+        };
         let identifier = NSString::from_str(notification.identifier().as_str());
-        let trigger = trigger.as_deref().map(|trigger| trigger.as_super());
         Ok(
             UNNotificationRequest::requestWithIdentifier_content_trigger(
                 &identifier,
                 content.as_super(),
-                trigger,
+                trigger.as_deref(),
             ),
         )
     })
@@ -781,6 +789,10 @@ fn make_calendar_trigger(
             false,
         ),
     )
+}
+
+fn make_repeating_trigger(seconds: u32) -> Retained<UNNotificationTrigger> {
+    TimeIntervalTrigger::triggerWithTimeInterval_repeats(f64::from(seconds), true).into_super()
 }
 
 fn native_error(error: &NSError) -> NotificationError {

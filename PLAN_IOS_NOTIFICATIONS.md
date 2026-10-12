@@ -79,6 +79,14 @@ options, rejects duplicate action/category IDs, and replaces the complete regist
 an empty set clears it. Registration does not install the separate response delegate or claim live
 presentation, text entry, or delivery. See the notification and response API guides.
 
+### B558 — portable repeating notification interval (row 031)
+
+B558 adds `NotificationTrigger::repeating_every_seconds(u32)` for intervals from 60 through
+`u32::MAX` seconds. The iOS backend maps it to public `UNTimeIntervalNotificationTrigger` with
+`repeats = true`; the existing ID cancellation path removes pending repeating requests. The native
+system controls actual delivery timing. Host regressions reject zero and 59 seconds; device and
+Simulator checks establish compile/link behavior only, not notification delivery or cadence.
+
 ## Objective
 
 Implement the D3 local-notification contract with public iOS UserNotifications APIs reached from Rust, without a Swift application/source layer.

@@ -569,3 +569,7 @@ B556 adds `IosLocationBackend::open_geofence_monitor(name)` over public iOS 17 `
 ### B557 — user-mediated Photos picker (row 068)
 
 B557 adds a separate `ios-photo-picker` crate over public `PHPickerViewController`. It presents one image, avoids PhotoKit database access and authorization, and copies the provider’s exact temporary representation through a fixed 32 KiB buffer into a private app-local file with explicit cancellation and drop cleanup; it does not claim library-original bytes. The picker profile passed 31 checks and the existing `ios-photos` profile passed 80; each skipped only Simulator execution and physical-device proof. Visible presentation and provider runtime behavior remain unverified. See [the picker guide](docs/ios/photo-picker.md).
+
+### B558 — repeating local notifications (row 031)
+
+B558 adds portable `NotificationTrigger::repeating_every_seconds(u32)` for intervals from 60 through `u32::MAX` seconds and maps it to public `UNTimeIntervalNotificationTrigger` with repeat enabled. Host regressions reject 0 and 59 seconds; cancellation removes pending repeats. The registered `ios-notifications` gate passed 46 checks, with Simulator execution and physical-device proof skipped. Live delivery and cadence remain unverified. See [the notification guide](docs/ios/notifications.md).

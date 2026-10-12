@@ -31,7 +31,11 @@ pub use platform::{
 
 #[cfg(test)]
 mod notification_content_tests {
-    use framework_notifications::{NotificationCategoryId, NotificationContent, NotificationError};
+    use framework_core::ErrorKind;
+    use framework_notifications::{
+        MIN_REPEAT_INTERVAL_SECONDS, NotificationCategoryId, NotificationContent,
+        NotificationError, NotificationTrigger,
+    };
 
     #[test]
     fn existing_content_keeps_system_default_sound_disabled() {
@@ -44,6 +48,33 @@ mod notification_content_tests {
         let content =
             NotificationContent::new(String::from("Title"), None).with_system_default_sound();
         assert!(content.uses_system_default_sound());
+    }
+
+    #[test]
+    fn repeat_interval_rejects_below_minimum() {
+        assert_eq!(MIN_REPEAT_INTERVAL_SECONDS, 60);
+        let trigger = NotificationTrigger::repeating_every_seconds(MIN_REPEAT_INTERVAL_SECONDS)
+            .expect("minimum repeating interval is valid");
+        assert!(!trigger.is_immediate());
+        assert_eq!(trigger.unix_timestamp_millis(), None);
+        assert_eq!(
+            trigger.repeating_interval_seconds(),
+            Some(MIN_REPEAT_INTERVAL_SECONDS)
+        );
+        assert_eq!(
+            NotificationTrigger::repeating_every_seconds(u32::MAX)
+                .unwrap()
+                .repeating_interval_seconds(),
+            Some(u32::MAX)
+        );
+        let invalid = NotificationTrigger::repeating_every_seconds(59).unwrap_err();
+        assert_eq!(invalid.kind(), ErrorKind::InvalidInput);
+        assert_eq!(invalid.platform_code(), None);
+        assert_eq!(invalid, NotificationError::InvalidRepeatInterval);
+        assert_eq!(
+            NotificationTrigger::repeating_every_seconds(0),
+            Err(NotificationError::InvalidRepeatInterval)
+        );
     }
 
     #[test]

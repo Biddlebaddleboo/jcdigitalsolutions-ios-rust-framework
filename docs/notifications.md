@@ -1,6 +1,6 @@
 # Local notifications
 
-`framework-notifications` defines a portable, `no_std` + `alloc` contract for owned local-notification content, optional system-default sound and badge count, an optional category identifier, and one-shot scheduling. The D3 crate does not link `UserNotifications` or implement a native backend; B4's iOS adapter is documented in the [iOS local-notifications guide](ios/notifications.md). Neither crate implements remote push/APNs/PushKit.
+`framework-notifications` defines a portable, `no_std` + `alloc` contract for owned local-notification content, optional system-default sound and badge count, an optional category identifier, and immediate, absolute-time, or repeating-interval scheduling. The D3 crate does not link `UserNotifications` or implement a native backend; B4's iOS adapter is documented in the [iOS local-notifications guide](ios/notifications.md). Neither crate implements remote push/APNs/PushKit.
 
 D9 adds portable [notification interaction response values](notification-responses.md). Those values do not add a delivery callback, delegate, or response backend; B12 owns native response delivery.
 
@@ -25,7 +25,7 @@ let request = Notification::new(identifier, content, trigger);
 
 `NotificationId` and `NotificationCategoryId` own exact, case-sensitive UTF-8 strings. Empty values and values containing NUL are invalid; neither type normalizes or truncates identifiers. `NotificationContent` owns its title and optional body; `with_system_default_sound()` opts into the system default sound, `with_badge_count(u32)` records an optional badge value, and `with_category_identifier` opts into a category ID. `None` leaves the badge and native category unchanged; zero is preserved as an explicit badge-clear request. Action definitions, attachments, custom sounds, and other platform-specific presentation fields are not modeled by the portable contract. The iOS backend can register action categories separately.
 
-`NotificationTrigger` is deliberately bounded to `Immediate` or an absolute Unix timestamp in milliseconds from zero through `MAX_UNIX_TIMESTAMP_MILLIS` (`i64::MAX`). Repeating, calendar, relative-delay, and interval triggers are outside this contract. A timestamp in the past is eligible as soon as a backend permits, but no exact delivery time is promised. A backend with a smaller date range must report the limitation rather than silently change the timestamp.
+`NotificationTrigger` is deliberately bounded to immediate delivery, an absolute Unix timestamp in milliseconds from zero through `MAX_UNIX_TIMESTAMP_MILLIS` (`i64::MAX`), or a repeating whole-second interval from `MIN_REPEAT_INTERVAL_SECONDS` (60) through `u32::MAX`. The minimum matches iOS's public `UNTimeIntervalNotificationTrigger` requirement, so the portable contract is usable by the iOS backend without weakening its native constraint. Repeat timing is system-scheduled, not exact; calendar recurrence and one-shot relative-delay triggers are not represented. A timestamp in the past is eligible as soon as a backend permits, but no exact delivery time is promised. A backend with a smaller date range must report the limitation rather than silently change the timestamp. Cancel the notification ID to stop a repeating request.
 
 ## Backend and operation semantics
 
@@ -41,11 +41,11 @@ Backend futures are executor-neutral and do not require `Send`. Wake behavior an
 
 ## Scope and support
 
-This contract is portable and contains no iOS, Android, desktop, or web types. The portable crate makes no platform availability claim. The iOS adapter uses `UserNotifications` from iOS 10.0; compile and import evidence does not establish live prompt or delivery behavior. Push notifications/APNs/PushKit, attachments, repeat and calendar triggers, critical alerts, custom sounds, and other platform-specific presentation remain outside D3 scope. Badge count is content only: it does not request authorization or establish delivery or app-icon state. A category identifier is only a routing value until an iOS category is registered; it does not define actions or promise they will be presented. Response values are portable; D3 does not deliver responses or own a delegate. The separate opt-in [B12 iOS bridge](ios/notification-responses.md) maps valid local responses to D9 values
+This contract is portable and contains no iOS, Android, desktop, or web types. The portable crate makes no platform availability claim. The iOS adapter uses `UserNotifications` from iOS 10.0; compile and import evidence does not establish live prompt or delivery behavior. Push notifications/APNs/PushKit, attachments, calendar triggers, critical alerts, custom sounds, and other platform-specific presentation remain outside D3 scope. Badge count is content only: it does not request authorization or establish delivery or app-icon state. A category identifier is only a routing value until an iOS category is registered; it does not define actions or promise they will be presented. Response values are portable; D3 does not deliver responses or own a delegate. The separate opt-in [B12 iOS bridge](ios/notification-responses.md) maps valid local responses to D9 values
 
 ## Costs and validation
 
-Identifiers, titles, and bodies use owned `String` storage. `Notification` moves those allocations into the backend call; the facade adds no content copy. Absolute timestamps use a fixed-width `u64` API value with a signed-64-bit upper bound; no pointer-width value is part of the contract.
+Identifiers, titles, and bodies use owned `String` storage. `Notification` moves those allocations into the backend call; the facade adds no content copy. Absolute timestamps use a fixed-width `u64` API value with a signed-64-bit upper bound, and repeat intervals use a fixed-width `u32` count of seconds; no pointer-width value is part of the contract.
 
 Portable checks for this crate:
 

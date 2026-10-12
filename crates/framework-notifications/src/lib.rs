@@ -19,6 +19,11 @@ use framework_core::{AuthorizationState, Availability, Error, ErrorKind, Platfor
 /// range and report that limitation when asked to schedule a notification.
 pub const MAX_UNIX_TIMESTAMP_MILLIS: u64 = i64::MAX as u64;
 
+/// The smallest supported repeating notification interval in seconds.
+///
+/// iOS requires repeating time-interval triggers to use at least 60 seconds.
+pub const MIN_REPEAT_INTERVAL_SECONDS: u32 = 60;
+
 /// A caller-supplied local-notification identifier owned by the framework.
 ///
 /// Identifiers are exact, case-sensitive UTF-8 values. Construction rejects an empty value and
@@ -208,10 +213,11 @@ impl NotificationContent {
     }
 }
 
-/// A bounded, one-shot local-notification trigger.
+/// A local-notification trigger.
 ///
-/// The only trigger forms are immediate delivery and an absolute Unix timestamp in milliseconds.
-/// Repeating, calendar, interval, and relative-delay triggers are not represented.
+/// Trigger forms are immediate delivery, an absolute Unix timestamp in milliseconds, or a
+/// repeating interval in whole seconds. Calendar-based recurrence and one-shot relative delays
+/// are not represented.
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
 pub struct NotificationTrigger(TriggerValue);
 
@@ -219,6 +225,7 @@ pub struct NotificationTrigger(TriggerValue);
 enum TriggerValue {
     Immediate,
     AtUnixMillis(u64),
+    RepeatingIntervalSeconds(u32),
 }
 
 impl NotificationTrigger {
@@ -239,6 +246,19 @@ impl NotificationTrigger {
         }
     }
 
+    /// Creates a trigger that repeats after each elapsed interval of at least 60 seconds.
+    ///
+    /// The system schedules each occurrence after delivery; this does not promise exact timing.
+    /// The interval is bounded by `u32::MAX` seconds. On iOS, cancel the notification identifier
+    /// to stop future repeats.
+    pub const fn repeating_every_seconds(seconds: u32) -> Result<Self, NotificationError> {
+        if seconds >= MIN_REPEAT_INTERVAL_SECONDS {
+            Ok(Self(TriggerValue::RepeatingIntervalSeconds(seconds)))
+        } else {
+            Err(NotificationError::InvalidRepeatInterval)
+        }
+    }
+
     /// Reports whether this trigger requests immediate eligibility.
     pub const fn is_immediate(self) -> bool {
         matches!(self.0, TriggerValue::Immediate)
@@ -249,6 +269,15 @@ impl NotificationTrigger {
         match self.0 {
             TriggerValue::Immediate => None,
             TriggerValue::AtUnixMillis(timestamp) => Some(timestamp),
+            TriggerValue::RepeatingIntervalSeconds(_) => None,
+        }
+    }
+
+    /// Returns the repeating interval in seconds, or `None` for another trigger form.
+    pub const fn repeating_interval_seconds(self) -> Option<u32> {
+        match self.0 {
+            TriggerValue::RepeatingIntervalSeconds(seconds) => Some(seconds),
+            TriggerValue::Immediate | TriggerValue::AtUnixMillis(_) => None,
         }
     }
 }
@@ -262,7 +291,7 @@ pub struct Notification {
 }
 
 impl Notification {
-    /// Takes ownership of an identifier, content, and one-shot trigger.
+    /// Takes ownership of an identifier, content, and trigger.
     ///
     /// ```
     /// extern crate alloc;
@@ -306,7 +335,7 @@ impl Notification {
         &self.content
     }
 
-    /// Returns the one-shot trigger.
+    /// Returns the trigger.
     pub const fn trigger(&self) -> NotificationTrigger {
         self.trigger
     }
@@ -322,6 +351,8 @@ pub enum NotificationError {
     InvalidCategoryIdentifier,
     /// An absolute timestamp is outside the supported signed-millisecond range.
     InvalidTimestamp,
+    /// A repeating interval is less than the supported 60-second minimum.
+    InvalidRepeatInterval,
     /// The selected backend returned a framework error.
     Backend(Error),
 }
@@ -332,7 +363,8 @@ impl NotificationError {
         match self {
             Self::InvalidIdentifier
             | Self::InvalidCategoryIdentifier
-            | Self::InvalidTimestamp => ErrorKind::InvalidInput,
+            | Self::InvalidTimestamp
+            | Self::InvalidRepeatInterval => ErrorKind::InvalidInput,
             Self::Backend(error) => error.kind(),
         }
     }
@@ -340,9 +372,10 @@ impl NotificationError {
     /// Returns the optional backend-native code.
     pub const fn platform_code(self) -> Option<PlatformErrorCode> {
         match self {
-            Self::InvalidIdentifier | Self::InvalidCategoryIdentifier | Self::InvalidTimestamp => {
-                None
-            }
+            Self::InvalidIdentifier
+            | Self::InvalidCategoryIdentifier
+            | Self::InvalidTimestamp
+            | Self::InvalidRepeatInterval => None,
             Self::Backend(error) => error.platform_code(),
         }
     }
