@@ -120,6 +120,10 @@ for target in aarch64-apple-ios aarch64-apple-ios-sim; do
         startRunning \
         stopRunning \
         photoSettings \
+        supportedFlashModes \
+        containsObject: \
+        numberWithInteger: \
+        setFlashMode: \
         capturePhotoWithSettings:delegate: \
         captureOutput:didFinishProcessingPhoto:error: \
         captureOutput:didFinishCaptureForResolvedSettings:error: \

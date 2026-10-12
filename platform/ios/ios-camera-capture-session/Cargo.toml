@@ -16,7 +16,7 @@ dispatch2 = { workspace = true, features = ["alloc"] }
 ios-media-authorization = { path = "../ios-media-authorization", version = "0.1.0" }
 objc2 = { workspace = true, features = ["std"] }
 objc2-core-foundation = { workspace = true, features = ["CFCGTypes"] }
-objc2-foundation = { workspace = true, features = ["NSData", "NSError", "NSArray", "NSObject", "NSString", "NSURL"] }
+objc2-foundation = { workspace = true, features = ["NSData", "NSError", "NSArray", "NSObject", "NSString", "NSURL", "NSValue"] }
 objc2-av-foundation = { workspace = true, features = [
     "AVCaptureOutputBase",
     "AVCaptureFileOutput",

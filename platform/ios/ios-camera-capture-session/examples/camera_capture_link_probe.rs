@@ -57,6 +57,15 @@ fn main() {
     let _ = session.capture_photo(|result| {
         let _ = std::hint::black_box(result);
     });
+    for mode in [
+        ios_camera_capture_session::IosCameraFlashMode::Off,
+        ios_camera_capture_session::IosCameraFlashMode::On,
+        ios_camera_capture_session::IosCameraFlashMode::Auto,
+    ] {
+        let _ = session.capture_photo_with_flash(mode, |result| {
+            let _ = std::hint::black_box(result);
+        });
+    }
     let movie_path = std::path::PathBuf::from("/tmp/ios-camera-link-probe.mov");
     let _ = std::hint::black_box(session.start_video_recording(&movie_path, |result| {
         let _ = std::hint::black_box(result);

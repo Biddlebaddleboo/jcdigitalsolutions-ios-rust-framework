@@ -39,20 +39,20 @@ use objc2::{AnyThread, DefinedClass, MainThreadMarker, define_class, msg_send};
 use objc2_av_foundation::{
     AVCaptureConnection, AVCaptureDevice, AVCaptureDeviceInput, AVCaptureDevicePosition,
     AVCaptureDeviceTypeBuiltInWideAngleCamera, AVCaptureExposureMode, AVCaptureFileOutput,
-    AVCaptureFileOutputRecordingDelegate, AVCaptureFocusMode, AVCaptureMovieFileOutput,
-    AVCaptureOutput, AVCapturePhoto, AVCapturePhotoCaptureDelegate, AVCapturePhotoOutput,
-    AVCapturePhotoSettings, AVCaptureSession, AVCaptureTorchMode, AVCaptureVideoDataOutput,
-    AVCaptureVideoDataOutputSampleBufferDelegate, AVCaptureVideoPreviewLayer,
-    AVCaptureWhiteBalanceMode, AVMediaTypeAudio, AVMediaTypeVideo,
+    AVCaptureFileOutputRecordingDelegate, AVCaptureFlashMode, AVCaptureFocusMode,
+    AVCaptureMovieFileOutput, AVCaptureOutput, AVCapturePhoto, AVCapturePhotoCaptureDelegate,
+    AVCapturePhotoOutput, AVCapturePhotoSettings, AVCaptureSession, AVCaptureTorchMode,
+    AVCaptureVideoDataOutput, AVCaptureVideoDataOutputSampleBufferDelegate,
+    AVCaptureVideoPreviewLayer, AVCaptureWhiteBalanceMode, AVMediaTypeAudio, AVMediaTypeVideo,
 };
 #[cfg(target_os = "ios")]
 use objc2_core_foundation::CGPoint;
 #[cfg(target_os = "ios")]
 use objc2_core_media::{CMSampleBuffer, CMTime, CMTimeFlags};
 #[cfg(target_os = "ios")]
-use objc2_foundation::{NSArray, NSError, NSObject, NSObjectProtocol, NSString, NSURL};
+use objc2_foundation::{NSArray, NSError, NSNumber, NSObject, NSObjectProtocol, NSString, NSURL};
 
-/// Failure to request or complete a processed default-camera photo
+/// Failure to request or complete a processed default-camera photo capture
 #[cfg(any(target_os = "ios", test))]
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum PhotoCaptureError {
@@ -64,10 +64,24 @@ pub enum PhotoCaptureError {
     SessionStopping,
     /// The configured capture session does not have its still-photo output
     PhotoOutputUnavailable,
+    /// The configured photo output does not support the requested flash mode
+    FlashModeUnsupported,
     /// AVFoundation reported an error while capturing or processing the photo
     CaptureFailed,
     /// AVFoundation did not provide processed JPEG file bytes
     PhotoDataUnavailable,
+}
+
+/// Flash behavior for one still-photo request
+#[cfg(any(target_os = "ios", test))]
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum IosCameraFlashMode {
+    /// Do not request flash
+    Off,
+    /// Request flash for the photo
+    On,
+    /// Let AVFoundation decide whether the photo needs flash
+    Auto,
 }
 
 #[cfg(any(target_os = "ios", test))]
@@ -495,6 +509,28 @@ fn photo_request_error(
         Some(PhotoCaptureError::SessionNotRunning)
     } else {
         None
+    }
+}
+
+#[cfg(any(target_os = "ios", test))]
+fn preflight_photo_flash_mode(
+    mode: Option<IosCameraFlashMode>,
+    mut is_supported: impl FnMut(IosCameraFlashMode) -> bool,
+) -> Result<Option<IosCameraFlashMode>, PhotoCaptureError> {
+    if let Some(mode) = mode
+        && !is_supported(mode)
+    {
+        return Err(PhotoCaptureError::FlashModeUnsupported);
+    }
+    Ok(mode)
+}
+
+#[cfg(target_os = "ios")]
+fn native_photo_flash_mode(mode: IosCameraFlashMode) -> AVCaptureFlashMode {
+    match mode {
+        IosCameraFlashMode::Off => AVCaptureFlashMode::Off,
+        IosCameraFlashMode::On => AVCaptureFlashMode::On,
+        IosCameraFlashMode::Auto => AVCaptureFlashMode::Auto,
     }
 }
 
@@ -2648,10 +2684,40 @@ impl IosCameraCaptureSession {
     /// session is not running or lacks its configured photo output, it runs on the private session
     /// queue instead. Neither queue is guaranteed to be main, so UIKit work must hop to main. The
     /// operation cannot be cancelled. It returns owned JPEG file bytes and does not write to Photos.
+    /// It keeps AVFoundation's default photo settings and does not inspect or change flash mode.
     /// Capture requires iOS 11 or later; session and preview setup keep their lower availability
     /// floor. Keep the camera session alive until the completion runs to avoid interrupting the
     /// native capture lifecycle. Compilation and linking do not prove camera or device runtime.
     pub fn capture_photo<F>(&self, completion: F) -> Result<(), PhotoCaptureError>
+    where
+        F: FnOnce(Result<Vec<u8>, PhotoCaptureError>) + Send + 'static,
+    {
+        self.capture_photo_with_optional_flash(None, completion)
+    }
+
+    /// Capture one processed JPEG with an explicit per-photo flash request
+    ///
+    /// The requested mode must appear in AVFoundation's current `supportedFlashModes` list or the
+    /// completion receives [`PhotoCaptureError::FlashModeUnsupported`]. `Auto` lets AVFoundation
+    /// choose at capture time. A supported `On` request does not guarantee that flash fires, such
+    /// as when thermal conditions make it temporarily unavailable. This method has the same iOS
+    /// 11 capture floor and callback/lifecycle semantics as [`Self::capture_photo`].
+    pub fn capture_photo_with_flash<F>(
+        &self,
+        mode: IosCameraFlashMode,
+        completion: F,
+    ) -> Result<(), PhotoCaptureError>
+    where
+        F: FnOnce(Result<Vec<u8>, PhotoCaptureError>) + Send + 'static,
+    {
+        self.capture_photo_with_optional_flash(Some(mode), completion)
+    }
+
+    fn capture_photo_with_optional_flash<F>(
+        &self,
+        requested_flash_mode: Option<IosCameraFlashMode>,
+        completion: F,
+    ) -> Result<(), PhotoCaptureError>
     where
         F: FnOnce(Result<Vec<u8>, PhotoCaptureError>) + Send + 'static,
     {
@@ -2685,8 +2751,25 @@ impl IosCameraCaptureSession {
                 return;
             };
 
+            let flash_mode = match preflight_photo_flash_mode(requested_flash_mode, |mode| {
+                let native_mode = native_photo_flash_mode(mode);
+                let supported_modes = unsafe { output.supportedFlashModes() };
+                let native_value = NSNumber::new_isize(native_mode.0);
+                supported_modes.containsObject(&native_value)
+            }) {
+                Ok(mode) => mode,
+                Err(error) => {
+                    invoke_photo_completion(Box::new(completion), Err(error));
+                    return;
+                }
+            };
+
             let delegate = PhotoCaptureDelegateObject::new(Box::new(completion));
             let settings = unsafe { AVCapturePhotoSettings::photoSettings() };
+            if let Some(mode) = flash_mode {
+                // SAFETY: The mode was found in this configured output's supportedFlashModes list.
+                unsafe { settings.setFlashMode(native_photo_flash_mode(mode)) };
+            }
             let protocol_delegate = ProtocolObject::from_ref(&*delegate);
             // SAFETY: The session is running, the output belongs to its configured graph, settings
             // are fresh for this request, and the delegate is strongly self-retained to terminal.
@@ -3163,22 +3246,22 @@ fn invoke_video_completion(completion: VideoRecordingCompletion, result: VideoRe
 mod tests {
     use super::{
         CameraCaptureError, CameraPositionSwitchError, ExposureControlError, FocusControlError,
-        IosCameraExposureMode, IosCameraFocusMode, IosCameraPosition, IosCameraVideoOrientation,
-        IosCameraWhiteBalanceMode, MediaAuthorizationStatus, MediaTime, MovieOrientationError,
-        MovieRecordingState, NormalizedFocusPoint, PhotoCaptureError, PhotoCaptureResult,
-        TorchControlError, VideoFrameStreamError, VideoFrameStreamState, VideoRecordingError,
-        VideoRecordingResult, WhiteBalanceControlError, ZoomControlError,
+        IosCameraExposureMode, IosCameraFlashMode, IosCameraFocusMode, IosCameraPosition,
+        IosCameraVideoOrientation, IosCameraWhiteBalanceMode, MediaAuthorizationStatus, MediaTime,
+        MovieOrientationError, MovieRecordingState, NormalizedFocusPoint, PhotoCaptureError,
+        PhotoCaptureResult, TorchControlError, VideoFrameStreamError, VideoFrameStreamState,
+        VideoRecordingError, VideoRecordingResult, WhiteBalanceControlError, ZoomControlError,
         camera_position_switch_required, configure_custom_exposure, configure_exposure,
         configure_exposure_target_bias, configure_focus, configure_movie_orientation,
         configure_torch_enabled, configure_video_zoom_factor, configure_white_balance_mode,
         custom_exposure_duration_from_parts, custom_exposure_range,
         drop_video_frame_callback_safely, exposure_target_bias_range,
         finish_camera_input_replacement, invoke_video_frame_callback, map_camera_video_orientation,
-        may_create_device_input, photo_request_error, prepare_optional_movie_audio,
-        replace_camera_session_input, require_camera_at_position, require_selected_camera,
-        require_selected_focus_camera, require_switch_camera, run_on_capture_queue,
-        set_supported_movie_orientation, settle_movie_result, settle_movie_terminal,
-        settle_photo_result, take_photo_completion, take_video_completion,
+        may_create_device_input, photo_request_error, preflight_photo_flash_mode,
+        prepare_optional_movie_audio, replace_camera_session_input, require_camera_at_position,
+        require_selected_camera, require_selected_focus_camera, require_switch_camera,
+        run_on_capture_queue, set_supported_movie_orientation, settle_movie_result,
+        settle_movie_terminal, settle_photo_result, take_photo_completion, take_video_completion,
         validate_movie_destination, with_authorized_microphone, with_selected_exposure_camera,
         with_selected_white_balance_camera,
     };
@@ -4981,6 +5064,49 @@ mod tests {
     fn photo_missing_processed_data_is_reported() {
         let result: PhotoCaptureResult = settle_photo_result(None, false);
         assert_eq!(result, Err(PhotoCaptureError::PhotoDataUnavailable));
+    }
+
+    #[test]
+    fn photo_flash_preflight_keeps_default_settings_without_support_lookup() {
+        assert_eq!(
+            preflight_photo_flash_mode(None, |_| {
+                panic!("default photo capture must not inspect supported flash modes")
+            }),
+            Ok(None)
+        );
+    }
+
+    #[test]
+    fn photo_flash_preflight_accepts_modes_advertised_by_the_output() {
+        let supported = [
+            IosCameraFlashMode::Off,
+            IosCameraFlashMode::On,
+            IosCameraFlashMode::Auto,
+        ];
+        for mode in supported {
+            assert_eq!(
+                preflight_photo_flash_mode(Some(mode), |requested| {
+                    supported.contains(&requested)
+                }),
+                Ok(Some(mode))
+            );
+        }
+    }
+
+    #[test]
+    fn photo_flash_preflight_rejects_unsupported_modes_before_capture() {
+        let supported = [IosCameraFlashMode::Off];
+        for mode in [IosCameraFlashMode::On, IosCameraFlashMode::Auto] {
+            let mut support_checks = 0;
+            assert_eq!(
+                preflight_photo_flash_mode(Some(mode), |requested| {
+                    support_checks += 1;
+                    supported.contains(&requested)
+                }),
+                Err(PhotoCaptureError::FlashModeUnsupported)
+            );
+            assert_eq!(support_checks, 1);
+        }
     }
 
     #[test]
