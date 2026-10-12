@@ -238,6 +238,8 @@ item identity or event semantics. The implementation uses public reusable UIKit 
 views, preserves the iOS 13 runtime guard and iOS 12 device / iOS 14 Simulator link floors, and
 registers header API, negative regression, UIKit selectors, and link checks in `ios-ui`. Host tests
 pass 64/64; iOS device and Simulator target compiles, strict device Clippy, formatting, and the
-two-target collection-grid link probe pass. `framework-ui`, `IosGridView`, arbitrary view
+two-target collection-grid link probe pass. The registered `ios-ui` validator passed 281 checks
+with 0 FAIL, 0 BLOCKED, and 2 SKIPPED for Simulator execution and physical-device proof at commit
+`503b35c5a213ee26d4dae2c3126b477484c75923`. `framework-ui`, `IosGridView`, arbitrary view
 composition, bindings, and SwiftUI-style state observation remain unchanged. Simulator execution,
 header rendering/accessibility, and physical-device behavior remain unverified.
