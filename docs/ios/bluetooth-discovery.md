@@ -134,8 +134,57 @@ UUID data or a contained callback panic maps to `Unavailable`. Native error text
 CoreBluetooth provides no cancellation operation for `discoverServices:`; cancelling the selected
 connection terminates active service discovery with `Disconnected` immediately, clears the weak
 peripheral delegate, and requests connection cancellation. Backend drop clears the weak peripheral
-and central delegates before release. No characteristic discovery, GATT
-read/write, peripheral role, background restoration, or automatic reconnect is added.
+and central delegates before release. The B592 service-discovery slice alone adds no characteristic
+discovery, GATT read/write, peripheral role, background restoration, or automatic reconnect.
+
+## Read one connected-peer characteristic value
+
+After successful service discovery, `BluetoothCentral::read_characteristic` selects one service and
+one characteristic by UUID. The iOS backend verifies the same caller-selected peer remains connected,
+requires the unique service and characteristic matches, checks the characteristic's public Read
+property, then calls `CBPeripheral::readValueForCharacteristic`. Service/characteristic discovery
+and value delivery are asynchronous CoreBluetooth callbacks on the main queue.
+
+The completed B592 discovery record is scoped to that exact peer identity. A new discovery request,
+connection retry, cancellation, or disconnect clears it; a cached nonnil service array is not proof
+that the current connection completed discovery. Reconnect before reading requires fresh B592 service
+discovery for that peer.
+
+```rust,ignore
+use framework_bluetooth::{BluetoothCharacteristicReadEvent, BluetoothCharacteristicUuid};
+
+let service = BluetoothServiceUuid::from_uuid_bytes([0x18; 16]);
+let characteristic = BluetoothCharacteristicUuid::from_uuid_bytes([0x2A; 16]);
+central.read_characteristic(service, characteristic)?;
+while let Some(event) = central.try_next_characteristic_read_event() {
+    match event {
+        BluetoothCharacteristicReadEvent::Completed { value, .. } => {
+            let bytes: &[u8] = value.as_bytes();
+            let _ = bytes;
+        }
+        BluetoothCharacteristicReadEvent::Failed { error, .. } => { let _ = error; }
+    }
+}
+let _ = central.characteristic_read_state();
+let dropped = central.take_dropped_characteristic_read_event_count();
+```
+
+The initial request rejects not-connected or unsupported state, incomplete B592 service discovery,
+and overlapping service/read operations. It also rejects absent or duplicate matching service UUIDs
+before native characteristic discovery. Characteristic absence, duplicate UUIDs, no Read property,
+CoreBluetooth errors, malformed values, disconnect, and contained callback panic produce one copied
+terminal failure. A successful value is copied into a fixed 512-byte inline buffer; an empty value is
+valid and an oversize native value fails without truncation. No native handle or borrowed `NSData`
+buffer crosses the portable boundary.
+
+The iOS adapter retains the selected native service and characteristic only while the read is active,
+and queues at most four terminal read events, dropping newest on overflow. `cancel_connection` ends
+an active read as `Disconnected` and clears the weak peripheral delegate before native cancellation;
+backend drop clears delegates and retained objects, suppressing later callbacks. CoreBluetooth has no
+per-read cancellation token or timeout here. Reads do not write, subscribe to notifications, discover
+descriptors, or add peripheral-role behavior. Compile and link checks do not prove radio access,
+permission, callback delivery, or live value behavior; no Simulator or physical-device runtime test
+is claimed.
 
 ## Scope and host configuration
 

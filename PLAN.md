@@ -672,3 +672,27 @@ B586 adds `IosUserTrackingMode::{None, Follow, FollowHeading}` to `IosMapView`. 
 ### B588 — typed built-in camera-device selection (row 046)
 
 B588 adds exact built-in WideAngle/Telephoto selection at Front/Back positions to the existing AVFoundation camera session. Candidate input creation precedes one configuration transaction; rejected input restores the prior graph, and failed restoration clears stale state. The registered camera profile passed 270 checks with 0 FAIL, 0 BLOCKED, and 2 SKIPPED at snapshot `a3f5c02de0f12c04d5a749030e8acc12fd04ff429d34d8390b1b27ff83448d78`; the skips are Simulator execution and physical-device proof. Target compile/Clippy/Rustdoc and release link/import checks do not verify live camera availability, switching, output continuity, Simulator execution, or device behavior. See [the camera capture workstream](PLAN_IOS_CAMERA_CAPTURE_SESSION.md#b588-typed-built-in-camera-device-selection).
+
+### B589 — localized integer UI values (row 003)
+
+B589 adds locale-aware integer value formatting for the reusable UIKit field API. Commit `9ceca29154ba5026b7474379501062df56f817e0`; combined `ios-ui` qualification with B590 passed 273 checks, 0 FAIL/BLOCKED, 2 runtime-evidence SKIPPED. No live UIKit behavior is implied.
+
+### B590 — display-link frame timing (row 003)
+
+B590 adds a bounded display-link timing surface for UI work. Commit `9d33fede56f116c05898c8696915f4038dfc66e2`; combined `ios-ui` qualification with B589 passed 273 checks, 0 FAIL/BLOCKED, 2 runtime-evidence SKIPPED. No physical display cadence is claimed.
+
+### B591 — application lifecycle callback coverage (row 001)
+
+B591 adds lifecycle callback events with bounded copied payloads and teardown-safe registration. Commit `e970c86ec59d71902ab1a4a36d2a7e7eca650482`; `ios-app-lifecycle` passed 22 checks, 0 FAIL/BLOCKED, 2 runtime-evidence SKIPPED. Live UIKit lifecycle delivery remains unverified.
+
+### B592 — connected-peer GATT service discovery (row 039)
+
+B592 adds explicit CoreBluetooth service discovery on the caller-selected connected peer. Commit `76da8ccf92407f0e103fb543d07a6347e60a4799`; `ios-bluetooth` passed 31 checks, 0 FAIL/BLOCKED, 2 runtime-evidence SKIPPED. Radio discovery and live peer behavior remain unverified.
+
+### B593 — one-shot NFC NDEF writes (row 041)
+
+B593 adds opt-in one-shot NDEF writes and gates its writer probe by the declared capability. Commits `1bcc73f7ca6587694ac930ffe359d86ec74bb55f` and `2da680d2bfdf70c5e96d5ca3ce8631e3273d8fed`; `ios-nfc` passed 28 checks and `framework-nfc` passed 19 checks, each with 0 FAIL/BLOCKED and 2 runtime-evidence SKIPPED. No live NFC tag write is claimed.
+
+### B594 — read-only connected-peer GATT characteristic values (row 039)
+
+B594 adds unique `(service UUID, characteristic UUID)` selection, a public CoreBluetooth characteristic-discovery/read sequence, and copied values bounded at 512 bytes in a four-event FIFO. Successful B592 discovery is scoped to the exact peer and invalidated on disconnect, cancellation, connection retry, or new discovery; stale global Completed state and cached service arrays cannot authorize another peer's read. The registered `ios-bluetooth` profile passed 31 checks, 0 FAIL/BLOCKED, and 2 SKIPPED for Simulator execution and physical-device proof; host tests passed 6/6 for `framework-bluetooth` and 36/36 for `ios-bluetooth`, with device/Simulator compile, Clippy, Rustdoc, and link checks passing. No runtime GATT read is claimed; GATT writes/notifications, peripheral role, descriptors, and per-read native cancellation remain out of scope. The implementation SHA is reported in the workstream handoff because it cannot be self-referenced by this same commit.

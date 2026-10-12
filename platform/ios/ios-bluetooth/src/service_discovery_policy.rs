@@ -6,6 +6,7 @@ use framework_bluetooth::{
 /// One-at-a-time GATT service-discovery lifecycle, independent of CoreBluetooth callbacks.
 pub(crate) struct ServiceDiscoveryPolicy {
     peripheral: Option<BluetoothPeripheralId>,
+    completed_peripheral: Option<BluetoothPeripheralId>,
     state: BluetoothServiceDiscoveryState,
 }
 
@@ -13,6 +14,7 @@ impl ServiceDiscoveryPolicy {
     pub(crate) const fn new() -> Self {
         Self {
             peripheral: None,
+            completed_peripheral: None,
             state: BluetoothServiceDiscoveryState::Idle,
         }
     }
@@ -23,6 +25,16 @@ impl ServiceDiscoveryPolicy {
 
     pub(crate) const fn peripheral(&self) -> Option<BluetoothPeripheralId> {
         self.peripheral
+    }
+
+    pub(crate) fn completed_for(&self, peripheral: BluetoothPeripheralId) -> bool {
+        self.completed_peripheral == Some(peripheral)
+    }
+
+    pub(crate) fn invalidate(&mut self, peripheral: BluetoothPeripheralId) {
+        if self.completed_peripheral == Some(peripheral) {
+            self.completed_peripheral = None;
+        }
     }
 
     pub(crate) fn request(
@@ -37,6 +49,7 @@ impl ServiceDiscoveryPolicy {
         if connection_state != BluetoothConnectionState::Connected || !native_connected {
             return Err(BluetoothServiceDiscoveryError::NotConnected);
         }
+        self.completed_peripheral = None;
         self.peripheral = Some(peripheral);
         self.state = BluetoothServiceDiscoveryState::Discovering;
         Ok(())
@@ -55,6 +68,7 @@ impl ServiceDiscoveryPolicy {
             return None;
         }
         self.peripheral = None;
+        self.completed_peripheral = Some(peripheral);
         self.state = BluetoothServiceDiscoveryState::Completed;
         Some(BluetoothServiceDiscoveryEvent::Completed { peripheral })
     }
@@ -68,6 +82,7 @@ impl ServiceDiscoveryPolicy {
             return None;
         }
         self.peripheral = None;
+        self.completed_peripheral = None;
         self.state = BluetoothServiceDiscoveryState::Failed;
         Some(BluetoothServiceDiscoveryEvent::Failed { peripheral, error })
     }
@@ -117,6 +132,7 @@ mod tests {
             Some(BluetoothServiceDiscoveryEvent::Completed { peripheral: id(1) })
         );
         assert_eq!(policy.state(), BluetoothServiceDiscoveryState::Completed);
+        assert!(policy.completed_for(id(1)));
         assert_eq!(
             policy.request(id(1), BluetoothConnectionState::Connected, true),
             Ok(())
@@ -178,5 +194,27 @@ mod tests {
         );
         assert_eq!(policy.state(), BluetoothServiceDiscoveryState::Failed);
         assert_eq!(policy.complete(id(1)), None);
+    }
+
+    #[test]
+    fn completed_discovery_is_peer_scoped_and_invalidated_for_reconnect() {
+        let mut policy = ServiceDiscoveryPolicy::new();
+        policy
+            .request(id(1), BluetoothConnectionState::Connected, true)
+            .unwrap();
+        policy.complete(id(1));
+
+        assert!(policy.completed_for(id(1)));
+        assert!(!policy.completed_for(id(2)));
+        policy.invalidate(id(1));
+        assert_eq!(policy.state(), BluetoothServiceDiscoveryState::Completed);
+        assert!(!policy.completed_for(id(1)));
+
+        policy
+            .request(id(1), BluetoothConnectionState::Connected, true)
+            .unwrap();
+        assert!(!policy.completed_for(id(1)));
+        policy.complete(id(1));
+        assert!(policy.completed_for(id(1)));
     }
 }

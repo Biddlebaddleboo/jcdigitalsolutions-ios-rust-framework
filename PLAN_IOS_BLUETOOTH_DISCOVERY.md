@@ -121,3 +121,30 @@ FIFO overflow, dropped-event count reset, and public facade behavior. The regist
 callback, request, and negative scope guards. These checks establish host policy behavior and
 compile/linkability only; no CoreBluetooth manager, permission prompt, live peer, radio result,
 device/Simulator runtime behavior, or App Store package was exercised.
+
+## B594 — read-only connected-peer GATT characteristic value
+
+B594 adds `BluetoothCharacteristicUuid`, a fixed 16-byte canonical UUID, plus a static-dispatch
+`BluetoothCharacteristicReadBackend` operation that requires an active caller-selected connection
+and successful B592 service discovery for the same peer. The peer-scoped proof is invalidated on
+disconnect, cancellation, connection retry, and new discovery, so a cached service array alone does
+not allow reads after reconnect. The iOS backend requires exactly one service and characteristic
+UUID match, requires the public GATT Read property, and invokes CoreBluetooth characteristic discovery
+then value read. It copies at most 512 value bytes into an owned inline portable value and queues
+terminal results in a four-event bounded FIFO. A missing/duplicate match, overlap, native error,
+disconnect, unavailable/oversize value, or contained callback panic is rejected or reported once;
+connection cancellation and backend drop suppress later callbacks. No write, notification,
+descriptor, peripheral role, Swift source, or native handle is added.
+
+The B594 host policy/selection/value/queue tests cover negative and terminal cases; the existing link
+fixture now references the read facade and copied value API so device and Simulator profile gates
+include its code path. The registered `ios-bluetooth` profile keeps native connection, callback,
+cancellation, `no_std`, and ABI/link requirements, and checks the new characteristic/read API
+markers. The peer-scope regression rejects stale global Completed state for another or reconnected
+peer while preserving B592's public Completed state. The final
+`ios-rust-validate --workspace-root "$PWD" --spec "$PWD/tools/validation/specs/validation-v1.json"
+--capability ios-bluetooth` run passed 31 checks with 0 FAIL, 0 BLOCKED, and 2 SKIPPED. Skips are
+Simulator execution and physical-device proof. Host tests passed `framework-bluetooth` 6/6 and
+`ios-bluetooth` 36/36 (33 unit + 3 service-contract tests); device/Simulator compile, Clippy,
+Rustdoc, and link checks passed. No live GATT read was performed; CoreBluetooth exposes no per-read
+cancellation ID or timeout.

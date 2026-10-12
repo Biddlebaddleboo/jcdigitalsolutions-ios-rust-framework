@@ -1,9 +1,10 @@
 # Portable Bluetooth
 
 `framework-bluetooth` defines portable authorization, central-discovery, explicit central-
-connection, and connected-peer GATT service-discovery contracts. Platform managers and peripheral
-objects remain private to native backends. The portable API has no advertisement, peripheral-role,
-beacon, characteristic-I/O, or radio-control contract.
+connection, connected-peer GATT service-discovery, and read-only characteristic-value contracts.
+Platform managers and peripheral objects remain private to native backends. The portable API has
+no advertisement, peripheral-role, beacon, characteristic write/notification, or radio-control
+contract.
 
 ## Authorization states
 
@@ -56,7 +57,7 @@ dropped failure event can lose its detailed normalized reason. Native error text
 this portable boundary. An explicit connection can initialize CoreBluetooth and prompt for
 Bluetooth authorization; `Bluetooth::authorization_status` remains a separate non-prompting query.
 The connection contract alone performs no service or characteristic discovery; the separate
-service-discovery contract below does not include GATT reads or writes.
+service-discovery and characteristic-read contracts below add those explicit operations.
 
 ## Connected-peer GATT service discovery
 
@@ -73,14 +74,36 @@ or normalized `Failed` events. `service_discovery_state` remains queryable and
 drops newest on overflow, and reports/reset the saturating dropped-event count. State remains
 queryable if a terminal event is among those dropped.
 
-The iOS implementation uses public `CBPeripheral.discoverServices:` with nil service filters, then
-copies only each `CBService.UUID`. It retains no service object and exposes no characteristic
-discovery or reads/writes. Disconnect ends an active request with `Disconnected`; native errors and
+The B592 iOS service-discovery implementation uses public `CBPeripheral.discoverServices:` with nil
+service filters, then copies only each `CBService.UUID` without retaining a service object. It reports
+no characteristic result. Disconnect ends an active request with `Disconnected`; native errors and
 conversion/callback failures have distinct normalized terminal errors. CoreBluetooth provides no
 discovery-only cancellation method; cancelling the selected connection terminates active
 discovery with `Disconnected` and removes the weak peripheral delegate. Backend drop clears both
 weak delegates before release. Callbacks remain on the main queue and no executor or user callback
 is introduced.
+
+## Connected-peer GATT characteristic read
+
+`BluetoothCharacteristicReadBackend` adds one explicit, read-only value request after successful
+service discovery. `read_characteristic` selects a service and characteristic by their fixed-width,
+canonical 128-bit UUIDs; the iOS backend rejects an absent or duplicate service immediately, then
+discovers characteristics and rejects an absent, duplicate, or non-readable match. An active service
+discovery or characteristic read blocks another GATT operation with `AlreadyActive`.
+
+The iOS adapter uses public `CBPeripheral.discoverCharacteristics:forService:` and
+`readValueForCharacteristic:` APIs. It copies a complete `NSData` result into a 512-byte inline
+`BluetoothCharacteristicValue`; larger values fail rather than truncate. A four-entry FIFO stores
+copied terminal events and drops newest on overflow with a saturating drop count. The operation
+state remains queryable if a terminal event is dropped. Disconnect or `cancel_connection` ends an
+active read with `Disconnected`; backend drop suppresses later callbacks. CoreBluetooth has no
+separate read-cancel or timeout request here, so a read otherwise remains active until a native
+callback, disconnect, or backend teardown.
+
+The portable value exposes no CoreBluetooth handle, borrowed buffer, or native error details. This
+contract does not write values, subscribe to notifications, discover descriptors, or implement a
+peripheral role. Host policy tests and device/Simulator compile/link checks do not prove a live GATT
+read.
 
 See [iOS Bluetooth central discovery](../ios/bluetooth-discovery.md) for queue, lifecycle, privacy,
 and runtime limits.

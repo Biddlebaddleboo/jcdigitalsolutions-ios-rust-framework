@@ -1,8 +1,10 @@
 #![deny(missing_docs)]
 #![deny(unsafe_op_in_unsafe_fn)]
 #![cfg_attr(not(target_os = "ios"), allow(dead_code))]
-#![doc = "Bluetooth authorization, foreground central discovery, and explicit central connections."]
+#![doc = "Bluetooth authorization, foreground central discovery, explicit central connections, and read-only GATT values."]
 
+mod characteristic_read_policy;
+mod characteristic_read_selection;
 mod connection_policy;
 mod conversion;
 mod queue;

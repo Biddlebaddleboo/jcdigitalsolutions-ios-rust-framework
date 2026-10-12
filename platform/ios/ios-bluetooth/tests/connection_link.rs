@@ -1,13 +1,15 @@
 #![cfg(target_os = "ios")]
 
 use framework_bluetooth::{
-    BluetoothCentral, BluetoothPeripheralId, BluetoothServiceDiscoveryState,
+    BluetoothCentral, BluetoothCharacteristicReadEvent, BluetoothCharacteristicReadState,
+    BluetoothCharacteristicUuid, BluetoothPeripheralId, BluetoothServiceDiscoveryState,
+    BluetoothServiceUuid,
 };
 use ios_bluetooth::IosBluetoothCentralBackend;
 use objc2::MainThreadMarker;
 
 #[test]
-fn explicit_connection_surface_links_without_starting_core_bluetooth() {
+fn explicit_connection_and_gatt_surface_links_without_starting_core_bluetooth() {
     if std::env::var_os("IOS_BLUETOOTH_RUN_CONNECTION_RUNTIME_PROBE").is_none() {
         return;
     }
@@ -22,6 +24,19 @@ fn explicit_connection_surface_links_without_starting_core_bluetooth() {
     );
     let _ = central.try_next_service_discovery_event();
     let _ = central.take_dropped_service_discovery_event_count();
+    assert_eq!(
+        central.characteristic_read_state(),
+        BluetoothCharacteristicReadState::Idle
+    );
+    let service = BluetoothServiceUuid::from_uuid_bytes([0x18; 16]);
+    let characteristic = BluetoothCharacteristicUuid::from_uuid_bytes([0x2A; 16]);
+    let _ = central.read_characteristic(service, characteristic);
+    while let Some(event) = central.try_next_characteristic_read_event() {
+        if let BluetoothCharacteristicReadEvent::Completed { value, .. } = event {
+            let _ = value.as_bytes();
+        }
+    }
+    let _ = central.take_dropped_characteristic_read_event_count();
     let id = BluetoothPeripheralId::from_uuid_bytes([0xA5; 16]);
     let _ = central.connect_peripheral(id);
     central.cancel_connection();

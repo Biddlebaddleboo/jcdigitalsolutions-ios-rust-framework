@@ -5,7 +5,7 @@ edition.workspace = true
 rust-version.workspace = true
 license.workspace = true
 repository.workspace = true
-description = "Bluetooth authorization, foreground discovery, and central connections for iOS"
+description = "Bluetooth discovery, connections, and read-only GATT values for iOS"
 
 [dependencies]
 framework-bluetooth = { path = "../../../crates/framework-bluetooth" }
@@ -18,11 +18,12 @@ objc2-core-bluetooth = { workspace = true, features = [
     "CBPeer",
     "CBPeripheral",
     "CBAttribute",
+    "CBCharacteristic",
     "CBService",
     "CBUUID",
     "dispatch2",
 ] }
-objc2-foundation = { workspace = true, features = ["NSArray", "NSString", "NSObject", "NSUUID", "NSValue"] }
+objc2-foundation = { workspace = true, features = ["NSArray", "NSData", "NSString", "NSObject", "NSUUID", "NSValue"] }
 
 [lints]
 workspace = true

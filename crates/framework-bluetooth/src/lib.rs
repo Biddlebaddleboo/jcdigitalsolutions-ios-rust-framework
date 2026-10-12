@@ -1,7 +1,7 @@
 #![no_std]
 #![forbid(unsafe_code)]
 #![deny(missing_docs)]
-#![doc = "Portable Bluetooth authorization, bounded discovery, central-connection, and GATT service-discovery contracts."]
+#![doc = "Portable Bluetooth authorization, bounded discovery, central-connection, and GATT service/characteristic contracts."]
 
 /// The normalized authorization state for Bluetooth use.
 ///
@@ -68,6 +68,59 @@ impl BluetoothServiceUuid {
     /// Returns the 16 service UUID octets in canonical UUID-string order.
     pub const fn as_uuid_bytes(&self) -> &[u8; 16] {
         &self.0
+    }
+}
+
+/// A normalized Bluetooth characteristic UUID in canonical 128-bit UUID octet order.
+///
+/// Bluetooth 16-bit and 32-bit UUIDs are expanded with the Bluetooth Base UUID. This value
+/// identifies a GATT characteristic type; it is not a handle to a characteristic instance.
+#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
+pub struct BluetoothCharacteristicUuid([u8; 16]);
+
+impl BluetoothCharacteristicUuid {
+    /// Creates a characteristic UUID from 16 octets in canonical UUID-string order.
+    pub const fn from_uuid_bytes(bytes: [u8; 16]) -> Self {
+        Self(bytes)
+    }
+
+    /// Returns the 16 characteristic UUID octets in canonical UUID-string order.
+    pub const fn as_uuid_bytes(&self) -> &[u8; 16] {
+        &self.0
+    }
+}
+
+/// Maximum size of one Bluetooth GATT attribute value in bytes.
+pub const BLUETOOTH_GATT_ATTRIBUTE_VALUE_MAX_BYTES: usize = 512;
+
+/// An owned, fixed-capacity copy of one GATT characteristic value.
+///
+/// The value uses inline storage and never exposes a CoreBluetooth object or borrowed native
+/// buffer. A Bluetooth ATT attribute is limited to 512 bytes; adapters reject a larger native
+/// value rather than truncate it.
+#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
+pub struct BluetoothCharacteristicValue {
+    bytes: [u8; BLUETOOTH_GATT_ATTRIBUTE_VALUE_MAX_BYTES],
+    len: u16,
+}
+
+impl BluetoothCharacteristicValue {
+    /// Copies a complete value into fixed storage, or returns `None` when it exceeds 512 bytes.
+    pub fn from_bytes(bytes: &[u8]) -> Option<Self> {
+        if bytes.len() > BLUETOOTH_GATT_ATTRIBUTE_VALUE_MAX_BYTES {
+            return None;
+        }
+        let mut value = Self {
+            bytes: [0; BLUETOOTH_GATT_ATTRIBUTE_VALUE_MAX_BYTES],
+            len: bytes.len() as u16,
+        };
+        value.bytes[..bytes.len()].copy_from_slice(bytes);
+        Some(value)
+    }
+
+    /// Returns the exact copied value bytes; an empty slice is a valid empty value.
+    pub fn as_bytes(&self) -> &[u8] {
+        &self.bytes[..usize::from(self.len)]
     }
 }
 
@@ -313,6 +366,115 @@ pub trait BluetoothServiceDiscoveryBackend: BluetoothConnectionBackend {
     fn take_dropped_service_discovery_event_count(&mut self) -> u32;
 }
 
+/// The latest lifecycle state of one connected-peer GATT characteristic-value read.
+#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
+#[non_exhaustive]
+#[repr(u8)]
+pub enum BluetoothCharacteristicReadState {
+    /// No characteristic read has been requested.
+    Idle = 0,
+    /// The backend is discovering characteristics for the selected service.
+    DiscoveringCharacteristics = 1,
+    /// The backend requested a value from the unique readable characteristic.
+    Reading = 2,
+    /// One complete value or terminal success event was delivered.
+    Completed = 3,
+    /// The operation ended with an error.
+    Failed = 4,
+}
+
+/// A synchronous rejection or normalized terminal GATT characteristic-read failure.
+#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
+#[non_exhaustive]
+#[repr(u8)]
+pub enum BluetoothCharacteristicReadError {
+    /// No caller-selected peripheral is currently connected.
+    NotConnected = 0,
+    /// The central manager reports that this Bluetooth role is unsupported.
+    Unsupported = 1,
+    /// B592 service discovery has not completed successfully for the selected peer.
+    ServiceDiscoveryRequired = 2,
+    /// A service-discovery or characteristic-read operation is still active.
+    AlreadyActive = 3,
+    /// The requested service UUID is absent from the selected peer.
+    ServiceNotFound = 4,
+    /// The requested service UUID matches more than one service instance.
+    AmbiguousService = 5,
+    /// The requested characteristic UUID is absent from the unique service.
+    CharacteristicNotFound = 6,
+    /// The requested characteristic UUID matches more than one characteristic instance.
+    AmbiguousCharacteristic = 7,
+    /// The unique characteristic does not have the public GATT Read property.
+    NotReadable = 8,
+    /// CoreBluetooth reported an error while discovering or reading the characteristic.
+    NativeFailure = 9,
+    /// The selected peer disconnected before the operation completed.
+    Disconnected = 10,
+    /// The backend could not safely process the native value or callback.
+    Unavailable = 11,
+    /// A native characteristic value exceeded the 512-byte Bluetooth attribute limit.
+    ValueTooLarge = 12,
+}
+
+/// A copied terminal event from one connected-peer GATT characteristic-value read.
+///
+/// Completion keeps the maximum 512-byte value inline to avoid allocation in the portable `no_std`
+/// contract; boxing this large variant would add allocator and ownership overhead.
+#[allow(clippy::large_enum_variant)]
+#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
+#[non_exhaustive]
+pub enum BluetoothCharacteristicReadEvent {
+    /// CoreBluetooth returned a complete, copied value for the requested UUID pair.
+    Completed {
+        /// The caller-selected OS peer UUID.
+        peripheral: BluetoothPeripheralId,
+        /// The unique service type UUID selected for the read.
+        service: BluetoothServiceUuid,
+        /// The unique readable characteristic type UUID selected for the read.
+        characteristic: BluetoothCharacteristicUuid,
+        /// The complete copied value, including a valid empty value.
+        value: BluetoothCharacteristicValue,
+    },
+    /// The operation failed; native `NSError` details are not exposed cross-platform.
+    Failed {
+        /// The caller-selected OS peer UUID.
+        peripheral: BluetoothPeripheralId,
+        /// The requested service type UUID.
+        service: BluetoothServiceUuid,
+        /// The requested characteristic type UUID.
+        characteristic: BluetoothCharacteristicUuid,
+        /// The normalized failure reason.
+        error: BluetoothCharacteristicReadError,
+    },
+}
+
+/// A statically selected backend for one read-only GATT value operation on the connected peer.
+///
+/// A request requires successful service discovery and exactly one matching service and
+/// characteristic. Native discovery resolves the characteristic before reading it. The backend
+/// must reject overlapping GATT operations, never truncate a value, copy results into bounded
+/// storage, and report a terminal event through polling. Disconnect or connection cancellation
+/// ends an active read; backend teardown suppresses later callbacks. This contract does not write
+/// values, subscribe to notifications, expose native service/characteristic handles, or create a
+/// peripheral role.
+pub trait BluetoothCharacteristicReadBackend: BluetoothServiceDiscoveryBackend {
+    /// Requests one characteristic value by its unique service and characteristic UUID pair.
+    fn read_characteristic(
+        &mut self,
+        service: BluetoothServiceUuid,
+        characteristic: BluetoothCharacteristicUuid,
+    ) -> Result<(), BluetoothCharacteristicReadError>;
+
+    /// Returns the latest characteristic-read lifecycle state.
+    fn characteristic_read_state(&self) -> BluetoothCharacteristicReadState;
+
+    /// Removes one copied terminal read event, if one is queued.
+    fn try_next_characteristic_read_event(&mut self) -> Option<BluetoothCharacteristicReadEvent>;
+
+    /// Returns and resets the saturating count of read events dropped by the bounded queue.
+    fn take_dropped_characteristic_read_event_count(&mut self) -> u32;
+}
+
 /// A thin facade over caller-owned central backend state.
 pub struct BluetoothCentral<B> {
     backend: B,
@@ -400,6 +562,35 @@ impl<B: BluetoothServiceDiscoveryBackend> BluetoothCentral<B> {
     /// queue.
     pub fn take_dropped_service_discovery_event_count(&mut self) -> u32 {
         self.backend.take_dropped_service_discovery_event_count()
+    }
+}
+
+impl<B: BluetoothCharacteristicReadBackend> BluetoothCentral<B> {
+    /// Explicitly requests a read of one UUID-unique characteristic on the connected peer.
+    pub fn read_characteristic(
+        &mut self,
+        service: BluetoothServiceUuid,
+        characteristic: BluetoothCharacteristicUuid,
+    ) -> Result<(), BluetoothCharacteristicReadError> {
+        self.backend.read_characteristic(service, characteristic)
+    }
+
+    /// Returns the latest characteristic-read lifecycle state.
+    pub fn characteristic_read_state(&self) -> BluetoothCharacteristicReadState {
+        self.backend.characteristic_read_state()
+    }
+
+    /// Removes one copied terminal characteristic-read event, if one is queued.
+    pub fn try_next_characteristic_read_event(
+        &mut self,
+    ) -> Option<BluetoothCharacteristicReadEvent> {
+        self.backend.try_next_characteristic_read_event()
+    }
+
+    /// Returns and resets the saturating count of characteristic-read events dropped by the
+    /// bounded queue.
+    pub fn take_dropped_characteristic_read_event_count(&mut self) -> u32 {
+        self.backend.take_dropped_characteristic_read_event_count()
     }
 }
 
@@ -665,5 +856,25 @@ mod tests {
             })
         );
         assert_eq!(central.take_dropped_connection_event_count(), 2);
+    }
+
+    #[test]
+    fn characteristic_uuid_and_value_are_fixed_width_and_values_are_never_truncated() {
+        let uuid = BluetoothCharacteristicUuid::from_uuid_bytes([0x2A; 16]);
+        assert_eq!(core::mem::size_of::<BluetoothCharacteristicUuid>(), 16);
+        assert_eq!(uuid.as_uuid_bytes(), &[0x2A; 16]);
+        assert_eq!(
+            BluetoothCharacteristicValue::from_bytes(&[0xA5; 512])
+                .unwrap()
+                .as_bytes(),
+            &[0xA5; 512]
+        );
+        assert_eq!(
+            BluetoothCharacteristicValue::from_bytes(&[])
+                .unwrap()
+                .as_bytes(),
+            &[]
+        );
+        assert!(BluetoothCharacteristicValue::from_bytes(&[0; 513]).is_none());
     }
 }
