@@ -77,7 +77,8 @@ for target in aarch64-apple-ios aarch64-apple-ios-sim; do
         'numberOfSectionsInTableView:' 'tableView:titleForHeaderInSection:' \
         'tableView:didSelectRowAtIndexPath:' 'dequeueReusableCellWithIdentifier:' \
         'initWithStyle:reuseIdentifier:' textLabel detailTextLabel reloadData \
-        'setAccessibilityLabel:' 'setAccessibilityHint:' 'setAccessibilityIdentifier:'; do
+        'setAccessibilityLabel:' 'setAccessibilityHint:' 'setAccessibilityIdentifier:' \
+        'isEnabled' 'setEnabled:'; do
         printf '%s\n' "$list_strings" | grep -F "$symbol" >/dev/null || {
             echo "$target list/accessibility probe is missing UIKit symbol or selector $symbol" >&2
             exit 1

@@ -188,6 +188,20 @@ pub trait LabelControl {
 
 /// A mutable button handle returned by a [`UiBackend`].
 pub trait ButtonControl {
+    /// Returns whether the button currently accepts user interaction.
+    ///
+    /// Backends that do not expose enabled state return `Unsupported`.
+    fn is_enabled(&self) -> Result<bool> {
+        Err(Error::new(ErrorKind::Unsupported))
+    }
+
+    /// Enables or disables user interaction without invoking the button action.
+    ///
+    /// Backends that do not expose enabled state return `Unsupported`.
+    fn set_enabled(&mut self, _enabled: bool) -> Result<()> {
+        Err(Error::new(ErrorKind::Unsupported))
+    }
+
     /// Replaces the button title during this synchronous call.
     ///
     /// The backend must not retain the borrowed `title`; it must copy or convert it to a
@@ -198,6 +212,20 @@ pub trait ButtonControl {
 
 /// A mutable boolean toggle handle returned by a [`UiBackend`].
 pub trait ToggleControl {
+    /// Returns whether the toggle currently accepts user interaction.
+    ///
+    /// Backends that do not expose enabled state return `Unsupported`.
+    fn is_enabled(&self) -> Result<bool> {
+        Err(Error::new(ErrorKind::Unsupported))
+    }
+
+    /// Enables or disables user interaction without invoking the value-change callback.
+    ///
+    /// Backends that do not expose enabled state return `Unsupported`.
+    fn set_enabled(&mut self, _enabled: bool) -> Result<()> {
+        Err(Error::new(ErrorKind::Unsupported))
+    }
+
     /// Returns the current toggle state.
     fn is_on(&self) -> Result<bool>;
 
@@ -207,6 +235,20 @@ pub trait ToggleControl {
 
 /// A mutable single-line text field returned by a [`UiBackend`].
 pub trait TextFieldControl {
+    /// Returns whether the text field currently accepts user interaction.
+    ///
+    /// Backends that do not expose enabled state return `Unsupported`.
+    fn is_enabled(&self) -> Result<bool> {
+        Err(Error::new(ErrorKind::Unsupported))
+    }
+
+    /// Enables or disables user interaction without invoking the edit or submit callback.
+    ///
+    /// Backends that do not expose enabled state return `Unsupported`.
+    fn set_enabled(&mut self, _enabled: bool) -> Result<()> {
+        Err(Error::new(ErrorKind::Unsupported))
+    }
+
     /// Returns an owned snapshot of the current text, preserving `None` versus `Some("")`.
     fn text(&self) -> Result<Option<String>>;
 

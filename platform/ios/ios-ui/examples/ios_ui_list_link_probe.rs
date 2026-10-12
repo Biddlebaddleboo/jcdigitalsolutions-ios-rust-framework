@@ -53,6 +53,9 @@ fn main() {
     let _ = copy_button.set_accessibility_label(Some(""));
     let _ = copy_button.set_accessibility_hint(None);
     let _ = copy_button.set_accessibility_identifier(None);
+    let _ = copy_button.is_enabled();
+    let _ = copy_button.set_enabled(false);
+    let _ = copy_button.set_enabled(true);
     core::hint::black_box(list.native_table_view());
     core::hint::black_box(sectioned_list.native_table_view());
     core::hint::black_box(copy_button.native_button());

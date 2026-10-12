@@ -59,7 +59,7 @@ for target in aarch64-apple-ios aarch64-apple-ios-sim; do
         echo "$target text-field probe is missing Objective-C message dispatch" >&2
         exit 1
     }
-    for selector in 'setText:' 'text' 'setPlaceholder:' 'placeholder' \
+    for selector in 'setText:' 'text' 'setPlaceholder:' 'placeholder' 'isEnabled' 'setEnabled:' \
         'becomeFirstResponder' 'resignFirstResponder' 'setSecureTextEntry:' \
         'setKeyboardType:' 'textFieldChanged:' 'textFieldSubmitted:' 'endEditing:' \
         'setAccessibilityLabel:' 'setAccessibilityHint:' 'setAccessibilityIdentifier:' \

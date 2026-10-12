@@ -184,6 +184,12 @@ for target in aarch64-apple-ios aarch64-apple-ios-sim; do
             exit 1
         fi
     done
+    for symbol in isEnabled 'setEnabled:'; do
+        if ! strings "$toggle_binary" | grep -Fq "$symbol"; then
+            echo "$target toggle probe is missing $symbol" >&2
+            exit 1
+        fi
+    done
     if grep -Eqi 'swift_|Py[A-Z_]' "$toggle_symbols" || grep -Eqi 'swift|python' "$toggle_imports"; then
         echo "unexpected Swift/Python runtime import in $target toggle probe" >&2
         exit 1

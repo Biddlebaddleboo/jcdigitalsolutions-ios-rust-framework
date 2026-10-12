@@ -20,6 +20,9 @@ fn main() {
         Ok(toggle) => toggle,
         Err(_) => return,
     };
+    let _ = toggle.is_enabled();
+    let _ = toggle.set_enabled(false);
+    let _ = toggle.set_enabled(true);
     let _ = toggle.is_on();
     let _ = toggle.set_state(true);
     let _ = toggle.set_on(false, true);

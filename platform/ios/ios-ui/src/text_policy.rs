@@ -257,6 +257,99 @@ mod tests {
         }
     }
 
+    struct EnabledControl {
+        enabled: bool,
+        on: bool,
+        text: Option<String>,
+        action: Box<dyn FnMut()>,
+    }
+
+    impl EnabledControl {
+        fn new(action: impl FnMut() + 'static) -> Self {
+            Self {
+                enabled: true,
+                on: false,
+                text: None,
+                action: Box::new(action),
+            }
+        }
+
+        fn user_event(&mut self) {
+            if self.enabled {
+                (self.action)();
+            }
+        }
+
+        fn user_change(&mut self, on: bool) {
+            if self.enabled {
+                self.on = on;
+                (self.action)();
+            }
+        }
+
+        fn user_edit(&mut self, text: &str) {
+            if self.enabled {
+                self.text = Some(String::from(text));
+                (self.action)();
+            }
+        }
+    }
+
+    impl ButtonControl for EnabledControl {
+        fn is_enabled(&self) -> Result<bool> {
+            Ok(self.enabled)
+        }
+
+        fn set_enabled(&mut self, enabled: bool) -> Result<()> {
+            self.enabled = enabled;
+            Ok(())
+        }
+
+        fn set_title(&mut self, _title: &str) -> Result<()> {
+            Ok(())
+        }
+    }
+
+    impl ToggleControl for EnabledControl {
+        fn is_enabled(&self) -> Result<bool> {
+            Ok(self.enabled)
+        }
+
+        fn set_enabled(&mut self, enabled: bool) -> Result<()> {
+            self.enabled = enabled;
+            Ok(())
+        }
+
+        fn is_on(&self) -> Result<bool> {
+            Ok(self.on)
+        }
+
+        fn set_state(&mut self, on: bool) -> Result<()> {
+            self.on = on;
+            Ok(())
+        }
+    }
+
+    impl TextFieldControl for EnabledControl {
+        fn is_enabled(&self) -> Result<bool> {
+            Ok(self.enabled)
+        }
+
+        fn set_enabled(&mut self, enabled: bool) -> Result<()> {
+            self.enabled = enabled;
+            Ok(())
+        }
+
+        fn text(&self) -> Result<Option<String>> {
+            Ok(self.text.clone())
+        }
+
+        fn set_text(&mut self, text: Option<&str>) -> Result<()> {
+            self.text = text.map(String::from);
+            Ok(())
+        }
+    }
+
     #[test]
     fn input_modes_are_hints_and_creation_does_not_emit_edits() {
         let mut ui = UiClient::new(ModeBackend);
@@ -307,6 +400,81 @@ mod tests {
         assert_eq!(
             input_traits(TextFieldInputMode::Decimal),
             (false, KeyboardHint::DecimalPad)
+        );
+    }
+
+    #[test]
+    fn control_enabled_state_is_silent_and_rejects_disabled_user_events() {
+        let button_calls = Rc::new(Cell::new(0));
+        let button_action_calls = button_calls.clone();
+        let mut button =
+            EnabledControl::new(move || button_action_calls.set(button_action_calls.get() + 1));
+        let toggle_calls = Rc::new(Cell::new(0));
+        let toggle_action_calls = toggle_calls.clone();
+        let mut toggle =
+            EnabledControl::new(move || toggle_action_calls.set(toggle_action_calls.get() + 1));
+        let field_calls = Rc::new(Cell::new(0));
+        let field_action_calls = field_calls.clone();
+        let mut field =
+            EnabledControl::new(move || field_action_calls.set(field_action_calls.get() + 1));
+        field.set_text(Some("initial")).unwrap();
+
+        assert_eq!(ButtonControl::is_enabled(&button), Ok(true));
+        assert_eq!(ToggleControl::is_enabled(&toggle), Ok(true));
+        assert_eq!(TextFieldControl::is_enabled(&field), Ok(true));
+        ButtonControl::set_enabled(&mut button, false).unwrap();
+        ToggleControl::set_enabled(&mut toggle, false).unwrap();
+        TextFieldControl::set_enabled(&mut field, false).unwrap();
+        button.user_event();
+        toggle.user_change(true);
+        field.user_edit("ignored");
+        assert_eq!(toggle.is_on(), Ok(false));
+        assert_eq!(field.text(), Ok(Some(String::from("initial"))));
+        assert_eq!(button_calls.get(), 0);
+        assert_eq!(toggle_calls.get(), 0);
+        assert_eq!(field_calls.get(), 0);
+
+        toggle.set_state(true).unwrap();
+        field.set_text(Some("programmatic")).unwrap();
+        assert_eq!(toggle.is_on(), Ok(true));
+        assert_eq!(field.text(), Ok(Some(String::from("programmatic"))));
+        assert_eq!(toggle_calls.get(), 0);
+        assert_eq!(field_calls.get(), 0);
+
+        ButtonControl::set_enabled(&mut button, true).unwrap();
+        ToggleControl::set_enabled(&mut toggle, true).unwrap();
+        TextFieldControl::set_enabled(&mut field, true).unwrap();
+        button.user_event();
+        toggle.user_change(false);
+        field.user_edit("user");
+        assert_eq!(button_calls.get(), 1);
+        assert_eq!(toggle_calls.get(), 1);
+        assert_eq!(field_calls.get(), 1);
+
+        let mut unsupported = UnsupportedControl;
+        assert_eq!(
+            ButtonControl::is_enabled(&unsupported),
+            Err(Error::new(ErrorKind::Unsupported))
+        );
+        assert_eq!(
+            ButtonControl::set_enabled(&mut unsupported, false),
+            Err(Error::new(ErrorKind::Unsupported))
+        );
+        assert_eq!(
+            ToggleControl::is_enabled(&unsupported),
+            Err(Error::new(ErrorKind::Unsupported))
+        );
+        assert_eq!(
+            ToggleControl::set_enabled(&mut unsupported, false),
+            Err(Error::new(ErrorKind::Unsupported))
+        );
+        assert_eq!(
+            TextFieldControl::is_enabled(&unsupported),
+            Err(Error::new(ErrorKind::Unsupported))
+        );
+        assert_eq!(
+            TextFieldControl::set_enabled(&mut unsupported, false),
+            Err(Error::new(ErrorKind::Unsupported))
         );
     }
 

@@ -19,6 +19,9 @@ fn main() {
     else {
         return;
     };
+    let _ = field.is_enabled();
+    let _ = field.set_enabled(false);
+    let _ = field.set_enabled(true);
     let _ = field.text();
     let _ = field.placeholder();
     let _ = field.set_text(None);

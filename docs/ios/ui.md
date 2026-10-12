@@ -53,6 +53,27 @@ prove VoiceOver announcements. Host regressions cover nil versus empty and embed
 preservation; Device and Simulator link probes verify the three UIKit selectors at the existing
 iOS 12.0 and iOS 14.0 floors. Live assistive-technology behavior remains unverified
 
+## Enabled state for controls
+
+`IosButton`, `IosToggle`, and `IosTextField` expose `is_enabled` and `set_enabled` through both
+their typed handles and the portable `ButtonControl`, `ToggleControl`, and `TextFieldControl`
+traits. The setters call UIKit's `UIControl.isEnabled` state on the main thread. A disabled native
+control rejects user interaction according to UIKit; programmatic text/toggle updates remain
+available and silent. Changing enabled state does not synthesize button, toggle, text-edit, or
+submit callbacks. A backend without enabled-state support returns `Unsupported` from the trait's
+default methods
+
+```rust,ignore
+button.set_enabled(!request_in_flight)?;
+toggle.set_enabled(form_is_valid)?;
+text_field.set_enabled(!saving)?;
+```
+
+This is explicit control state, not SwiftUI environment propagation: callers choose each control's
+enabled value. The registered host regression checks disabled input and callback silence; Device and
+Simulator probes compile and link the getter and setter selectors. They do not demonstrate runtime
+UIKit interaction on a Simulator or physical device
+
 ## Native stack composition
 
 `IosUiBackend::add_stack_view` adds a `UIStackView` child to a caller-owned `IosView`. Choose a

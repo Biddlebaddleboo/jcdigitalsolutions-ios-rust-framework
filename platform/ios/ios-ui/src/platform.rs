@@ -537,6 +537,19 @@ impl IosImageView {
 }
 
 impl IosTextField {
+    /// Returns whether UIKit currently allows user interaction with this field.
+    pub fn is_enabled(&self) -> Result<bool> {
+        let _field_enabled_thread = main_thread_marker()?;
+        Ok(self.native.isEnabled())
+    }
+
+    /// Enables or disables this field without invoking its edit or submit callback.
+    pub fn set_enabled(&mut self, enabled: bool) -> Result<()> {
+        let _field_enabled_thread = main_thread_marker()?;
+        self.native.setEnabled(enabled);
+        Ok(())
+    }
+
     /// Returns the current field text, preserving `nil`, empty strings, and embedded NUL values.
     pub fn text(&self) -> Result<Option<String>> {
         let _field_text_thread = main_thread_marker()?;
@@ -686,6 +699,14 @@ impl IosTextField {
 }
 
 impl TextFieldControl for IosTextField {
+    fn is_enabled(&self) -> Result<bool> {
+        IosTextField::is_enabled(self)
+    }
+
+    fn set_enabled(&mut self, enabled: bool) -> Result<()> {
+        IosTextField::set_enabled(self, enabled)
+    }
+
     fn text(&self) -> Result<Option<String>> {
         IosTextField::text(self)
     }
@@ -945,6 +966,19 @@ impl IosScrollView {
 }
 
 impl IosToggle {
+    /// Returns whether UIKit currently allows user interaction with this switch.
+    pub fn is_enabled(&self) -> Result<bool> {
+        let _toggle_enabled_thread = main_thread_marker()?;
+        Ok(self.native.isEnabled())
+    }
+
+    /// Enables or disables this switch without invoking its value-change callback.
+    pub fn set_enabled(&mut self, enabled: bool) -> Result<()> {
+        let _toggle_enabled_thread = main_thread_marker()?;
+        self.native.setEnabled(enabled);
+        Ok(())
+    }
+
     /// Reads the current state on UIKit's main thread.
     pub fn is_on(&self) -> Result<bool> {
         let _toggle_thread = main_thread_marker()?;
@@ -968,6 +1002,14 @@ impl IosToggle {
 }
 
 impl ToggleControl for IosToggle {
+    fn is_enabled(&self) -> Result<bool> {
+        IosToggle::is_enabled(self)
+    }
+
+    fn set_enabled(&mut self, enabled: bool) -> Result<()> {
+        IosToggle::set_enabled(self, enabled)
+    }
+
     fn is_on(&self) -> Result<bool> {
         IosToggle::is_on(self)
     }
@@ -978,6 +1020,19 @@ impl ToggleControl for IosToggle {
 }
 
 impl IosButton {
+    /// Returns whether UIKit currently allows user interaction with this button.
+    pub fn is_enabled(&self) -> Result<bool> {
+        let _button_enabled_thread = main_thread_marker()?;
+        Ok(self.native.isEnabled())
+    }
+
+    /// Enables or disables this button without invoking its action callback.
+    pub fn set_enabled(&mut self, enabled: bool) -> Result<()> {
+        let _button_enabled_thread = main_thread_marker()?;
+        self.native.setEnabled(enabled);
+        Ok(())
+    }
+
     /// Sets or clears the button's accessibility label.
     ///
     /// `None` writes native `nil`; `Some("")` sets an empty label. UIKit copies the UTF-8 text
@@ -1103,6 +1158,14 @@ impl LabelControl for IosLabel {
 }
 
 impl ButtonControl for IosButton {
+    fn is_enabled(&self) -> Result<bool> {
+        IosButton::is_enabled(self)
+    }
+
+    fn set_enabled(&mut self, enabled: bool) -> Result<()> {
+        IosButton::set_enabled(self, enabled)
+    }
+
     fn set_title(&mut self, title: &str) -> Result<()> {
         let _marker = main_thread_marker()?;
         autoreleasepool(|_| {
