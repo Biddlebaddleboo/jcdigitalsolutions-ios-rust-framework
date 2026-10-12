@@ -15,6 +15,7 @@ use objc2_ui_kit::{
 struct AppState {
     window: OnceCell<Retained<UIWindow>>,
     target: OnceCell<Retained<ButtonTarget>>,
+    render_host: OnceCell<IosCustomRenderHost>,
 }
 
 define_class!(
@@ -167,10 +168,19 @@ impl AppDelegate {
                 host.set_hidden(false);
                 host.detach();
                 drop(host);
+            } else if self.ivars().render_host.set(host).is_err() {
+                return false;
             }
             controller.setView(Some(&root_view));
             window.setRootViewController(Some(&controller));
-            window.makeKeyAndVisible();
+            if self.ivars().window.set(window).is_err() {
+                return false;
+            }
+            self.ivars()
+                .window
+                .get()
+                .expect("window retained")
+                .makeKeyAndVisible();
             return true;
         }
 
