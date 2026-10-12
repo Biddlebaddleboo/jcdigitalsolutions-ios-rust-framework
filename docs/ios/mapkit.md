@@ -1,4 +1,27 @@
-# iOS MapKit geometry
+# iOS MapKit
+
+`ios-maps` contains MapKit coordinate projection and distance calls. The independent
+`ios-map-view` crate creates a native, main-thread-bound `MKMapView` that a host UIKit controller
+can embed, then gets or sets its center/span `MapRegion`.
+
+`MapSpan::new` rejects non-finite, non-positive, or over-world deltas (latitude `(0, 180]`,
+longitude `(0, 360]`). The center uses `MapCoordinate`, which bounds finite latitude to `-90..=90`
+and longitude to `-180..=180`. MapKit can adjust a requested region to fit the view's dimensions;
+the getter returns `None` if the native center or span fails portable validation.
+
+The view is a lower-level imperative UIKit primitive, not SwiftUI `Map`. The host controls its
+frame, constraints, and view hierarchy. This slice does not enable user location, prompt for
+permissions, create annotations or overlays, search, geocode, calculate directions, or provide
+offline maps. MapKit owns basemap content and any native content/network fetch behavior. No claim
+is made that map tiles load successfully or that compile/link validation proves live rendering.
+
+`MKMapView` and its `region`/`setRegion:animated:` APIs are public since iOS 3.0 in the inspected
+iOS SDK. `objc2-map-kit 0.3.2` exposes its generated `MKMapView` only under macOS/AppKit, so
+`ios-map-view` uses a narrow `objc2` declaration that matches the public iOS `MKMapView.h` class,
+initializer, getter, setter, and by-value generated `MKCoordinateRegion` struct ABI. It uses no
+Swift source, private symbols, location service, or special entitlement.
+
+## Geometry conversion
 
 `ios-maps` provides three synchronous, by-value MapKit calls:
 

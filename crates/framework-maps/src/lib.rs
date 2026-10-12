@@ -61,6 +61,70 @@ impl MapCoordinate {
     }
 }
 
+/// A finite latitude/longitude span in degrees accepted by a MapKit map region.
+///
+/// Latitude delta must be in `(0, 180]` and longitude delta in `(0, 360]`. These geographic
+/// bounds reject empty, non-finite, and larger-than-world spans before they reach MapKit.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct MapSpan {
+    latitude_delta_degrees: f64,
+    longitude_delta_degrees: f64,
+}
+
+impl MapSpan {
+    /// Creates a span when both finite degree deltas are positive and within one world.
+    pub fn new(latitude_delta_degrees: f64, longitude_delta_degrees: f64) -> Option<Self> {
+        if !latitude_delta_degrees.is_finite()
+            || !longitude_delta_degrees.is_finite()
+            || latitude_delta_degrees <= 0.0
+            || latitude_delta_degrees > 180.0
+            || longitude_delta_degrees <= 0.0
+            || longitude_delta_degrees > 360.0
+        {
+            return None;
+        }
+
+        Some(Self {
+            latitude_delta_degrees,
+            longitude_delta_degrees,
+        })
+    }
+
+    /// Returns the north-to-south span in degrees.
+    pub const fn latitude_delta_degrees(self) -> f64 {
+        self.latitude_delta_degrees
+    }
+
+    /// Returns the east-to-west span in degrees.
+    pub const fn longitude_delta_degrees(self) -> f64 {
+        self.longitude_delta_degrees
+    }
+}
+
+/// A validated center and geographic span for a native MapKit map view.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct MapRegion {
+    center: MapCoordinate,
+    span: MapSpan,
+}
+
+impl MapRegion {
+    /// Creates a region from a previously validated center and span.
+    pub const fn new(center: MapCoordinate, span: MapSpan) -> Self {
+        Self { center, span }
+    }
+
+    /// Returns the validated geographic center.
+    pub const fn center(self) -> MapCoordinate {
+        self.center
+    }
+
+    /// Returns the validated geographic span.
+    pub const fn span(self) -> MapSpan {
+        self.span
+    }
+}
+
 /// A finite point in MapKit's two-dimensional map projection.
 ///
 /// The `x` and `y` units are MapKit map points, not meters or screen points. Finite values are

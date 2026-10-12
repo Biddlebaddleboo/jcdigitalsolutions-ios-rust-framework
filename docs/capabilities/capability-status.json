@@ -2942,30 +2942,32 @@
       "capability": "MapKit",
       "crate_module": [
         "framework-maps",
-        "ios-maps"
+        "ios-maps",
+        "ios-map-view"
       ],
       "crate_module_status": "portable_contract_and_ios_backend_partial",
       "portability_class": "portable_with_platform_extensions",
       "portable_contract_status": "partial",
-      "portable_contract_note": "framework-maps defines finite caller-supplied geographic coordinates, finite MapKit projection points, and finite non-negative meter distances; no portable map view or location service is modeled.",
+      "portable_contract_note": "framework-maps defines finite geographic coordinates, MapKit projection points, non-negative meter distances, and validated map spans/regions; no portable map view or location service is modeled.",
       "ios_implementation_class": "B",
       "implementation_status": "partial",
-      "status_reason": "D77/B73 adds MapKit coordinate-to-map-point conversion, inverse conversion, and surface distance between caller-supplied points. Inputs/results are finite and range-checked; no map UI, user location, permission, network service, search, directions, or full MapKit parity is claimed.",
-      "minimum_ios_version": "4.0",
+      "status_reason": "D77/B73 adds MapKit coordinate-to-map-point conversion, inverse conversion, and surface distance. B577 adds a separate UIKit-embeddable native MKMapView with validated center/span region access. No user-location permission flow, annotations, overlays, search, directions, offline maps, map-content availability, or full MapKit parity is claimed.",
+      "minimum_ios_version": "3.0",
       "required_frameworks": [
         "CoreLocation",
-        "MapKit"
+        "MapKit",
+        "UIKit"
       ],
       "required_permissions": [],
       "required_info_plist_keys": [],
       "entitlements": [],
       "device_only_restrictions": [],
       "swift_abi_requirement": false,
-      "metadata_verification": "Xcode 26.6 build 17F113 and iOS SDK 26.5 public MKGeometry.h; objc2-map-kit 0.3.2 MKGeometry and objc2-core-location CLLocation feature closure. Integrated package checks and device/Simulator link audit passed; combined ios-maps imports include ARKit, CoreLocation, Foundation, MapKit, libSystem.B.dylib, and libobjc.A.dylib; probe minos 12.0/14.0, API floor 4.0.",
-      "parity_status": "not_tested_live_map_projection_or_distance_parity",
+      "metadata_verification": "Xcode 26.6 build 17F113 and iOS SDK 26.5 public MKGeometry.h/MKMapView.h; objc2-map-kit 0.3.2 generated MKGeometry/MKCoordinateRegion types and narrow local objc2 MKMapView declaration because generated MKMapView is macOS/AppKit-only. Device/Simulator Release link/import probes verify MapKit/UIKit/CoreLocation and expected Objective-C class/message references at iOS 12.0/14.0 probe floors; MKMapView/region API floor is iOS 3.0.",
+      "parity_status": "not_tested_live_map_projection_distance_or_map_rendering",
       "performance_status": "not_measured",
-      "native_escape_handle_available": false,
-      "native_escape_handle_note": "No MKMapPoint, MapKit object, view, or native escape handle is exposed."
+      "native_escape_handle_available": true,
+      "native_escape_handle_note": "ios-map-view::IosMapView::native_view borrows the main-thread-bound native MKMapView for host UIKit embedding; no portable Apple handle is exposed."
     },
     {
       "id": "094-maps-ar-spatial-arkit",

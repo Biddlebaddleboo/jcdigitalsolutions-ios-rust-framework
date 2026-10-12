@@ -1,4 +1,4 @@
-# PLAN_CAPABILITIES_MAPKIT.md — D77: MapKit Geometry Values for Row 093
+# PLAN_CAPABILITIES_MAPKIT.md — D77/B73 Geometry and B577 Native Map View for Row 093
 
 ## Objective
 
@@ -6,9 +6,19 @@ Implement the narrow MapKit geometry-only subset for row `093-maps-ar-spatial-ma
 
 ## Status and recommendation
 
-A real, narrowly bounded MapKit slice is available and is implemented in `framework-maps` and `ios-maps`: caller-supplied coordinate/map-point conversion and MapKit distance functions. These are public C APIs with by-value geometry, and the generated `objc2-map-kit` 0.3.2 crate exposes the required geometry feature. This supports only partial MapKit coverage; it does not render maps or access device location
+A real, narrowly bounded MapKit slice is available and is implemented in `framework-maps` and `ios-maps`: caller-supplied coordinate/map-point conversion and MapKit distance functions. B577 adds validated center/span regions and a separate `ios-map-view` crate for a native UIKit-embeddable `MKMapView`. These slices remain partial; they do not access device location or promise native map-content availability
 
-The root lock now contains `objc2-map-kit` 0.3.2 and the `ios-maps` dependency edges. Root still owns the canonical row update and global indexes. Package-local implementation and locked validation are complete. Do not imply that this geometry slice implements `MKMapView`, SwiftUI `Map`, map tiles, annotations, user location, search, geocoding, directions, route planning, or offline map data
+The root lock contains `objc2-map-kit` 0.3.2 and the `ios-maps` dependency edges. B577 adds a separate `ios-map-view` edge without widening `ios-maps`' UIKit dependency graph. The native view uses a small local `objc2` declaration because this selected generated binding exposes `MKMapView` only under macOS/AppKit; its `MKCoordinateRegion` and `MKCoordinateSpan` values come from the generated public binding. Do not imply this work implements SwiftUI `Map`, annotations, overlays, user location, search, geocoding, directions, route planning, offline map data, or complete MapKit parity
+
+## B577 implementation boundary
+
+- `framework-maps::MapSpan` accepts finite latitude delta in `(0, 180]` and longitude delta in `(0, 360]`; `MapRegion` combines the validated span with `MapCoordinate`
+- `ios-map-view::IosMapView` owns one retained, main-thread-bound `MKMapView`; `native_view()` returns a borrowed typed view for host UIKit embedding
+- `set_region` passes the validated center/span by value to public `setRegion:animated:`; `region` returns `None` if MapKit reports an invalid center or span
+- The host remains responsible for size, constraints, and view hierarchy. MapKit may adjust the region to fit the native view's dimensions
+- The wrapper does not enable user location or request location authorization, and it does not add annotations/overlays or call search, geocoding, directions, or offline-map APIs
+- MapKit controls basemap presentation and any content/network requests. Build/link/import validation does not prove tile fetches, visible map rendering, or device behavior
+- The inspected Xcode 26.6 / iOS 26.5 public `MKMapView.h` declares `MKMapView : UIView`, `initWithFrame:`, `region`, and `setRegion:animated:`; the class is available from iOS 3.0. The link profile's iOS 12.0 device and iOS 14.0 Simulator floors are validation-probe floors, not API availability claims
 
 ## Implemented contract
 
