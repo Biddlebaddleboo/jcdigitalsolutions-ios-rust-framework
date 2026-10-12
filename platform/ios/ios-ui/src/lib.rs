@@ -26,6 +26,10 @@ mod custom_render_touch;
 mod custom_render_touch_state;
 #[cfg(any(test, target_os = "ios"))]
 mod disclosure_policy;
+#[cfg(target_os = "ios")]
+mod display_link;
+#[cfg(any(test, target_os = "ios"))]
+mod display_link_policy;
 #[cfg(any(test, target_os = "ios"))]
 mod font_traits_policy;
 /// Bounded CoreGraphics geometry operations over portable frames.
@@ -98,6 +102,8 @@ pub use custom_render_text_policy::{Utf16Range, Utf16RangeError};
 pub use custom_render_touch::{
     IosCustomRenderTouchInput, IosTouchEvent, IosTouchInputFault, IosTouchKind, IosTouchPhase,
 };
+#[cfg(target_os = "ios")]
+pub use display_link::{IosDisplayFrame, IosDisplayLink};
 #[cfg(any(test, target_os = "ios"))]
 pub use font_traits_policy::{IosFontDesign, IosFontWeight};
 #[cfg(target_os = "ios")]

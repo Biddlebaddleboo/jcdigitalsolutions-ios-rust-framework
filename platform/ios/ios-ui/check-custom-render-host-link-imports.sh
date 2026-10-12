@@ -100,4 +100,44 @@ for target in aarch64-apple-ios aarch64-apple-ios-sim; do
     fi
     printf '%s optional Metal imports and symbols verified at iOS %s; app not executed\n' \
         "$target" "$deployment_target"
+
+    display_link_target_dir="target/ios-ui-display-link-$target"
+    IPHONEOS_DEPLOYMENT_TARGET="$deployment_target" CARGO_TARGET_DIR="$display_link_target_dir" \
+        cargo build --locked --offline --release -p ios-ui \
+        --example ios_ui_display_link_link_probe --target "$target"
+    display_link_binary="$display_link_target_dir/$target/release/examples/ios_ui_display_link_link_probe"
+    display_link_imports=$(otool -L "$display_link_binary")
+    display_link_symbols=$(nm -u "$display_link_binary")
+    display_link_strings=$(strings "$display_link_binary")
+    for framework in Foundation QuartzCore; do
+        printf '%s\n' "$display_link_imports" | grep -F "/$framework.framework/$framework" >/dev/null || {
+            echo "$target display-link probe does not link $framework" >&2
+            exit 1
+        }
+    done
+    for symbol in objc_getClass objc_msgSend; do
+        printf '%s\n' "$display_link_symbols" | grep -F "$symbol" >/dev/null || {
+            echo "$target display-link probe is missing $symbol" >&2
+            exit 1
+        }
+    done
+    for selector in CADisplayLink JcdIosDisplayLinkTarget displayLinkWithTarget:selector: \
+        addToRunLoop:forMode: displayLinkDidFire: timestamp targetTimestamp duration \
+        invalidate setPaused:; do
+        printf '%s\n' "$display_link_strings" | grep -F "$selector" >/dev/null || {
+            echo "$target display-link probe is missing selector or class $selector" >&2
+            exit 1
+        }
+    done
+    if printf '%s\n' "$display_link_symbols" "$display_link_imports" | grep -Eq 'swift_|Swift\.framework|libswift|(^|[^[:alnum:]_])Py[A-Z_]|Python\.framework|libpython'; then
+        echo "unexpected Swift/Python runtime import in $target display-link probe" >&2
+        exit 1
+    fi
+    display_link_deployment_target=$(vtool -show-build "$display_link_binary" | awk '$1 == "minos" { print $2; exit }')
+    if [ "$display_link_deployment_target" != "$deployment_target" ]; then
+        echo "$target display-link probe has deployment target ${display_link_deployment_target:-unknown}; expected $deployment_target" >&2
+        exit 1
+    fi
+    printf '%s CADisplayLink imports and selectors verified at iOS %s; app not executed\n' \
+        "$target" "$deployment_target"
 done

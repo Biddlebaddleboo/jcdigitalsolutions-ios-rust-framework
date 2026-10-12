@@ -8,7 +8,7 @@ repository.workspace = true
 description = "Bounded native UIKit view and controls"
 
 [features]
-custom-render-metal = ["dep:objc2-metal", "dep:objc2-quartz-core", "objc2-ui-kit/objc2-quartz-core"]
+custom-render-metal = ["dep:objc2-metal", "objc2-quartz-core/CALayer", "objc2-quartz-core/CAMetalLayer", "objc2-quartz-core/objc2-metal", "objc2-ui-kit/objc2-quartz-core"]
 
 [target.'cfg(target_os = "ios")'.dependencies]
 framework-core.workspace = true
@@ -22,7 +22,7 @@ objc2-core-graphics = { workspace = true, features = ["CGBase", "CGColorSpace", 
 objc2-foundation = { workspace = true, features = ["NSDecimalNumber", "NSError", "NSFormatter", "NSLocale", "NSRange", "NSEnumerator", "NSString", "NSNumberFormatter", "NSValue"] }
 objc2-ui-kit = { workspace = true, features = ["std", "UIApplication", "UIButton", "UIActivityIndicatorView", "UIAccessibility", "UIAccessibilityIdentification", "UIAccessibilityConstants", "UIAccessibilityContainer", "UIAccessibilityCustomAction", "UIAccessibilityElement", "UIContentSizeCategoryAdjusting", "UIControl", "UIEvent", "UITouch", "UIImage", "UIImageView", "UILabel", "UIFont", "UIFontDescriptor", "NSLayoutAnchor", "NSLayoutConstraint", "UILayoutGuide", "UIStackView", "UIScrollView", "UITableView", "UITableViewCell", "NSIndexPath_UIKitAdditions", "UISwitch", "UITextField", "UITextView", "UITextInput", "UIResponder", "UIViewController", "UIWindow", "UITextInputTraits", "UIColor", "UIView", "UIInteraction", "UIContextMenuInteraction", "UIContextMenuConfiguration", "UIAction", "UIMenu", "UIMenuElement", "UICollectionView", "UICollectionViewCell", "UICollectionViewCompositionalLayout", "UICollectionViewLayout", "UIDiffableDataSource", "UIGeometry", "objc2-core-foundation", "objc2-core-graphics", "block2"] }
 objc2-metal = { workspace = true, optional = true, features = ["MTLAllocation", "MTLBlitCommandEncoder", "MTLCommandBuffer", "MTLCommandEncoder", "MTLCommandQueue", "MTLDevice", "MTLDrawable", "MTLPixelFormat", "MTLResource", "MTLTexture", "MTLTypes"] }
-objc2-quartz-core = { workspace = true, optional = true, features = ["CALayer", "CAMetalLayer", "objc2-core-foundation", "objc2-metal"] }
+objc2-quartz-core = { workspace = true, features = ["CADisplayLink", "objc2-core-foundation"] }
 
 [dev-dependencies]
 framework-core.workspace = true
