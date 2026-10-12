@@ -41,6 +41,7 @@ const ATTR_CMNEXT_CLONE_REFCNT: u32 = 0x0000_1000;
 mod append;
 mod bookmark;
 mod coordination;
+mod create_directories;
 mod path_validation;
 mod security_scope;
 
@@ -3481,6 +3482,16 @@ impl FileBackend for IosFiles {
         } else {
             Ok(())
         }
+    }
+
+    fn create_directories(&mut self, path: AppPath<'_>) -> Result<(), FileError> {
+        let parts = path_parts(path.relative())?;
+        create_directories::create_directories_at(
+            self.root(path.directory())?,
+            &parts,
+            ensure_component_name_is_preserved,
+            file_error,
+        )
     }
 
     fn read_directory(&mut self, path: AppPath<'_>) -> Result<Vec<DirectoryEntry>, FileError> {

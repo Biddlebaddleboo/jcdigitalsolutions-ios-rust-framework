@@ -283,6 +283,16 @@ pub trait FileBackend {
     /// Creates exactly the requested directory; parent directories are not implied.
     fn create_directory(&mut self, path: AppPath<'_>) -> Result<(), FileError>;
 
+    /// Creates every missing directory component in the requested path.
+    ///
+    /// Existing directory components are accepted. A component that does not resolve to a
+    /// directory under the backend's documented symbolic-link policy fails. If a later component
+    /// fails, directories created earlier in this call may remain; rollback is not guaranteed.
+    /// The default implementation returns `Unsupported` without mutation.
+    fn create_directories(&mut self, _path: AppPath<'_>) -> Result<(), FileError> {
+        Err(FileError::Backend(Error::new(ErrorKind::Unsupported)))
+    }
+
     /// Reads one directory into owned names; entry order is unspecified.
     ///
     /// If an entry name cannot be represented by `DirectoryEntry`, the backend returns an
@@ -368,6 +378,16 @@ impl<B: FileBackend> Files<B> {
     /// Creates exactly one directory; parent directories are not implied.
     pub fn create_directory(&mut self, path: AppPath<'_>) -> Result<(), FileError> {
         self.backend.create_directory(path)
+    }
+
+    /// Creates all missing directory components, accepting components that already are directories.
+    ///
+    /// A component that does not resolve to a directory under the backend's symbolic-link policy
+    /// returns an error. A failure can leave directories created earlier in this call in place;
+    /// rollback is not guaranteed. A backend without this operation returns `Unsupported` before
+    /// mutation.
+    pub fn create_directories(&mut self, path: AppPath<'_>) -> Result<(), FileError> {
+        self.backend.create_directories(path)
     }
 
     /// Reads one directory into owned entries; ordering is unspecified.
@@ -460,6 +480,7 @@ mod tests {
     struct Backend {
         bytes: Vec<u8>,
         atomicity: WriteAtomicity,
+        created_directories: Vec<String>,
     }
 
     impl FileBackend for Backend {
@@ -493,6 +514,11 @@ mod tests {
         }
 
         fn create_directory(&mut self, _path: AppPath<'_>) -> Result<(), FileError> {
+            Ok(())
+        }
+
+        fn create_directories(&mut self, path: AppPath<'_>) -> Result<(), FileError> {
+            self.created_directories.push(String::from(path.relative()));
             Ok(())
         }
 
@@ -541,6 +567,7 @@ mod tests {
         let mut files = Files::new(Backend {
             bytes: vec![b'h', b'i'],
             atomicity: WriteAtomicity::NotGuaranteed,
+            created_directories: Vec::new(),
         });
         let path = AppPath::new(AppDirectory::Documents, "greeting.txt").unwrap();
         assert_eq!(files.read_string(path), Ok(String::from("hi")));
@@ -556,6 +583,7 @@ mod tests {
         let mut files = Files::new(Backend {
             bytes: vec![0x00, 0xff],
             atomicity: WriteAtomicity::NotGuaranteed,
+            created_directories: Vec::new(),
         });
         let path = AppPath::new(AppDirectory::ApplicationSupport, "logs/app.bin").unwrap();
         files.append(path, &[0x80, 0x00]).unwrap();
@@ -568,6 +596,7 @@ mod tests {
         let mut files = Files::new(Backend {
             bytes: vec![b'l', b'o', b'g'],
             atomicity: WriteAtomicity::NotGuaranteed,
+            created_directories: Vec::new(),
         });
         let path = AppPath::new(AppDirectory::ApplicationSupport, "logs/app.bin").unwrap();
         files.append(path, &[]).unwrap();
@@ -592,10 +621,43 @@ mod tests {
     }
 
     #[test]
+    fn backend_without_recursive_directories_keeps_legacy_impl_compatible_and_unmodified() {
+        let mut files = Files::new(LegacyBackend {
+            bytes: vec![b'l', b'o', b'g'],
+        });
+        let path = AppPath::new(AppDirectory::ApplicationSupport, "logs/2026/10").unwrap();
+
+        assert_eq!(
+            files.create_directories(path),
+            Err(FileError::Backend(Error::new(ErrorKind::Unsupported)))
+        );
+        let path = AppPath::new(AppDirectory::ApplicationSupport, "logs/app.bin").unwrap();
+        assert_eq!(files.read(path), Ok(vec![b'l', b'o', b'g']));
+    }
+
+    #[test]
+    fn create_directories_forwards_the_validated_relative_path() {
+        let mut files = Files::new(Backend {
+            bytes: Vec::new(),
+            atomicity: WriteAtomicity::NotGuaranteed,
+            created_directories: Vec::new(),
+        });
+        let path = AppPath::new(AppDirectory::ApplicationSupport, "logs/2026/10").unwrap();
+
+        files.create_directories(path).unwrap();
+
+        assert_eq!(
+            files.into_backend().created_directories,
+            vec![String::from("logs/2026/10")]
+        );
+    }
+
+    #[test]
     fn malformed_utf8_is_a_stable_semantic_error() {
         let mut files = Files::new(Backend {
             bytes: vec![0xff],
             atomicity: WriteAtomicity::NotGuaranteed,
+            created_directories: Vec::new(),
         });
         let path = AppPath::new(AppDirectory::Documents, "invalid.txt").unwrap();
         assert_eq!(files.read_string(path), Err(FileError::InvalidUtf8));
@@ -607,6 +669,7 @@ mod tests {
         let mut files = Files::new(Backend {
             bytes: vec![b'o', b'l', b'd'],
             atomicity: WriteAtomicity::NotGuaranteed,
+            created_directories: Vec::new(),
         });
         let path = AppPath::new(AppDirectory::Documents, "note.txt").unwrap();
         let options = WriteOptions::new(

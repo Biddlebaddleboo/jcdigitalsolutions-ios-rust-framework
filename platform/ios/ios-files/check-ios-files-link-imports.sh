@@ -47,7 +47,7 @@ for target in aarch64-apple-ios aarch64-apple-ios-sim; do
     strings_file="target/ios-files-strings-$target.txt"
     nm "$binary" > "$defined_symbols"
     strings "$binary" > "$strings_file"
-    for symbol in adopt_url_session_download append; do
+    for symbol in adopt_url_session_download append create_directories; do
         if ! grep -Fq "$symbol" "$defined_symbols"; then
             echo "ios-files $target probe does not retain $symbol" >&2
             exit 1

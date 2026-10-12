@@ -55,6 +55,12 @@ described below. The `libc` dependency is private to this crate and provides the
 declarations/constants needed for this boundary; Foundation remains the narrow public API for
 sandbox URL resolution.
 
+`Files::create_directories` creates all missing components relative to the selected app directory;
+existing directories are accepted, while files and symlinks fail. The iOS backend uses
+descriptor-relative `mkdirat` and no-follow `openat` for each component. If a later component fails,
+directories created earlier in the call may remain. The existing `create_directory` operation still
+creates exactly one directory and does not imply parent creation.
+
 This is symlink-resistant traversal, not confinement against concurrent native directory renames.
 An already-open descriptor continues to refer to its directory inode if another native handle moves
 that directory outside the selected root; a later descriptor-relative operation can then act in the

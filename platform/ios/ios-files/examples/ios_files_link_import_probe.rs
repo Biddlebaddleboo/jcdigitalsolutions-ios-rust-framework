@@ -18,6 +18,11 @@ fn main() {
             AppPath<'path>,
             &'bytes [u8],
         ) -> Result<(), FileError>;
+    let create_directories = Files::<ios_files::IosFiles>::create_directories
+        as for<'files, 'path> fn(
+            &'files mut Files<ios_files::IosFiles>,
+            AppPath<'path>,
+        ) -> Result<(), FileError>;
     let _ = std::hint::black_box((
         ios_files::IosFiles::new as fn() -> Result<ios_files::IosFiles, FileError>,
         ios_files::IosFiles::adopt_url_session_download
@@ -27,6 +32,7 @@ fn main() {
                 AppPath<'path>,
             ) -> Result<WriteOutcome, FileError>,
         append_file,
+        create_directories,
         start_and_drop_scoped_access
             as fn(&NSURL) -> Result<(), ios_files::SecurityScopeStartError>,
     ));
