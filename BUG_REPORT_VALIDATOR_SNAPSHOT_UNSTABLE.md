@@ -50,3 +50,17 @@ The safe diagnostic above and pass/fail summary are the available evidence. No c
 ## Recommended maintenance investigation
 
 Compare snapshot capture path selection and change detection for the root checkout and the isolated worktree. Determine whether a stable-file read, path alias, or concurrent workspace artifact is being treated as mutation.
+
+## Additional reproduction — 2026-10-11
+
+The same suspected defect also blocks the integrated B545 camera profile. On framework commit `1f4e8aa`, with a clean worktree, this command exited 1 before any gate ran:
+
+```sh
+ios-rust-validate --workspace-root "$PWD" \
+  --spec "$PWD/tools/validation/specs/validation-v1.json" \
+  --capability ios-camera-capture-session --format json
+```
+
+It returned the same `snapshot-unstable: source changed during capture` diagnostic. Repeated root-checkout attempts for `ios-camera-capture-session`, one attempt for `ios-audio-session`, and an attempt with detailed diagnostics produced the same error. `--version --format json` still reported release `ios-rust-tools-0.1.0+350971094cc3b77191cd6b3d07e01af04d71943d`; the installed binary SHA-256 remained `77f9c7aa941ba1335827ffc6ce274898987ce1d5f408d91d1a7c1daf34527944`. The updated spec parsed, was 260,261 bytes (under the 262,144-byte limit), `--explain ios-camera-capture-session` succeeded, and `generate-reports --check` passed before the update commit. The failed run after that commit used a clean worktree.
+
+The camera profile now has five B545 source guards for the flash API, preflight, unchanged default path, unsupported-mode regression, and link probe. A separate workstream run on earlier source snapshot `4a665e1f9ab882455b3717d44ea6850499a03f97a6be6ce8a4000ca143666506` passed its then-current profile with 265 PASS, 0 FAIL, 0 BLOCKED, and 2 SKIPPED; that profile predates these five guards. The new guards and integrated profile remain unverified. The two earlier skips were Simulator execution and physical-device proof, not passing runtime evidence.
