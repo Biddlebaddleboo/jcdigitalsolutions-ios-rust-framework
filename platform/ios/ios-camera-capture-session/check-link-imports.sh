@@ -142,6 +142,9 @@ for target in aarch64-apple-ios aarch64-apple-ios-sim; do
         containsObject: \
         numberWithInteger: \
         setFlashMode: \
+        maxPhotoQualityPrioritization \
+        setMaxPhotoQualityPrioritization: \
+        setPhotoQualityPrioritization: \
         capturePhotoWithSettings:delegate: \
         captureOutput:didFinishProcessingPhoto:error: \
         captureOutput:didFinishCaptureForResolvedSettings:error: \

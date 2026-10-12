@@ -41,11 +41,12 @@ use objc2_av_foundation::{
     AVCaptureDeviceTypeBuiltInWideAngleCamera, AVCaptureExposureMode, AVCaptureFileOutput,
     AVCaptureFileOutputRecordingDelegate, AVCaptureFlashMode, AVCaptureFocusMode,
     AVCaptureMovieFileOutput, AVCaptureOutput, AVCapturePhoto, AVCapturePhotoCaptureDelegate,
-    AVCapturePhotoOutput, AVCapturePhotoSettings, AVCaptureSession, AVCaptureSessionPreset,
-    AVCaptureSessionPreset352x288, AVCaptureSessionPreset640x480, AVCaptureSessionPreset1280x720,
-    AVCaptureSessionPreset1920x1080, AVCaptureSessionPreset3840x2160, AVCaptureSessionPresetHigh,
-    AVCaptureSessionPresetLow, AVCaptureSessionPresetMedium, AVCaptureSessionPresetPhoto,
-    AVCaptureTorchMode, AVCaptureVideoDataOutput, AVCaptureVideoDataOutputSampleBufferDelegate,
+    AVCapturePhotoOutput, AVCapturePhotoQualityPrioritization, AVCapturePhotoSettings,
+    AVCaptureSession, AVCaptureSessionPreset, AVCaptureSessionPreset352x288,
+    AVCaptureSessionPreset640x480, AVCaptureSessionPreset1280x720, AVCaptureSessionPreset1920x1080,
+    AVCaptureSessionPreset3840x2160, AVCaptureSessionPresetHigh, AVCaptureSessionPresetLow,
+    AVCaptureSessionPresetMedium, AVCaptureSessionPresetPhoto, AVCaptureTorchMode,
+    AVCaptureVideoDataOutput, AVCaptureVideoDataOutputSampleBufferDelegate,
     AVCaptureVideoPreviewLayer, AVCaptureWhiteBalanceMode, AVMediaTypeAudio, AVMediaTypeVideo,
 };
 #[cfg(target_os = "ios")]
@@ -59,7 +60,7 @@ use objc2_foundation::{NSArray, NSError, NSNumber, NSObject, NSObjectProtocol, N
 #[cfg(any(target_os = "ios", test))]
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum PhotoCaptureError {
-    /// The operating system predates the processed-photo API floor of iOS 11
+    /// The operating system predates iOS 11 processed-photo or iOS 13 quality-priority APIs
     UnsupportedOperatingSystem,
     /// The capture session has not completed startup or is no longer running
     SessionNotRunning,
@@ -69,6 +70,8 @@ pub enum PhotoCaptureError {
     PhotoOutputUnavailable,
     /// The configured photo output does not support the requested flash mode
     FlashModeUnsupported,
+    /// The configured photo output's quality ceiling is below the requested priority
+    PhotoQualityPrioritizationUnsupported,
     /// AVFoundation reported an error while capturing or processing the photo
     CaptureFailed,
     /// AVFoundation did not provide processed JPEG file bytes
@@ -85,6 +88,36 @@ pub enum IosCameraFlashMode {
     On,
     /// Let AVFoundation decide whether the photo needs flash
     Auto,
+}
+
+/// Preferred quality versus delivery speed for one processed still-photo request
+#[cfg(any(target_os = "ios", test))]
+#[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd)]
+pub enum IosCameraPhotoQuality {
+    /// Prioritize delivery speed over image quality
+    Speed = 1,
+    /// Balance image quality and delivery speed; this is AVFoundation's default
+    Balanced = 2,
+    /// Prioritize image quality, potentially increasing processing and delivery time
+    Quality = 3,
+}
+
+/// Failure to configure the maximum per-photo quality before capture starts
+#[cfg(any(target_os = "ios", test))]
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum PhotoQualityPrioritizationError {
+    /// The operating system predates the quality-prioritization API floor of iOS 13
+    UnsupportedOperatingSystem,
+    /// The capture session is already running; changing this limit can rebuild the session
+    SessionAlreadyRunning,
+    /// The session is stopping after an active movie-file recording
+    SessionStopping,
+    /// A movie recording or its terminal finalization is active
+    RecordingActive,
+    /// A Speed ceiling would invalidate the existing default Balanced photo settings
+    MaximumBelowDefault,
+    /// The configured capture session does not have its still-photo output
+    PhotoOutputUnavailable,
 }
 
 #[cfg(any(target_os = "ios", test))]
@@ -661,12 +694,62 @@ fn preflight_photo_flash_mode(
     Ok(mode)
 }
 
+#[cfg(any(target_os = "ios", test))]
+fn preflight_photo_quality(
+    quality: Option<IosCameraPhotoQuality>,
+    mut is_supported: impl FnMut(IosCameraPhotoQuality) -> bool,
+) -> Result<Option<IosCameraPhotoQuality>, PhotoCaptureError> {
+    if let Some(quality) = quality
+        && !is_supported(quality)
+    {
+        return Err(PhotoCaptureError::PhotoQualityPrioritizationUnsupported);
+    }
+    Ok(quality)
+}
+
+#[cfg(any(target_os = "ios", test))]
+fn configure_photo_quality_limit(
+    session_running: bool,
+    output_available: bool,
+    recording_active: bool,
+    pending_session_stop: bool,
+    maximum: IosCameraPhotoQuality,
+    set_maximum: impl FnOnce(IosCameraPhotoQuality),
+) -> Result<(), PhotoQualityPrioritizationError> {
+    if pending_session_stop {
+        return Err(PhotoQualityPrioritizationError::SessionStopping);
+    }
+    if recording_active {
+        return Err(PhotoQualityPrioritizationError::RecordingActive);
+    }
+    if !output_available {
+        return Err(PhotoQualityPrioritizationError::PhotoOutputUnavailable);
+    }
+    if session_running {
+        return Err(PhotoQualityPrioritizationError::SessionAlreadyRunning);
+    }
+    if maximum < IosCameraPhotoQuality::Balanced {
+        return Err(PhotoQualityPrioritizationError::MaximumBelowDefault);
+    }
+    set_maximum(maximum);
+    Ok(())
+}
+
 #[cfg(target_os = "ios")]
 fn native_photo_flash_mode(mode: IosCameraFlashMode) -> AVCaptureFlashMode {
     match mode {
         IosCameraFlashMode::Off => AVCaptureFlashMode::Off,
         IosCameraFlashMode::On => AVCaptureFlashMode::On,
         IosCameraFlashMode::Auto => AVCaptureFlashMode::Auto,
+    }
+}
+
+#[cfg(target_os = "ios")]
+fn native_photo_quality(mode: IosCameraPhotoQuality) -> AVCapturePhotoQualityPrioritization {
+    match mode {
+        IosCameraPhotoQuality::Speed => AVCapturePhotoQualityPrioritization::Speed,
+        IosCameraPhotoQuality::Balanced => AVCapturePhotoQualityPrioritization::Balanced,
+        IosCameraPhotoQuality::Quality => AVCapturePhotoQualityPrioritization::Quality,
     }
 }
 
@@ -2569,6 +2652,49 @@ impl IosCameraCaptureSession {
         })
     }
 
+    /// Set the highest per-photo quality prioritization this session may request
+    ///
+    /// This iOS 13+ setting is applied only while the capture session is stopped; AVFoundation
+    /// may rebuild a running session and disrupt preview when it changes. The default Balanced
+    /// ceiling remains unchanged until this succeeds. Movie recording/finalization, pending
+    /// shutdown, a missing photo output, or an already-running session returns an error without
+    /// mutation. A ceiling below Balanced is rejected to preserve the existing default photo
+    /// settings. Call before [`Self::start`] to permit later `Quality` photo requests. This does
+    /// not promise a particular image quality, processing duration, or runtime capture result.
+    pub fn set_max_photo_quality_prioritization(
+        &self,
+        maximum: IosCameraPhotoQuality,
+    ) -> Result<(), PhotoQualityPrioritizationError> {
+        if !objc2::available!(ios = 13.0, ..) {
+            return Err(PhotoQualityPrioritizationError::UnsupportedOperatingSystem);
+        }
+
+        let graph = Arc::clone(&self.graph);
+        self.run_capture_queue_sync(move || {
+            let graph = graph
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner);
+            let output = graph.photo_output.as_ref();
+            configure_photo_quality_limit(
+                // SAFETY: This status query is serialized on the session queue.
+                unsafe { graph.session.isRunning() },
+                output.is_some(),
+                graph.movie_recording.active,
+                graph.movie_recording.pending_session_stop,
+                maximum,
+                |maximum| {
+                    // SAFETY: The method checks the iOS 13 API floor above and refuses to change
+                    // the public output property while its owning session is running.
+                    unsafe {
+                        output
+                            .expect("photo output is present after quality-limit preflight")
+                            .setMaxPhotoQualityPrioritization(native_photo_quality(maximum))
+                    }
+                },
+            )
+        })
+    }
+
     /// Set the caller-selected orientation for subsequent movie-file recordings
     ///
     /// This changes only the video connection of the configured movie-file output; it does not
@@ -2857,7 +2983,7 @@ impl IosCameraCaptureSession {
     where
         F: FnOnce(Result<Vec<u8>, PhotoCaptureError>) + Send + 'static,
     {
-        self.capture_photo_with_optional_flash(None, completion)
+        self.capture_photo_with_options(None, None, completion)
     }
 
     /// Capture one processed JPEG with an explicit per-photo flash request
@@ -2875,17 +3001,40 @@ impl IosCameraCaptureSession {
     where
         F: FnOnce(Result<Vec<u8>, PhotoCaptureError>) + Send + 'static,
     {
-        self.capture_photo_with_optional_flash(Some(mode), completion)
+        self.capture_photo_with_options(Some(mode), None, completion)
     }
 
-    fn capture_photo_with_optional_flash<F>(
+    /// Capture one processed JPEG with an explicit per-photo quality-versus-speed preference
+    ///
+    /// The selected quality must not exceed the configured output's current maximum; otherwise
+    /// the completion receives [`PhotoCaptureError::PhotoQualityPrioritizationUnsupported`].
+    /// `Quality` may take substantially longer to process than `Speed`. This iOS 13+ method has
+    /// the callback, ownership, and lifecycle semantics of [`Self::capture_photo`]. The existing
+    /// `capture_photo` path retains AVFoundation's Balanced default and does not read or mutate the
+    /// configured maximum. Set a higher output ceiling before starting the session when needed.
+    pub fn capture_photo_with_quality<F>(
         &self,
-        requested_flash_mode: Option<IosCameraFlashMode>,
+        quality: IosCameraPhotoQuality,
         completion: F,
     ) -> Result<(), PhotoCaptureError>
     where
         F: FnOnce(Result<Vec<u8>, PhotoCaptureError>) + Send + 'static,
     {
+        self.capture_photo_with_options(None, Some(quality), completion)
+    }
+
+    fn capture_photo_with_options<F>(
+        &self,
+        requested_flash_mode: Option<IosCameraFlashMode>,
+        requested_quality: Option<IosCameraPhotoQuality>,
+        completion: F,
+    ) -> Result<(), PhotoCaptureError>
+    where
+        F: FnOnce(Result<Vec<u8>, PhotoCaptureError>) + Send + 'static,
+    {
+        if requested_quality.is_some() && !objc2::available!(ios = 13.0, ..) {
+            return Err(PhotoCaptureError::UnsupportedOperatingSystem);
+        }
         if !objc2::available!(ios = 11.0, ..) {
             return Err(PhotoCaptureError::UnsupportedOperatingSystem);
         }
@@ -2929,11 +3078,28 @@ impl IosCameraCaptureSession {
                 }
             };
 
+            let quality = match preflight_photo_quality(requested_quality, |mode| {
+                // SAFETY: This public output property is read only for iOS 13+ quality requests;
+                // the availability check ran before this capture-queue task was enqueued.
+                let maximum = unsafe { output.maxPhotoQualityPrioritization() };
+                native_photo_quality(mode) <= maximum
+            }) {
+                Ok(mode) => mode,
+                Err(error) => {
+                    invoke_photo_completion(Box::new(completion), Err(error));
+                    return;
+                }
+            };
+
             let delegate = PhotoCaptureDelegateObject::new(Box::new(completion));
             let settings = unsafe { AVCapturePhotoSettings::photoSettings() };
             if let Some(mode) = flash_mode {
                 // SAFETY: The mode was found in this configured output's supportedFlashModes list.
                 unsafe { settings.setFlashMode(native_photo_flash_mode(mode)) };
+            }
+            if let Some(quality) = quality {
+                // SAFETY: The request was checked against this output's current maximum first.
+                unsafe { settings.setPhotoQualityPrioritization(native_photo_quality(quality)) };
             }
             let protocol_delegate = ProtocolObject::from_ref(&*delegate);
             // SAFETY: The session is running, the output belongs to its configured graph, settings
@@ -3411,25 +3577,27 @@ fn invoke_video_completion(completion: VideoRecordingCompletion, result: VideoRe
 mod tests {
     use super::{
         CameraCaptureError, CameraPositionSwitchError, ExposureControlError, FocusControlError,
-        IosCameraExposureMode, IosCameraFlashMode, IosCameraFocusMode, IosCameraPosition,
-        IosCameraSessionPreset, IosCameraVideoOrientation, IosCameraWhiteBalanceMode,
-        MediaAuthorizationStatus, MediaTime, MovieOrientationError, MovieRecordingState,
-        NormalizedFocusPoint, PhotoCaptureError, PhotoCaptureResult, SessionPresetError,
-        TorchControlError, VideoFrameStreamError, VideoFrameStreamState, VideoRecordingError,
-        VideoRecordingResult, WhiteBalanceControlError, ZoomControlError,
-        camera_position_switch_required, configure_custom_exposure, configure_exposure,
-        configure_exposure_target_bias, configure_focus, configure_movie_orientation,
+        IosCameraExposureMode, IosCameraFlashMode, IosCameraFocusMode, IosCameraPhotoQuality,
+        IosCameraPosition, IosCameraSessionPreset, IosCameraVideoOrientation,
+        IosCameraWhiteBalanceMode, MediaAuthorizationStatus, MediaTime, MovieOrientationError,
+        MovieRecordingState, NormalizedFocusPoint, PhotoCaptureError, PhotoCaptureResult,
+        PhotoQualityPrioritizationError, SessionPresetError, TorchControlError,
+        VideoFrameStreamError, VideoFrameStreamState, VideoRecordingError, VideoRecordingResult,
+        WhiteBalanceControlError, ZoomControlError, camera_position_switch_required,
+        configure_custom_exposure, configure_exposure, configure_exposure_target_bias,
+        configure_focus, configure_movie_orientation, configure_photo_quality_limit,
         configure_session_preset, configure_torch_enabled, configure_video_zoom_factor,
         configure_white_balance_mode, custom_exposure_duration_from_parts, custom_exposure_range,
         drop_video_frame_callback_safely, exposure_target_bias_range,
         finish_camera_input_replacement, invoke_video_frame_callback, map_camera_video_orientation,
         map_ios_camera_session_preset, may_create_device_input, photo_request_error,
-        preflight_photo_flash_mode, prepare_optional_movie_audio, replace_camera_session_input,
-        require_camera_at_position, require_selected_camera, require_selected_focus_camera,
-        require_switch_camera, run_on_capture_queue, set_supported_movie_orientation,
-        settle_movie_result, settle_movie_terminal, settle_photo_result, take_photo_completion,
-        take_video_completion, validate_movie_destination, with_authorized_microphone,
-        with_selected_exposure_camera, with_selected_white_balance_camera,
+        preflight_photo_flash_mode, preflight_photo_quality, prepare_optional_movie_audio,
+        replace_camera_session_input, require_camera_at_position, require_selected_camera,
+        require_selected_focus_camera, require_switch_camera, run_on_capture_queue,
+        set_supported_movie_orientation, settle_movie_result, settle_movie_terminal,
+        settle_photo_result, take_photo_completion, take_video_completion,
+        validate_movie_destination, with_authorized_microphone, with_selected_exposure_camera,
+        with_selected_white_balance_camera,
     };
     use std::cell::RefCell;
     use std::path::PathBuf;
@@ -5375,6 +5543,135 @@ mod tests {
             );
             assert_eq!(support_checks, 1);
         }
+    }
+
+    #[test]
+    fn photo_quality_preflight_keeps_default_settings_without_limit_lookup() {
+        assert_eq!(
+            preflight_photo_quality(None, |_| {
+                panic!("default photo capture must not inspect the quality ceiling")
+            }),
+            Ok(None)
+        );
+    }
+
+    #[test]
+    fn photo_quality_preflight_accepts_priorities_within_the_output_ceiling() {
+        for (maximum, supported) in [
+            (
+                IosCameraPhotoQuality::Speed,
+                &[IosCameraPhotoQuality::Speed][..],
+            ),
+            (
+                IosCameraPhotoQuality::Balanced,
+                &[
+                    IosCameraPhotoQuality::Speed,
+                    IosCameraPhotoQuality::Balanced,
+                ][..],
+            ),
+            (
+                IosCameraPhotoQuality::Quality,
+                &[
+                    IosCameraPhotoQuality::Speed,
+                    IosCameraPhotoQuality::Balanced,
+                    IosCameraPhotoQuality::Quality,
+                ][..],
+            ),
+        ] {
+            for &quality in supported {
+                assert_eq!(
+                    preflight_photo_quality(Some(quality), |requested| requested <= maximum),
+                    Ok(Some(quality))
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn photo_quality_preflight_rejects_priorities_above_the_output_ceiling() {
+        for (quality, maximum) in [
+            (
+                IosCameraPhotoQuality::Balanced,
+                IosCameraPhotoQuality::Speed,
+            ),
+            (
+                IosCameraPhotoQuality::Quality,
+                IosCameraPhotoQuality::Balanced,
+            ),
+            (IosCameraPhotoQuality::Quality, IosCameraPhotoQuality::Speed),
+        ] {
+            let mut checks = 0;
+            assert_eq!(
+                preflight_photo_quality(Some(quality), |requested| {
+                    checks += 1;
+                    requested <= maximum
+                }),
+                Err(PhotoCaptureError::PhotoQualityPrioritizationUnsupported)
+            );
+            assert_eq!(checks, 1);
+        }
+    }
+
+    #[test]
+    fn photo_quality_limit_sets_only_before_start_without_recording_or_shutdown() {
+        let selected = std::cell::Cell::new(None);
+        assert_eq!(
+            configure_photo_quality_limit(
+                false,
+                true,
+                false,
+                false,
+                IosCameraPhotoQuality::Quality,
+                |maximum| selected.set(Some(maximum)),
+            ),
+            Ok(())
+        );
+        assert_eq!(selected.get(), Some(IosCameraPhotoQuality::Quality));
+    }
+
+    #[test]
+    fn photo_quality_limit_rejects_running_recording_missing_output_and_shutdown() {
+        let selected = std::cell::Cell::new(false);
+        let attempt =
+            |session_running, output_available, recording_active, pending_session_stop| {
+                configure_photo_quality_limit(
+                    session_running,
+                    output_available,
+                    recording_active,
+                    pending_session_stop,
+                    IosCameraPhotoQuality::Quality,
+                    |_| selected.set(true),
+                )
+            };
+
+        assert_eq!(
+            attempt(true, true, false, false),
+            Err(PhotoQualityPrioritizationError::SessionAlreadyRunning)
+        );
+        assert_eq!(
+            attempt(false, true, true, false),
+            Err(PhotoQualityPrioritizationError::RecordingActive)
+        );
+        assert_eq!(
+            attempt(false, false, false, false),
+            Err(PhotoQualityPrioritizationError::PhotoOutputUnavailable)
+        );
+        assert_eq!(
+            attempt(false, true, false, true),
+            Err(PhotoQualityPrioritizationError::SessionStopping)
+        );
+        assert_eq!(
+            configure_photo_quality_limit(
+                false,
+                true,
+                false,
+                false,
+                IosCameraPhotoQuality::Speed,
+                |_| selected.set(true),
+            ),
+            Err(PhotoQualityPrioritizationError::MaximumBelowDefault)
+        );
+        assert!(!selected.get());
     }
 
     #[test]

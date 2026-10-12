@@ -593,3 +593,7 @@ B562 adds main-thread-only `IosButton` setters for UIKit accessibility label, hi
 ### B563 — recursive app-directory creation
 
 B563 adds portable `Files::create_directories` and the iOS descriptor-relative `mkdirat`/no-follow `openat` implementation. Existing directories are accepted; files and symlinks fail. Earlier components may remain if a later component fails, and concurrent native renames are outside the confinement guarantee. The `ios-files` profile passed 52 checks with 2 runtime-only skips, and `framework-files` host tests passed 10/10; this is not runtime proof. See [the iOS files guide](docs/ios/files.md).
+
+### B564 — per-photo camera quality prioritization (row 046)
+
+B564 adds opt-in `IosCameraPhotoQuality::{Speed, Balanced, Quality}` requests for processed JPEG capture. The legacy default and flash capture APIs remain unchanged. The output's default Balanced ceiling is preserved; a stopped-session setter permits a Quality ceiling before start but rejects Speed so it cannot invalidate default settings, and capture preflights each requested priority against the output's current limit. Host regressions plus the registered camera profile cover default preservation, over-limit rejection, and stopped-session configuration. Device/Simulator compile and link checks do not prove image quality, processing time, camera runtime, or preview behavior. See [the camera capture workstream](PLAN_IOS_CAMERA_CAPTURE_SESSION.md#b564-per-photo-quality-prioritization).

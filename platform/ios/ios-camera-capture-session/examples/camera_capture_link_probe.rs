@@ -23,6 +23,9 @@ fn main() {
     ] {
         let _ = std::hint::black_box(session.set_session_preset(preset));
     }
+    let _ = std::hint::black_box(session.set_max_photo_quality_prioritization(
+        ios_camera_capture_session::IosCameraPhotoQuality::Quality,
+    ));
     let Some(main_thread) = objc2::MainThreadMarker::new() else {
         return;
     };
@@ -76,6 +79,15 @@ fn main() {
         ios_camera_capture_session::IosCameraFlashMode::Auto,
     ] {
         let _ = session.capture_photo_with_flash(mode, |result| {
+            let _ = std::hint::black_box(result);
+        });
+    }
+    for quality in [
+        ios_camera_capture_session::IosCameraPhotoQuality::Speed,
+        ios_camera_capture_session::IosCameraPhotoQuality::Balanced,
+        ios_camera_capture_session::IosCameraPhotoQuality::Quality,
+    ] {
+        let _ = session.capture_photo_with_quality(quality, |result| {
             let _ = std::hint::black_box(result);
         });
     }

@@ -296,6 +296,9 @@ The portable camera/microphone authorization-status contract and AVFoundation ad
 [media authorization](capabilities/media-authorization.md) and
 [iOS media authorization](ios/media-authorization.md) guides.
 
+The row 046 AVFoundation capture session has an [iOS camera capture guide](ios/camera-capture-session.md)
+for its preview, photo, movie, and video-sample APIs; static checks do not prove camera runtime behavior.
+
 The explicit host-owned `AVAudioSession` category, mode, and activation controls have a separate
 [iOS audio-session guide](ios/audio-session.md); the API does not request permission or mutate state
 on handle create or drop.
