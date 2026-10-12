@@ -40,6 +40,36 @@ Titles are optional UTF-8 values on `IosScreenController::new` and `set_title`. 
 title, while `Some("")` sets an empty title. Applications supply their own screen titles without
 adding app-specific route types to the framework
 
+## Navigation-bar action
+
+`IosNavigationBarAction` creates a public UIKit `UIAction` and a `UIBarButtonItem` primary action.
+Its required nonblank title is the accessible name; an optional SF-symbol name supplies the native
+image. Creation checks for iOS 14.0 at runtime and returns `ErrorKind::Unavailable` on older
+systems, while the package keeps its iOS 12 deployment floor. An unknown or unavailable system
+symbol also returns `Unavailable`; empty and whitespace-only titles or symbol names return
+`InvalidInput`
+
+```rust
+use ios_navigation::IosNavigationBarAction;
+
+let action = IosNavigationBarAction::new(main_thread()?, "Settings", Some("gearshape"), || {
+    // Application-owned settings behavior
+})?;
+screen.set_right_bar_action(Some(&action));
+drop(action); // UIKit retains the item and callback
+screen.set_right_bar_action(None); // Clear the right-side item
+```
+
+`set_right_bar_action(Some(...))` installs or replaces the right-side item; `None` clears it.
+UIKit retains the bar item and the item copies its primary action, so dropping the Rust action value
+does not clear the installed callback. The callback is `FnMut()`, runs synchronously when UIKit
+invokes the action, contains Rust panics, and ignores reentrant invocation. A symbol lookup failure
+is reported rather than silently showing a different image
+
+This is one imperative UIKit navigation-bar control. It does not add route links, declarative
+composition, state observation, bindings, or SwiftUI-style reconciliation. The application still
+owns the callback's behavior, route changes, screen composition and state
+
 ## Thread and ownership
 
 Create screens and navigation controllers with `ios_runtime::main_thread::MainThread`. Their
@@ -56,7 +86,10 @@ controller through its own UIKit lifecycle
 ## Scope and evidence
 
 The host tests cover only the pure push preflight: an unparented controller reaches the push
-operation once, while an already-parented controller is rejected before it is called. They do not
-execute UIKit. Target compilation and link/import checks can establish that the native types and
-selectors build and link; they do not prove window attachment, a visible transition, back-button
-behavior, or simulator/device runtime. Those require an app run on the target
+operation once, while an already-parented controller is rejected before it is called. Navigation
+action host tests cover input validation, panic containment, callback reentry and the Rust-side
+handler-capture lifetime; they do not execute UIKit or prove its runtime retention behavior. Target
+compilation and link/import checks can establish that the native types and selectors build and link;
+they do not prove window attachment, visible action presentation, accessibility output, callback
+delivery, a visible transition, back-button behavior, or simulator/device runtime. Those require an
+app run on the target

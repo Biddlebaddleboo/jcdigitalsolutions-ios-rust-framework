@@ -1,7 +1,7 @@
 #[cfg(target_os = "ios")]
 use framework_ui::{Frame, UiBackend};
 #[cfg(target_os = "ios")]
-use ios_navigation::{IosNavigationController, IosScreenController};
+use ios_navigation::{IosNavigationBarAction, IosNavigationController, IosScreenController};
 #[cfg(target_os = "ios")]
 use ios_runtime::main_thread::MainThread;
 #[cfg(target_os = "ios")]
@@ -20,7 +20,26 @@ fn main() {
     let Some(main_thread) = MainThread::current() else {
         return;
     };
-    let root = IosScreenController::new(main_thread, root_view, Some("Root"));
+    let mut root = IosScreenController::new(main_thread, root_view, Some("Root"));
+    let Some(main_thread) = MainThread::current() else {
+        return;
+    };
+    let Ok(action) = IosNavigationBarAction::new(main_thread, "Settings", Some("gearshape"), || {})
+    else {
+        return;
+    };
+    root.set_right_bar_action(Some(&action));
+    let Some(main_thread) = MainThread::current() else {
+        return;
+    };
+    let Ok(replacement) =
+        IosNavigationBarAction::new(main_thread, "Refresh", Some("arrow.clockwise"), || {})
+    else {
+        return;
+    };
+    root.set_right_bar_action(Some(&replacement));
+    drop((action, replacement));
+    root.set_right_bar_action(None);
     let Some(main_thread) = MainThread::current() else {
         return;
     };

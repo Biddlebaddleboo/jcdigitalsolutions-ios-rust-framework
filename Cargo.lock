@@ -964,6 +964,7 @@ dependencies = [
 name = "ios-navigation"
 version = "0.1.0"
 dependencies = [
+ "block2",
  "framework-core",
  "framework-ui",
  "ios-runtime",

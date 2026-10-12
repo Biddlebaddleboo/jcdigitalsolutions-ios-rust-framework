@@ -6,8 +6,11 @@
 #[cfg(any(test, target_os = "ios"))]
 mod push_policy;
 
+#[cfg(any(test, target_os = "ios"))]
+mod navigation_action_policy;
+
 #[cfg(target_os = "ios")]
 mod platform;
 
 #[cfg(target_os = "ios")]
-pub use platform::{IosNavigationController, IosScreenController};
+pub use platform::{IosNavigationBarAction, IosNavigationController, IosScreenController};

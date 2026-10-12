@@ -48,14 +48,16 @@ for target in aarch64-apple-ios aarch64-apple-ios-sim; do
             exit 1
         }
     done
-    for class in UINavigationController UIViewController; do
+    for class in UINavigationController UIBarButtonItem UIAction UIImage UIViewController; do
         printf '%s\n' "$binary_strings" | grep -Fx "$class" >/dev/null || {
             echo "$target navigation probe is missing public UIKit class $class" >&2
             exit 1
         }
     done
     for selector in 'initWithRootViewController:' 'setView:' 'setTitle:' \
-        'pushViewController:animated:' 'popViewControllerAnimated:'; do
+        'pushViewController:animated:' 'popViewControllerAnimated:' \
+        'navigationItem' 'setRightBarButtonItem:' 'actionWithTitle:image:identifier:handler:' \
+        'initWithPrimaryAction:' 'systemImageNamed:'; do
         printf '%s\n' "$binary_strings" | grep -F "$selector" >/dev/null || {
             echo "$target navigation probe is missing the $selector selector" >&2
             exit 1
@@ -70,6 +72,6 @@ for target in aarch64-apple-ios aarch64-apple-ios-sim; do
         echo "$target probe has deployment target ${actual_deployment_target:-unknown}; expected $deployment_target" >&2
         exit 1
     fi
-    printf '%s UIKit navigation selectors verified at iOS %s; probe not executed\n' \
+    printf '%s UIKit navigation/action selectors verified at iOS %s; probe not executed\n' \
         "$target" "$deployment_target"
 done

@@ -537,3 +537,7 @@ B548 adds an opt-in status-only `NetworkPathMonitor` with explicit start, a sing
 ### B549 — significant-change location sessions (row 037)
 
 B549 adds opt-in `IosLocationBackend::start_significant_change_updates()` with device-support and existing-authorization preflight, no permission prompt, and matching stop-on-drop. The registered profile passed 40 checks with two runtime-evidence skips; delivery across suspension or termination remains unverified. See [the location workstream](PLAN_IOS_LOCATION.md).
+
+### B550 — UIKit navigation-bar action (row 003)
+
+B550 adds a reusable right-side `IosNavigationBarAction` with a required accessible title, optional SF symbol, safe Rust callback, replacement, and clear. The action requires iOS 14 at runtime while the package retains its iOS 12 floor. UIKit ownership retains the callback after the Rust action value drops. This is an imperative UIKit control, not SwiftUI `NavigationLink`, route state, or declarative composition; visible presentation, accessibility output, and callback delivery remain unverified.
