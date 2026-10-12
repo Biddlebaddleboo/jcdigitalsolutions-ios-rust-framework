@@ -1,7 +1,7 @@
 #![no_std]
 #![forbid(unsafe_code)]
 #![deny(missing_docs)]
-#![doc = "Portable Bluetooth authorization and bounded central-discovery contracts."]
+#![doc = "Portable Bluetooth authorization, bounded discovery, and central-connection contracts."]
 
 /// The normalized authorization state for Bluetooth use.
 ///
@@ -32,7 +32,7 @@ impl BluetoothAuthorization {
     }
 }
 
-/// A fixed-width opaque identifier assigned by CoreBluetooth to a discovered peer.
+/// A fixed-width opaque identifier assigned by a native Bluetooth implementation to a peer.
 ///
 /// The 16 bytes use the octet order of the peer's canonical UUID string, not host integer byte
 /// order. This is an operating-system peer identifier, not a Bluetooth address, hardware serial
@@ -68,7 +68,7 @@ pub struct BluetoothDiscovery {
 pub enum BluetoothScanState {
     /// No scan has been requested, or the caller stopped it.
     Stopped = 0,
-    /// CoreBluetooth has not yet reported `PoweredOn` for this request.
+    /// The backend has not yet reported radio readiness for this request.
     Starting = 1,
     /// The backend issued the scan after the manager reported powered-on.
     Scanning = 2,
@@ -117,7 +117,103 @@ pub trait BluetoothCentralBackend {
     fn take_dropped_discovery_count(&mut self) -> u32;
 }
 
-/// A thin facade over caller-owned central-discovery backend state.
+/// The caller-visible state of one explicitly requested central connection.
+#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
+#[non_exhaustive]
+#[repr(u8)]
+pub enum BluetoothConnectionState {
+    /// No connection has been requested through this backend.
+    Idle = 0,
+    /// Native manager readiness or peer lookup is pending.
+    Starting = 1,
+    /// A requested connection is waiting for the central manager to become ready.
+    WaitingForPower = 2,
+    /// The backend accepted the native connection request and has not reported its outcome.
+    Connecting = 3,
+    /// The backend reported that the peer is connected.
+    Connected = 4,
+    /// The caller requested cancellation and the backend has not reported disconnection.
+    Disconnecting = 5,
+    /// The peer disconnected or a pending request was cancelled before native connection began.
+    Disconnected = 6,
+    /// The request ended with an error; inspect the queued failure event for its reason.
+    Failed = 7,
+}
+
+/// A normalized failure or synchronous rejection from a central connection request.
+#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
+#[non_exhaustive]
+#[repr(u8)]
+pub enum BluetoothConnectionError {
+    /// Another connection request is active or awaiting native cancellation.
+    AlreadyActive = 0,
+    /// The backend could not resolve the caller-selected OS peer UUID.
+    PeripheralUnavailable = 1,
+    /// Bluetooth authorization does not permit a central connection.
+    Unauthorized = 2,
+    /// The current device or platform does not support the Bluetooth central role.
+    Unsupported = 3,
+    /// The manager state was unrecognized or a native callback could not be processed.
+    Unavailable = 4,
+    /// The native backend reported a connection or disconnect error.
+    ConnectionFailed = 5,
+}
+
+/// A copied event for an explicitly requested central connection.
+#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
+#[non_exhaustive]
+pub enum BluetoothConnectionEvent {
+    /// The backend observed a change in the request's lifecycle state.
+    StateChanged {
+        /// The caller-selected OS peer UUID.
+        peripheral: BluetoothPeripheralId,
+        /// The new backend-observed lifecycle state.
+        state: BluetoothConnectionState,
+    },
+    /// The request failed; native error details are normalized and not exposed cross-platform.
+    Failed {
+        /// The caller-selected OS peer UUID.
+        peripheral: BluetoothPeripheralId,
+        /// The normalized failure reason.
+        error: BluetoothConnectionError,
+    },
+}
+
+/// A statically selected backend for one caller-selected Bluetooth central connection.
+///
+/// A request resolves the supplied OS-assigned peer UUID when the native manager is ready. It
+/// returns before the native connection outcome is known; callers inspect state and poll copied
+/// events. Backends may bound the event queue, drop the newest event on overflow, and report the
+/// saturating drop count. Cancellation is nonblocking. The backend must keep any required native
+/// peer object alive until the native terminal callback or backend teardown. A UUID is not a
+/// guarantee that the operating system can retrieve that peer indefinitely.
+pub trait BluetoothConnectionBackend: BluetoothCentralBackend {
+    /// Explicitly requests a connection to this OS-assigned peer UUID.
+    ///
+    /// Returns [`BluetoothConnectionError::AlreadyActive`] while an earlier request remains
+    /// active. Native requests finish at their terminal callback; pre-native failures and
+    /// cancellations finish when reported. An accepted request may initialize a platform manager
+    /// and cause an operating-system authorization prompt; the separate authorization query does
+    /// not.
+    fn connect_peripheral(
+        &mut self,
+        peripheral: BluetoothPeripheralId,
+    ) -> Result<(), BluetoothConnectionError>;
+
+    /// Nonblockingly cancels a pending or active connection; does nothing when idle or terminal.
+    fn cancel_connection(&mut self);
+
+    /// Returns the latest backend-observed connection lifecycle state.
+    fn connection_state(&self) -> BluetoothConnectionState;
+
+    /// Removes one already-delivered connection event, if one is queued.
+    fn try_next_connection_event(&mut self) -> Option<BluetoothConnectionEvent>;
+
+    /// Returns and resets the saturating count of connection events dropped by the bounded queue.
+    fn take_dropped_connection_event_count(&mut self) -> u32;
+}
+
+/// A thin facade over caller-owned central backend state.
 pub struct BluetoothCentral<B> {
     backend: B,
 }
@@ -151,6 +247,36 @@ impl<B: BluetoothCentralBackend> BluetoothCentral<B> {
     /// Returns and resets the number of discovery callbacks dropped due to bounded queue capacity.
     pub fn take_dropped_discovery_count(&mut self) -> u32 {
         self.backend.take_dropped_discovery_count()
+    }
+}
+
+impl<B: BluetoothConnectionBackend> BluetoothCentral<B> {
+    /// Explicitly requests a connection to a caller-selected OS peer UUID.
+    pub fn connect_peripheral(
+        &mut self,
+        peripheral: BluetoothPeripheralId,
+    ) -> Result<(), BluetoothConnectionError> {
+        self.backend.connect_peripheral(peripheral)
+    }
+
+    /// Nonblockingly cancels a pending or active connection.
+    pub fn cancel_connection(&mut self) {
+        self.backend.cancel_connection();
+    }
+
+    /// Returns the latest backend-observed connection lifecycle state.
+    pub fn connection_state(&self) -> BluetoothConnectionState {
+        self.backend.connection_state()
+    }
+
+    /// Removes one already-delivered connection event, if one is queued.
+    pub fn try_next_connection_event(&mut self) -> Option<BluetoothConnectionEvent> {
+        self.backend.try_next_connection_event()
+    }
+
+    /// Returns and resets the saturating count of connection events dropped by the bounded queue.
+    pub fn take_dropped_connection_event_count(&mut self) -> u32 {
+        self.backend.take_dropped_connection_event_count()
     }
 }
 
@@ -307,5 +433,114 @@ mod tests {
         assert_eq!(central.take_dropped_discovery_count(), 3);
         central.stop_scan();
         assert_eq!(central.scan_state(), BluetoothScanState::Stopped);
+    }
+
+    struct FakeConnectionCentral {
+        state: BluetoothConnectionState,
+        target: Option<BluetoothPeripheralId>,
+        event: Option<BluetoothConnectionEvent>,
+        dropped: u32,
+    }
+
+    impl BluetoothCentralBackend for FakeConnectionCentral {
+        fn start_unfiltered_scan(&mut self) -> Result<(), BluetoothScanError> {
+            Ok(())
+        }
+
+        fn stop_scan(&mut self) {}
+
+        fn scan_state(&self) -> BluetoothScanState {
+            BluetoothScanState::Stopped
+        }
+
+        fn try_next_discovery(&mut self) -> Option<BluetoothDiscovery> {
+            None
+        }
+
+        fn take_dropped_discovery_count(&mut self) -> u32 {
+            0
+        }
+    }
+
+    impl BluetoothConnectionBackend for FakeConnectionCentral {
+        fn connect_peripheral(
+            &mut self,
+            peripheral: BluetoothPeripheralId,
+        ) -> Result<(), BluetoothConnectionError> {
+            if self.target.is_some() {
+                return Err(BluetoothConnectionError::AlreadyActive);
+            }
+            self.target = Some(peripheral);
+            self.state = BluetoothConnectionState::Starting;
+            self.event = Some(BluetoothConnectionEvent::StateChanged {
+                peripheral,
+                state: self.state,
+            });
+            Ok(())
+        }
+
+        fn cancel_connection(&mut self) {
+            if let Some(peripheral) = self.target.take() {
+                self.state = BluetoothConnectionState::Disconnected;
+                self.event = Some(BluetoothConnectionEvent::StateChanged {
+                    peripheral,
+                    state: self.state,
+                });
+            }
+        }
+
+        fn connection_state(&self) -> BluetoothConnectionState {
+            self.state
+        }
+
+        fn try_next_connection_event(&mut self) -> Option<BluetoothConnectionEvent> {
+            self.event.take()
+        }
+
+        fn take_dropped_connection_event_count(&mut self) -> u32 {
+            core::mem::take(&mut self.dropped)
+        }
+    }
+
+    #[test]
+    fn central_facade_exposes_explicit_connection_and_rejects_overlap() {
+        let id = BluetoothPeripheralId::from_uuid_bytes([0x3C; 16]);
+        let backend = FakeConnectionCentral {
+            state: BluetoothConnectionState::Idle,
+            target: None,
+            event: None,
+            dropped: 2,
+        };
+        let mut central = BluetoothCentral::new(backend);
+        assert_eq!(central.connect_peripheral(id), Ok(()));
+        assert_eq!(
+            central.connection_state(),
+            BluetoothConnectionState::Starting
+        );
+        assert_eq!(
+            central.connect_peripheral(BluetoothPeripheralId::from_uuid_bytes([0x4D; 16])),
+            Err(BluetoothConnectionError::AlreadyActive)
+        );
+        assert_eq!(
+            central.try_next_connection_event(),
+            Some(BluetoothConnectionEvent::StateChanged {
+                peripheral: id,
+                state: BluetoothConnectionState::Starting,
+            })
+        );
+        central.cancel_connection();
+        central.cancel_connection();
+        assert_eq!(
+            central.connection_state(),
+            BluetoothConnectionState::Disconnected
+        );
+        assert_eq!(
+            central.try_next_connection_event(),
+            Some(BluetoothConnectionEvent::StateChanged {
+                peripheral: id,
+                state: BluetoothConnectionState::Disconnected,
+            })
+        );
+        assert_eq!(central.take_dropped_connection_event_count(), 2);
     }
 }

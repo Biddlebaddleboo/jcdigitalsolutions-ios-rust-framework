@@ -39,3 +39,57 @@ See [PLAN_VALIDATION_IOS_BLUETOOTH_DISCOVERY.md](PLAN_VALIDATION_IOS_BLUETOOTH_D
 - [CBPeer identifier](https://developer.apple.com/documentation/corebluetooth/cbpeer/identifier)
 - [Core Bluetooth framework privacy requirements](https://developer.apple.com/documentation/corebluetooth/)
 - [NSBluetoothPeripheralUsageDescription](https://developer.apple.com/documentation/bundleresources/information-property-list/nsbluetoothperipheralusagedescription)
+
+## B570 — explicit caller-selected central connection
+
+D29's exclusion of connection was a historical scope boundary. B570 adds one explicit connection
+to an OS-known peer UUID while preserving D29's unfiltered scan and B32's stateless,
+non-prompting authorization query. The portable `BluetoothConnectionBackend` is `no_std` and
+statically dispatched through `BluetoothCentral`; the iOS implementation reuses the existing lazy
+main-queue `CBCentralManager` and delegate.
+
+The caller selects `BluetoothPeripheralId`. Once the manager is `PoweredOn`, iOS resolves exactly
+that UUID with `retrievePeripheralsWithIdentifiers`, verifies the returned peer ID, retains at most
+one `CBPeripheral`, and calls `connectPeripheral:options:` with nil options. A missing match emits
+`PeripheralUnavailable`; the UUID does not promise indefinite CoreBluetooth retrievability. Manager
+authorization/role failures and native connection errors map to bounded portable error values, not
+native `NSError` text. One request remains active until its terminal callback; overlapping requests
+return `AlreadyActive` while the prior request remains active. Pre-native failure or cancellation
+ends when reported; native requests end at their terminal callback. Cancellation before native
+connection ends immediately; later cancellation is nonblocking, retains the peer until the
+terminal callback, and suppresses a late connect success. CoreBluetooth callbacks identify the peer
+but provide no request token; a callback for an earlier request arriving after a new request to the
+same UUID begins cannot be distinguished from a callback for that new request.
+Backend drop cancels any started request, stops discovery, clears the weak delegate, and releases
+native objects on the required main thread. Delegate panics are caught and active requests are
+cancelled.
+
+Connection events have a separate 16-entry FIFO. Overflow drops the newest event and saturates a
+`u32` drop count; the current state remains queryable if an event is lost. No service/characteristic
+discovery, GATT IO, advertisement data, peripheral role, background execution, restoration, or
+automatic reconnect is included. The effective identifier API floor remains iOS 8.0 because
+`CBPeer` is iOS 8.0 even though `retrievePeripheralsWithIdentifiers:` is iOS 7.0.
+
+Host policy regressions cover power/authorization/unsupported transitions, missing UUID lookup,
+overlap rejection, cancellation before and after native start, late/mismatched callbacks, teardown,
+panic cancellation, UUID byte order, and bounded queue FIFO/overflow. The local package target
+script checks and lints device and Simulator builds, then links a test fixture that references the
+connection facade without running CoreBluetooth. The registered `ios-bluetooth` validator profile
+is absent from this branch's `validation-v1.json` (`--explain ios-bluetooth` reports unknown
+capability); shared registration is owned by root integration and remains required before this
+increment can be validator-qualified.
+
+On Xcode 26.6 / iPhoneOS 26.5, the focused commands passed:
+
+- `cargo +1.94.1 fmt -p framework-bluetooth -p ios-bluetooth -- --check`
+- `cargo +1.94.1 test --locked --offline -p framework-bluetooth` — 5 passed
+- `cargo +1.94.1 check --locked --offline -p framework-bluetooth --no-default-features`
+- `cargo +1.94.1 test --locked --offline -p ios-bluetooth` — 15 passed; target-only link test not run on host
+- `cargo +1.94.1 clippy --locked --offline -p framework-bluetooth -p ios-bluetooth --all-targets -- -D warnings`
+- `cargo +1.94.1 doc --locked --offline --no-deps -p framework-bluetooth -p ios-bluetooth`
+- `sh platform/ios/ios-bluetooth/scripts/check-targets.sh` — device/Simulator check, Clippy, and `--no-run` link fixture passed for both targets
+
+No Simulator or physical-device runtime test ran. Compile/link success does not prove manager
+authorization UI, peer retrieval, radio connection, callback timing, cancellation behavior on-device,
+or background behavior. See [iOS Bluetooth central discovery and connection](docs/ios/bluetooth-discovery.md)
+and the official CoreBluetooth references above.

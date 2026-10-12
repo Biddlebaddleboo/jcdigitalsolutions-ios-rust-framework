@@ -19,7 +19,7 @@ create a manager, power the radio, request permission, present a prompt, scan, c
 or prove that a Bluetooth operation will succeed. `NotDetermined` is only a status; this crate has
 no permission-request operation.
 
-Explicit central scan and its async pull queue are a separate opt-in API. See
+Explicit central discovery/connection and their async pull queues are separate opt-in APIs. See
 [iOS Bluetooth central discovery](bluetooth-discovery.md); constructing the authorization backend
 does not create or retain its manager.
 

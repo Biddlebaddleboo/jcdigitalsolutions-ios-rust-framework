@@ -20,7 +20,7 @@ objc2-core-bluetooth = { workspace = true, features = [
     "CBUUID",
     "dispatch2",
 ] }
-objc2-foundation = { workspace = true, features = ["NSString", "NSObject", "NSUUID", "NSValue"] }
+objc2-foundation = { workspace = true, features = ["NSArray", "NSString", "NSObject", "NSUUID", "NSValue"] }
 
 [lints]
 workspace = true

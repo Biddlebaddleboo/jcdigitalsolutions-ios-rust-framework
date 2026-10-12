@@ -42,6 +42,23 @@ pub(crate) fn peripheral_id_from_uuid_ascii(value: &[u8; 36]) -> Option<Bluetoot
     Some(BluetoothPeripheralId::from_uuid_bytes(bytes))
 }
 
+/// Formats UUID octets as canonical uppercase ASCII for the public NSUUID parser.
+pub(crate) fn uuid_ascii_from_id(value: BluetoothPeripheralId) -> [u8; 36] {
+    const HEX: &[u8; 16] = b"0123456789ABCDEF";
+    let mut output = [0; 36];
+    let mut cursor = 0;
+    for (index, byte) in value.as_uuid_bytes().iter().copied().enumerate() {
+        if matches!(index, 4 | 6 | 8 | 10) {
+            output[cursor] = b'-';
+            cursor += 1;
+        }
+        output[cursor] = HEX[usize::from(byte >> 4)];
+        output[cursor + 1] = HEX[usize::from(byte & 0x0f)];
+        cursor += 2;
+    }
+    output
+}
+
 /// Converts CoreBluetooth RSSI to fixed-width dBm, mapping its reserved 127 value to unavailable.
 pub(crate) fn rssi_dbm_from_native(value: isize) -> Option<i32> {
     if value == 127 {
@@ -89,6 +106,17 @@ mod tests {
         );
         assert!(peripheral_id_from_uuid_ascii(b"00112233-4455-6677-8899-AABBCCDDEEFZ").is_none());
         assert!(peripheral_id_from_uuid_ascii(b"00112233-4455-6677-8899_AABBCCDDEEFF").is_none());
+    }
+
+    #[test]
+    fn peer_uuid_octets_format_for_native_lookup_without_byte_order_changes() {
+        let id = BluetoothPeripheralId::from_uuid_bytes([
+            0x00, 0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77, 0x88, 0x99, 0xAA, 0xBB, 0xCC, 0xDD,
+            0xEE, 0xFF,
+        ]);
+        let ascii = uuid_ascii_from_id(id);
+        assert_eq!(&ascii, b"00112233-4455-6677-8899-AABBCCDDEEFF");
+        assert_eq!(peripheral_id_from_uuid_ascii(&ascii), Some(id));
     }
 
     #[test]

@@ -1,8 +1,9 @@
 #![deny(missing_docs)]
 #![deny(unsafe_op_in_unsafe_fn)]
 #![cfg_attr(not(target_os = "ios"), allow(dead_code))]
-#![doc = "Non-prompting Bluetooth authorization status through the public CoreBluetooth class API."]
+#![doc = "Bluetooth authorization, foreground central discovery, and explicit central connections."]
 
+mod connection_policy;
 mod conversion;
 mod queue;
 
