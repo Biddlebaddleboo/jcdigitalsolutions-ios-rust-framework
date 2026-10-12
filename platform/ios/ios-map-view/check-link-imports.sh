@@ -22,6 +22,8 @@ libSystem.B.dylib
 libobjc.A.dylib
 IMPORTS
 
+grep -F 'fn duplicate_ids_reject_snapshot_before_native_changes()' platform/ios/ios-map-view/src/annotations.rs >/dev/null
+
 for target in aarch64-apple-ios aarch64-apple-ios-sim; do
     case "$target" in
         aarch64-apple-ios)
@@ -56,9 +58,14 @@ for target in aarch64-apple-ios aarch64-apple-ios-sim; do
 
     strings "$binary" > "$strings_file"
     grep -Fx 'MKMapView' "$strings_file"
+    grep -Fx 'MKPointAnnotation' "$strings_file"
     grep -F 'setRegion:animated:' "$strings_file" >/dev/null
     grep -F 'region' "$strings_file" >/dev/null
-    if grep -Eqi 'swift_|CLLocationManager|CLGeocoder|MKLocalSearch|MKDirections|MKMapItem|MKMapSnapshotter|MKAnnotation|MKOverlay|showsUserLocation|userLocation' "$strings_file"; then
+    grep -F 'addAnnotation:' "$strings_file" >/dev/null
+    grep -F 'removeAnnotation:' "$strings_file" >/dev/null
+    grep -F 'setCoordinate:' "$strings_file" >/dev/null
+    grep -F 'setTitle:' "$strings_file" >/dev/null
+    if grep -Eqi 'swift_|CLLocationManager|CLGeocoder|MKLocalSearch|MKDirections|MKMapItem|MKMapSnapshotter|MKAnnotationView|MKOverlay|showsUserLocation|userLocation' "$strings_file"; then
         echo "unexpected Swift, location service, search, directions, annotation, overlay, or user-location selector in $strings_file" >&2
         exit 1
     fi

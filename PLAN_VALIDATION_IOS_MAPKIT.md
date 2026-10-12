@@ -3,8 +3,9 @@
 ## Scope
 
 G68 validates D77/B73's finite geographic coordinates, projected map points, non-negative meter
-distances, and iOS MapKit conversion/distance calls. It does not cover map UI, user location,
-permissions, network services, search, directions, or full MapKit parity.
+distances, and iOS MapKit conversion/distance calls. The `ios-map-view` profile also validates
+B577's native map region API and B581's point-marker snapshot contract. It does not cover user
+location, permissions, network services, search, directions, or full MapKit parity.
 
 ## Gate
 
@@ -30,3 +31,13 @@ location access, request success, or performance.
 The registered host test gate ran the invalid-span negative regression and valid-boundary tests. Device and Simulator compile, Clippy, Rustdoc, and Release link/import checks passed with the profile floors of iOS 12.0 and iOS 14.0. The link probes checked MapKit/UIKit/CoreLocation imports, Objective-C class/message references, forbidden location/search/annotation symbols, and deployment metadata
 
 Simulator execution and physical-device proof remain skipped. No runtime map rendering, basemap request, tile fetch, or content availability is claimed
+
+## B581 registered annotation gate
+
+The `ios-map-view` profile now requires the portable marker value, duplicate-id negative regression,
+snapshot replacement API, and native remove path. Its Release device and Simulator link probes
+exercise the public `MKPointAnnotation` class and `MKMapView` add/remove selectors, while retaining
+the existing imports and deployment-probe floors. Host tests establish input value preservation,
+stable-id ordering, and duplicate rejection before native mutation. None of these checks prove
+rendered pin style, title callout visibility, touch interaction, or runtime behavior; those remain
+unverified without Simulator or device execution.

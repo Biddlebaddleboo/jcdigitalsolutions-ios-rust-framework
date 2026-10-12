@@ -125,6 +125,44 @@ impl MapRegion {
     }
 }
 
+/// A caller-owned map marker value with an identity stable across snapshots.
+///
+/// The identifier is chosen by the application and must be unique within each annotation
+/// snapshot passed to an iOS map view. The optional title is copied by MapKit when applied.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct MapAnnotation<'title> {
+    id: u64,
+    coordinate: MapCoordinate,
+    title: Option<&'title str>,
+}
+
+impl<'title> MapAnnotation<'title> {
+    /// Creates a marker value from an application-defined identifier, validated coordinate, and
+    /// optional title.
+    pub const fn new(id: u64, coordinate: MapCoordinate, title: Option<&'title str>) -> Self {
+        Self {
+            id,
+            coordinate,
+            title,
+        }
+    }
+
+    /// Returns the caller-defined stable identifier.
+    pub const fn id(self) -> u64 {
+        self.id
+    }
+
+    /// Returns the validated marker coordinate.
+    pub const fn coordinate(self) -> MapCoordinate {
+        self.coordinate
+    }
+
+    /// Returns the optional marker title.
+    pub const fn title(self) -> Option<&'title str> {
+        self.title
+    }
+}
+
 /// A finite point in MapKit's two-dimensional map projection.
 ///
 /// The `x` and `y` units are MapKit map points, not meters or screen points. Finite values are
