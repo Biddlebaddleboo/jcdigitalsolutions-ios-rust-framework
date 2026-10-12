@@ -57,17 +57,22 @@ and Simulator compile/link checks establish static target evidence only; live au
 location delivery, and suspended-app behavior remain unverified
 
 Row `037-sensors-connectivity-location-geofencing-significant-change-where-supported` remains
-partial after B477 because geofencing, significant-change monitoring, and background delivery are
-not implemented. The existing portable plans have no bounded geofencing or significant-change
-contract: region geometry, permission scope, platform limits, registration replacement or
-persistence, delivery across suspension or termination, and cancellation all need a separate
-product contract. Do not extend B5 or B477 to claim those operations without that plan. The
-registered B477 profile keeps the exact Core Location binding feature set and device/Simulator
-link-import checks; its source guard permits only the B477 `startUpdatingLocation()` call, keeps
-`requestLocation()` in B5's current-request path, and keeps the sole
-`requestWhenInUseAuthorization()` call in the explicit request path. Negative source fixtures
-check these selector scopes and existing prohibited APIs. The guard constrains repository Rust
-source only; calls through the B5 borrowed native manager escape remain outside the contract
+partial after B549 because geofencing and background delivery across suspension or termination
+are not implemented. B549 adds the opt-in `IosLocationBackend::start_significant_change_updates()`
+extension, which checks Core Location's device-support query and current foreground-capable
+authorization without prompting, then uses the existing bounded event queue and retained delegate.
+Its session drop detaches the delegate and calls `stopMonitoringSignificantLocationChanges()`.
+The API defines no fixed threshold or cadence, makes no background-delivery or relaunch promise,
+and does not persist a manager or configure standard background updates. Host regressions cover
+unsupported devices and authorization states; device/Simulator compilation and link/import checks
+establish static evidence only, not service delivery or power behavior. Region monitoring remains
+unimplemented pending its own bounded geometry, permission, replacement, persistence, and
+cancellation contract. The registered B477 profile's source guard now permits the significant
+selector only in the dedicated operation path, keeps `requestLocation()` in B5's current-request
+path, and keeps the authorization prompts in their explicit request paths. Negative fixtures
+check selector scope, device-support preflight, authorization scope, matching stop behavior, and
+existing prohibited APIs. The guard constrains repository Rust source only; calls through the B5
+borrowed native manager escape remain outside the contract
 
 ## Objective
 
@@ -139,3 +144,16 @@ execution and physical-device proof. Host tests, format, host/device/Simulator c
 Clippy, device Rustdoc, shell syntax, link/import, documentation, and source guards passed on
 Xcode 26.6 / iOS SDK 26.5. Static checks do not prove live prompts, background callbacks,
 suspension/resumption, or physical-device behavior
+
+## B549 — Significant-change location session
+
+B549 adds the iOS-only `IosLocationBackend::start_significant_change_updates()` entry point as an
+opt-in alternative to standard updates. It requires existing foreground-capable authorization,
+checks `significantLocationChangeMonitoringAvailable()`, never prompts, and reports `Unsupported`
+when the device lacks service support. It uses the existing bounded update queue and serialized
+main-run-loop delegate lifecycle; its session drop detaches the delegate and calls the matching
+`stopMonitoringSignificantLocationChanges()` selector. Standard accuracy and distance-filter
+settings do not define this service's events. The API makes no fixed-threshold, cadence, background
+delivery, app-relaunch, or runtime claim. Host preflight tests and negative source regressions cover
+support, permission, selector scope, and cancellation mapping; registered device and Simulator
+gates provide compile/link evidence only

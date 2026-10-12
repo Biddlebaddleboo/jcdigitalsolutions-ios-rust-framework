@@ -21,6 +21,7 @@ fn main() {
         let mut context = std::task::Context::from_waker(waker);
         let _ = core::future::Future::poll(core::pin::Pin::new(&mut authorization), &mut context);
         drop(authorization);
+        let _ = core::hint::black_box(backend.start_significant_change_updates());
         let request = LocationRequest::new(AccuracyTarget::new(0.0).expect("finite accuracy"));
         let options = ios_location::IosBackgroundLocationOptions::new()
             .with_activity_type(ios_location::IosLocationActivityType::OtherNavigation)

@@ -26,6 +26,24 @@ def function_body(source, name):
  return source[start:end]
 
 
+def impl_body(source, marker):
+ start = source.find(marker)
+ if start < 0:
+  raise ValueError("missing impl " + marker)
+ opening = source.find("{", start + len(marker))
+ if opening < 0:
+  raise ValueError("missing body for impl " + marker)
+ depth = 0
+ for index in range(opening, len(source)):
+  if source[index] == "{":
+   depth += 1
+  elif source[index] == "}":
+   depth -= 1
+   if depth == 0:
+    return source[start:index + 1]
+ raise ValueError("unterminated impl " + marker)
+
+
 def replace_function(source, name, old, new):
  start, end = function_span(source, name)
  body = source[start:end]
@@ -40,6 +58,16 @@ def insert_function(source, name, marker, addition):
  if marker not in body:
   raise ValueError("negative fixture insertion point absent in " + name)
  return source[:start] + body.replace(marker, marker + "\n" + addition, 1) + source[end:]
+
+
+def replace_impl(source, marker, old, new):
+ start = source.find(marker)
+ if start < 0:
+  raise ValueError("missing impl " + marker)
+ body = impl_body(source, marker)
+ if old not in body:
+  raise ValueError("negative fixture needle absent in impl " + marker)
+ return source[:start] + body.replace(old, new, 1) + source[start + len(body):]
 
 
 def block_after(source, marker):
@@ -68,7 +96,8 @@ def check(source):
 
  functions = {}
  for name in ("start_authorization_request", "start_always_authorization_request", "start_current",
-              "start_background_updates", "start_updates", "start_location_updates",
+              "start_background_updates", "start_updates", "start_significant_change_updates",
+              "start_location_updates",
               "main_bundle_has_location_background_mode", "main_bundle_has_always_usage_descriptions",
               "main_bundle_requires_legacy_always_usage_description",
               "locationManager_didUpdateLocations", "complete_authorization_change"):
@@ -83,6 +112,7 @@ def check(source):
   ("requestAlwaysAuthorization()", "start_always_authorization_request"),
   ("requestLocation()", "start_current"),
   ("startUpdatingLocation()", "start_location_updates"),
+  ("startMonitoringSignificantLocationChanges()", "start_location_updates"),
   ("setAllowsBackgroundLocationUpdates(true)", "start_location_updates"),
  )
  for selector, owner in selectors:
@@ -119,17 +149,49 @@ def check(source):
  require("UpdateAuthorizationRequirement::Foreground" in foreground and "None" in foreground,
          "foreground session stays foreground-only")
 
+ significant_method = functions["start_significant_change_updates"]
+ require("LocationUpdateService::SignificantChange" in significant_method and
+         "UpdateAuthorizationRequirement::Foreground" in significant_method and
+         "None" in significant_method,
+         "significant-change session is foreground-authorized and opt-in")
+ require("requestWhenInUseAuthorization" not in significant_method and
+         "requestAlwaysAuthorization" not in significant_method and
+         "setAllowsBackgroundLocationUpdates" not in significant_method,
+         "significant-change session does not prompt or enable standard background updates")
+
  updates = functions["start_location_updates"]
  mode_check = "if !main_bundle_has_location_background_mode()"
  background_setter = "manager.setAllowsBackgroundLocationUpdates(true)"
  try:
-  background_branch = block_after(updates,
-                                  "(UpdateAuthorizationRequirement::Background, Some(_)) =>")
+  background_branch = block_after(updates, "UpdateAuthorizationRequirement::Background,")
  except ValueError:
   background_branch = ""
  require(mode_check in background_branch, "background plist preflight branch")
  require("if !updates_permitted(authorization, requirement)" in updates,
          "session authorization check")
+ require(updates.count("manager.startMonitoringSignificantLocationChanges()") == 1 and
+         source.count("manager.startMonitoringSignificantLocationChanges()") == 1,
+         "significant selector scope")
+ try:
+  significant_preflight = block_after(
+   updates, "if matches!(service, LocationUpdateService::SignificantChange)")
+ except ValueError:
+  significant_preflight = ""
+ support_query = "CLLocationManager::significantLocationChangeMonitoringAvailable()"
+ support_check = "significant_change_preflight(supported, authorization)?"
+ require(support_query in significant_preflight and support_check in significant_preflight and
+         significant_preflight.find(support_query) < significant_preflight.find(support_check),
+         "significant device support preflight")
+ require("if let LocationUpdateService::Standard(request) = service" in updates and
+         "LocationUpdateService::SignificantChange => unsafe" in updates,
+         "significant-change service does not apply standard accuracy settings")
+ try:
+  updates_drop = impl_body(source, "impl Drop for IosLocationUpdates")
+ except ValueError:
+  updates_drop = ""
+ require("LocationUpdateService::SignificantChange" in updates_drop and
+         "self.manager.stopMonitoringSignificantLocationChanges()" in updates_drop,
+         "significant-change session drop stops its matching native service")
  require(mode_check in updates and background_setter in updates and
          updates.index(mode_check) < updates.index(background_setter), "background plist preflight order")
  try:
@@ -212,12 +274,18 @@ def verify_negative_fixtures(source):
   ("background downgrade event and fix suppression", "locationManager_didUpdateLocations", "if !authorization.permits(current_authorization)", "if true"),
   ("background downgrade event and fix suppression", "locationManager_didUpdateLocations", "if !authorization.permits(current_authorization) {\n                        return;\n                    }", "if !authorization.permits(current_authorization) {\n                        drop(());\n                    }"),
   ("authorization callback reports background downgrade", "complete_authorization_change", "if authorization.observe(authorization_from_native(raw_status))", "if false"),
+  ("significant selector scope", "start_location_updates", "manager.startMonitoringSignificantLocationChanges()", "removed_significant_start()"),
+  ("significant device support preflight", "start_location_updates", "CLLocationManager::significantLocationChangeMonitoringAvailable()", "true"),
+  ("significant device support preflight", "start_location_updates", "significant_change_preflight(supported, authorization)?", "Ok(())"),
+  ("significant-change session is foreground-authorized and opt-in", "start_significant_change_updates", "UpdateAuthorizationRequirement::Foreground", "UpdateAuthorizationRequirement::Background"),
+  ("significant-change session is foreground-authorized and opt-in", "start_significant_change_updates", "LocationUpdateService::SignificantChange", "LocationUpdateService::Standard(LocationRequest::new(AccuracyTarget::new(1.0).unwrap()))"),
  )
  failures = []
  wrong_scope_cases = (
   ("selector scope startUpdatingLocation()", "start_current", "let native_accuracy =", "unsafe { manager.startUpdatingLocation() };"),
   ("selector scope requestLocation()", "start_location_updates", "if !updates_permitted(authorization, requirement)", "unsafe { manager.requestLocation() };"),
   ("selector scope requestAlwaysAuthorization()", "start_authorization_request", "let status = native_authorization_status();", "unsafe { manager.requestAlwaysAuthorization() };"),
+  ("significant selector scope", "start_updates", "start_location_updates(", "unsafe { manager.startMonitoringSignificantLocationChanges() };"),
  )
  for expected, function, marker, addition in wrong_scope_cases:
   try:
@@ -235,6 +303,18 @@ def verify_negative_fixtures(source):
    continue
   if expected not in check(mutated):
    failures.append("mutation escaped " + expected)
+ try:
+  mutated = replace_impl(
+   source,
+   "impl Drop for IosLocationUpdates",
+   "self.manager.stopMonitoringSignificantLocationChanges()",
+   "self.manager.stopUpdatingLocation()",
+  )
+ except ValueError as error:
+  failures.append(str(error))
+ else:
+  if "significant-change session drop stops its matching native service" not in check(mutated):
+   failures.append("significant-change stop mutation escaped session-drop guard")
  return failures
 
 
@@ -243,6 +323,7 @@ def verify_host_test_anchors(source_dir):
   ("configuration.rs", "background_plist_requires_always_usage_keys"),
   ("configuration.rs", "legacy_always_key_requirement_tracks_deployment_target"),
   ("conversion.rs", "background_updates_require_always_and_report_downgrades"),
+  ("conversion.rs", "significant_change_preflight_requires_device_support_and_existing_authorization"),
  )
  failures = []
  for filename, name in anchors:

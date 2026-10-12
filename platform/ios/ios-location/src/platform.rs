@@ -5,7 +5,8 @@ use crate::configuration::{
 use crate::conversion::{
     NativeAccuracy, UpdateAuthorizationRequirement, authorization_downgraded,
     authorization_from_native, configuration_error, error_from_native, fix_from_native,
-    native_accuracy, should_request_always_authorization, updates_permitted,
+    native_accuracy, should_request_always_authorization, significant_change_preflight,
+    updates_permitted,
 };
 use crate::operation::{CompletionCell, LocationUpdateQueue};
 use core::cell::Cell;
@@ -35,6 +36,12 @@ type Completion = Arc<CompletionCell<NativeOutcome, LocationError>>;
 enum NativeOutcome {
     Authorization(LocationAuthorization),
     Current(LocationFix),
+}
+
+#[derive(Clone, Copy)]
+enum LocationUpdateService {
+    Standard(LocationRequest),
+    SignificantChange,
 }
 
 enum DelegateState {
@@ -274,17 +281,17 @@ pub type IosRequestAlwaysAuthorizationFuture<'a> = IosLocationFuture<'a, Locatio
 /// iOS one-shot current-location future.
 pub type IosCurrentFuture<'a> = IosLocationFuture<'a, LocationFix>;
 
-/// A continuous location-update session that owns its native manager and retained delegate.
+/// A location-update session that owns its native manager and retained delegate.
 ///
 /// The session exclusively borrows its backend and must be used and dropped on the backend's
-/// main thread. `LocationUpdatesBackend::start_updates` creates a foreground session without
-/// enabling background delivery. `IosLocationBackend::start_background_updates` requires current
-/// Always authorization and a configured app background mode. Neither operation requests
-/// permission. Dropping the session detaches callback state and stops the native location service.
+/// main thread. It may own standard foreground/background updates or significant-change updates.
+/// Starting any session never requests permission. Dropping the session detaches callback state
+/// and stops the selected native location service.
 pub struct IosLocationUpdates<'a> {
     _backend: &'a mut IosLocationBackend,
     queue: Arc<LocationUpdateQueue>,
     manager: Retained<CLLocationManager>,
+    service: LocationUpdateService,
     _delegate: Retained<LocationDelegate>,
     _main_thread: MainThreadMarker,
 }
@@ -329,8 +336,17 @@ impl Drop for IosLocationUpdates<'_> {
         // SAFETY: The session and manager are main-thread-bound; the retained delegate remains
         // alive through both calls, and clearing it prevents any callback after detachment.
         unsafe { self.manager.setDelegate(None) };
-        // SAFETY: The manager started standard updates on this thread and may still be active.
-        unsafe { self.manager.stopUpdatingLocation() };
+        match self.service {
+            LocationUpdateService::Standard(_) => {
+                // SAFETY: The manager started standard updates on this thread and may be active.
+                unsafe { self.manager.stopUpdatingLocation() };
+            }
+            LocationUpdateService::SignificantChange => {
+                // SAFETY: The manager started significant-change monitoring on this thread and
+                // may be active; this is its matching public stop operation.
+                unsafe { self.manager.stopMonitoringSignificantLocationChanges() };
+            }
+        }
     }
 }
 
@@ -656,9 +672,30 @@ impl IosLocationBackend {
     ) -> Result<IosLocationUpdates<'a>, LocationError> {
         start_location_updates(
             self,
-            request,
+            LocationUpdateService::Standard(request),
             UpdateAuthorizationRequirement::Background,
             Some(options),
+        )
+    }
+
+    /// Starts the opt-in significant-change location service.
+    ///
+    /// The current authorization must already permit foreground location use; this method never
+    /// prompts. It returns `Unsupported` when Core Location reports that the device lacks support.
+    /// The service does not use the portable accuracy target or standard distance filter, and this
+    /// API promises no fixed distance threshold, update cadence, background delivery, or app launch.
+    /// Apple describes significant-change monitoring as a low-power service, but actual power use
+    /// and update delivery remain controlled by the operating system. The session shares the
+    /// bounded update queue and callback lifecycle used by standard updates; dropping it detaches
+    /// the delegate and calls `stopMonitoringSignificantLocationChanges()`.
+    pub fn start_significant_change_updates<'a>(
+        &'a mut self,
+    ) -> Result<IosLocationUpdates<'a>, LocationError> {
+        start_location_updates(
+            self,
+            LocationUpdateService::SignificantChange,
+            UpdateAuthorizationRequirement::Foreground,
+            None,
         )
     }
 
@@ -752,7 +789,7 @@ impl LocationUpdatesBackend for IosLocationBackend {
     ) -> Result<Self::UpdateSession<'a>, LocationError> {
         start_location_updates(
             self,
-            request,
+            LocationUpdateService::Standard(request),
             UpdateAuthorizationRequirement::Foreground,
             None,
         )
@@ -761,17 +798,27 @@ impl LocationUpdatesBackend for IosLocationBackend {
 
 fn start_location_updates<'a>(
     backend: &'a mut IosLocationBackend,
-    request: LocationRequest,
+    service: LocationUpdateService,
     requirement: UpdateAuthorizationRequirement,
     background_options: Option<IosBackgroundLocationOptions>,
 ) -> Result<IosLocationUpdates<'a>, LocationError> {
     let authorization = authorization_from_native(native_authorization_status());
-    if !updates_permitted(authorization, requirement) {
+    if matches!(service, LocationUpdateService::SignificantChange) {
+        // SAFETY: This public class query is available from iOS 4.0, below the package's iOS 9.0
+        // base API floor, and reports whether this device supports the significant-change service.
+        let supported =
+            unsafe { CLLocationManager::significantLocationChangeMonitoringAvailable() };
+        significant_change_preflight(supported, authorization)?;
+    } else if !updates_permitted(authorization, requirement) {
         return Err(permission_error());
     }
-    match (requirement, background_options) {
-        (UpdateAuthorizationRequirement::Foreground, None) => {}
-        (UpdateAuthorizationRequirement::Background, Some(_)) => {
+    match (service, requirement, background_options) {
+        (LocationUpdateService::Standard(_), UpdateAuthorizationRequirement::Foreground, None) => {}
+        (
+            LocationUpdateService::Standard(_),
+            UpdateAuthorizationRequirement::Background,
+            Some(_),
+        ) => {
             if !main_bundle_has_location_background_mode() {
                 return Err(configuration_error());
             }
@@ -779,6 +826,11 @@ fn start_location_updates<'a>(
                 return Err(unsupported_error());
             }
         }
+        (
+            LocationUpdateService::SignificantChange,
+            UpdateAuthorizationRequirement::Foreground,
+            None,
+        ) => {}
         _ => return Err(internal_error()),
     }
     if background_options.is_some_and(|options| options.shows_background_indicator)
@@ -795,16 +847,18 @@ fn start_location_updates<'a>(
             authorization: UpdateAuthorizationState::new(requirement, authorization),
         },
     );
-    let native_accuracy = match native_accuracy(request.accuracy_target()) {
-        NativeAccuracy::Best => {
-            // SAFETY: Core Location declares this public accuracy constant for iOS.
-            unsafe { objc2_core_location::kCLLocationAccuracyBest }
-        }
-        NativeAccuracy::Meters(meters) => meters,
-    };
-    // SAFETY: The validated portable target is finite, non-negative meters, and the manager is
-    // created on this backend's main-thread/run-loop context.
-    unsafe { manager.setDesiredAccuracy(native_accuracy) };
+    if let LocationUpdateService::Standard(request) = service {
+        let native_accuracy = match native_accuracy(request.accuracy_target()) {
+            NativeAccuracy::Best => {
+                // SAFETY: Core Location declares this public accuracy constant for iOS.
+                unsafe { objc2_core_location::kCLLocationAccuracyBest }
+            }
+            NativeAccuracy::Meters(meters) => meters,
+        };
+        // SAFETY: The validated portable target is finite, non-negative meters, and the manager
+        // is created on this backend's main-thread/run-loop context.
+        unsafe { manager.setDesiredAccuracy(native_accuracy) };
+    }
 
     if let Some(options) = background_options {
         // SAFETY: Core Location's default is no distance threshold; set it explicitly for this
@@ -823,15 +877,21 @@ fn start_location_updates<'a>(
         unsafe { manager.setAllowsBackgroundLocationUpdates(true) };
     }
 
-    // SAFETY: Authorization and background configuration were preflighted before the service
-    // starts. The retained delegate receives callbacks on the manager's active main run loop.
-    unsafe { manager.startUpdatingLocation() };
+    // SAFETY: Authorization, device support, and any background configuration were preflighted;
+    // the retained delegate receives callbacks on the manager's active main run loop.
+    match service {
+        LocationUpdateService::Standard(_) => unsafe { manager.startUpdatingLocation() },
+        LocationUpdateService::SignificantChange => unsafe {
+            manager.startMonitoringSignificantLocationChanges()
+        },
+    }
 
     let marker = backend.marker;
     Ok(IosLocationUpdates {
         _backend: backend,
         queue,
         manager,
+        service,
         _delegate: delegate,
         _main_thread: marker,
     })

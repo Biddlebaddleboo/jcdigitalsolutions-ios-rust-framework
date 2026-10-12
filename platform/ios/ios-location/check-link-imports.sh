@@ -12,7 +12,7 @@ for tool in awk cargo diff grep nm otool python3 sort; do
     fi
 done
 
-out_of_scope_apis='startMonitoringForRegion|startMonitoringSignificantLocationChanges|startMonitoringVisits|startUpdatingHeading|startRangingBeacons|allowDeferredLocationUpdates|requestTemporaryFullAccuracyAuthorization|CLCircularRegion|CLRegion|CLVisit|CLHeading'
+out_of_scope_apis='startMonitoringForRegion|startMonitoringVisits|startUpdatingHeading|startRangingBeacons|allowDeferredLocationUpdates|requestTemporaryFullAccuracyAuthorization|CLCircularRegion|CLRegion|CLVisit|CLHeading'
 if grep -REn "$out_of_scope_apis" platform/ios/ios-location/src platform/ios/ios-location/examples; then
     echo "out-of-scope Core Location operation in ios-location Rust source" >&2
     exit 1

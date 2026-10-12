@@ -44,6 +44,22 @@ pub(crate) fn configuration_error() -> LocationError {
     LocationError::Backend(Error::new(ErrorKind::InvalidInput))
 }
 
+/// Checks device support and existing authorization for significant-change monitoring.
+pub(crate) fn significant_change_preflight(
+    supported: bool,
+    authorization: LocationAuthorization,
+) -> Result<(), LocationError> {
+    if !supported {
+        return Err(LocationError::Backend(Error::new(ErrorKind::Unsupported)));
+    }
+    if !authorization.allows_foreground() {
+        return Err(LocationError::Backend(Error::new(
+            ErrorKind::PermissionDenied,
+        )));
+    }
+    Ok(())
+}
+
 /// Maps Core Location authorization raw values to the portable foreground/background state.
 pub(crate) const fn authorization_from_native(value: i32) -> LocationAuthorization {
     match value {
@@ -201,6 +217,31 @@ mod tests {
         assert!(!should_request_always_authorization(
             LocationAuthorization::Unknown
         ));
+    }
+
+    #[test]
+    fn significant_change_preflight_requires_device_support_and_existing_authorization() {
+        assert_eq!(
+            significant_change_preflight(false, LocationAuthorization::Foreground)
+                .unwrap_err()
+                .kind(),
+            ErrorKind::Unsupported
+        );
+        for authorization in [
+            LocationAuthorization::Unknown,
+            LocationAuthorization::NotDetermined,
+            LocationAuthorization::Denied,
+            LocationAuthorization::Restricted,
+        ] {
+            assert_eq!(
+                significant_change_preflight(true, authorization)
+                    .unwrap_err()
+                    .kind(),
+                ErrorKind::PermissionDenied
+            );
+        }
+        assert!(significant_change_preflight(true, LocationAuthorization::Foreground).is_ok());
+        assert!(significant_change_preflight(true, LocationAuthorization::Background).is_ok());
     }
 
     #[test]

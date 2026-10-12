@@ -5,7 +5,7 @@ edition.workspace = true
 rust-version.workspace = true
 license.workspace = true
 repository.workspace = true
-description = "One-shot and foreground/background Core Location backend for iOS"
+description = "One-shot, foreground/background, and significant-change Core Location backend for iOS"
 
 [dependencies]
 framework-core.workspace = true
