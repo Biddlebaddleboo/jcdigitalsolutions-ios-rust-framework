@@ -79,3 +79,11 @@ Both returned `error-blocked: snapshot-unstable: source changed during capture`.
 The initial integrated profile attempt used a superseded spec snapshot and reported 278 pass, 7 fail, 0 blocked, and 2 skipped. The seven failures were the outdated Foundation feature guard and Rust files mistakenly listed as shell/ABI scripts; those spec errors were corrected. This result is not a pass for the corrected profile.
 
 The unchanged B554 implementation source had 62 passing host tests, device and Simulator compilation/link probes, strict device Clippy, formatting, and a passing collection-grid link probe before integration. Those direct results do not replace the blocked registered profile or establish Simulator/device runtime behavior. The framework docs record this B554-specific impact in `PLAN.md`.
+
+## Additional reproduction — 2026-10-12 (B567)
+
+After B567 added exact authorization-change events to `ios-location-updates`, the latest local validator continued to return `error-blocked: snapshot-unstable: source changed during capture` before running gates. The selected executable is `~/.local/bin/ios-rust-validate`, release/source SHA `350971094cc3b77191cd6b3d07e01af04d71943d`, SHA-256 `77f9c7aa941ba1335827ffc6ce274898987ce1d5f408d91d1a7c1daf34527944`; help and `--explain ios-location-updates` succeed. The spec is valid at 262090 bytes, below the 262144-byte limit.
+
+The final capability command failed twice on the dirty worktree, once with supported `--watch`, and again on clean committed B567 source `020c8886c705062d87aa60624114804897e5cd1e`. The current source therefore has no registered profile result. An earlier B567 snapshot `95f63f981ba133d0366d3d20f8c37ea7612425c089331fef9268b2b786676c51` reported 46 PASS, 0 FAIL, 0 BLOCKED, and 2 SKIPPED of 48 before the final queue-order test and negative-fixture strengthening; it does not certify the current commit.
+
+On the current source, direct host tests pass (`framework-location` 7/7; `ios-location` unit tests 33/33; integration tests 2/2), and the Python source/negative adapter passes. These results do not replace the blocked registered profile. No live Core Location delivery, permission prompt/restoration, Simulator execution, or physical-device behavior is claimed.
