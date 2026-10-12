@@ -1,5 +1,12 @@
 # Validation and Tooling
 
+## Tool release and evidence boundary (October 2026)
+
+The new tooling source `b6d422528c80671d828a4b0d40e9fc739652409a` adds improved snapshot diagnostics, conservative dependency selection, bounded `audit-spec` validation, source-bound evidence, and a native builder that accepts required empty `frameworks: []`. This repository's current pinned release predates those changes. These commands/semantics apply only after a new binary is explicitly installed and its complete source identity, host triple, checksum and CLI capabilities are verified. Do not interpret the upstream host test results as a successful run of this framework's previously blocked validation profiles; re-run the actual registered gates on the intended clean framework commit.
+
+For an installed tool advertising `audit-spec`, use `ios-rust-validate audit-spec --workspace-root "$PWD" --spec "$PWD/tools/validation/specs/validation-v1.json"` as a **declarative audit only**, not a substitute for compilation, host tests, simulator/device evidence, or full profiles. The framework's own native-build schema still needs explicit compatibility updates before empty-framework specs can be used. The framework Codex must not access private tooling source or repository through any path; report defects locally for the assistant to coordinate. The assistant handles cross-repository documentation, release coordination, and tooling-facing instruction changes; keep hosted CI manual-only.
+
+
 Use `cargo xtask` for non-validation shared checks from the repository root; install the pinned PATH tools before framework builds and validation. Run harness fixtures with the direct `cargo test` commands below. Reports go under `target/xtask/` by default and are build artifacts, not machine-specific source files.
 
 ```bash
