@@ -508,3 +508,11 @@ session state, and the API does not prompt or own stream lifecycle. The register
 and iOS 14.0 Simulator gates prove compile/link/import and deployment metadata only. Host tests
 cover option mapping and stable Rust error mapping; no audio-session or CallKit runtime behavior is
 claimed. See [the API guide](docs/ios/audio-session.md).
+
+### B545 — per-photo camera flash mode (row 046)
+
+B545 adds opt-in `Off`, `On`, and `Auto` flash requests for one processed photo. It checks the
+configured output's supported modes before capture and leaves existing `capture_photo` defaults
+unchanged. Host regressions and the existing iOS 10.0 device / iOS 14.0 Simulator link profile
+cover support rejection and selector retention; no flash firing or camera runtime behavior is
+claimed. See [the camera capture workstream](PLAN_IOS_CAMERA_CAPTURE_SESSION.md).
