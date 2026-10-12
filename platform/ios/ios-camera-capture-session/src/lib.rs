@@ -6,6 +6,8 @@
 use framework_media::MediaTime;
 #[cfg(any(target_os = "ios", test))]
 use framework_media_authorization::MediaAuthorizationStatus;
+#[cfg(any(target_os = "ios", test))]
+use std::collections::VecDeque;
 #[cfg(target_os = "ios")]
 use std::ffi::c_void;
 #[cfg(target_os = "ios")]
@@ -24,6 +26,8 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 
 #[cfg(target_os = "ios")]
+use block2::RcBlock;
+#[cfg(target_os = "ios")]
 use dispatch2::{DispatchQueue, DispatchQueueAttr};
 #[cfg(target_os = "ios")]
 use framework_media_authorization::{CaptureMedia, MediaAuthorization};
@@ -32,7 +36,7 @@ use ios_media_authorization::IosMediaAuthorization;
 #[cfg(target_os = "ios")]
 use objc2::rc::{Retained, autoreleasepool};
 #[cfg(target_os = "ios")]
-use objc2::runtime::ProtocolObject;
+use objc2::runtime::{AnyObject, ProtocolObject};
 #[cfg(target_os = "ios")]
 use objc2::{AnyThread, DefinedClass, MainThreadMarker, define_class, msg_send};
 #[cfg(target_os = "ios")]
@@ -43,11 +47,15 @@ use objc2_av_foundation::{
     AVCaptureFileOutputRecordingDelegate, AVCaptureFlashMode, AVCaptureFocusMode,
     AVCaptureMovieFileOutput, AVCaptureOutput, AVCapturePhoto, AVCapturePhotoCaptureDelegate,
     AVCapturePhotoOutput, AVCapturePhotoQualityPrioritization, AVCapturePhotoSettings,
-    AVCaptureSession, AVCaptureSessionPreset, AVCaptureSessionPreset352x288,
-    AVCaptureSessionPreset640x480, AVCaptureSessionPreset1280x720, AVCaptureSessionPreset1920x1080,
+    AVCaptureSession, AVCaptureSessionDidStartRunningNotification,
+    AVCaptureSessionDidStopRunningNotification, AVCaptureSessionErrorKey,
+    AVCaptureSessionInterruptionEndedNotification, AVCaptureSessionInterruptionReasonKey,
+    AVCaptureSessionPreset, AVCaptureSessionPreset352x288, AVCaptureSessionPreset640x480,
+    AVCaptureSessionPreset1280x720, AVCaptureSessionPreset1920x1080,
     AVCaptureSessionPreset3840x2160, AVCaptureSessionPresetHigh, AVCaptureSessionPresetLow,
-    AVCaptureSessionPresetMedium, AVCaptureSessionPresetPhoto, AVCaptureTorchMode,
-    AVCaptureVideoDataOutput, AVCaptureVideoDataOutputSampleBufferDelegate,
+    AVCaptureSessionPresetMedium, AVCaptureSessionPresetPhoto,
+    AVCaptureSessionRuntimeErrorNotification, AVCaptureSessionWasInterruptedNotification,
+    AVCaptureTorchMode, AVCaptureVideoDataOutput, AVCaptureVideoDataOutputSampleBufferDelegate,
     AVCaptureVideoPreviewLayer, AVCaptureWhiteBalanceMode, AVMediaTypeAudio, AVMediaTypeVideo,
 };
 #[cfg(target_os = "ios")]
@@ -55,7 +63,10 @@ use objc2_core_foundation::CGPoint;
 #[cfg(target_os = "ios")]
 use objc2_core_media::{CMSampleBuffer, CMTime, CMTimeFlags};
 #[cfg(target_os = "ios")]
-use objc2_foundation::{NSArray, NSError, NSNumber, NSObject, NSObjectProtocol, NSString, NSURL};
+use objc2_foundation::{
+    NSArray, NSError, NSNotification, NSNotificationCenter, NSNumber, NSObject, NSObjectProtocol,
+    NSString, NSURL,
+};
 
 /// Failure to request or complete a processed default-camera photo capture
 #[cfg(any(target_os = "ios", test))]
@@ -1502,6 +1513,75 @@ impl IosCameraDeviceSelection {
     }
 }
 
+/// A known AVFoundation interruption reason or a future native reason value
+#[cfg(any(target_os = "ios", test))]
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum IosCameraSessionInterruptionReason {
+    /// The app is in the background while using a camera
+    VideoDeviceNotAvailableInBackground,
+    /// Audio hardware is in use by another client
+    AudioDeviceInUseByAnotherClient,
+    /// The video device is in use by another client
+    VideoDeviceInUseByAnotherClient,
+    /// The app's multitasking layout does not permit this capture configuration
+    VideoDeviceNotAvailableWithMultipleForegroundApps,
+    /// System pressure temporarily made the video device unavailable
+    VideoDeviceNotAvailableDueToSystemPressure,
+    /// Sensitive-content mitigation interrupted the stream
+    SensitiveContentMitigationActivated,
+    /// A future or otherwise unknown AVFoundation interruption reason
+    Unknown(i64),
+}
+
+/// A runtime error reported by the owned AVFoundation capture session
+#[cfg(any(target_os = "ios", test))]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct IosCameraRuntimeError {
+    domain: String,
+    code: i64,
+    domain_truncated: bool,
+}
+
+#[cfg(any(target_os = "ios", test))]
+impl IosCameraRuntimeError {
+    /// Return the copied NSError domain; it is UTF-8 truncated only when longer than 256 bytes
+    pub fn domain(&self) -> &str {
+        &self.domain
+    }
+
+    /// Return the copied native NSError code
+    pub const fn code(&self) -> i64 {
+        self.code
+    }
+
+    /// Return whether the native NSError domain exceeded the 256-byte storage limit
+    pub const fn domain_was_truncated(&self) -> bool {
+        self.domain_truncated
+    }
+}
+
+/// One lifecycle, interruption, or runtime-error event from this capture session
+#[cfg(any(target_os = "ios", test))]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum IosCameraCaptureSessionEvent {
+    /// AVFoundation reports that this session started running
+    DidStartRunning,
+    /// AVFoundation reports that this session stopped running
+    DidStopRunning,
+    /// AVFoundation reports an interruption and an optional documented reason
+    Interrupted {
+        /// The reason value, absent on older runtimes or malformed notifications
+        reason: Option<IosCameraSessionInterruptionReason>,
+    },
+    /// AVFoundation reports that the prior interruption ended
+    InterruptionEnded,
+    /// AVFoundation reports a runtime error and its optional copied NSError details
+    RuntimeError {
+        /// The native NSError domain and code, absent on malformed notifications
+        error: Option<IosCameraRuntimeError>,
+    },
+}
+
 /// Failure to switch an existing session's selected built-in wide-angle camera
 #[cfg(any(target_os = "ios", test))]
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -2156,6 +2236,255 @@ fn require_switch_camera_selection<T>(
     device.ok_or(CameraDeviceSelectionError::NoCameraAtSelection(selection))
 }
 
+#[cfg(any(target_os = "ios", test))]
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum CameraSessionNotification {
+    DidStartRunning,
+    DidStopRunning,
+    WasInterrupted,
+    InterruptionEnded,
+    RuntimeError,
+}
+
+#[cfg(any(target_os = "ios", test))]
+fn map_camera_session_event(
+    notification: CameraSessionNotification,
+    interruption_reason: Option<i64>,
+    runtime_error: Option<IosCameraRuntimeError>,
+) -> IosCameraCaptureSessionEvent {
+    match notification {
+        CameraSessionNotification::DidStartRunning => IosCameraCaptureSessionEvent::DidStartRunning,
+        CameraSessionNotification::DidStopRunning => IosCameraCaptureSessionEvent::DidStopRunning,
+        CameraSessionNotification::WasInterrupted => IosCameraCaptureSessionEvent::Interrupted {
+            reason: interruption_reason.map(map_interruption_reason),
+        },
+        CameraSessionNotification::InterruptionEnded => {
+            IosCameraCaptureSessionEvent::InterruptionEnded
+        }
+        CameraSessionNotification::RuntimeError => IosCameraCaptureSessionEvent::RuntimeError {
+            error: runtime_error,
+        },
+    }
+}
+
+#[cfg(any(target_os = "ios", test))]
+fn map_interruption_reason(code: i64) -> IosCameraSessionInterruptionReason {
+    match code {
+        1 => IosCameraSessionInterruptionReason::VideoDeviceNotAvailableInBackground,
+        2 => IosCameraSessionInterruptionReason::AudioDeviceInUseByAnotherClient,
+        3 => IosCameraSessionInterruptionReason::VideoDeviceInUseByAnotherClient,
+        4 => IosCameraSessionInterruptionReason::VideoDeviceNotAvailableWithMultipleForegroundApps,
+        5 => IosCameraSessionInterruptionReason::VideoDeviceNotAvailableDueToSystemPressure,
+        6 => IosCameraSessionInterruptionReason::SensitiveContentMitigationActivated,
+        value => IosCameraSessionInterruptionReason::Unknown(value),
+    }
+}
+
+#[cfg(any(target_os = "ios", test))]
+fn camera_runtime_error(domain: String, code: i64) -> IosCameraRuntimeError {
+    const MAX_DOMAIN_BYTES: usize = 256;
+    let mut domain = domain;
+    let domain_truncated = domain.len() > MAX_DOMAIN_BYTES;
+    if domain_truncated {
+        let mut end = MAX_DOMAIN_BYTES;
+        while !domain.is_char_boundary(end) {
+            end -= 1;
+        }
+        domain.truncate(end);
+    }
+    IosCameraRuntimeError {
+        domain,
+        code,
+        domain_truncated,
+    }
+}
+
+#[cfg(any(target_os = "ios", test))]
+const CAMERA_SESSION_EVENT_CAPACITY: usize = 32;
+
+#[cfg(any(target_os = "ios", test))]
+struct CameraSessionEventQueue {
+    events: VecDeque<IosCameraCaptureSessionEvent>,
+    dropped: u64,
+    observing: bool,
+    closed: bool,
+}
+
+#[cfg(any(target_os = "ios", test))]
+impl CameraSessionEventQueue {
+    fn new() -> Self {
+        Self {
+            events: VecDeque::with_capacity(CAMERA_SESSION_EVENT_CAPACITY),
+            dropped: 0,
+            observing: false,
+            closed: false,
+        }
+    }
+
+    fn open(&mut self) {
+        if !self.closed {
+            self.observing = true;
+        }
+    }
+
+    fn push(&mut self, event: IosCameraCaptureSessionEvent) {
+        if !self.observing || self.closed {
+            return;
+        }
+        if self.events.len() == CAMERA_SESSION_EVENT_CAPACITY {
+            self.events.pop_front();
+            self.dropped = self.dropped.saturating_add(1);
+        }
+        self.events.push_back(event);
+    }
+
+    fn poll(&mut self) -> Option<IosCameraCaptureSessionEvent> {
+        self.events.pop_front()
+    }
+
+    fn close(&mut self) {
+        self.observing = false;
+        self.closed = true;
+    }
+}
+
+#[cfg(target_os = "ios")]
+type CameraSessionObserverToken = Retained<ProtocolObject<dyn NSObjectProtocol>>;
+
+#[cfg(target_os = "ios")]
+struct CameraSessionObservers {
+    center: Retained<NSNotificationCenter>,
+    tokens: Vec<CameraSessionObserverToken>,
+}
+
+#[cfg(target_os = "ios")]
+impl CameraSessionObservers {
+    fn new(session: &AVCaptureSession, events: &Arc<Mutex<CameraSessionEventQueue>>) -> Self {
+        let center = NSNotificationCenter::defaultCenter();
+        let session_object: &AnyObject = session;
+        let mut observers = Self {
+            center,
+            tokens: Vec::with_capacity(5),
+        };
+        for notification in [
+            CameraSessionNotification::DidStartRunning,
+            CameraSessionNotification::DidStopRunning,
+            CameraSessionNotification::WasInterrupted,
+            CameraSessionNotification::InterruptionEnded,
+            CameraSessionNotification::RuntimeError,
+        ] {
+            let name = capture_session_notification_name(notification);
+            let notification_kind = notification;
+            let events = Arc::downgrade(events);
+            let block: RcBlock<dyn Fn(NonNull<NSNotification>)> =
+                RcBlock::new(move |notification: NonNull<NSNotification>| {
+                    let _ = catch_unwind(AssertUnwindSafe(|| {
+                        // SAFETY: Notification Center supplies a live notification for this block
+                        // invocation. Its object filter is the exact session registered below.
+                        let notification = unsafe { notification.as_ref() };
+                        let event = capture_session_event_from_notification(
+                            notification,
+                            notification_kind,
+                        );
+                        if let Some(events) = events.upgrade() {
+                            events
+                                .lock()
+                                .unwrap_or_else(std::sync::PoisonError::into_inner)
+                                .push(event);
+                        }
+                    }));
+                });
+            // SAFETY: These are public process-lifetime AVFoundation notification names; the
+            // exact owned session is the object filter. With no operation queue, Notification
+            // Center invokes the block on the posting thread. It captures only a weak reference
+            // to synchronized event storage and never calls user code or mutates the session.
+            let token = unsafe {
+                observers.center.addObserverForName_object_queue_usingBlock(
+                    Some(name),
+                    Some(session_object),
+                    None,
+                    &block,
+                )
+            };
+            observers.tokens.push(token);
+        }
+        observers
+    }
+
+    fn remove_all(&mut self) {
+        for token in self.tokens.drain(..) {
+            let observer: &ProtocolObject<dyn NSObjectProtocol> = token.as_ref();
+            let object: &AnyObject = observer.as_ref();
+            // SAFETY: `token` came from this center and is removed exactly once.
+            unsafe { self.center.removeObserver(object) };
+        }
+    }
+}
+
+#[cfg(target_os = "ios")]
+impl Drop for CameraSessionObservers {
+    fn drop(&mut self) {
+        self.remove_all();
+    }
+}
+
+#[cfg(target_os = "ios")]
+fn capture_session_notification_name(
+    notification: CameraSessionNotification,
+) -> &'static objc2_foundation::NSNotificationName {
+    // SAFETY: Each public AVFoundation notification name has process-lifetime static storage and
+    // is available below the package's iOS 10.0 device and iOS 14.0 Simulator floors.
+    unsafe {
+        match notification {
+            CameraSessionNotification::DidStartRunning => {
+                AVCaptureSessionDidStartRunningNotification
+            }
+            CameraSessionNotification::DidStopRunning => AVCaptureSessionDidStopRunningNotification,
+            CameraSessionNotification::WasInterrupted => AVCaptureSessionWasInterruptedNotification,
+            CameraSessionNotification::InterruptionEnded => {
+                AVCaptureSessionInterruptionEndedNotification
+            }
+            CameraSessionNotification::RuntimeError => AVCaptureSessionRuntimeErrorNotification,
+        }
+    }
+}
+
+#[cfg(target_os = "ios")]
+fn capture_session_event_from_notification(
+    notification: &NSNotification,
+    notification_kind: CameraSessionNotification,
+) -> IosCameraCaptureSessionEvent {
+    let interruption_reason = if notification_kind == CameraSessionNotification::WasInterrupted {
+        // SAFETY: AVFoundation defines this public user-info key for interruption notifications.
+        let key = unsafe { AVCaptureSessionInterruptionReasonKey };
+        notification_integer(notification, key)
+    } else {
+        None
+    };
+    let runtime_error = if notification_kind == CameraSessionNotification::RuntimeError {
+        // SAFETY: AVFoundation defines this public user-info key for runtime-error notifications.
+        let key = unsafe { AVCaptureSessionErrorKey };
+        notification
+            .userInfo()
+            .and_then(|user_info| user_info.objectForKey(key))
+            .and_then(|value| value.downcast::<NSError>().ok())
+            .map(|error| camera_runtime_error(error.domain().to_string(), error.code() as i64))
+    } else {
+        None
+    };
+    map_camera_session_event(notification_kind, interruption_reason, runtime_error)
+}
+
+#[cfg(target_os = "ios")]
+fn notification_integer(notification: &NSNotification, key: &NSString) -> Option<i64> {
+    notification
+        .userInfo()?
+        .objectForKey(key)?
+        .downcast::<NSNumber>()
+        .ok()
+        .map(|number| number.integerValue() as i64)
+}
+
 #[cfg(target_os = "ios")]
 struct CaptureGraph {
     session: Retained<AVCaptureSession>,
@@ -2215,8 +2544,9 @@ fn camera_position_for_device(device: &AVCaptureDevice) -> Option<IosCameraPosit
 /// configures the default video input before returning, so it may block while AVFoundation prepares
 /// the device. Its preview layer can be added to a UIKit view's layer hierarchy. Start and stop
 /// requests run asynchronously on a private serial queue; returning from either method does not
-/// prove that AVFoundation started or stopped the session. This wrapper does not observe
-/// AVFoundation's native runtime-error notifications. Video recording writes one QuickTime movie
+/// prove that AVFoundation started or stopped the session. Call `start_observing_events` to opt in
+/// to copied start, stop, interruption, interruption-ended, and runtime-error notifications, then
+/// poll them with `poll_event`. Events do not trigger automatic recovery. Video recording writes one QuickTime movie
 /// to a caller-owned `.mov` path and invokes its completion after AVFoundation finalizes the file.
 /// Stopping the session during recording defers `stopRunning` until that terminal callback. The
 /// host owns audio-session configuration and may import completed files into Photos separately.
@@ -2233,6 +2563,8 @@ pub struct IosCameraCaptureSession {
     queue: dispatch2::DispatchRetained<DispatchQueue>,
     queue_key: Arc<AtomicBool>,
     video_callback_active: Arc<AtomicBool>,
+    session_events: Option<Arc<Mutex<CameraSessionEventQueue>>>,
+    observers: Option<CameraSessionObservers>,
     preview_layer: Retained<AVCaptureVideoPreviewLayer>,
     _main_thread_only: PhantomData<Rc<()>>,
 }
@@ -2473,12 +2805,13 @@ impl IosCameraCaptureSession {
             // the main thread as required for the UIKit layer escape hatch.
             unsafe { AVCaptureVideoPreviewLayer::layerWithSession(&graph.session) }
         };
-
         Ok(Self {
             graph,
             queue,
             queue_key,
             video_callback_active,
+            session_events: None,
+            observers: None,
             preview_layer,
             _main_thread_only: PhantomData,
         })
@@ -2490,6 +2823,56 @@ impl IosCameraCaptureSession {
         _main_thread: MainThreadMarker,
     ) -> Retained<AVCaptureVideoPreviewLayer> {
         self.preview_layer.clone()
+    }
+
+    /// Opt in to typed AVFoundation session notifications
+    ///
+    /// Registers observers for this exact session. Notifications posted before this method
+    /// returns are not guaranteed to be included. Repeated calls are no-ops. The observer does
+    /// not call application code or restart the session; poll events with [`Self::poll_event`].
+    pub fn start_observing_events(&mut self) {
+        if self.observers.is_some() {
+            return;
+        }
+        let session = self
+            .graph
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .session
+            .clone();
+        let events = Arc::new(Mutex::new(CameraSessionEventQueue::new()));
+        let observers = CameraSessionObservers::new(&session, &events);
+        events
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .open();
+        self.session_events = Some(events);
+        self.observers = Some(observers);
+    }
+
+    /// Remove the oldest queued event from this session without waiting
+    ///
+    /// The bounded queue holds at most 32 events. When full, it drops the oldest event before
+    /// appending the new one. Polling returns copied lifecycle state, never an AVFoundation object.
+    pub fn poll_event(&self) -> Option<IosCameraCaptureSessionEvent> {
+        self.session_events
+            .as_ref()?
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .poll()
+    }
+
+    /// Return the cumulative number of events dropped because the 32-event queue was full
+    pub fn dropped_event_count(&self) -> u64 {
+        self.session_events
+            .as_ref()
+            .map(|events| {
+                events
+                    .lock()
+                    .unwrap_or_else(std::sync::PoisonError::into_inner)
+                    .dropped
+            })
+            .unwrap_or(0)
     }
 
     /// Set the caller-selected orientation for the live preview layer
@@ -3411,6 +3794,15 @@ impl IosCameraCaptureSession {
 #[cfg(target_os = "ios")]
 impl Drop for IosCameraCaptureSession {
     fn drop(&mut self) {
+        if let Some(events) = self.session_events.as_ref() {
+            events
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner)
+                .close();
+        }
+        if let Some(observers) = self.observers.as_mut() {
+            observers.remove_all();
+        }
         enqueue_stop(&self.queue, &self.graph);
     }
 }
@@ -4022,32 +4414,35 @@ fn invoke_video_completion(completion: VideoRecordingCompletion, result: VideoRe
 #[cfg(test)]
 mod tests {
     use super::{
-        CameraCaptureError, CameraDeviceSelectionError, CameraInputReplacementError,
-        CameraPositionSwitchError, ExposureControlError, FocusControlError,
-        IosCameraDeviceSelection, IosCameraDeviceType, IosCameraExposureMode, IosCameraFlashMode,
-        IosCameraFocusMode, IosCameraPhotoQuality, IosCameraPosition, IosCameraSessionPreset,
+        CAMERA_SESSION_EVENT_CAPACITY, CameraCaptureError, CameraDeviceSelectionError,
+        CameraInputReplacementError, CameraPositionSwitchError, CameraSessionEventQueue,
+        CameraSessionNotification, ExposureControlError, FocusControlError,
+        IosCameraCaptureSessionEvent, IosCameraDeviceSelection, IosCameraDeviceType,
+        IosCameraExposureMode, IosCameraFlashMode, IosCameraFocusMode, IosCameraPhotoQuality,
+        IosCameraPosition, IosCameraSessionInterruptionReason, IosCameraSessionPreset,
         IosCameraVideoOrientation, IosCameraWhiteBalanceMode, MediaAuthorizationStatus, MediaTime,
         MovieOrientationError, MovieRecordingState, NormalizedFocusPoint, PhotoCaptureError,
         PhotoCaptureResult, PhotoQualityPrioritizationError, PreviewOrientationError,
         SessionPresetError, TorchControlError, VideoFrameStreamError, VideoFrameStreamState,
         VideoRecordingError, VideoRecordingResult, WhiteBalanceControlError, ZoomControlError,
         camera_device_selection_matches, camera_device_selection_switch_required,
-        camera_position_switch_required, configure_custom_exposure, configure_exposure,
-        configure_exposure_target_bias, configure_focus, configure_movie_orientation,
-        configure_photo_quality_limit, configure_preview_orientation, configure_session_preset,
-        configure_torch_enabled, configure_video_zoom_factor, configure_white_balance_mode,
-        custom_exposure_duration_from_parts, custom_exposure_range,
+        camera_position_switch_required, camera_runtime_error, configure_custom_exposure,
+        configure_exposure, configure_exposure_target_bias, configure_focus,
+        configure_movie_orientation, configure_photo_quality_limit, configure_preview_orientation,
+        configure_session_preset, configure_torch_enabled, configure_video_zoom_factor,
+        configure_white_balance_mode, custom_exposure_duration_from_parts, custom_exposure_range,
         drop_video_frame_callback_safely, exposure_target_bias_range,
-        finish_camera_input_replacement, invoke_video_frame_callback, map_camera_video_orientation,
-        map_ios_camera_session_preset, map_position_replacement_error,
-        map_selection_replacement_error, may_create_device_input, photo_request_error,
-        preflight_photo_flash_mode, preflight_photo_quality, prepare_optional_movie_audio,
-        replace_camera_session_input, require_camera_at_position, require_camera_at_selection,
-        require_selected_camera, require_selected_focus_camera, require_switch_camera,
-        require_switch_camera_selection, run_on_capture_queue, set_supported_orientation,
-        settle_movie_result, settle_movie_terminal, settle_photo_result, take_photo_completion,
-        take_video_completion, validate_movie_destination, with_authorized_microphone,
-        with_selected_exposure_camera, with_selected_white_balance_camera,
+        finish_camera_input_replacement, invoke_video_frame_callback, map_camera_session_event,
+        map_camera_video_orientation, map_interruption_reason, map_ios_camera_session_preset,
+        map_position_replacement_error, map_selection_replacement_error, may_create_device_input,
+        photo_request_error, preflight_photo_flash_mode, preflight_photo_quality,
+        prepare_optional_movie_audio, replace_camera_session_input, require_camera_at_position,
+        require_camera_at_selection, require_selected_camera, require_selected_focus_camera,
+        require_switch_camera, require_switch_camera_selection, run_on_capture_queue,
+        set_supported_orientation, settle_movie_result, settle_movie_terminal, settle_photo_result,
+        take_photo_completion, take_video_completion, validate_movie_destination,
+        with_authorized_microphone, with_selected_exposure_camera,
+        with_selected_white_balance_camera,
     };
     use std::cell::RefCell;
     use std::path::PathBuf;
@@ -6566,5 +6961,132 @@ mod tests {
             VideoRecordingError::RecordingFailed,
         ));
         assert_eq!(calls.load(Ordering::SeqCst), 1);
+    }
+
+    #[test]
+    fn camera_session_events_map_all_notifications_and_preserve_unknown_payloads() {
+        assert_eq!(
+            map_camera_session_event(CameraSessionNotification::DidStartRunning, None, None,),
+            IosCameraCaptureSessionEvent::DidStartRunning
+        );
+        assert_eq!(
+            map_camera_session_event(CameraSessionNotification::DidStopRunning, None, None,),
+            IosCameraCaptureSessionEvent::DidStopRunning
+        );
+        assert_eq!(
+            map_camera_session_event(CameraSessionNotification::WasInterrupted, None, None,),
+            IosCameraCaptureSessionEvent::Interrupted { reason: None }
+        );
+        let reasons = [
+            IosCameraSessionInterruptionReason::VideoDeviceNotAvailableInBackground,
+            IosCameraSessionInterruptionReason::AudioDeviceInUseByAnotherClient,
+            IosCameraSessionInterruptionReason::VideoDeviceInUseByAnotherClient,
+            IosCameraSessionInterruptionReason::VideoDeviceNotAvailableWithMultipleForegroundApps,
+            IosCameraSessionInterruptionReason::VideoDeviceNotAvailableDueToSystemPressure,
+            IosCameraSessionInterruptionReason::SensitiveContentMitigationActivated,
+        ];
+        for (code, reason) in (1..=6).zip(reasons) {
+            assert_eq!(map_interruption_reason(code), reason);
+            assert_eq!(
+                map_camera_session_event(
+                    CameraSessionNotification::WasInterrupted,
+                    Some(code),
+                    None,
+                ),
+                IosCameraCaptureSessionEvent::Interrupted {
+                    reason: Some(reason)
+                }
+            );
+        }
+        assert_eq!(
+            map_interruption_reason(-9),
+            IosCameraSessionInterruptionReason::Unknown(-9)
+        );
+        assert_eq!(
+            map_camera_session_event(CameraSessionNotification::WasInterrupted, Some(91), None,),
+            IosCameraCaptureSessionEvent::Interrupted {
+                reason: Some(IosCameraSessionInterruptionReason::Unknown(91))
+            }
+        );
+        assert_eq!(
+            map_camera_session_event(CameraSessionNotification::InterruptionEnded, None, None,),
+            IosCameraCaptureSessionEvent::InterruptionEnded
+        );
+        assert_eq!(
+            map_camera_session_event(CameraSessionNotification::RuntimeError, None, None,),
+            IosCameraCaptureSessionEvent::RuntimeError { error: None }
+        );
+        let error = camera_runtime_error("com.example.capture".to_owned(), -11800);
+        assert_eq!(error.domain(), "com.example.capture");
+        assert_eq!(error.code(), -11800);
+        assert!(!error.domain_was_truncated());
+        assert_eq!(
+            map_camera_session_event(
+                CameraSessionNotification::RuntimeError,
+                None,
+                Some(error.clone()),
+            ),
+            IosCameraCaptureSessionEvent::RuntimeError { error: Some(error) }
+        );
+    }
+
+    #[test]
+    fn camera_session_runtime_error_domain_is_bounded_on_a_utf8_boundary() {
+        let error = camera_runtime_error("é".repeat(129), 17);
+        assert!(error.domain_was_truncated());
+        assert!(error.domain().len() <= 256);
+        assert!(error.domain().is_char_boundary(error.domain().len()));
+        assert_eq!(error.code(), 17);
+        let exact = camera_runtime_error("é".repeat(128), 18);
+        assert_eq!(exact.domain().len(), 256);
+        assert!(!exact.domain_was_truncated());
+    }
+
+    #[test]
+    fn camera_session_event_queue_drops_oldest_and_saturates_overflow() {
+        let mut events = CameraSessionEventQueue::new();
+        events.open();
+        for index in 0..CAMERA_SESSION_EVENT_CAPACITY {
+            events.push(if index % 2 == 0 {
+                IosCameraCaptureSessionEvent::DidStartRunning
+            } else {
+                IosCameraCaptureSessionEvent::DidStopRunning
+            });
+        }
+        events.push(IosCameraCaptureSessionEvent::DidStartRunning);
+        assert_eq!(events.dropped, 1);
+        assert_eq!(
+            events.poll(),
+            Some(IosCameraCaptureSessionEvent::DidStopRunning)
+        );
+        events.events.clear();
+        events.dropped = u64::MAX;
+        for _ in 0..CAMERA_SESSION_EVENT_CAPACITY {
+            events.push(IosCameraCaptureSessionEvent::DidStartRunning);
+        }
+        events.push(IosCameraCaptureSessionEvent::DidStopRunning);
+        assert_eq!(events.dropped, u64::MAX);
+        assert_eq!(events.events.len(), CAMERA_SESSION_EVENT_CAPACITY);
+        assert_eq!(
+            events.poll(),
+            Some(IosCameraCaptureSessionEvent::DidStartRunning)
+        );
+    }
+
+    #[test]
+    fn camera_session_event_queue_rejects_notifications_after_close() {
+        let mut events = CameraSessionEventQueue::new();
+        events.push(IosCameraCaptureSessionEvent::DidStartRunning);
+        assert_eq!(events.poll(), None);
+        events.open();
+        events.push(IosCameraCaptureSessionEvent::DidStartRunning);
+        events.close();
+        events.push(IosCameraCaptureSessionEvent::DidStopRunning);
+        assert_eq!(
+            events.poll(),
+            Some(IosCameraCaptureSessionEvent::DidStartRunning)
+        );
+        assert_eq!(events.poll(), None);
+        assert_eq!(events.dropped, 0);
     }
 }

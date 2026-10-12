@@ -7,7 +7,8 @@ fn main() {
     let Some(main_thread) = objc2::MainThreadMarker::new() else {
         return;
     };
-    let Ok(session) = ios_camera_capture_session::IosCameraCaptureSession::new(main_thread) else {
+    let Ok(mut session) = ios_camera_capture_session::IosCameraCaptureSession::new(main_thread)
+    else {
         return;
     };
     for preset in [
@@ -37,7 +38,10 @@ fn main() {
         return;
     };
     std::hint::black_box(session.preview_layer(main_thread));
+    session.start_observing_events();
     session.start();
+    let _ = std::hint::black_box(session.poll_event());
+    let _ = std::hint::black_box(session.dropped_event_count());
     let _ = std::hint::black_box(session.set_torch_enabled(true));
     let _ = std::hint::black_box(session.set_torch_enabled(false));
     let _ = std::hint::black_box(session.set_zoom_factor(1.0));

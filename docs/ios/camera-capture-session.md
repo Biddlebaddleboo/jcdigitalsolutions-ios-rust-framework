@@ -82,3 +82,9 @@ runs and hop to the main thread before UIKit work. Host tests, iOS device/Simula
 link checks verify deterministic state rules and public API linkage only; they do not prove image
 quality, processing time, preview behavior, capture, Simulator execution, or physical-device
 runtime.
+
+## Capture-session events
+
+Call `start_observing_events()` to opt in to typed `IosCameraCaptureSessionEvent` values from the owned AVFoundation session, then poll with `poll_event()`. Events cover did-start, did-stop, interruption with an optional `IosCameraSessionInterruptionReason`, interruption-ended, and runtime-error with an optional copied `NSError` domain and code. Unknown interruption codes are preserved. Runtime-error domains are limited to 256 UTF-8 bytes and expose `domain_was_truncated()`.
+
+No event queue or observer is allocated until opt-in; before then, polling returns `None` and the drop count is zero. Observation is idempotent and session-specific. Events posted before observer registration completes are not guaranteed to appear. The 32-item queue drops its oldest event when full; `dropped_event_count()` returns the cumulative saturating drop count. Dropping the session closes event admission, removes observers, and enqueues the existing asynchronous stop. Events do not restart or recover capture. Host tests and target link checks do not prove runtime notification delivery, Simulator behavior, or physical-device behavior.

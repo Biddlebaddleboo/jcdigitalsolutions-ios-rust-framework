@@ -13,10 +13,11 @@ framework-media-authorization = { path = "../../../crates/framework-media-author
 
 [target.'cfg(target_os = "ios")'.dependencies]
 dispatch2 = { workspace = true, features = ["alloc"] }
+block2 = { workspace = true }
 ios-media-authorization = { path = "../ios-media-authorization", version = "0.1.0" }
 objc2 = { workspace = true, features = ["std"] }
 objc2-core-foundation = { workspace = true, features = ["CFCGTypes"] }
-objc2-foundation = { workspace = true, features = ["NSData", "NSError", "NSArray", "NSObject", "NSString", "NSURL", "NSValue"] }
+objc2-foundation = { workspace = true, features = ["NSData", "NSDictionary", "NSError", "NSArray", "NSObject", "NSNotification", "NSOperation", "NSString", "NSURL", "NSValue", "block2"] }
 objc2-av-foundation = { workspace = true, features = [
     "AVCaptureOutputBase",
     "AVCaptureFileOutput",

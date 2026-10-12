@@ -596,6 +596,7 @@ dependencies = [
 name = "ios-camera-capture-session"
 version = "0.1.0"
 dependencies = [
+ "block2",
  "dispatch2",
  "framework-media",
  "framework-media-authorization",

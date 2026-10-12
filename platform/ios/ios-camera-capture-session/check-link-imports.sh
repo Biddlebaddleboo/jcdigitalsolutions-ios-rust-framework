@@ -17,6 +17,20 @@ if [ -n "$swift_sources" ]; then
     exit 1
 fi
 
+if ! awk '
+    /impl Drop for IosCameraCaptureSession/ { in_drop = 1 }
+    in_drop && /\.close\(\);/ { close_line = NR }
+    in_drop && /observers\.remove_all\(\);/ { remove_line = NR }
+    in_drop && /enqueue_stop\(&self\.queue, &self\.graph\);/ { stop_line = NR; exit }
+    END {
+        if (close_line && remove_line && stop_line && close_line < remove_line && remove_line < stop_line) exit 0
+        exit 1
+    }
+' platform/ios/ios-camera-capture-session/src/lib.rs; then
+    printf 'camera-session Drop must close event admission and remove observers before scheduling stop\n' >&2
+    exit 1
+fi
+
 minimum_from_build() {
     printf '%s\n' "$1" | awk '$1 == "minos" || $1 == "version" { print $2; exit }'
 }
@@ -86,6 +100,20 @@ for target in aarch64-apple-ios aarch64-apple-ios-sim; do
         printf '%s probe does not import the public audio media-type constant _AVMediaTypeAudio\n' "$target" >&2
         exit 1
     }
+    for symbol in \
+        AVCaptureSessionDidStartRunningNotification \
+        AVCaptureSessionDidStopRunningNotification \
+        AVCaptureSessionWasInterruptedNotification \
+        AVCaptureSessionInterruptionEndedNotification \
+        AVCaptureSessionRuntimeErrorNotification \
+        AVCaptureSessionInterruptionReasonKey \
+        AVCaptureSessionErrorKey
+    do
+        printf '%s\n' "$symbols" | grep -F "$symbol" >/dev/null || {
+            printf '%s probe does not import the public %s event symbol\n' "$target" "$symbol" >&2
+            exit 1
+        }
+    done
     binary_strings=$(strings "$probe")
     for symbol in \
         AVCaptureSession \
@@ -165,7 +193,13 @@ for target in aarch64-apple-ios aarch64-apple-ios-sim; do
         setAlwaysDiscardsLateVideoFrames: \
         setSampleBufferDelegate:queue: \
         captureOutput:didOutputSampleBuffer:fromConnection: \
-        removeOutput:
+        removeOutput: \
+        addObserverForName:object:queue:usingBlock: \
+        removeObserver: \
+        userInfo \
+        objectForKey: \
+        domain \
+        code
     do
         printf '%s\n' "$binary_strings" | grep -F "$symbol" >/dev/null || {
             printf '%s probe does not retain the %s API reference\n' "$target" "$symbol" >&2
