@@ -1,5 +1,14 @@
 # AGENTS.md
 
+## Tooling access and documentation ownership (October 2026)
+
+Framework Codex sessions must **never access the private tooling repository**, even read-only: do not clone, open GitHub links, search commits/files/issues, fetch source, use connectors against it, or assign subagents to investigate it. Treat `ios-rust-build`, `ios-rust-validate`, and optional `ios-rust-generate` solely as installed executables with documented CLI contracts. Framework-owned specs, adapters, source and tests may be inspected and edited within authorized task scope. When a tool bug is suspected, capture sanitized reproducible evidence in a framework-local `BUG_REPORT_*.md` and escalate to the assistant; do not delegate tool-engine investigation to framework Codex.
+
+**The assistant owns cross-repository documentation, tooling release coordination and changes to tooling-facing instructions.** Ordinary framework Codex executors must not proactively rewrite `AGENTS.md`, `docs/SHARED_TOOLING.md`, `docs/VALIDATION.md`, release pins, or engine-facing documentation; flag inaccuracies to the assistant instead. Task-specific implementation documentation within an explicitly authorized framework scope is permitted, but cross-repository documentation must not be used to circumvent the isolation boundary.
+
+Tooling engine commit `b6d422528c80671d828a4b0d40e9fc739652409a` adds source-snapshot diagnostics, stricter evidence/selection and `audit-spec`, and fixes zero-framework native C builds. These are **upstream implementation facts**, not proof that this framework's pinned `0.1.0` binary contains them or that the reported framework snapshot failures are resolved. Verify the selected installed executable by path, source SHA, checksum and `--help` before using newer commands; run the original blocked framework profiles after an approved qualified release is installed. No change to manual-only Actions triggering or PASS/FAIL/SKIPPED/BLOCKED distinctions.
+
+
 ## Purpose
 
 This repository builds a reusable, high-level, platform-agnostic native application framework whose primary implementation language and primary fast-path API are Rust.
