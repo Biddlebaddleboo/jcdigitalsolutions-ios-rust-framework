@@ -1,0 +1,17 @@
+[package]
+name = "ios-pcm-audio-output"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "Bounded Rust PCM audio output for iOS"
+
+[target.'cfg(target_os = "ios")'.dependencies]
+block2 = { workspace = true }
+objc2 = { workspace = true }
+objc2-avf-audio = { workspace = true, features = ["AVAudioEngine", "AVAudioFormat", "AVAudioMixerNode", "AVAudioNode", "AVAudioSourceNode", "AVAudioTypes", "block2", "objc2-core-audio-types"] }
+objc2-core-audio-types = { workspace = true, features = ["CoreAudioBaseTypes", "objc2"] }
+
+[lints]
+workspace = true

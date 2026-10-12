@@ -24,6 +24,7 @@ objc2-background-tasks = { version = "0.3.2", default-features = false }
 objc2-background-assets = { version = "=0.3.2", default-features = false }
 objc2-av-foundation = { version = "=0.3.2", default-features = false }
 objc2-avf-audio = { version = "=0.3.2", default-features = false }
+objc2-core-audio-types = { version = "=0.3.2", default-features = false }
 objc2-app-tracking-transparency = { version = "=0.3.2", default-features = false }
 objc2-ar-kit = { version = "=0.3.2", default-features = false }
 objc2-device-check = { version = "=0.3.2", default-features = false }

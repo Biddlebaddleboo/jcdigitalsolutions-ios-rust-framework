@@ -1017,6 +1017,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "ios-pcm-audio-output"
+version = "0.1.0"
+dependencies = [
+ "block2",
+ "objc2",
+ "objc2-avf-audio",
+ "objc2-core-audio-types",
+]
+
+[[package]]
 name = "ios-photogrammetry-status"
 version = "0.1.0"
 dependencies = [
@@ -1440,6 +1450,7 @@ dependencies = [
  "bitflags",
  "block2",
  "objc2",
+ "objc2-core-audio-types",
  "objc2-foundation",
 ]
 
