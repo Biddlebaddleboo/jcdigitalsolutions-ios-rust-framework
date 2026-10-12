@@ -92,7 +92,7 @@ for target in aarch64-apple-ios aarch64-apple-ios-sim; do
             exit 1
         fi
     done
-    for symbol in UIStackView 'addArrangedSubview:' 'setAxis:' 'setSpacing:'; do
+    for symbol in UIStackView 'addArrangedSubview:' 'setAxis:' 'setSpacing:' 'safeAreaLayoutGuide' 'topAnchor' 'leadingAnchor' 'bottomAnchor' 'trailingAnchor' 'constraintEqualToAnchor:' 'setActive:' 'setTranslatesAutoresizingMaskIntoConstraints:'; do
         if ! strings "$stack_binary" | grep -Fq "$symbol"; then
             echo "$target stack probe is missing $symbol" >&2
             exit 1

@@ -204,3 +204,11 @@ and 2 SKIPPED of 265 at snapshot
 `ad5d8b51bba3d0b8ffc204415570cac73a757c5dc5d193414d63b2500613a7ae`. Device and Simulator
 compile, Clippy, Rustdoc, and link/import checks passed; Simulator execution and physical-device
 proof remain skipped, so runtime layout and visual behavior are not claimed.
+
+## B551 — safe-area stack pinning
+
+B551 adds `IosStackView::pin_edges_to_safe_area` using UIKit's public `safeAreaLayoutGuide` and
+existing typed anchors. It shares one-shot state with `pin_edges_to_parent`, validates exact direct
+parent identity and autoresizing-mask state before activation, and preserves the iOS 12 device and
+iOS 14 Simulator floors. Host regressions cover preflight rejection and one-shot policy; registered
+device/Simulator link checks cover the public UIKit symbols. No runtime layout behavior is claimed.

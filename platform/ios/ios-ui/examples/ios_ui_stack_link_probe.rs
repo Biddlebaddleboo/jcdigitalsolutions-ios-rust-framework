@@ -29,6 +29,7 @@ fn main() {
     let _ = stack.set_alignment(IosStackAlignment::Leading);
     let _ = stack.set_distribution(IosStackDistribution::FillProportionally);
     let _ = stack.set_spacing(4.0);
+    let _ = stack.pin_edges_to_safe_area(&parent);
     let _ = stack.remove_arranged_subview(label.native_label());
     let _ = stack.add_arranged_subview(label.native_label());
     core::hint::black_box(stack.native_stack_view());

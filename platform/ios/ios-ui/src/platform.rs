@@ -726,16 +726,14 @@ impl IosStackView {
     /// UIKit determines the stack's arranged-subview size; this helper adds no custom layout
     /// policy. A second call returns `InvalidInput`.
     pub fn pin_edges_to_parent(&mut self, parent: &IosView) -> Result<()> {
-        let next_constraints = self._edge_constraints.claim()?;
         let _stack_layout_thread = main_thread_marker()?;
         let Some(actual_parent) = self.native.superview() else {
             return Err(Error::new(ErrorKind::InvalidInput));
         };
-        if !core::ptr::eq(&*actual_parent, &*parent.native)
-            || !self.native.translatesAutoresizingMaskIntoConstraints()
-        {
-            return Err(Error::new(ErrorKind::InvalidInput));
-        }
+        let next_constraints = self._edge_constraints.claim_for_direct_child(
+            core::ptr::eq(&*actual_parent, &*parent.native),
+            self.native.translatesAutoresizingMaskIntoConstraints(),
+        )?;
 
         self.native
             .setTranslatesAutoresizingMaskIntoConstraints(false);
@@ -755,6 +753,48 @@ impl IosStackView {
             .native
             .trailingAnchor()
             .constraintEqualToAnchor(&parent.native.trailingAnchor());
+        top.setActive(true);
+        leading.setActive(true);
+        bottom.setActive(true);
+        trailing.setActive(true);
+        self._edge_constraints = next_constraints;
+        Ok(())
+    }
+
+    /// Pins this already-attached stack to all four edges of `parent`'s safe-area layout guide.
+    ///
+    /// The stack must still be a direct child of `parent` and must not already use Auto Layout.
+    /// This and [`Self::pin_edges_to_parent`] share one one-shot constraint setup; whichever is
+    /// called first selects the stack's edge policy. UIKit determines the arranged-subview size.
+    pub fn pin_edges_to_safe_area(&mut self, parent: &IosView) -> Result<()> {
+        let _stack_layout_thread = main_thread_marker()?;
+        let Some(actual_parent) = self.native.superview() else {
+            return Err(Error::new(ErrorKind::InvalidInput));
+        };
+        let next_constraints = self._edge_constraints.claim_for_direct_child(
+            core::ptr::eq(&*actual_parent, &*parent.native),
+            self.native.translatesAutoresizingMaskIntoConstraints(),
+        )?;
+
+        self.native
+            .setTranslatesAutoresizingMaskIntoConstraints(false);
+        let safe_area = parent.native.safeAreaLayoutGuide();
+        let top = self
+            .native
+            .topAnchor()
+            .constraintEqualToAnchor(&safe_area.topAnchor());
+        let leading = self
+            .native
+            .leadingAnchor()
+            .constraintEqualToAnchor(&safe_area.leadingAnchor());
+        let bottom = self
+            .native
+            .bottomAnchor()
+            .constraintEqualToAnchor(&safe_area.bottomAnchor());
+        let trailing = self
+            .native
+            .trailingAnchor()
+            .constraintEqualToAnchor(&safe_area.trailingAnchor());
         top.setActive(true);
         leading.setActive(true);
         bottom.setActive(true);

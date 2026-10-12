@@ -42,6 +42,17 @@ impl OneShotConstraints {
             Ok(Self(true))
         }
     }
+
+    pub(crate) fn claim_for_direct_child(
+        self,
+        is_direct_child: bool,
+        translates_autoresizing_mask: bool,
+    ) -> Result<Self> {
+        if !is_direct_child || !translates_autoresizing_mask {
+            return Err(Error::new(ErrorKind::InvalidInput));
+        }
+        self.claim()
+    }
 }
 
 #[cfg(test)]
@@ -84,6 +95,34 @@ mod tests {
         let constraints = OneShotConstraints::default().claim().unwrap();
         assert_eq!(
             constraints.claim().unwrap_err().kind(),
+            ErrorKind::InvalidInput
+        );
+    }
+
+    #[test]
+    fn edge_pin_preflight() {
+        let constraints = OneShotConstraints::default();
+        assert_eq!(
+            constraints
+                .claim_for_direct_child(false, true)
+                .unwrap_err()
+                .kind(),
+            ErrorKind::InvalidInput
+        );
+        assert_eq!(
+            constraints
+                .claim_for_direct_child(true, false)
+                .unwrap_err()
+                .kind(),
+            ErrorKind::InvalidInput
+        );
+
+        let claimed = constraints.claim_for_direct_child(true, true).unwrap();
+        assert_eq!(
+            claimed
+                .claim_for_direct_child(true, true)
+                .unwrap_err()
+                .kind(),
             ErrorKind::InvalidInput
         );
     }

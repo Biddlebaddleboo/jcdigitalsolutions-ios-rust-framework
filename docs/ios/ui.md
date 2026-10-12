@@ -55,7 +55,11 @@ the view visible in the stack's subview hierarchy. `set_spacing` updates UIKit's
 main-thread-bound.
 
 UIKit arranges only the stack's child views. The caller remains responsible for placing and resizing
-the stack in its parent; this API adds no custom constraint engine, screen/root ownership, navigation,
+the stack unless it selects one of the one-shot edge helpers: `pin_edges_to_parent` aligns all four
+edges with the direct parent's bounds, while `pin_edges_to_safe_area` aligns them with that parent's
+public `safeAreaLayoutGuide`. Both require the stack to remain a direct child with autoresizing-mask
+translation enabled, and only one may be used. Invalid preflight returns `InvalidInput` before
+constraints are activated. This adds no custom constraint engine, screen/root ownership, navigation,
 or virtual view tree. Static checks do not establish visual layout behavior at runtime
 
 ```rust
@@ -69,6 +73,7 @@ let title = backend.add_label(&mut parent, child_frame, "Settings")?;
 stack.add_arranged_subview(title.native_label())?;
 stack.set_alignment(IosStackAlignment::Leading)?;
 stack.set_distribution(IosStackDistribution::FillProportionally)?;
+stack.pin_edges_to_safe_area(&parent)?;
 ```
 
 ## Equal-column grid
