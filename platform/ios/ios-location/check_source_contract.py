@@ -105,7 +105,9 @@ def check(source):
               "start_location_updates",
               "main_bundle_has_location_background_mode", "main_bundle_has_always_usage_descriptions",
               "main_bundle_requires_legacy_always_usage_description",
-              "locationManager_didUpdateLocations", "complete_authorization_change"):
+              "locationManager_didUpdateLocations", "locationManager_didChangeAuthorizationStatus",
+              "locationManagerDidChangeAuthorization", "complete_authorization_change",
+              "queue_authorization_change"):
   try:
    functions[name] = function_body(source, name)
   except ValueError:
@@ -277,17 +279,33 @@ def check(source):
  callback = functions["locationManager_didUpdateLocations"]
  update_branch = callback[callback.find("DelegateState::Updates"):]
  ordered = ("let current_authorization =", "authorization_from_native(native_authorization_status())",
-            "if authorization.observe(current_authorization)",
-            "queue.push_batch([LocationUpdateKind::Error(permission_error())])",
+            "queue_authorization_change(queue, authorization, current_authorization)",
             "if !authorization.permits(current_authorization)", "return;", "let result = catch_unwind")
  positions = [update_branch.find(needle) for needle in ordered]
  require(all(position >= 0 for position in positions) and positions == sorted(positions),
          "background downgrade event and fix suppression")
  authorization_callback = functions["complete_authorization_change"]
  require("DelegateState::Updates" in authorization_callback and
-         "authorization.observe(authorization_from_native(raw_status))" in authorization_callback and
-         "queue.push_batch([LocationUpdateKind::Error(permission_error())])" in authorization_callback,
-         "authorization callback reports background downgrade")
+         "queue_authorization_change(" in authorization_callback,
+         "authorization callback reports status changes")
+ legacy_callback = functions["locationManager_didChangeAuthorizationStatus"]
+ require("self.complete_authorization_change(status.0)" in legacy_callback,
+         "legacy authorization callback reports status changes")
+ modern_callback = functions["locationManagerDidChangeAuthorization"]
+ require("self.complete_authorization_change(native_authorization_status())" in modern_callback,
+         "current authorization callback reports status changes")
+ transition = functions["queue_authorization_change"]
+ compact_transition = re.sub(r"\s+", "", transition)
+ require("letSome(change)=authorization.observe(current)else" in compact_transition and
+         "LocationUpdateKind::AuthorizationChanged(" in compact_transition and
+         "change.authorization" in compact_transition,
+         "authorization changes are surfaced as typed events")
+ error_event = "queue.push_batch([LocationUpdateKind::Error(permission_error())]);"
+ state_event = "queue.push_batch([LocationUpdateKind::AuthorizationChanged("
+ require("ifchange.downgraded" in compact_transition and
+         compact_transition.find(error_event) >= 0 and
+         compact_transition.find(state_event) > compact_transition.find(error_event),
+         "authorization downgrade preserves error-before-state order")
  return errors
 
 
@@ -495,11 +513,15 @@ def verify_negative_fixtures(source):
   ("UIBackgroundModes parser", "main_bundle_has_location_background_mode", "downcast::<NSArray<AnyObject>>()", "removed_array_downcast()"),
   ("UIBackgroundModes parser", "main_bundle_has_location_background_mode", "downcast_ref::<NSString>", "removed_string_downcast"),
   ("background downgrade event and fix suppression", "locationManager_didUpdateLocations", "authorization_from_native(native_authorization_status())", "authorization_from_native(0)"),
-  ("background downgrade event and fix suppression", "locationManager_didUpdateLocations", "if authorization.observe(current_authorization)", "if false"),
-  ("background downgrade event and fix suppression", "locationManager_didUpdateLocations", "queue.push_batch([LocationUpdateKind::Error(permission_error())])", "removed_permission_event()"),
+  ("background downgrade event and fix suppression", "locationManager_didUpdateLocations", "queue_authorization_change(queue, authorization, current_authorization)", "removed_authorization_change()"),
+  ("authorization changes are surfaced as typed events", "queue_authorization_change", "change.authorization", "LocationAuthorization::Unknown"),
+  ("authorization downgrade preserves error-before-state order", "queue_authorization_change", "queue.push_batch([LocationUpdateKind::Error(permission_error())]);", "removed_permission_event()"),
+  ("authorization downgrade preserves error-before-state order", "queue_authorization_change", "if change.downgraded {\n        queue.push_batch([LocationUpdateKind::Error(permission_error())]);\n    }\n    queue.push_batch([LocationUpdateKind::AuthorizationChanged(\n        change.authorization,\n    )]);", "queue.push_batch([LocationUpdateKind::AuthorizationChanged(\n        change.authorization,\n    )]);\n    if change.downgraded {\n        queue.push_batch([LocationUpdateKind::Error(permission_error())]);\n    }"),
+  ("legacy authorization callback reports status changes", "locationManager_didChangeAuthorizationStatus", "self.complete_authorization_change(status.0)", "removed_legacy_authorization_change()"),
+  ("current authorization callback reports status changes", "locationManagerDidChangeAuthorization", "self.complete_authorization_change(native_authorization_status())", "removed_current_authorization_change()"),
   ("background downgrade event and fix suppression", "locationManager_didUpdateLocations", "if !authorization.permits(current_authorization)", "if true"),
   ("background downgrade event and fix suppression", "locationManager_didUpdateLocations", "if !authorization.permits(current_authorization) {\n                        return;\n                    }", "if !authorization.permits(current_authorization) {\n                        drop(());\n                    }"),
-  ("authorization callback reports background downgrade", "complete_authorization_change", "if authorization.observe(authorization_from_native(raw_status))", "if false"),
+  ("authorization callback reports status changes", "complete_authorization_change", "queue_authorization_change(", "removed_authorization_change("),
   ("significant selector scope", "start_location_updates", "manager.startMonitoringSignificantLocationChanges()", "removed_significant_start()"),
   ("significant device support preflight", "start_location_updates", "CLLocationManager::significantLocationChangeMonitoringAvailable()", "true"),
   ("significant device support preflight", "start_location_updates", "significant_change_preflight(supported, authorization)?", "Ok(())"),
@@ -551,6 +573,9 @@ def verify_host_test_anchors(source_dir):
   ("configuration.rs", "legacy_always_key_requirement_tracks_deployment_target"),
   ("configuration.rs", "temporary_accuracy_purpose_keys_reject_empty_and_nul"),
   ("conversion.rs", "background_updates_require_always_and_report_downgrades"),
+  ("conversion.rs", "update_authorization_state_reports_exact_changes_once_and_marks_downgrades"),
+  ("conversion.rs", "foreground_authorization_upgrade_is_reported_without_a_downgrade"),
+  ("operation.rs", "update_queue_preserves_downgrade_and_authorization_change_order"),
   ("conversion.rs", "significant_change_preflight_requires_device_support_and_existing_authorization"),
   ("geofence.rs", "geofence_validates_each_negative_input"),
   ("geofence.rs", "monitor_name_rules_reject_empty_underscore_and_non_alphanumeric_values"),

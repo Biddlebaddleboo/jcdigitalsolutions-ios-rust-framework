@@ -4,7 +4,7 @@ use crate::configuration::{
     requires_legacy_always_usage_description,
 };
 use crate::conversion::{
-    NativeAccuracy, UpdateAuthorizationRequirement, authorization_downgraded,
+    NativeAccuracy, UpdateAuthorizationRequirement, UpdateAuthorizationState,
     authorization_from_native, configuration_error, error_from_native, fix_from_native,
     native_accuracy, should_request_always_authorization, significant_change_preflight,
     updates_permitted,
@@ -12,7 +12,6 @@ use crate::conversion::{
 use crate::geofence::{IosGeofenceError, geofence_authorization_preflight};
 use crate::operation::{CompletionCell, LocationUpdateQueue};
 use block2::RcBlock;
-use core::cell::Cell;
 use core::future::Future;
 use core::marker::PhantomData;
 use core::pin::Pin;
@@ -65,29 +64,6 @@ enum DelegateState {
     },
 }
 
-struct UpdateAuthorizationState {
-    requirement: UpdateAuthorizationRequirement,
-    previous: Cell<LocationAuthorization>,
-}
-
-impl UpdateAuthorizationState {
-    fn new(requirement: UpdateAuthorizationRequirement, initial: LocationAuthorization) -> Self {
-        Self {
-            requirement,
-            previous: Cell::new(initial),
-        }
-    }
-
-    fn permits(&self, current: LocationAuthorization) -> bool {
-        updates_permitted(current, self.requirement)
-    }
-
-    fn observe(&self, current: LocationAuthorization) -> bool {
-        let previous = self.previous.replace(current);
-        authorization_downgraded(previous, current, self.requirement)
-    }
-}
-
 define_class!(
     #[unsafe(super(NSObject))]
     #[thread_kind = MainThreadOnly]
@@ -135,9 +111,7 @@ define_class!(
                 } => {
                     let current_authorization =
                         authorization_from_native(native_authorization_status());
-                    if authorization.observe(current_authorization) {
-                        queue.push_batch([LocationUpdateKind::Error(permission_error())]);
-                    }
+                    queue_authorization_change(queue, authorization, current_authorization);
                     if !authorization.permits(current_authorization) {
                         return;
                     }
@@ -243,14 +217,30 @@ impl LocationDelegate {
             DelegateState::Updates {
                 queue,
                 authorization,
-            } => {
-                if authorization.observe(authorization_from_native(raw_status)) {
-                    queue.push_batch([LocationUpdateKind::Error(permission_error())]);
-                }
-            }
+            } => queue_authorization_change(
+                queue,
+                authorization,
+                authorization_from_native(raw_status),
+            ),
             DelegateState::RequestAuthorization { .. } | DelegateState::Current { .. } => {}
         }
     }
+}
+
+fn queue_authorization_change(
+    queue: &LocationUpdateQueue,
+    authorization: &UpdateAuthorizationState,
+    current: LocationAuthorization,
+) {
+    let Some(change) = authorization.observe(current) else {
+        return;
+    };
+    if change.downgraded {
+        queue.push_batch([LocationUpdateKind::Error(permission_error())]);
+    }
+    queue.push_batch([LocationUpdateKind::AuthorizationChanged(
+        change.authorization,
+    )]);
 }
 
 fn fix_from_native_location(location: &CLLocation) -> Result<LocationFix, LocationError> {

@@ -1,3 +1,4 @@
+use core::cell::Cell;
 use framework_core::{Error, ErrorKind, PlatformErrorCode};
 use framework_location::{
     AccuracyTarget, Coordinate, LocationAuthorization, LocationError, LocationFix,
@@ -8,6 +9,44 @@ use framework_location::{
 pub(crate) enum UpdateAuthorizationRequirement {
     Foreground,
     Background,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(crate) struct AuthorizationChange {
+    pub(crate) authorization: LocationAuthorization,
+    pub(crate) downgraded: bool,
+}
+
+pub(crate) struct UpdateAuthorizationState {
+    requirement: UpdateAuthorizationRequirement,
+    previous: Cell<LocationAuthorization>,
+}
+
+impl UpdateAuthorizationState {
+    pub(crate) fn new(
+        requirement: UpdateAuthorizationRequirement,
+        initial: LocationAuthorization,
+    ) -> Self {
+        Self {
+            requirement,
+            previous: Cell::new(initial),
+        }
+    }
+
+    pub(crate) fn permits(&self, current: LocationAuthorization) -> bool {
+        updates_permitted(current, self.requirement)
+    }
+
+    pub(crate) fn observe(&self, current: LocationAuthorization) -> Option<AuthorizationChange> {
+        let previous = self.previous.replace(current);
+        if previous == current {
+            return None;
+        }
+        Some(AuthorizationChange {
+            authorization: current,
+            downgraded: authorization_downgraded(previous, current, self.requirement),
+        })
+    }
 }
 
 pub(crate) const fn updates_permitted(
@@ -217,6 +256,45 @@ mod tests {
         assert!(!should_request_always_authorization(
             LocationAuthorization::Unknown
         ));
+    }
+
+    #[test]
+    fn update_authorization_state_reports_exact_changes_once_and_marks_downgrades() {
+        let state = UpdateAuthorizationState::new(
+            UpdateAuthorizationRequirement::Background,
+            LocationAuthorization::Background,
+        );
+        assert_eq!(state.observe(LocationAuthorization::Background), None);
+        assert_eq!(
+            state.observe(LocationAuthorization::Foreground),
+            Some(AuthorizationChange {
+                authorization: LocationAuthorization::Foreground,
+                downgraded: true,
+            })
+        );
+        assert_eq!(state.observe(LocationAuthorization::Foreground), None);
+        assert_eq!(
+            state.observe(LocationAuthorization::Background),
+            Some(AuthorizationChange {
+                authorization: LocationAuthorization::Background,
+                downgraded: false,
+            })
+        );
+    }
+
+    #[test]
+    fn foreground_authorization_upgrade_is_reported_without_a_downgrade() {
+        let state = UpdateAuthorizationState::new(
+            UpdateAuthorizationRequirement::Foreground,
+            LocationAuthorization::Foreground,
+        );
+        assert_eq!(
+            state.observe(LocationAuthorization::Background),
+            Some(AuthorizationChange {
+                authorization: LocationAuthorization::Background,
+                downgraded: false,
+            })
+        );
     }
 
     #[test]

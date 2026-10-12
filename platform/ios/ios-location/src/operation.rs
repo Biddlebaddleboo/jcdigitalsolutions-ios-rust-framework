@@ -229,7 +229,9 @@ impl LocationUpdateQueue {
 mod tests {
     use super::*;
     use framework_core::{Error, ErrorKind};
-    use framework_location::{Coordinate, LocationError, LocationFix, LocationTimestamp};
+    use framework_location::{
+        Coordinate, LocationAuthorization, LocationError, LocationFix, LocationTimestamp,
+    };
     use std::sync::Arc;
     use std::sync::atomic::{AtomicUsize, Ordering};
     use std::task::{RawWaker, RawWakerVTable, Wake, Waker};
@@ -418,6 +420,25 @@ mod tests {
                 panic!("queued event was not ready");
             };
             assert_eq!(event.kind(), expected);
+        }
+    }
+
+    #[test]
+    fn update_queue_preserves_downgrade_and_authorization_change_order() {
+        let queue = LocationUpdateQueue::new();
+        let permission_error = LocationError::Backend(Error::new(ErrorKind::PermissionDenied));
+        let kinds = [
+            LocationUpdateKind::Error(permission_error),
+            LocationUpdateKind::AuthorizationChanged(LocationAuthorization::Foreground),
+            LocationUpdateKind::AuthorizationChanged(LocationAuthorization::Background),
+        ];
+        queue.push_batch(kinds);
+        for expected in kinds {
+            let Poll::Ready(event) = poll(&queue) else {
+                panic!("queued authorization change was not ready");
+            };
+            assert_eq!(event.kind(), expected);
+            assert_eq!(event.missed_before(), 0);
         }
     }
 

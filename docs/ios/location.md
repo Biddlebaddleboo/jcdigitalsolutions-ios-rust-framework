@@ -1,6 +1,6 @@
 # iOS location
 
-`ios-location` implements the portable one-shot and foreground update-session `framework-location` contracts with public Core Location APIs. B477 adds `Location::updates()` as a separate API from the one-shot `Location::current()` request. B496 adds an iOS-only explicit Always-authorization request and background-enabled continuous session without changing the portable foreground contract. B549 adds an opt-in iOS significant-change session alongside standard updates. B556 adds named iOS geofence monitoring as a platform extension over public `CLMonitor`; no portable geofence contract is implied. Start background sessions in the foreground when requesting system continuation after the app backgrounds. iOS controls actual delivery; no delivery while suspended or after termination is guaranteed
+`ios-location` implements the portable one-shot and foreground update-session `framework-location` contracts with public Core Location APIs. B477 adds `Location::updates()` as a separate API from the one-shot `Location::current()` request. B496 adds an iOS-only explicit Always-authorization request and background-enabled continuous session without changing the portable foreground contract. B549 adds an opt-in iOS significant-change session alongside standard updates. B556 adds named iOS geofence monitoring as a platform extension over public `CLMonitor`; no portable geofence contract is implied. B567 adds exact authorization-change snapshots to active portable update streams while preserving downgrade errors. Start background sessions in the foreground when requesting system continuation after the app backgrounds. iOS controls actual delivery; no delivery while suspended or after termination is guaranteed
 
 ## Create and use the backend
 
@@ -58,11 +58,15 @@ loop {
     match event.kind() {
         LocationUpdateKind::Fix(fix) => use_location(fix),
         LocationUpdateKind::Error(error) => report_location_error(error),
+        LocationUpdateKind::AuthorizationChanged(authorization) => {
+            update_permission_state(authorization);
+        }
+        _ => {}
     }
 }
 ~~~
 
-Each `didUpdateLocations` callback contributes its array entries in the callback's oldest-to-newest order. `LocationUpdateKind::Error` reports a transient backend/delegate error and does not end the session; a later fix can follow it. The queue holds at most 16 events. On overflow it evicts the oldest queued event and adds to a saturating `u64` count reported as `missed_before` on the next returned event, so overflow is observable
+Each `didUpdateLocations` callback contributes its array entries in the callback's oldest-to-newest order. `LocationUpdateKind::Error` reports a transient backend/delegate error and does not end the session; a later fix can follow it. B567 also reports each distinct normalized authorization state received by either public Core Location authorization delegate callback. Duplicate callbacks for the same state are suppressed. A transition below the session's required authorization queues the existing nonterminal `PermissionDenied` error before `AuthorizationChanged`; a restoration event reports the new state even before the next location fix. These events do not prompt or guarantee service delivery. The queue holds at most 16 events. On overflow it evicts the oldest queued event and adds to a saturating `u64` count reported as `missed_before` on the next returned event, so overflow is observable
 
 The active session exclusively borrows the backend and owns a `CLLocationManager` plus a strongly retained Rust delegate. Create, poll, and drop it on the backend's main thread while its run loop is active. Dropping one `next_update()` future cancels only that wait and preserves queued events; dropping the session detaches the delegate queue and calls `stopUpdatingLocation()`. If authorization is revoked during a session, the delegate emits a nonterminal permission error; drop the session before using the backend's authorization flow again
 
@@ -78,7 +82,7 @@ Use `IosLocationBackend::request_always_authorization()` from an explicit user a
 
 Before enabling background delivery, the backend verifies that the main app `Info.plist` has `UIBackgroundModes` as an array containing the exact string `location`. Missing, malformed, or unrelated values return `InvalidInput` before the `allowsBackgroundLocationUpdates` setter is called. This preflight prevents the documented fatal termination caused by enabling the setter without that background mode. The host app must also enable Background Modes > Location updates in its target capabilities. Always authorization alone does not configure the background mode, and the background mode does not grant permission
 
-`IosBackgroundLocationOptions` provides public activity, automatic-pausing, and optional indicator hints. Defaults are `Other`, automatic pausing enabled, and no explicit background indicator. `setShowsBackgroundLocationIndicator` is used only when requested and is runtime-guarded to iOS 11+; requesting it on an older system returns `Unsupported`. Background sessions use `kCLDistanceFilterNone`, the requested accuracy preference, and standard `startUpdatingLocation()`. An authorization transition below Always emits a nonterminal `PermissionDenied` event and suppresses location fixes until Always authorization returns. Dropping the session detaches its delegate and stops updates as for foreground sessions
+`IosBackgroundLocationOptions` provides public activity, automatic-pausing, and optional indicator hints. Defaults are `Other`, automatic pausing enabled, and no explicit background indicator. `setShowsBackgroundLocationIndicator` is used only when requested and is runtime-guarded to iOS 11+; requesting it on an older system returns `Unsupported`. Background sessions use `kCLDistanceFilterNone`, the requested accuracy preference, and standard `startUpdatingLocation()`. An authorization transition below Always emits the existing nonterminal `PermissionDenied` event followed by `AuthorizationChanged` with the exact new normalized state, then suppresses location fixes until Always authorization returns. Restoration is reported as a state event; the session does not prompt again. Dropping the session detaches its delegate and stops updates as for foreground sessions
 
 Required app configuration:
 

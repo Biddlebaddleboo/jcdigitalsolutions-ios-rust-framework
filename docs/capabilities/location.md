@@ -1,6 +1,6 @@
 # Location
 
-**framework-location** defines a portable **no_std** contract for one-shot current-location requests. It contains framework-owned values only and does not itself probe a device, request permission, or create a global service. The B5 [iOS location guide](../ios/location.md) documents the separate Core Location backend.
+**framework-location** defines a portable **no_std** contract for one-shot current-location requests and caller-owned foreground update sessions. Its events contain framework-owned values only; it does not itself probe a device, request permission, or create a global service. The B5 [iOS location guide](../ios/location.md) documents the separate Core Location backend and its iOS-only background extension.
 
 ## Rust API
 
@@ -19,7 +19,7 @@ async fn read_one_fix<B: LocationBackend>(
 
 **Location<B>** owns the caller-supplied backend value. The concrete **LocationBackend** type is selected statically; associated future types use **core::future::Future**, with no boxed trait object, executor, **Send** requirement, registry, or hidden initialization. Availability is a non-prompting backend service/context signal, not an authorization result or a guarantee that a request will succeed. Use **authorization** for normalized grant status. Authorization query is non-prompting; only an explicit **request_authorization** call may ask a native backend to prompt. That request is for foreground one-shot use and does not silently request background authorization.
 
-**LocationAuthorization** is framework-owned and distinguishes unknown, not-determined, denied, restricted, foreground, and background grant status. A background grant also allows foreground use, but this value is status only: the portable contract exposes no background-location operation. It does not encode every permission detail offered by every platform.
+**LocationAuthorization** is framework-owned and distinguishes unknown, not-determined, denied, restricted, foreground, and background grant status. A background grant also allows foreground use, but this value is status only: the portable contract exposes no background-location operation. An active update session may report a normalized authorization change; that event is a snapshot, not a permission request or a guarantee that the service can deliver fixes. It does not encode every permission detail offered by every platform.
 
 ## Coordinate, accuracy, timestamp, and ownership
 
@@ -37,13 +37,15 @@ A current-location request starts on first poll. Dropping it before its first po
 
 The request has no portable timeout field or completion deadline. A caller-imposed deadline is external; dropping the pending request follows the cancellation and callback-detachment rules above. A backend-reported timeout is returned through **LocationError::Backend** with its selected **ErrorKind** and optional native code preserved; **ErrorKind::Timeout** may be used when appropriate.
 
+Foreground update sessions yield one owned fix, a nonterminal error, or an authorization-change snapshot at a time. Dropping a `next_update()` future cancels only that wait; the caller-owned session remains active until dropped. A backend with bounded buffering must report evicted events through **LocationUpdate::missed_before**.
+
 Dropping an authorization-request future abandons interest in its result but cannot be assumed to dismiss a permission prompt already shown. A backend must keep any callback state safe until completion. Each completed authorization operation yields one result if its future remains live, and no result if that future has been dropped. A non-prompting authorization query must not change permission state. Errors preserve the framework **ErrorKind** and optional signed native code through **LocationError::Backend**.
 
 **Location::backend** and **backend_mut** provide a narrow route to backend-specific controls or native escape hatches. Platform types do not enter the portable API; a concrete native backend may expose them only through its own platform-specific API.
 
 ## Scope and support
 
-This portable contract covers one fix per request. It does not implement continuous updates, geofencing, visit monitoring, heading, speed, background location, or location history. The separate iOS backend implements only one-shot current location; neither layer claims prompt presentation, device sensor availability, indoor performance, fix freshness, time-to-fix, or that a requested accuracy target will be met.
+This portable contract covers one-shot fixes and foreground continuous updates. It does not implement geofencing, visit monitoring, heading, speed, background delivery, or location history. The iOS backend adds explicit authorization, background updates, significant-change updates, and geofence monitoring as platform extensions. Neither layer claims prompt presentation, device sensor availability, indoor performance, fix freshness, time-to-fix, or that a requested accuracy target will be met.
 
 Portable checks for this crate:
 

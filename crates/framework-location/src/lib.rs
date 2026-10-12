@@ -268,6 +268,11 @@ pub enum LocationUpdateKind {
     Fix(LocationFix),
     /// One nonterminal backend error event; the session remains active until it is dropped.
     Error(LocationError),
+    /// One authorization state change reported while the update session remains active.
+    ///
+    /// This is a status snapshot, not a permission request or a guarantee that the location
+    /// service can deliver fixes under the new state.
+    AuthorizationChanged(LocationAuthorization),
 }
 
 /// One event from a foreground location-update session.
@@ -289,7 +294,7 @@ impl LocationUpdate {
         }
     }
 
-    /// Returns the location fix or nonterminal error represented by this event.
+    /// Returns the fix, nonterminal error, or authorization state represented by this event.
     pub const fn kind(self) -> LocationUpdateKind {
         self.kind
     }
@@ -307,7 +312,7 @@ pub trait LocationUpdateSession {
     where
         Self: 'a;
 
-    /// Waits for one location or error event without ending the session.
+    /// Waits for one location, authorization, or error event without ending the session.
     ///
     /// Dropping this future cancels only this wait. The session and native location service remain
     /// active until the session itself is dropped.

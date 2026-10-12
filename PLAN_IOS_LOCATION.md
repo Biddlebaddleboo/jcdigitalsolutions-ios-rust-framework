@@ -191,3 +191,11 @@ and B87's non-prompting getter. The device and Simulator link probe must retain 
 selector at the profile's existing deployment floors. Host unit tests cover key validation.
 Compilation/linking and source guards are static evidence only; live prompt, user choice, temporary
 authorization expiry, and device behavior remain runtime-unverified
+
+## B567 — typed location authorization-change events
+
+Extend the portable update event enum with `AuthorizationChanged(LocationAuthorization)`. In the iOS backend, route both public Core Location authorization delegate callbacks and the location-batch status refresh through one deduplicating transition path. Emit one event for each distinct normalized status change, including restoration, without prompting. Preserve the existing nonterminal `PermissionDenied` event before the typed event when the transition falls below the session's authorization requirement; continue to suppress fixes until authorization again permits the session. Initial status is a baseline, not a change event. Keep the portable contract allocation-free for these scalar events, preserve the bounded queue and session drop behavior, and retain all deployment floors.
+
+Acceptance requires deterministic host tests for exact transition values, duplicate suppression, downgrade classification, and queue order; source-contract negative fixtures must reject removal of either callback route, the typed event, downgrade error, or fix suppression. The existing `ios-location-updates` validator must cover the portable API, host tests, device/Simulator compile and strict Clippy, Rustdoc, source guards, link/import checks, docs, and deployment floors. Static validation does not prove live permission UI, Core Location callback delivery, background location, restoration timing, or physical-device behavior.
+
+The host suites pass: `framework-location` 7/7, `ios-location` unit tests 33/33, and `ios-location` integration tests 2/2. The registered `ios-location-updates` profile passes its source and negative guards, format, host/device/Simulator builds and Clippy, Rustdoc, link/import, documentation, and policy gates. Simulator execution and physical-device proof are skipped; live authorization changes, restoration timing, and background delivery remain unverified.
