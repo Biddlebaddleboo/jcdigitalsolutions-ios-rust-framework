@@ -10,6 +10,19 @@ fn main() {
     let Ok(session) = ios_camera_capture_session::IosCameraCaptureSession::new(main_thread) else {
         return;
     };
+    for preset in [
+        ios_camera_capture_session::IosCameraSessionPreset::Photo,
+        ios_camera_capture_session::IosCameraSessionPreset::High,
+        ios_camera_capture_session::IosCameraSessionPreset::Medium,
+        ios_camera_capture_session::IosCameraSessionPreset::Low,
+        ios_camera_capture_session::IosCameraSessionPreset::Cif352x288,
+        ios_camera_capture_session::IosCameraSessionPreset::Vga640x480,
+        ios_camera_capture_session::IosCameraSessionPreset::Hd1280x720,
+        ios_camera_capture_session::IosCameraSessionPreset::FullHd1920x1080,
+        ios_camera_capture_session::IosCameraSessionPreset::Uhd3840x2160,
+    ] {
+        let _ = std::hint::black_box(session.set_session_preset(preset));
+    }
     let Some(main_thread) = objc2::MainThreadMarker::new() else {
         return;
     };

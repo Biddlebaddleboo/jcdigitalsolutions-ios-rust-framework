@@ -58,6 +58,22 @@ for target in aarch64-apple-ios aarch64-apple-ios-sim; do
         printf '%s probe does not import public dispatch_get_specific queue identity\n' "$target" >&2
         exit 1
     }
+    for preset in \
+        AVCaptureSessionPresetPhoto \
+        AVCaptureSessionPresetHigh \
+        AVCaptureSessionPresetMedium \
+        AVCaptureSessionPresetLow \
+        AVCaptureSessionPreset352x288 \
+        AVCaptureSessionPreset640x480 \
+        AVCaptureSessionPreset1280x720 \
+        AVCaptureSessionPreset1920x1080 \
+        AVCaptureSessionPreset3840x2160
+    do
+        printf '%s\n' "$symbols" | grep -F "_$preset" >/dev/null || {
+            printf '%s probe does not import the public %s constant\n' "$target" "$preset" >&2
+            exit 1
+        }
+    done
     printf '%s\n' "$symbols" | grep -F 'AVCaptureDeviceTypeBuiltInWideAngleCamera' >/dev/null || {
         printf '%s probe does not import the built-in wide-angle device type\n' "$target" >&2
         exit 1
@@ -74,6 +90,8 @@ for target in aarch64-apple-ios aarch64-apple-ios-sim; do
         AVCaptureMovieFileOutput \
         AVCaptureVideoDataOutput \
         AVCaptureVideoPreviewLayer \
+        canSetSessionPreset: \
+        setSessionPreset: \
         position \
         CMSampleBuffer \
         authorizationStatusForMediaType: \

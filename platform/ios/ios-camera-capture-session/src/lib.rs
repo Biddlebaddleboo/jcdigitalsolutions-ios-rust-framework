@@ -41,8 +41,11 @@ use objc2_av_foundation::{
     AVCaptureDeviceTypeBuiltInWideAngleCamera, AVCaptureExposureMode, AVCaptureFileOutput,
     AVCaptureFileOutputRecordingDelegate, AVCaptureFlashMode, AVCaptureFocusMode,
     AVCaptureMovieFileOutput, AVCaptureOutput, AVCapturePhoto, AVCapturePhotoCaptureDelegate,
-    AVCapturePhotoOutput, AVCapturePhotoSettings, AVCaptureSession, AVCaptureTorchMode,
-    AVCaptureVideoDataOutput, AVCaptureVideoDataOutputSampleBufferDelegate,
+    AVCapturePhotoOutput, AVCapturePhotoSettings, AVCaptureSession, AVCaptureSessionPreset,
+    AVCaptureSessionPreset352x288, AVCaptureSessionPreset640x480, AVCaptureSessionPreset1280x720,
+    AVCaptureSessionPreset1920x1080, AVCaptureSessionPreset3840x2160, AVCaptureSessionPresetHigh,
+    AVCaptureSessionPresetLow, AVCaptureSessionPresetMedium, AVCaptureSessionPresetPhoto,
+    AVCaptureTorchMode, AVCaptureVideoDataOutput, AVCaptureVideoDataOutputSampleBufferDelegate,
     AVCaptureVideoPreviewLayer, AVCaptureWhiteBalanceMode, AVMediaTypeAudio, AVMediaTypeVideo,
 };
 #[cfg(target_os = "ios")]
@@ -144,6 +147,42 @@ pub enum MovieOrientationError {
     RecordingActive,
     /// The session has a shutdown request pending
     SessionStopping,
+}
+
+/// AVFoundation capture-session output quality or resolution preset
+#[cfg(any(target_os = "ios", test))]
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum IosCameraSessionPreset {
+    /// Prefer the highest resolution suitable for still-photo output
+    Photo,
+    /// High-quality general video; this is AVFoundation's unchanged default
+    High,
+    /// Medium-quality output
+    Medium,
+    /// Low-quality output
+    Low,
+    /// 352 by 288 video
+    Cif352x288,
+    /// 640 by 480 video
+    Vga640x480,
+    /// 1280 by 720 video
+    Hd1280x720,
+    /// 1920 by 1080 video
+    FullHd1920x1080,
+    /// 3840 by 2160 video
+    Uhd3840x2160,
+}
+
+/// Failure to apply a caller-selected AVFoundation session preset
+#[cfg(any(target_os = "ios", test))]
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum SessionPresetError {
+    /// A movie recording or its terminal finalization is active
+    RecordingActive,
+    /// The session has a shutdown request pending
+    SessionStopping,
+    /// The current session graph does not support the requested preset
+    PresetUnsupported,
 }
 
 #[cfg(any(target_os = "ios", test))]
@@ -302,6 +341,103 @@ fn map_camera_video_orientation<T: Copy>(
         IosCameraVideoOrientation::LandscapeRight => landscape_right,
         IosCameraVideoOrientation::LandscapeLeft => landscape_left,
     }
+}
+
+#[cfg(any(target_os = "ios", test))]
+fn map_ios_camera_session_preset<T: Copy>(preset: IosCameraSessionPreset, presets: [T; 9]) -> T {
+    let index = match preset {
+        IosCameraSessionPreset::Photo => 0,
+        IosCameraSessionPreset::High => 1,
+        IosCameraSessionPreset::Medium => 2,
+        IosCameraSessionPreset::Low => 3,
+        IosCameraSessionPreset::Cif352x288 => 4,
+        IosCameraSessionPreset::Vga640x480 => 5,
+        IosCameraSessionPreset::Hd1280x720 => 6,
+        IosCameraSessionPreset::FullHd1920x1080 => 7,
+        IosCameraSessionPreset::Uhd3840x2160 => 8,
+    };
+    presets[index]
+}
+
+#[cfg(any(target_os = "ios", test))]
+fn configure_session_preset(
+    movie_state: &MovieRecordingState,
+    preset: IosCameraSessionPreset,
+    can_set: impl FnOnce(IosCameraSessionPreset) -> bool,
+    begin_configuration: impl FnOnce(),
+    set_preset: impl FnOnce(IosCameraSessionPreset),
+    commit_configuration: impl FnOnce(),
+) -> Result<(), SessionPresetError> {
+    if movie_state.pending_session_stop {
+        return Err(SessionPresetError::SessionStopping);
+    }
+    if movie_state.active {
+        return Err(SessionPresetError::RecordingActive);
+    }
+    if !can_set(preset) {
+        return Err(SessionPresetError::PresetUnsupported);
+    }
+    begin_configuration();
+    set_preset(preset);
+    commit_configuration();
+    Ok(())
+}
+
+#[cfg(target_os = "ios")]
+fn avfoundation_camera_session_preset(
+    preset: IosCameraSessionPreset,
+) -> &'static AVCaptureSessionPreset {
+    // SAFETY: These references are public AVFoundation string globals linked by objc2 and the
+    // package's iOS device/Simulator targets, and their API floor is below both package floors.
+    unsafe {
+        map_ios_camera_session_preset(
+            preset,
+            [
+                AVCaptureSessionPresetPhoto,
+                AVCaptureSessionPresetHigh,
+                AVCaptureSessionPresetMedium,
+                AVCaptureSessionPresetLow,
+                AVCaptureSessionPreset352x288,
+                AVCaptureSessionPreset640x480,
+                AVCaptureSessionPreset1280x720,
+                AVCaptureSessionPreset1920x1080,
+                AVCaptureSessionPreset3840x2160,
+            ],
+        )
+    }
+}
+
+#[cfg(target_os = "ios")]
+fn can_set_avfoundation_camera_session_preset(
+    session: &AVCaptureSession,
+    preset: IosCameraSessionPreset,
+) -> bool {
+    // SAFETY: The public preset support query is available below the package floors; the
+    // requested preset is a retained AVFoundation constant selected by the typed mapping.
+    unsafe { session.canSetSessionPreset(avfoundation_camera_session_preset(preset)) }
+}
+
+#[cfg(target_os = "ios")]
+fn begin_avfoundation_session_configuration(session: &AVCaptureSession) {
+    // SAFETY: This operation runs on the private serial session queue, and the preset helper pairs
+    // each begin with a commit before returning.
+    unsafe { session.beginConfiguration() }
+}
+
+#[cfg(target_os = "ios")]
+fn commit_avfoundation_session_configuration(session: &AVCaptureSession) {
+    // SAFETY: This operation runs on the private serial session queue after a matching begin.
+    unsafe { session.commitConfiguration() }
+}
+
+#[cfg(target_os = "ios")]
+fn set_avfoundation_camera_session_preset(
+    session: &AVCaptureSession,
+    preset: IosCameraSessionPreset,
+) {
+    // SAFETY: The caller checks canSetSessionPreset for this exact typed preset first and invokes
+    // the setter inside the session's serialized beginConfiguration/commitConfiguration pair.
+    unsafe { session.setSessionPreset(avfoundation_camera_session_preset(preset)) }
 }
 
 #[cfg(any(target_os = "ios", test))]
@@ -2404,6 +2540,35 @@ impl IosCameraCaptureSession {
         result
     }
 
+    /// Apply a caller-selected AVFoundation output-quality or resolution preset
+    ///
+    /// The session keeps AVFoundation's existing high-quality default until this method succeeds.
+    /// Preset support varies by selected camera and configured outputs, so an unsupported request
+    /// returns `SessionPresetError::PresetUnsupported` without mutation. The operation runs
+    /// synchronously on the private serial capture queue and is allowed while the session runs,
+    /// but is rejected during movie recording/finalization or pending movie-driven shutdown. Named
+    /// dimensions are requested presets, not a guarantee of delivered frame size or runtime
+    /// capture behavior.
+    pub fn set_session_preset(
+        &self,
+        preset: IosCameraSessionPreset,
+    ) -> Result<(), SessionPresetError> {
+        let graph = Arc::clone(&self.graph);
+        self.run_capture_queue_sync(move || {
+            let graph = graph
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner);
+            configure_session_preset(
+                &graph.movie_recording,
+                preset,
+                |preset| can_set_avfoundation_camera_session_preset(&graph.session, preset),
+                || begin_avfoundation_session_configuration(&graph.session),
+                |preset| set_avfoundation_camera_session_preset(&graph.session, preset),
+                || commit_avfoundation_session_configuration(&graph.session),
+            )
+        })
+    }
+
     /// Set the caller-selected orientation for subsequent movie-file recordings
     ///
     /// This changes only the video connection of the configured movie-file output; it does not
@@ -3247,23 +3412,24 @@ mod tests {
     use super::{
         CameraCaptureError, CameraPositionSwitchError, ExposureControlError, FocusControlError,
         IosCameraExposureMode, IosCameraFlashMode, IosCameraFocusMode, IosCameraPosition,
-        IosCameraVideoOrientation, IosCameraWhiteBalanceMode, MediaAuthorizationStatus, MediaTime,
-        MovieOrientationError, MovieRecordingState, NormalizedFocusPoint, PhotoCaptureError,
-        PhotoCaptureResult, TorchControlError, VideoFrameStreamError, VideoFrameStreamState,
-        VideoRecordingError, VideoRecordingResult, WhiteBalanceControlError, ZoomControlError,
+        IosCameraSessionPreset, IosCameraVideoOrientation, IosCameraWhiteBalanceMode,
+        MediaAuthorizationStatus, MediaTime, MovieOrientationError, MovieRecordingState,
+        NormalizedFocusPoint, PhotoCaptureError, PhotoCaptureResult, SessionPresetError,
+        TorchControlError, VideoFrameStreamError, VideoFrameStreamState, VideoRecordingError,
+        VideoRecordingResult, WhiteBalanceControlError, ZoomControlError,
         camera_position_switch_required, configure_custom_exposure, configure_exposure,
         configure_exposure_target_bias, configure_focus, configure_movie_orientation,
-        configure_torch_enabled, configure_video_zoom_factor, configure_white_balance_mode,
-        custom_exposure_duration_from_parts, custom_exposure_range,
+        configure_session_preset, configure_torch_enabled, configure_video_zoom_factor,
+        configure_white_balance_mode, custom_exposure_duration_from_parts, custom_exposure_range,
         drop_video_frame_callback_safely, exposure_target_bias_range,
         finish_camera_input_replacement, invoke_video_frame_callback, map_camera_video_orientation,
-        may_create_device_input, photo_request_error, preflight_photo_flash_mode,
-        prepare_optional_movie_audio, replace_camera_session_input, require_camera_at_position,
-        require_selected_camera, require_selected_focus_camera, require_switch_camera,
-        run_on_capture_queue, set_supported_movie_orientation, settle_movie_result,
-        settle_movie_terminal, settle_photo_result, take_photo_completion, take_video_completion,
-        validate_movie_destination, with_authorized_microphone, with_selected_exposure_camera,
-        with_selected_white_balance_camera,
+        map_ios_camera_session_preset, may_create_device_input, photo_request_error,
+        preflight_photo_flash_mode, prepare_optional_movie_audio, replace_camera_session_input,
+        require_camera_at_position, require_selected_camera, require_selected_focus_camera,
+        require_switch_camera, run_on_capture_queue, set_supported_movie_orientation,
+        settle_movie_result, settle_movie_terminal, settle_photo_result, take_photo_completion,
+        take_video_completion, validate_movie_destination, with_authorized_microphone,
+        with_selected_exposure_camera, with_selected_white_balance_camera,
     };
     use std::cell::RefCell;
     use std::path::PathBuf;
@@ -3529,6 +3695,108 @@ mod tests {
         assert!(state.request_session_stop());
         assert_eq!(attempt(&state), Err(MovieOrientationError::SessionStopping));
         assert_eq!(current.get(), Orientation::Portrait);
+    }
+
+    #[test]
+    fn session_preset_maps_all_typed_choices() {
+        use IosCameraSessionPreset as Preset;
+
+        let choices = [
+            Preset::Photo,
+            Preset::High,
+            Preset::Medium,
+            Preset::Low,
+            Preset::Cif352x288,
+            Preset::Vga640x480,
+            Preset::Hd1280x720,
+            Preset::FullHd1920x1080,
+            Preset::Uhd3840x2160,
+        ];
+        let mapped = choices
+            .map(|preset| map_ios_camera_session_preset(preset, [1, 2, 3, 4, 5, 6, 7, 8, 9]));
+
+        assert_eq!(mapped, [1, 2, 3, 4, 5, 6, 7, 8, 9]);
+    }
+
+    #[test]
+    fn session_preset_preflights_before_atomic_change() {
+        use IosCameraSessionPreset::Hd1280x720;
+
+        let events = std::cell::RefCell::new(Vec::new());
+        assert_eq!(
+            configure_session_preset(
+                &MovieRecordingState::default(),
+                Hd1280x720,
+                |preset| {
+                    assert_eq!(preset, Hd1280x720);
+                    events.borrow_mut().push("can-set");
+                    true
+                },
+                || events.borrow_mut().push("begin"),
+                |preset| {
+                    assert_eq!(preset, Hd1280x720);
+                    events.borrow_mut().push("set");
+                },
+                || events.borrow_mut().push("commit"),
+            ),
+            Ok(())
+        );
+        assert_eq!(*events.borrow(), ["can-set", "begin", "set", "commit"]);
+    }
+
+    #[test]
+    fn session_preset_rejects_unsupported_recording_and_shutdown() {
+        use IosCameraSessionPreset::Photo;
+
+        let events = std::cell::RefCell::new(Vec::new());
+        assert_eq!(
+            configure_session_preset(
+                &MovieRecordingState::default(),
+                Photo,
+                |_| {
+                    events.borrow_mut().push("can-set");
+                    false
+                },
+                || events.borrow_mut().push("begin"),
+                |_| events.borrow_mut().push("set"),
+                || events.borrow_mut().push("commit"),
+            ),
+            Err(SessionPresetError::PresetUnsupported)
+        );
+        assert_eq!(*events.borrow(), ["can-set"]);
+
+        let mut state = MovieRecordingState::default();
+        assert_eq!(state.begin(), Ok(()));
+        assert!(state.request_recording_stop());
+        let support_queried = std::cell::Cell::new(false);
+        assert_eq!(
+            configure_session_preset(
+                &state,
+                Photo,
+                |_| {
+                    support_queried.set(true);
+                    true
+                },
+                || panic!("active movie must reject before configuration"),
+                |_| panic!("active movie must reject before preset mutation"),
+                || panic!("active movie must reject before commit"),
+            ),
+            Err(SessionPresetError::RecordingActive)
+        );
+        assert!(!support_queried.get());
+
+        assert!(state.request_session_stop());
+        assert_eq!(
+            configure_session_preset(
+                &state,
+                Photo,
+                |_| panic!("pending shutdown must reject before support query"),
+                || panic!("pending shutdown must reject before configuration"),
+                |_| panic!("pending shutdown must reject before preset mutation"),
+                || panic!("pending shutdown must reject before commit"),
+            ),
+            Err(SessionPresetError::SessionStopping)
+        );
     }
 
     #[test]
