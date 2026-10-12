@@ -860,7 +860,7 @@
       "check_script": "platform/ios/ios-notifications/check-link-imports.sh",
       "clippy_all_targets": true,
       "clippy_lib": false,
-      "docs": ["docs/notifications.md","docs/ios/notifications.md","docs/capabilities/capability-status.json","docs/generated/VALIDATION_PROFILES.md","PLAN_IOS_NOTIFICATIONS.md","PLAN_RIDESHARE_BOT_MIGRATION.md","PLAN.md"],
+      "docs": ["docs/notifications.md","docs/ios/notifications.md","docs/ios/notification-responses.md","docs/capabilities/capability-status.json","docs/generated/VALIDATION_PROFILES.md","PLAN_IOS_NOTIFICATIONS.md","PLAN_RIDESHARE_BOT_MIGRATION.md","PLAN.md"],
       "expected_imports": ["Foundation.framework","UserNotifications.framework","libSystem.B.dylib","libobjc.A.dylib"],
       "fmt_all": false,
       "guards": [
@@ -874,7 +874,7 @@
       "offline": false,
       "package": "ios-notifications",
       "rustdoc_warnings": true,
-      "scoped_files": ["crates/framework-notifications/src/lib.rs","platform/ios/ios-notifications/Cargo.toml","platform/ios/ios-notifications/check-link-imports.sh","platform/ios/ios-notifications/examples/ios_notifications_link_import_probe.rs","platform/ios/ios-notifications/src/authorization.rs","platform/ios/ios-notifications/src/lib.rs","platform/ios/ios-notifications/src/platform.rs","docs/notifications.md","docs/ios/notifications.md","docs/capabilities/capability-status.json","PLAN_IOS_NOTIFICATIONS.md","PLAN.md","tools/validation/specs/validation-v1.json"],
+      "scoped_files": ["crates/framework-notifications/src/lib.rs","platform/ios/ios-notifications/Cargo.toml","platform/ios/ios-notifications/check-link-imports.sh","platform/ios/ios-notifications/examples/ios_notifications_link_import_probe.rs","platform/ios/ios-notifications/src/actions.rs","platform/ios/ios-notifications/src/authorization.rs","platform/ios/ios-notifications/src/lib.rs","platform/ios/ios-notifications/src/platform.rs","docs/notifications.md","docs/ios/notifications.md","docs/ios/notification-responses.md","docs/capabilities/capability-status.json","PLAN_IOS_NOTIFICATIONS.md","PLAN.md","tools/validation/specs/validation-v1.json"],
       "shell_scripts": ["platform/ios/ios-notifications/check-link-imports.sh"],
       "source_dirs": ["crates/framework-notifications","platform/ios/ios-notifications"],
       "targets": [{"minimum_os":"10.0","sdk":"iphoneos","triple":"aarch64-apple-ios"},{"minimum_os":"14.0","sdk":"iphonesimulator","triple":"aarch64-apple-ios-sim"}]

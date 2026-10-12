@@ -71,6 +71,14 @@ count through `NSNumber` to `UNMutableNotificationContent.setBadge`. Portable un
 the default, zero, and `u32::MAX`; iOS compile/link checks cover the registered API use and native
 mapping. This does not request badge authorization or prove scheduling, delivery, or icon state.
 
+### B547 — local-notification action categories (rows 031 and 032)
+
+B547 adds validated portable category IDs and opt-in category routing on scheduled content. The iOS
+backend registers owned button and text-input actions, maps authentication/destructive/foreground
+options, rejects duplicate action/category IDs, and replaces the complete registered category set;
+an empty set clears it. Registration does not install the separate response delegate or claim live
+presentation, text entry, or delivery. See the notification and response API guides.
+
 ## Objective
 
 Implement the D3 local-notification contract with public iOS UserNotifications APIs reached from Rust, without a Swift application/source layer.
@@ -99,7 +107,7 @@ Do not change the portable D3 contract, shared core semantics, other iOS backend
 
 ## Non-goals
 
-- No remote notifications/APNs/PushKit, response delegate, categories/actions, attachments, repeats, or calendar-recurring schedule API.
+- No remote notifications/APNs/PushKit, response delegate installation, attachments, repeats, or calendar-recurring schedule API.
 - No live user prompt, simulator delivery, or device-delivery claim in automated checks.
 - No `.swift` source, C ABI surface, global notification registry, or mandatory executor.
 

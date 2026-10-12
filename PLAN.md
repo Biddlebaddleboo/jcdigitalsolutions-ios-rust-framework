@@ -516,3 +516,12 @@ configured output's supported modes before capture and leaves existing `capture_
 unchanged. Host regressions and the existing iOS 10.0 device / iOS 14.0 Simulator link profile
 cover support rejection and selector retention; no flash firing or camera runtime behavior is
 claimed. See [the camera capture workstream](PLAN_IOS_CAMERA_CAPTURE_SESSION.md).
+
+### B547 — local-notification action categories (rows 031 and 032)
+
+B547 adds validated portable category identifiers and opt-in routing from local notification content.
+The iOS backend supports ordered button and text-input actions, typed authentication/destructive/
+foreground options, duplicate-ID rejection, and full-set replacement/clear through public
+UserNotifications APIs. Host regressions and the registered iOS notification profile cover the new
+contracts and link selectors; the response bridge remains separately installed, and live action
+presentation, text entry, and delivery remain unverified.
