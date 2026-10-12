@@ -108,7 +108,7 @@
 | 090-commerce-services-apple-music-using-rest-mediaplayer-first-swift-residual-only-where-required | Commerce/services | Apple Music using REST/MediaPlayer first, Swift residual only where required | not_implemented | partial | not_tested_live_behavior_or_Apple_parity |
 | 091-commerce-services-weatherkit-through-rest-native-http-where-appropriate | Commerce/services | WeatherKit through REST/native HTTP where appropriate | not_implemented | unsupported | not_tested_no_native_or_REST_WeatherKit_implementation |
 | 092-commerce-services-tipkit-only-if-system-tipkit-behavior-is-specifically-requested-otherwise-framework-owned-tip-logic-may-be-portable | Commerce/services | TipKit only if system TipKit behavior is specifically requested; otherwise framework-owned tip logic may be portable | not_implemented | unsupported | not_tested_no_iOS_implementation |
-| 093-maps-ar-spatial-mapkit | Maps/AR/spatial | MapKit | partial | partial | not_tested_live_map_geometry_markers_routes_or_user_tracking |
+| 093-maps-ar-spatial-mapkit | Maps/AR/spatial | MapKit | partial | partial | not_tested_live_map_geometry_markers_routes_polygons_or_user_tracking |
 | 094-maps-ar-spatial-arkit | Maps/AR/spatial | ARKit | partial | partial | not_tested_live_behavior_or_Apple_parity |
 | 095-maps-ar-spatial-realitykit-native-swift-residual-coverage-that-is-realistically-supportable | Maps/AR/spatial | RealityKit native/Swift residual coverage that is realistically supportable | not_implemented | partial | not_tested_no_photogrammetry_session_or_RealityKit_scene_parity |
 | 096-maps-ar-spatial-roomplan | Maps/AR/spatial | RoomPlan | implemented | partial | not_tested_physical_device_or_live_scan |

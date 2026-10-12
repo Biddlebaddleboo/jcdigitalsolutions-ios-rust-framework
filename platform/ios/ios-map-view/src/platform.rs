@@ -15,19 +15,23 @@ use objc2_core_location::CLLocationCoordinate2D;
 use objc2_foundation::{NSString, NSUInteger};
 use objc2_map_kit::{
     MKAnnotation, MKCoordinateRegion, MKCoordinateSpan, MKOverlay, MKOverlayRenderer,
-    MKPointAnnotation, MKPolyline, MKPolylineRenderer, MKUserTrackingMode,
+    MKPointAnnotation, MKPolygon, MKPolygonRenderer, MKPolyline, MKPolylineRenderer,
+    MKUserTrackingMode,
 };
 use objc2_ui_kit::{UIColor, UIView};
 use std::panic::{AssertUnwindSafe, catch_unwind};
 
 use crate::annotations::sorted_snapshot;
-use crate::route::validate_route_point_count;
+use crate::polygon::{validate_polygon_delegate_slot, validate_polygon_point_count};
+use crate::route::{
+    overlay_delegate_is_required, overlay_delegate_slot_is_available, validate_route_point_count,
+};
 use crate::tracking::{
     IosUserTrackingMode, current_location_authorization, validate_user_tracking_request,
 };
 use crate::{
-    AnnotationSnapshotError, MapAnnotation, MapCoordinate, MapRegion, MapRouteError, MapSpan,
-    MapUserTrackingError,
+    AnnotationSnapshotError, MapAnnotation, MapCoordinate, MapPolygonError, MapRegion,
+    MapRouteError, MapSpan, MapUserTrackingError,
 };
 
 struct AnnotationEntry {
@@ -35,12 +39,13 @@ struct AnnotationEntry {
     native: Retained<MKPointAnnotation>,
 }
 
-struct RouteDelegateState {
+struct OverlayDelegateState {
     route: RefCell<Option<Retained<MKPolyline>>>,
+    polygon: RefCell<Option<Retained<MKPolygon>>>,
 }
 
 extern_protocol!(
-    /// The iOS route-render callback subset of Apple's public map-view delegate protocol.
+    /// The iOS overlay-render callback subset of Apple's public map-view delegate protocol.
     ///
     /// # Safety
     ///
@@ -63,19 +68,19 @@ extern_protocol!(
 define_class!(
     // SAFETY:
     // - NSObject has no subclassing requirements.
-    // - The route state is used only by MapKit's main-thread delegate callback.
+    // - The overlay state is used only by MapKit's main-thread delegate callback.
     #[unsafe(super(NSObject))]
     #[thread_kind = MainThreadOnly]
     #[name = "JcdIosMapRouteDelegate"]
-    #[ivars = RouteDelegateState]
-    struct RouteDelegate;
+    #[ivars = OverlayDelegateState]
+    struct OverlayDelegate;
 
     // SAFETY: NSObject supplies all required NSObjectProtocol methods.
-    unsafe impl NSObjectProtocol for RouteDelegate {}
+    unsafe impl NSObjectProtocol for OverlayDelegate {}
 
     // SAFETY: This class conforms to Apple's public MKMapViewDelegate protocol and implements
     // its iOS rendererForOverlay selector with the SDK's exact Objective-C ABI.
-    unsafe impl IosMapViewDelegate for RouteDelegate {
+    unsafe impl IosMapViewDelegate for OverlayDelegate {
         #[unsafe(method_id(mapView:rendererForOverlay:))]
         unsafe fn map_view_renderer_for_overlay(
             &self,
@@ -89,10 +94,11 @@ define_class!(
     }
 );
 
-impl RouteDelegate {
+impl OverlayDelegate {
     fn new(marker: MainThreadMarker) -> Retained<Self> {
-        let this = Self::alloc(marker).set_ivars(RouteDelegateState {
+        let this = Self::alloc(marker).set_ivars(OverlayDelegateState {
             route: RefCell::new(None),
+            polygon: RefCell::new(None),
         });
         // SAFETY: This is a fresh NSObject subclass allocation and NSObject's init is valid.
         unsafe { msg_send![super(this), init] }
@@ -102,30 +108,61 @@ impl RouteDelegate {
         core::mem::replace(&mut *self.ivars().route.borrow_mut(), route)
     }
 
+    fn replace_polygon(&self, polygon: Option<Retained<MKPolygon>>) -> Option<Retained<MKPolygon>> {
+        core::mem::replace(&mut *self.ivars().polygon.borrow_mut(), polygon)
+    }
+
+    fn has_overlays(&self) -> bool {
+        let route_active = self.ivars().route.borrow().is_some();
+        let polygon_active = self.ivars().polygon.borrow().is_some();
+        overlay_delegate_is_required(route_active, polygon_active)
+    }
+
     fn renderer_for_overlay(
         &self,
         overlay: &ProtocolObject<dyn MKOverlay>,
     ) -> Retained<MKOverlayRenderer> {
         let route = self.ivars().route.borrow().clone();
-        let Some(route) = route else {
-            return empty_overlay_renderer(overlay);
-        };
-        if !overlay_is_route(overlay, &route) {
-            return empty_overlay_renderer(overlay);
+        if let Some(route) = route {
+            if overlay_is_route(overlay, &route) {
+                // SAFETY: `MKPolylineRenderer` publicly accepts the exact retained `MKPolyline`
+                // held by this delegate. MapKit calls this callback on the map's main thread.
+                let renderer = unsafe {
+                    MKPolylineRenderer::initWithPolyline(MKPolylineRenderer::alloc(), &route)
+                };
+                let color = UIColor::blueColor();
+                // SAFETY: The iOS SDK declares `setStrokeColor:` on MKOverlayPathRenderer with a
+                // UIColor object parameter. The local objc2-map-kit binding omits this setter.
+                let () = unsafe { msg_send![&*renderer, setStrokeColor: &*color] };
+                // SAFETY: The generated public binding matches MKOverlayPathRenderer's CGFloat setter.
+                unsafe { renderer.setLineWidth(5.0) };
+                // SAFETY: MKPolylineRenderer publicly subclasses MKOverlayRenderer.
+                return unsafe { Retained::cast_unchecked(renderer) };
+            }
         }
 
-        // SAFETY: `MKPolylineRenderer` publicly accepts the exact retained `MKPolyline` held by
-        // this delegate. MapKit calls this callback on the map's main thread.
-        let renderer =
-            unsafe { MKPolylineRenderer::initWithPolyline(MKPolylineRenderer::alloc(), &route) };
-        let color = UIColor::blueColor();
-        // SAFETY: The iOS SDK declares `setStrokeColor:` on MKOverlayPathRenderer with a UIColor
-        // object parameter. The local objc2-map-kit binding omits this iOS-only setter.
-        let () = unsafe { msg_send![&*renderer, setStrokeColor: &*color] };
-        // SAFETY: The generated public binding matches MKOverlayPathRenderer's CGFloat setter.
-        unsafe { renderer.setLineWidth(5.0) };
-        // SAFETY: MKPolylineRenderer publicly subclasses MKOverlayRenderer.
-        unsafe { Retained::cast_unchecked(renderer) }
+        let polygon = self.ivars().polygon.borrow().clone();
+        if let Some(polygon) = polygon {
+            if overlay_is_polygon(overlay, &polygon) {
+                // SAFETY: `MKPolygonRenderer` publicly accepts the exact retained `MKPolygon`
+                // held by this delegate. MapKit calls this callback on the map's main thread.
+                let renderer = unsafe {
+                    MKPolygonRenderer::initWithPolygon(MKPolygonRenderer::alloc(), &polygon)
+                };
+                let color = UIColor::blueColor();
+                let fill = color.colorWithAlphaComponent(0.2);
+                // SAFETY: The iOS SDK declares UIColor object setters on MKOverlayPathRenderer.
+                // The local objc2-map-kit binding omits these iOS-only setter declarations.
+                let () = unsafe { msg_send![&*renderer, setStrokeColor: &*color] };
+                let () = unsafe { msg_send![&*renderer, setFillColor: &*fill] };
+                // SAFETY: The generated public binding matches MKOverlayPathRenderer's CGFloat setter.
+                unsafe { renderer.setLineWidth(2.0) };
+                // SAFETY: MKPolygonRenderer publicly subclasses MKOverlayRenderer.
+                return unsafe { Retained::cast_unchecked(renderer) };
+            }
+        }
+
+        empty_overlay_renderer(overlay)
     }
 }
 
@@ -135,6 +172,12 @@ fn overlay_is_route(overlay: &ProtocolObject<dyn MKOverlay>, route: &MKPolyline)
     ptr::eq(overlay_pointer, route_pointer)
 }
 
+fn overlay_is_polygon(overlay: &ProtocolObject<dyn MKOverlay>, polygon: &MKPolygon) -> bool {
+    let overlay_pointer = overlay as *const ProtocolObject<dyn MKOverlay> as *const ();
+    let polygon_pointer = polygon as *const MKPolygon as *const ();
+    ptr::eq(overlay_pointer, polygon_pointer)
+}
+
 fn empty_overlay_renderer(overlay: &ProtocolObject<dyn MKOverlay>) -> Retained<MKOverlayRenderer> {
     // SAFETY: `overlay` is a live public MKOverlay object supplied by MapKit.
     unsafe { MKOverlayRenderer::initWithOverlay(MKOverlayRenderer::alloc(), overlay) }
@@ -142,10 +185,10 @@ fn empty_overlay_renderer(overlay: &ProtocolObject<dyn MKOverlay>) -> Retained<M
 
 fn delegate_is_owned(
     current: &ProtocolObject<dyn IosMapViewDelegate>,
-    owned: &RouteDelegate,
+    owned: &OverlayDelegate,
 ) -> bool {
     let current_pointer = current as *const ProtocolObject<dyn IosMapViewDelegate> as *const ();
-    let owned_pointer = owned as *const RouteDelegate as *const ();
+    let owned_pointer = owned as *const OverlayDelegate as *const ();
     ptr::eq(current_pointer, owned_pointer)
 }
 
@@ -157,7 +200,7 @@ fn delegate_is_owned(
 pub struct IosMapView {
     native: Retained<NativeMapView>,
     annotations: Vec<AnnotationEntry>,
-    route_delegate: Option<Retained<RouteDelegate>>,
+    overlay_delegate: Option<Retained<OverlayDelegate>>,
     marker: MainThreadMarker,
 }
 
@@ -171,7 +214,7 @@ impl IosMapView {
         Self {
             native,
             annotations: Vec::new(),
-            route_delegate: None,
+            overlay_delegate: None,
             marker,
         }
     }
@@ -187,22 +230,15 @@ impl IosMapView {
 
         let current_delegate = unsafe { self.native.delegate() };
         let owns_current = current_delegate.as_ref().is_some_and(|current| {
-            self.route_delegate
+            self.overlay_delegate
                 .as_ref()
                 .is_some_and(|owned| delegate_is_owned(current, owned))
         });
-        if !crate::route::route_delegate_slot_is_available(current_delegate.is_none(), owns_current)
-        {
+        if !overlay_delegate_slot_is_available(current_delegate.is_none(), owns_current) {
             return Err(MapRouteError::DelegateSlotOccupied);
         }
 
-        let mut native_coordinates: Vec<_> = coordinates
-            .iter()
-            .map(|coordinate| CLLocationCoordinate2D {
-                latitude: coordinate.latitude_degrees(),
-                longitude: coordinate.longitude_degrees(),
-            })
-            .collect();
+        let mut native_coordinates = native_coordinates(coordinates);
         let point_count = native_coordinates.len() as NSUInteger;
         let points = NonNull::new(native_coordinates.as_mut_ptr())
             .expect("validated route contains at least two coordinates");
@@ -211,10 +247,10 @@ impl IosMapView {
         let route = unsafe { MKPolyline::polylineWithCoordinates_count(points, point_count) };
 
         let delegate = self
-            .route_delegate
+            .overlay_delegate
             .as_ref()
             .cloned()
-            .unwrap_or_else(|| RouteDelegate::new(self.marker));
+            .unwrap_or_else(|| OverlayDelegate::new(self.marker));
         if current_delegate.is_none() {
             // SAFETY: The map view is main-thread-bound and this wrapper retains the weak delegate.
             unsafe {
@@ -231,13 +267,71 @@ impl IosMapView {
         let route_overlay: &ProtocolObject<dyn MKOverlay> = ProtocolObject::from_ref(&*route);
         // SAFETY: `route` is a retained public MKPolyline and this map is main-thread-bound.
         unsafe { self.native.addOverlay(route_overlay) };
-        self.route_delegate = Some(delegate);
+        self.overlay_delegate = Some(delegate);
         Ok(())
     }
 
-    /// Removes the route path without changing marker annotations.
+    /// Replaces the map's one filled polygon using validated geographic coordinates.
+    ///
+    /// Polygons must contain 3 through [`crate::MAX_POLYGON_COORDINATES`] vertices. MapKit closes
+    /// the final edge; callers do not repeat the first coordinate. The renderer uses a fixed
+    /// translucent blue fill and 2-point blue stroke. This method shares the map's owned overlay
+    /// delegate with `replace_route`, so one route and one polygon can coexist. A host delegate is
+    /// never overwritten.
+    pub fn replace_polygon(
+        &mut self,
+        coordinates: &[MapCoordinate],
+    ) -> Result<(), MapPolygonError> {
+        validate_polygon_point_count(coordinates.len())?;
+
+        let current_delegate = unsafe { self.native.delegate() };
+        let owns_current = current_delegate.as_ref().is_some_and(|current| {
+            self.overlay_delegate
+                .as_ref()
+                .is_some_and(|owned| delegate_is_owned(current, owned))
+        });
+        validate_polygon_delegate_slot(current_delegate.is_none(), owns_current)?;
+
+        let mut native_coordinates = native_coordinates(coordinates);
+        let point_count = native_coordinates.len() as NSUInteger;
+        let points = NonNull::new(native_coordinates.as_mut_ptr())
+            .expect("validated polygon contains at least three coordinates");
+        // SAFETY: The bounded, non-empty coordinate buffer matches CLLocationCoordinate2D and
+        // MapKit copies the coordinates while creating its owned public MKPolygon.
+        let polygon = unsafe { MKPolygon::polygonWithCoordinates_count(points, point_count) };
+
+        let delegate = self
+            .overlay_delegate
+            .as_ref()
+            .cloned()
+            .unwrap_or_else(|| OverlayDelegate::new(self.marker));
+        if current_delegate.is_none() {
+            // SAFETY: The map view is main-thread-bound and this wrapper retains the weak delegate.
+            unsafe {
+                self.native
+                    .setDelegate(Some(ProtocolObject::from_ref(&*delegate)))
+            };
+        }
+
+        let previous = delegate.replace_polygon(Some(polygon.clone()));
+        if let Some(previous) = previous {
+            // SAFETY: Remove only this wrapper's previous polygon, on the map's main thread.
+            unsafe {
+                self.native
+                    .removeOverlay(ProtocolObject::from_ref(&*previous));
+            }
+        }
+        // SAFETY: `polygon` is a retained public MKPolygon and this map is main-thread-bound.
+        unsafe {
+            self.native.addOverlay(ProtocolObject::from_ref(&*polygon));
+        }
+        self.overlay_delegate = Some(delegate);
+        Ok(())
+    }
+
+    /// Removes the route path without changing marker annotations or an active polygon.
     pub fn clear_route(&mut self) {
-        let Some(delegate) = self.route_delegate.take() else {
+        let Some(delegate) = self.overlay_delegate.as_ref().cloned() else {
             return;
         };
         if let Some(route) = delegate.replace_route(None) {
@@ -245,14 +339,37 @@ impl IosMapView {
             // SAFETY: Remove only the route overlay owned by this wrapper, on the map's main thread.
             unsafe { self.native.removeOverlay(route) };
         }
+        self.release_overlay_delegate_if_unused(&delegate);
+    }
+
+    /// Removes the polygon without changing markers or an active route.
+    pub fn clear_polygon(&mut self) {
+        let Some(delegate) = self.overlay_delegate.as_ref().cloned() else {
+            return;
+        };
+        if let Some(polygon) = delegate.replace_polygon(None) {
+            // SAFETY: Remove only this wrapper's polygon, on the map's main thread.
+            unsafe {
+                self.native
+                    .removeOverlay(ProtocolObject::from_ref(&*polygon));
+            }
+        }
+        self.release_overlay_delegate_if_unused(&delegate);
+    }
+
+    fn release_overlay_delegate_if_unused(&mut self, delegate: &OverlayDelegate) {
+        if delegate.has_overlays() {
+            return;
+        }
         let current_delegate = unsafe { self.native.delegate() };
         if current_delegate
             .as_ref()
-            .is_some_and(|current| delegate_is_owned(current, &delegate))
+            .is_some_and(|current| delegate_is_owned(current, delegate))
         {
             // SAFETY: Clear only this wrapper's weak delegate slot, on the map's main thread.
             unsafe { self.native.setDelegate(None) };
         }
+        self.overlay_delegate = None;
     }
 
     /// Sets the map's center and degree span using the public `setRegion:animated:` API.
@@ -273,7 +390,7 @@ impl IosMapView {
     /// `FollowHeading` require existing When In Use or Always authorization; on any other status
     /// this method disables tracking and returns an error. The host owns location permission UX
     /// and the `NSLocationWhenInUseUsageDescription` usage string. This method does not modify the
-    /// map's route delegate.
+    /// map's overlay delegate.
     pub fn set_user_tracking_mode(
         &self,
         mode: IosUserTrackingMode,
@@ -386,9 +503,8 @@ impl IosMapView {
     }
 
     /// Borrows the native `MKMapView` for embedding or other UIKit integration on the main
-    /// thread. While a route is active, do not replace its delegate slot through this escape
-    /// handle; route replacement reports `MapRouteError::DelegateSlotOccupied` if that slot is
-    /// changed by the host.
+    /// thread. While a route or polygon is active, do not replace its delegate slot through this
+    /// escape handle; overlay replacement reports an occupied-slot error if the host changes it.
     pub fn native_view(&self) -> &NativeMapView {
         &self.native
     }
@@ -397,7 +513,18 @@ impl IosMapView {
 impl Drop for IosMapView {
     fn drop(&mut self) {
         self.clear_route();
+        self.clear_polygon();
     }
+}
+
+fn native_coordinates(coordinates: &[MapCoordinate]) -> Vec<CLLocationCoordinate2D> {
+    coordinates
+        .iter()
+        .map(|coordinate| CLLocationCoordinate2D {
+            latitude: coordinate.latitude_degrees(),
+            longitude: coordinate.longitude_degrees(),
+        })
+        .collect()
 }
 
 fn set_annotation_value(annotation: &MKPointAnnotation, item: MapAnnotation<'_>) {

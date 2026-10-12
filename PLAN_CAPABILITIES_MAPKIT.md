@@ -1,14 +1,14 @@
-# PLAN_CAPABILITIES_MAPKIT.md — D77/B73 Geometry and B577/B581/B583/B586 MapKit for Row 093
+# PLAN_CAPABILITIES_MAPKIT.md — D77/B73 Geometry and B577/B581/B583/B586/B601 MapKit for Row 093
 
 ## Objective
 
-Implement a narrow MapKit subset for row `093-maps-ar-spatial-mapkit`: finite portable geometry values and public by-value calls, plus a native iOS map view with bounded regions, marker snapshots, one route overlay, and caller-controlled user-location tracking
+Implement a narrow MapKit subset for row `093-maps-ar-spatial-mapkit`: finite portable geometry values and public by-value calls, plus a native iOS map view with bounded regions, marker snapshots, one route and one polygon overlay, and caller-controlled user-location tracking
 
 ## Status and recommendation
 
-A real, narrowly bounded MapKit slice is implemented in `framework-maps`, `ios-maps`, and `ios-map-view`: caller-supplied coordinate/map-point conversion and MapKit distance functions, a UIKit-embeddable `MKMapView`, stable point-marker snapshots, one route polyline, and the B586 opt-in user-location tracking mode. These slices remain partial and do not promise native map-content availability or runtime location delivery
+A real, narrowly bounded MapKit slice is implemented in `framework-maps`, `ios-maps`, and `ios-map-view`: caller-supplied coordinate/map-point conversion and MapKit distance functions, a UIKit-embeddable `MKMapView`, stable point-marker snapshots, one route polyline, one polygon, and the B586 opt-in user-location tracking mode. These slices remain partial and do not promise native map-content availability or runtime location delivery
 
-The root lock contains `objc2-map-kit` 0.3.2 and the `ios-maps` dependency edges. B577 adds a separate `ios-map-view` edge without widening `ios-maps`' UIKit dependency graph. The native view uses a small local `objc2` declaration because this selected generated binding exposes `MKMapView` only under macOS/AppKit; its `MKCoordinateRegion`, `MKCoordinateSpan`, `MKPointAnnotation`, `MKAnnotation`, `MKPolyline`, renderer, and `MKUserTrackingMode` values use generated public bindings where available. Do not imply this work implements SwiftUI `Map`, custom annotation views, arbitrary overlay management, permission prompting, location-coordinate callbacks, search, geocoding, directions, route calculation, offline map data, or complete MapKit parity
+The root lock contains `objc2-map-kit` 0.3.2 and the `ios-maps` dependency edges. B577 adds a separate `ios-map-view` edge without widening `ios-maps`' UIKit dependency graph. The native view uses a small local `objc2` declaration because this selected generated binding exposes `MKMapView` only under macOS/AppKit; its `MKCoordinateRegion`, `MKCoordinateSpan`, `MKPointAnnotation`, `MKAnnotation`, `MKPolyline`, `MKPolygon`, renderers, and `MKUserTrackingMode` values use generated public bindings where available. Do not imply this work implements SwiftUI `Map`, custom annotation views, arbitrary overlay management, permission prompting, location-coordinate callbacks, search, geocoding, directions, route calculation, offline map data, or complete MapKit parity
 
 ## B577 implementation boundary
 
@@ -43,7 +43,14 @@ The root lock contains `objc2-map-kit` 0.3.2 and the `ios-maps` dependency edges
 - `Follow` and `FollowHeading` read the current status through the public `CLLocationManager.authorizationStatus` class method. Only existing `AuthorizedWhenInUse` or `AuthorizedAlways` status allows activation. `NotDetermined`, `Restricted`, `Denied`, and unknown values fail closed by disabling tracking/display and return `MapUserTrackingError::LocationAuthorizationRequired`
 - The crate never creates a `CLLocationManager`, calls an authorization request API, changes authorization, registers a location delegate, returns location coordinates, or enables background location. The embedding app owns permission UX and must provide `NSLocationWhenInUseUsageDescription` when it opts into this feature. The host handles authorization transitions and reapplies its desired mode
 - The public `MKUserTrackingMode`, `userTrackingMode`, and `setUserTrackingMode:animated:` APIs are available from iOS 5.0. The read-only `CLLocationManager.authorizationStatus` class method is available from iOS 4.2. Existing validator deployment floors remain iOS 12.0 device / iOS 14.0 Simulator
-- Tracking does not access `MKMapView.delegate`; B583's weak delegate ownership and route overlay behavior remain unchanged. Host policy tests cover no-permission disable, authorized mode selection, and rejection of all non-authorized/unknown states. The final `ios-map-view` validator profile passed 28/30 gates (0 FAIL, 0 BLOCKED) at snapshot `ff357e70a1fc9a5089098cfdc53bd2c171409ac1189c2f8bbe5ae2babd2d7908`; the two SKIPPED gates are Simulator execution and physical-device proof. Device/Simulator compile, Clippy, Rustdoc, and link/import gates do not prove a permission transition, prompt behavior, location update, visible blue dot, heading rotation, or runtime map behavior
+- Tracking does not access `MKMapView.delegate`; B583's route behavior remains unchanged, and B601 adds one polygon to the same owned delegate. Host policy tests cover no-permission disable, authorized mode selection, and rejection of all non-authorized/unknown states. The final `ios-map-view` validator profile passed 28/30 gates (0 FAIL, 0 BLOCKED) at snapshot `ff357e70a1fc9a5089098cfdc53bd2c171409ac1189c2f8bbe5ae2babd2d7908`; the two SKIPPED gates are Simulator execution and physical-device proof. Device/Simulator compile, Clippy, Rustdoc, and link/import gates do not prove a permission transition, prompt behavior, location update, visible blue dot, heading rotation, or runtime map behavior
+
+## B601 bounded polygon overlay
+
+- `IosMapView::replace_polygon` accepts 3 through 4,096 validated `MapCoordinate` vertices and `clear_polygon` removes only this wrapper's current polygon. MapKit connects the final vertex to the first; a repeated closing point is not required. The fixed `MKPolygonRenderer` uses a 20%-alpha UIKit blue fill and a 2-point blue stroke. Interior polygons/holes, custom styles, and arbitrary overlay collections are not exposed
+- Public `MKPolygon` is available from iOS 4.0 and `MKPolygonRenderer` from iOS 7.0. The package's existing iOS 12.0 device and iOS 14.0 Simulator link floors remain probe floors rather than the API availability claim
+- One route and one polygon coexist in a single retained delegate with separate overlay slots. Both activation paths accept only an empty or still wrapper-owned `MKMapView.delegate`; they reject an unrelated host delegate before native mutation. Clearing one shape preserves the delegate while the other remains. Clear/drop remove only the corresponding owned shape and clear the weak slot only after both are absent, and only if the slot still points to this wrapper
+- Host regressions cover the three-vertex minimum, 4,096-vertex maximum, over-bound rejection, foreign delegate rejection, and shared delegate lifetime. The registered `ios-map-view` host test gate and device/Simulator link probe include these assertions and the public polygon class, renderer, initializer, fill/stroke selectors. Link evidence does not prove visible map rendering; Simulator execution and physical-device behavior remain unverified
 
 ## Implemented contract
 
@@ -105,6 +112,8 @@ It must not claim map content availability, data download, user location, permis
 - [MapKit framework](https://developer.apple.com/documentation/mapkit)
 - [MKMapPoint](https://developer.apple.com/documentation/mapkit/mkmappoint)
 - [MKPointAnnotation](https://developer.apple.com/documentation/mapkit/mkpointannotation)
+- [MKPolygon](https://developer.apple.com/documentation/mapkit/mkpolygon)
+- [MKPolygonRenderer](https://developer.apple.com/documentation/mapkit/mkpolygonrenderer)
 - [MKMetersBetweenMapPoints](https://developer.apple.com/documentation/mapkit/mkmappoint/distance%28to%3A%29)
 - [MapKit for SwiftUI](https://developer.apple.com/documentation/mapkit/mapkit-for-swiftui)
 - [MKMapViewDelegate](https://developer.apple.com/documentation/mapkit/mkmapviewdelegate)

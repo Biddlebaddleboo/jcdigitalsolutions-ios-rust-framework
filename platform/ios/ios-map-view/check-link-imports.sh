@@ -25,7 +25,16 @@ IMPORTS
 grep -F 'fn duplicate_ids_reject_snapshot_before_native_changes()' platform/ios/ios-map-view/src/annotations.rs >/dev/null
 grep -F 'fn route_rejects_empty_and_single_point_paths()' platform/ios/ios-map-view/src/route.rs >/dev/null
 grep -F 'fn route_rejects_paths_over_the_bounded_coordinate_limit()' platform/ios/ios-map-view/src/route.rs >/dev/null
-grep -F 'fn route_delegate_policy_accepts_only_empty_or_owned_slots()' platform/ios/ios-map-view/src/route.rs >/dev/null
+grep -F 'fn overlay_delegate_policy_accepts_only_empty_or_owned_slots()' platform/ios/ios-map-view/src/route.rs >/dev/null
+grep -F 'fn overlay_delegate_lives_until_both_owned_overlays_are_cleared()' platform/ios/ios-map-view/src/route.rs >/dev/null
+grep -F 'fn polygon_rejects_too_few_coordinates_before_delegate_policy()' platform/ios/ios-map-view/src/polygon.rs >/dev/null
+grep -F 'fn polygon_accepts_three_and_the_maximum_coordinate_count()' platform/ios/ios-map-view/src/polygon.rs >/dev/null
+grep -F 'fn polygon_rejects_coordinates_over_the_bounded_limit()' platform/ios/ios-map-view/src/polygon.rs >/dev/null
+grep -F 'fn polygon_rejects_an_unrelated_host_delegate()' platform/ios/ios-map-view/src/polygon.rs >/dev/null
+grep -F 'pub fn replace_polygon(' platform/ios/ios-map-view/src/platform.rs >/dev/null
+grep -F 'validate_polygon_point_count(coordinates.len())?' platform/ios/ios-map-view/src/platform.rs >/dev/null
+grep -F 'validate_polygon_delegate_slot(current_delegate.is_none(), owns_current)?;' platform/ios/ios-map-view/src/platform.rs >/dev/null
+grep -F 'pub fn clear_polygon(' platform/ios/ios-map-view/src/platform.rs >/dev/null
 grep -F 'fn none_mode_is_allowed_without_location_authorization()' platform/ios/ios-map-view/src/tracking.rs >/dev/null
 grep -F 'fn follow_modes_reject_unavailable_authorization_states()' platform/ios/ios-map-view/src/tracking.rs >/dev/null
 grep -F 'pub fn set_user_tracking_mode(' platform/ios/ios-map-view/src/platform.rs >/dev/null
@@ -80,12 +89,18 @@ for target in aarch64-apple-ios aarch64-apple-ios-sim; do
     grep -F 'removeAnnotation:' "$strings_file" >/dev/null
     grep -Fx 'MKPolyline' "$strings_file" >/dev/null
     grep -Fx 'MKPolylineRenderer' "$strings_file" >/dev/null
+    grep -Fx 'MKPolygon' "$strings_file" >/dev/null
+    grep -Fx 'MKPolygonRenderer' "$strings_file" >/dev/null
     grep -F 'polylineWithCoordinates:count:' "$strings_file" >/dev/null
+    grep -F 'polygonWithCoordinates:count:' "$strings_file" >/dev/null
     grep -F 'mapView:rendererForOverlay:' "$strings_file" >/dev/null
+    grep -F 'initWithPolygon:' "$strings_file" >/dev/null
     grep -F 'addOverlay:' "$strings_file" >/dev/null
     grep -F 'removeOverlay:' "$strings_file" >/dev/null
     grep -F 'blueColor' "$strings_file" >/dev/null
+    grep -F 'colorWithAlphaComponent:' "$strings_file" >/dev/null
     grep -F 'setStrokeColor:' "$strings_file" >/dev/null
+    grep -F 'setFillColor:' "$strings_file" >/dev/null
     grep -F 'setLineWidth:' "$strings_file" >/dev/null
     grep -F 'setCoordinate:' "$strings_file" >/dev/null
     grep -F 'setTitle:' "$strings_file" >/dev/null

@@ -24,15 +24,20 @@ pub(crate) fn validate_route_point_count(point_count: usize) -> Result<(), MapRo
 }
 
 #[cfg(any(target_os = "ios", test))]
-pub(crate) const fn route_delegate_slot_is_available(is_empty: bool, is_owned: bool) -> bool {
+pub(crate) const fn overlay_delegate_slot_is_available(is_empty: bool, is_owned: bool) -> bool {
     is_empty || is_owned
+}
+
+#[cfg(any(target_os = "ios", test))]
+pub(crate) const fn overlay_delegate_is_required(route_active: bool, polygon_active: bool) -> bool {
+    route_active || polygon_active
 }
 
 #[cfg(test)]
 mod tests {
     use super::{
-        MAX_ROUTE_COORDINATES, MapRouteError, route_delegate_slot_is_available,
-        validate_route_point_count,
+        MAX_ROUTE_COORDINATES, MapRouteError, overlay_delegate_is_required,
+        overlay_delegate_slot_is_available, validate_route_point_count,
     };
 
     #[test]
@@ -65,9 +70,17 @@ mod tests {
     }
 
     #[test]
-    fn route_delegate_policy_accepts_only_empty_or_owned_slots() {
-        assert!(route_delegate_slot_is_available(true, false));
-        assert!(route_delegate_slot_is_available(false, true));
-        assert!(!route_delegate_slot_is_available(false, false));
+    fn overlay_delegate_policy_accepts_only_empty_or_owned_slots() {
+        assert!(overlay_delegate_slot_is_available(true, false));
+        assert!(overlay_delegate_slot_is_available(false, true));
+        assert!(!overlay_delegate_slot_is_available(false, false));
+    }
+
+    #[test]
+    fn overlay_delegate_lives_until_both_owned_overlays_are_cleared() {
+        assert!(overlay_delegate_is_required(true, false));
+        assert!(overlay_delegate_is_required(false, true));
+        assert!(overlay_delegate_is_required(true, true));
+        assert!(!overlay_delegate_is_required(false, false));
     }
 }

@@ -4,8 +4,8 @@
 non-negative distances, validated map spans and center/span regions, plus caller-owned marker values.
 `ios-maps` adapts the geometry values to public MapKit C functions. The separate `ios-map-view`
 crate creates an embeddable native UIKit `MKMapView`, gets or sets a validated `MapRegion`,
-reconciles marker snapshots, displays one caller-supplied route path, and offers caller-controlled
-user-location tracking.
+reconciles marker snapshots, displays one caller-supplied route path and one polygon, and offers
+caller-controlled user-location tracking.
 
 `MapCoordinate::new` rejects non-finite input, latitude outside `-90..=90`, or longitude outside
 `-180..=180`. `MapPoint::new` rejects non-finite projected x/y values but does not assert that a
@@ -34,24 +34,33 @@ optional borrowed title. `IosMapView::replace_annotations` takes the complete ca
 snapshot, rejects duplicate ids before native changes, preserves each `MKPointAnnotation` object
 for ids that remain, updates its coordinate/title, and removes ids omitted from the new snapshot.
 The method is main-thread-bound through `IosMapView`. MapKit copies non-null titles. This supports
-basic native point markers; it does not provide custom annotation views, callout actions, other
-overlay types, or SwiftUI `Map` parity. Link checks do not prove rendered markers or interactive
+basic native point markers; it does not provide custom annotation views, callout actions, arbitrary
+overlay collections, or SwiftUI `Map` parity. Link checks do not prove rendered markers or interactive
 callouts.
 
 ## One route path
 
 `IosMapView::replace_route` accepts 2 through 4,096 `MapCoordinate` values and replaces one native
-`MKPolyline`. Invalid point counts reject before native state changes. `clear_route` and drop remove
-only that overlay; neither changes marker annotations. `MKPolylineRenderer` uses a fixed
-`UIColor.blueColor()` stroke at 5 points. This is a route display primitive, not a route planner or
-a general overlay collection.
+`MKPolyline`. Invalid point counts reject before native state changes. `clear_route` removes only
+that overlay; neither it nor drop changes marker annotations. `MKPolylineRenderer` uses a fixed
+`UIColor.blueColor()` stroke at 5 points. This is a route display primitive, not a route planner.
 
-MapKit's `MKMapView.delegate` is weak and has one slot. While a route is active, `IosMapView` retains
-and owns the renderer delegate. Route activation returns `MapRouteError::DelegateSlotOccupied` if a
-host delegate is already installed. The host must not replace the delegate while a route is active.
-If it does, route replacement fails; clear/drop still remove the route and preserve the host's
-delegate. User tracking is an independent opt-in mode that does not use the route delegate slot.
-Static validation proves policy, compile, link, and import checks only, not route pixels, touch,
-or runtime map behavior.
+## One polygon
+
+`IosMapView::replace_polygon` accepts 3 through 4,096 `MapCoordinate` values and replaces one
+native `MKPolygon`; MapKit connects the final vertex to the first. It rejects invalid counts before
+native state changes. `clear_polygon` and drop remove only this polygon. The renderer uses a fixed
+20%-alpha blue fill and 2-point blue stroke. One route and one polygon coexist through the same
+wrapper-owned delegate. Polygon holes, custom styles, and arbitrary overlay collections are not
+exposed. `MapPolygonError` distinguishes short input, over-bound input, and an occupied host
+delegate slot.
+
+MapKit's `MKMapView.delegate` is weak and has one slot. While a route or polygon is active,
+`IosMapView` retains and owns the shared renderer delegate. Activation returns its corresponding
+`DelegateSlotOccupied` error if a host delegate is already installed. The host must not replace the
+delegate while either overlay is active. If it does, replacement fails; clear/drop remove only
+owned overlays and preserve the host's delegate. User tracking is an independent opt-in mode that
+does not use the overlay delegate slot. Static validation proves policy, compile, link, and import
+checks only, not route/polygon pixels, touch, or runtime map behavior.
 
 See the [iOS MapKit guide](../ios/mapkit.md), [D77/B73 and B577/B581 focused plan](../../PLAN_CAPABILITIES_MAPKIT.md), and [registered validation plan](../../PLAN_VALIDATION_IOS_MAPKIT.md).

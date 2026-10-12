@@ -4,7 +4,8 @@
 
 G68 validates D77/B73's finite geographic coordinates, projected map points, non-negative meter
 distances, and iOS MapKit conversion/distance calls. The `ios-map-view` profile also validates
-B577's native map region API and B581's point-marker snapshot contract. It does not cover user
+B577's native map region API, B581's point-marker snapshot contract, B583's route overlay, B586's
+caller-controlled user tracking, and B601's bounded polygon overlay. It does not cover user
 location, permissions, network services, search, directions, or full MapKit parity.
 
 ## Gate
@@ -41,3 +42,14 @@ the existing imports and deployment-probe floors. Host tests establish input val
 stable-id ordering, and duplicate rejection before native mutation. None of these checks prove
 rendered pin style, title callout visibility, touch interaction, or runtime behavior; those remain
 unverified without Simulator or device execution.
+
+## B601 registered polygon overlay gate
+
+The existing `ios-map-view` profile selects the crate's complete host test suite and
+`check-link-imports.sh`. B601 extends the selected link probe with negative host-test source guards
+and device/Simulator symbol-string requirements for public `MKPolygon`, `MKPolygonRenderer`,
+`polygonWithCoordinates:count:`, `initWithPolygon:`, `setFillColor:`, and `setStrokeColor:` use. The
+existing profile source directories already cover `polygon.rs`, `platform.rs`, the example, and the
+probe script; no new profile or schema fields are required. Test and gate results are recorded in
+`PLAN.md` after the implementation run. Static probes do not establish overlay render pixels or
+runtime coexistence.
