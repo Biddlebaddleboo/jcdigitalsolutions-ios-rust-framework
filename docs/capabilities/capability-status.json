@@ -1534,7 +1534,7 @@
       "portable_contract_note": "framework-audio defines a point-in-time HDR playback-eligibility value; iOS also exposes a native local-file AVPlayer extension.",
       "ios_implementation_class": "B",
       "implementation_status": "partial",
-      "status_reason": "B48 preserves an HDR eligibility snapshot; B463 adds readable local-file AVPlayer creation, main-thread play/pause, and a borrowed native player for host output integration; B466 adds exact-rational asynchronous seek completion; B492 adds validated main-thread AVPlayer per-player volume and mute controls without system-volume access.",
+      "status_reason": "B48 preserves an HDR eligibility snapshot; B463 adds readable local-file AVPlayer creation, main-thread play/pause, and a borrowed native player for host output integration; B466 adds exact-rational asynchronous seek completion; B492 adds validated main-thread AVPlayer per-player volume and mute controls without system-volume access; B543 adds an RAII pollable observation of the exact AVPlayer item current at registration.",
       "minimum_ios_version": "4.0",
       "required_frameworks": [
         "AVFoundation",
@@ -1546,11 +1546,11 @@
       "entitlements": null,
       "device_only_restrictions": null,
       "swift_abi_requirement": false,
-      "metadata_verification": "PLAN_IOS_PLAYBACK.md records AVPlayer local-file creation, play/pause, and seek from iOS 4.0 plus the existing guarded AVPlayer.eligibleForHDRPlayback property from iOS 13.4. B463 validates an absolute UTF-8 readable regular local file, then delegates readiness, codecs, buffering, decoding, and output to AVPlayer. B466 maps finite MediaTime rationals exactly to CMTime and reports only AVPlayer's seek completion flag; NotCompleted does not distinguish an absent current item from an interrupted or superseded request. B492 uses the typed objc2-av-foundation 0.3.2 volume and mute bindings, available from iOS 7.0, and guards them so the aggregate iOS 4.0 floor remains unchanged; volume is relative to system volume and is not a device/system-volume control. The host owns AVAudioSession policy, permissions, file lifetime, and AVPlayerLayer attachment; compile/link checks do not prove seek, playback, decoding, or output at runtime.",
+      "metadata_verification": "PLAN_IOS_PLAYBACK.md records AVPlayer local-file creation, play/pause, and seek from iOS 4.0 plus the existing guarded AVPlayer.eligibleForHDRPlayback property from iOS 13.4. B463 validates an absolute UTF-8 readable regular local file, then delegates readiness, codecs, buffering, decoding, and output to AVPlayer. B466 maps finite MediaTime rationals exactly to CMTime and reports only AVPlayer's seek completion flag; NotCompleted does not distinguish an absent current item from an interrupted or superseded request. B492 uses the typed objc2-av-foundation 0.3.2 volume and mute bindings, available from iOS 7.0, and guards them so the aggregate iOS 4.0 floor remains unchanged; volume is relative to system volume and is not a device/system-volume control. B543 observes only the exact item selected at registration with public AVPlayerItemDidPlayToEndTimeNotification; its retained RAII observer reports a latched atomic snapshot and removes the Foundation token on drop. It does not infer prior completion, output, or playback state. The host owns AVAudioSession policy, permissions, file lifetime, and AVPlayerLayer attachment; compile/link checks do not prove seek, completion notification delivery, playback, decoding, or output at runtime.",
       "parity_status": "not_tested_live_behavior_or_Apple_parity",
       "performance_status": "not_measured",
       "native_escape_handle_available": true,
-      "native_escape_handle_note": "IosFilePlayer::as_av_player(&MainThreadMarker) lends a borrowed &AVPlayer for host AVPlayerLayer or other public AVFoundation integration; it does not transfer ownership. B492's volume and mute operations affect only that player and do not access system volume."
+      "native_escape_handle_note": "IosFilePlayer::as_av_player(&MainThreadMarker) lends a borrowed &AVPlayer for host AVPlayerLayer or other public AVFoundation integration; it does not transfer ownership. B492's volume and mute operations affect only that player and do not access system volume. B543's observation remains bound to one retained item and only exposes its own end-notification snapshot."
     },
     {
       "id": "049-camera-audio-media-media-time-buffer-wrappers",

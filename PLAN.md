@@ -421,6 +421,13 @@ Release link/import checks pass at iOS 10.0 / 14.0. The integrated profile repor
 `2dbb1b68803921183c0eb0ab3b72cd0432bc07cfa8466681409147e78037a852`; no CallKit runtime behavior
 is claimed.
 
+### B543 — current AVPlayer item end observation
+
+B543 extends row 048 with `IosFilePlayer::observe_current_item_end`. The observation binds to the
+exact current item, retains it, borrows the player, uses public item-end notification delivery, and
+removes its observer token on drop. Its atomic snapshot is not runtime playback or output proof;
+see `PLAN_IOS_PLAYBACK.md` for the registered gate and remaining runtime limits.
+
 ## Active work selection and limits
 
 1. Inspect the canonical capability status/owner, the relevant family plan, then the named workstream plan and exact files/symbols. Do not scan the entire planning corpus or treat every existing plan as pending work.

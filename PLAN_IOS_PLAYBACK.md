@@ -110,7 +110,8 @@ unchanged.
 
 The registered command `ios-rust-validate --workspace-root "$PWD" --spec
 "$PWD/tools/validation/specs/validation-v1.json" --capability ios-playback --format json` passed 82
-checks with 0 FAIL, 0 BLOCKED, and 2 SKIPPED of 84. The selected validator is
+checks with 0 FAIL, 0 BLOCKED, and 2 SKIPPED of 84 at snapshot
+`93b47dbcd2a899ecc5abbf66c37ecf7518e8eb412e2464d172621dc0c00c349b`. The selected validator is
 `ios-rust-validate 0.1.0`, release
 `ios-rust-tools-0.1.0+350971094cc3b77191cd6b3d07e01af04d71943d`, source SHA
 `350971094cc3b77191cd6b3d07e01af04d71943d`. Host unit tests include initial-false/latched state
