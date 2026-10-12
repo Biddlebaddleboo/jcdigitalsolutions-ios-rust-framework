@@ -189,3 +189,12 @@ B564 adds `IosCameraPhotoQuality::{Speed, Balanced, Quality}` and `capture_photo
 - Host regressions cover default-setting preservation, allowed/rejected priorities, and setter rejection for Speed, running, recording, missing-output, and shutdown states; rejected setters do not mutate the output. The existing device/Simulator link probe retains the public output getter/setter and per-photo setting selectors; deployment minima remain iOS 10.0 device and iOS 14.0 Simulator.
 - Host, compile, and link checks establish source and ABI contracts only. They do not prove image quality, processing duration, camera/preview behavior, Simulator execution, or physical-device runtime.
 - Registered command `ios-rust-validate --workspace-root "$PWD" --spec "$PWD/tools/validation/specs/validation-v1.json" --capability ios-camera-capture-session --diagnostics short` passed 269 checks, with 0 FAIL, 0 BLOCKED, and 2 SKIPPED at snapshot `4d160a103788a68c3c9f1a7aba5610a59dbd672514ed9ddda9701964f6c55c97`. The skipped checks were Simulator execution and physical-device proof.
+
+## B572: caller-selected live-preview orientation
+
+B572 adds `IosCameraCaptureSession::set_preview_orientation(MainThreadMarker, IosCameraVideoOrientation)` for the existing preview layer. The method uses the public preview-layer connection, checks `isVideoOrientationSupported` before `setVideoOrientation:`, and returns a typed error when the connection is absent or rejects the requested orientation. It is distinct from B482's movie-file orientation and does not alter photos or sample output
+
+- The native preview layer stays main-thread-affine. This increment adds no UI framework dependency, app-orientation inference, mirroring policy, capture session mutation, permission request, C ABI, private API, or Swift source
+- Host regressions cover missing-connection short-circuit, unsupported-before-set with preserved prior value, and exact supported setter value. The target link probe covers the `connection`, support, and orientation selectors on iOS device and Simulator floors
+- Static tests and target link checks do not prove preview orientation, camera use, Simulator execution, or physical-device behavior
+- Registered command `ios-rust-validate --workspace-root "$PWD" --spec "$PWD/tools/validation/specs/validation-v1.json" --capability ios-camera-capture-session --diagnostics short` returned 267 PASS, 0 FAIL, 0 BLOCKED, and 2 SKIPPED on snapshot `a6ae3b7e5b70f130f337e221b9bcfddbba904f92f933878972326fc04204361d`. The skips were Simulator execution and physical-device proof

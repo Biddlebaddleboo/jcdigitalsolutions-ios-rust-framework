@@ -29,6 +29,13 @@ fn main() {
     let Some(main_thread) = objc2::MainThreadMarker::new() else {
         return;
     };
+    let _ = std::hint::black_box(session.set_preview_orientation(
+        main_thread,
+        ios_camera_capture_session::IosCameraVideoOrientation::LandscapeRight,
+    ));
+    let Some(main_thread) = objc2::MainThreadMarker::new() else {
+        return;
+    };
     std::hint::black_box(session.preview_layer(main_thread));
     session.start();
     let _ = std::hint::black_box(session.set_torch_enabled(true));

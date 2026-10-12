@@ -135,6 +135,7 @@ for target in aarch64-apple-ios aarch64-apple-ios-sim; do
         beginConfiguration \
         commitConfiguration \
         layerWithSession: \
+        connection \
         startRunning \
         stopRunning \
         photoSettings \

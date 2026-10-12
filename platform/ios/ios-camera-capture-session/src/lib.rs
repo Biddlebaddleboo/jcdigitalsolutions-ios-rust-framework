@@ -555,17 +555,35 @@ fn finish_camera_input_replacement<D, I>(
 }
 
 #[cfg(any(target_os = "ios", test))]
-fn set_supported_movie_orientation<C>(
+fn set_supported_orientation<C, E>(
     connection: &C,
     orientation: IosCameraVideoOrientation,
+    unsupported_error: E,
     is_supported: impl FnOnce(&C) -> bool,
     set_orientation: impl FnOnce(&C, IosCameraVideoOrientation),
-) -> Result<(), MovieOrientationError> {
+) -> Result<(), E> {
     if !is_supported(connection) {
-        return Err(MovieOrientationError::OrientationUnsupported);
+        return Err(unsupported_error);
     }
     set_orientation(connection, orientation);
     Ok(())
+}
+
+#[cfg(any(target_os = "ios", test))]
+fn configure_preview_orientation<C>(
+    connection: Option<C>,
+    orientation: IosCameraVideoOrientation,
+    is_supported: impl FnOnce(&C) -> bool,
+    set_orientation: impl FnOnce(&C, IosCameraVideoOrientation),
+) -> Result<(), PreviewOrientationError> {
+    let connection = connection.ok_or(PreviewOrientationError::VideoConnectionUnavailable)?;
+    set_supported_orientation(
+        &connection,
+        orientation,
+        PreviewOrientationError::OrientationUnsupported,
+        is_supported,
+        set_orientation,
+    )
 }
 
 #[cfg(any(target_os = "ios", test))]
@@ -597,14 +615,44 @@ fn configure_avfoundation_movie_orientation(
     connection: &AVCaptureConnection,
     orientation: IosCameraVideoOrientation,
 ) -> Result<(), MovieOrientationError> {
-    set_supported_movie_orientation(
+    set_supported_orientation(
         connection,
         orientation,
+        MovieOrientationError::OrientationUnsupported,
         // SAFETY: The public orientation support query is available from iOS 4.0, below both
         // package floors. It is checked before the setter to avoid AVFoundation exceptions.
         |connection| unsafe { connection.isVideoOrientationSupported() },
-        // SAFETY: set_supported_movie_orientation invokes this only after AVFoundation confirms
+        // SAFETY: set_supported_orientation invokes this only after AVFoundation confirms
         // support for the exact requested public orientation.
+        |connection, orientation| unsafe {
+            connection.setVideoOrientation(map_camera_video_orientation(
+                orientation,
+                objc2_av_foundation::AVCaptureVideoOrientation::Portrait,
+                objc2_av_foundation::AVCaptureVideoOrientation::PortraitUpsideDown,
+                objc2_av_foundation::AVCaptureVideoOrientation::LandscapeRight,
+                objc2_av_foundation::AVCaptureVideoOrientation::LandscapeLeft,
+            ))
+        },
+    )
+}
+
+#[cfg(target_os = "ios")]
+#[allow(deprecated)]
+fn configure_avfoundation_preview_orientation(
+    preview_layer: &AVCaptureVideoPreviewLayer,
+    _main_thread: MainThreadMarker,
+    orientation: IosCameraVideoOrientation,
+) -> Result<(), PreviewOrientationError> {
+    // SAFETY: The caller supplies a main-thread marker for this retained preview layer. The
+    // connection is retained for the duration of the support check and setter sequence.
+    let connection = unsafe { preview_layer.connection() };
+    configure_preview_orientation(
+        connection,
+        orientation,
+        // SAFETY: This public selector is available from iOS 4.0, below the package's iOS 7.0
+        // minimum. The support check prevents AVFoundation from raising for an unsupported value.
+        |connection| unsafe { connection.isVideoOrientationSupported() },
+        // SAFETY: The setter runs only after the same connection confirms support.
         |connection, orientation| unsafe {
             connection.setVideoOrientation(map_camera_video_orientation(
                 orientation,
@@ -1370,7 +1418,7 @@ pub enum CameraPositionSwitchError {
     SessionStopping,
 }
 
-/// Caller-selected orientation for a future movie-file recording
+/// Caller-selected orientation for a preview or future movie-file recording
 #[cfg(any(target_os = "ios", test))]
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum IosCameraVideoOrientation {
@@ -1382,6 +1430,16 @@ pub enum IosCameraVideoOrientation {
     LandscapeRight,
     /// Video is horizontal with the home button at the left
     LandscapeLeft,
+}
+
+/// Failure to orient the camera preview layer
+#[cfg(any(target_os = "ios", test))]
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum PreviewOrientationError {
+    /// The preview layer has no video connection
+    VideoConnectionUnavailable,
+    /// AVFoundation does not support the requested orientation on this connection
+    OrientationUnsupported,
 }
 
 /// Failure to create or configure a camera capture session
@@ -2205,6 +2263,19 @@ impl IosCameraCaptureSession {
         _main_thread: MainThreadMarker,
     ) -> Retained<AVCaptureVideoPreviewLayer> {
         self.preview_layer.clone()
+    }
+
+    /// Set the caller-selected orientation for the live preview layer
+    ///
+    /// This changes only the preview connection; movie orientation remains controlled by
+    /// [`Self::set_movie_orientation`], and photo and video-sample output are unchanged. Call on
+    /// the main thread. Unsupported orientations fail before AVFoundation receives the setter.
+    pub fn set_preview_orientation(
+        &self,
+        _main_thread: MainThreadMarker,
+        orientation: IosCameraVideoOrientation,
+    ) -> Result<(), PreviewOrientationError> {
+        configure_avfoundation_preview_orientation(&self.preview_layer, _main_thread, orientation)
     }
 
     /// Enqueue a nonblocking start request on the private serial queue
@@ -3581,22 +3652,23 @@ mod tests {
         IosCameraPosition, IosCameraSessionPreset, IosCameraVideoOrientation,
         IosCameraWhiteBalanceMode, MediaAuthorizationStatus, MediaTime, MovieOrientationError,
         MovieRecordingState, NormalizedFocusPoint, PhotoCaptureError, PhotoCaptureResult,
-        PhotoQualityPrioritizationError, SessionPresetError, TorchControlError,
-        VideoFrameStreamError, VideoFrameStreamState, VideoRecordingError, VideoRecordingResult,
-        WhiteBalanceControlError, ZoomControlError, camera_position_switch_required,
-        configure_custom_exposure, configure_exposure, configure_exposure_target_bias,
-        configure_focus, configure_movie_orientation, configure_photo_quality_limit,
-        configure_session_preset, configure_torch_enabled, configure_video_zoom_factor,
-        configure_white_balance_mode, custom_exposure_duration_from_parts, custom_exposure_range,
+        PhotoQualityPrioritizationError, PreviewOrientationError, SessionPresetError,
+        TorchControlError, VideoFrameStreamError, VideoFrameStreamState, VideoRecordingError,
+        VideoRecordingResult, WhiteBalanceControlError, ZoomControlError,
+        camera_position_switch_required, configure_custom_exposure, configure_exposure,
+        configure_exposure_target_bias, configure_focus, configure_movie_orientation,
+        configure_photo_quality_limit, configure_preview_orientation, configure_session_preset,
+        configure_torch_enabled, configure_video_zoom_factor, configure_white_balance_mode,
+        custom_exposure_duration_from_parts, custom_exposure_range,
         drop_video_frame_callback_safely, exposure_target_bias_range,
         finish_camera_input_replacement, invoke_video_frame_callback, map_camera_video_orientation,
         map_ios_camera_session_preset, may_create_device_input, photo_request_error,
         preflight_photo_flash_mode, preflight_photo_quality, prepare_optional_movie_audio,
         replace_camera_session_input, require_camera_at_position, require_selected_camera,
         require_selected_focus_camera, require_switch_camera, run_on_capture_queue,
-        set_supported_movie_orientation, settle_movie_result, settle_movie_terminal,
-        settle_photo_result, take_photo_completion, take_video_completion,
-        validate_movie_destination, with_authorized_microphone, with_selected_exposure_camera,
+        set_supported_orientation, settle_movie_result, settle_movie_terminal, settle_photo_result,
+        take_photo_completion, take_video_completion, validate_movie_destination,
+        with_authorized_microphone, with_selected_exposure_camera,
         with_selected_white_balance_camera,
     };
     use std::cell::RefCell;
@@ -3730,6 +3802,65 @@ mod tests {
     }
 
     #[test]
+    fn preview_orientation_requires_and_checks_its_native_connection() {
+        use IosCameraVideoOrientation as Orientation;
+
+        assert_eq!(
+            configure_preview_orientation::<u8>(
+                None,
+                Orientation::Portrait,
+                |_| panic!("a missing preview connection must fail before support lookup"),
+                |_, _| panic!("a missing preview connection must not be mutated"),
+            ),
+            Err(PreviewOrientationError::VideoConnectionUnavailable)
+        );
+
+        let current = std::cell::Cell::new(Orientation::LandscapeLeft);
+        let support_checks = std::cell::Cell::new(0);
+        let setter_calls = std::cell::Cell::new(0);
+        assert_eq!(
+            configure_preview_orientation(
+                Some(()),
+                Orientation::PortraitUpsideDown,
+                |_| {
+                    support_checks.set(support_checks.get() + 1);
+                    false
+                },
+                |_, requested| {
+                    setter_calls.set(setter_calls.get() + 1);
+                    current.set(requested);
+                },
+            ),
+            Err(PreviewOrientationError::OrientationUnsupported)
+        );
+        assert_eq!(support_checks.get(), 1);
+        assert_eq!(setter_calls.get(), 0);
+        assert_eq!(current.get(), Orientation::LandscapeLeft);
+    }
+
+    #[test]
+    fn supported_preview_orientation_sets_the_exact_requested_value_once() {
+        use IosCameraVideoOrientation as Orientation;
+
+        let current = std::cell::Cell::new(Orientation::Portrait);
+        let setter_calls = std::cell::Cell::new(0);
+        assert_eq!(
+            configure_preview_orientation(
+                Some(()),
+                Orientation::LandscapeRight,
+                |_| true,
+                |_, requested| {
+                    setter_calls.set(setter_calls.get() + 1);
+                    current.set(requested);
+                },
+            ),
+            Ok(())
+        );
+        assert_eq!(setter_calls.get(), 1);
+        assert_eq!(current.get(), Orientation::LandscapeRight);
+    }
+
+    #[test]
     fn movie_orientation_rejects_missing_output_and_connection_without_mutation() {
         use IosCameraVideoOrientation as Orientation;
 
@@ -3792,9 +3923,10 @@ mod tests {
         let support_checks = std::cell::Cell::new(0);
         let setter_calls = std::cell::Cell::new(0);
         assert_eq!(
-            set_supported_movie_orientation(
+            set_supported_orientation(
                 &(),
                 Orientation::LandscapeRight,
+                MovieOrientationError::OrientationUnsupported,
                 |_| {
                     support_checks.set(support_checks.get() + 1);
                     false
@@ -3818,9 +3950,10 @@ mod tests {
         let current = std::cell::Cell::new(Orientation::Portrait);
         let setter_calls = std::cell::Cell::new(0);
         assert_eq!(
-            set_supported_movie_orientation(
+            set_supported_orientation(
                 &(),
                 Orientation::LandscapeLeft,
+                MovieOrientationError::OrientationUnsupported,
                 |_| true,
                 |_, requested| {
                     setter_calls.set(setter_calls.get() + 1);

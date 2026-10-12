@@ -5,6 +5,20 @@ processed JPEG capture, video recording, and optional video samples through publ
 Session construction does not prompt; request camera access through `ios-media-authorization` and
 provide `NSCameraUsageDescription` before an app asks for access.
 
+## Live preview orientation
+
+`set_preview_orientation(main_thread, orientation)` sets the live preview layer's public AVFoundation video connection to `Portrait`, `PortraitUpsideDown`, `LandscapeRight`, or `LandscapeLeft`. Call it on the main thread after session creation. The method checks native orientation support before it calls the setter and returns `PreviewOrientationError` if the connection is absent or rejects the choice
+
+Preview orientation is separate from `set_movie_orientation`: it does not change movie files, photos, or video sample buffers. The API uses public `AVCaptureConnection` orientation selectors, deprecated by Apple from iOS 17 but available at the existing iOS 7+ package floor. Static tests and link checks do not prove preview output or device behavior
+
+```rust,ignore
+let main_thread = objc2::MainThreadMarker::new().expect("main thread");
+session.set_preview_orientation(
+    main_thread,
+    IosCameraVideoOrientation::Portrait,
+)?;
+```
+
 ## Per-photo quality
 
 `IosCameraPhotoQuality::{Speed, Balanced, Quality}` selects AVFoundation's preference for image
