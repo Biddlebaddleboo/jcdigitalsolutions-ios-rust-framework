@@ -72,12 +72,10 @@ automatic reconnect is included. The effective identifier API floor remains iOS 
 
 Host policy regressions cover power/authorization/unsupported transitions, missing UUID lookup,
 overlap rejection, cancellation before and after native start, late/mismatched callbacks, teardown,
-panic cancellation, UUID byte order, and bounded queue FIFO/overflow. The local package target
-script checks and lints device and Simulator builds, then links a test fixture that references the
-connection facade without running CoreBluetooth. The registered `ios-bluetooth` validator profile
-is absent from this branch's `validation-v1.json` (`--explain ios-bluetooth` reports unknown
-capability); shared registration is owned by root integration and remains required before this
-increment can be validator-qualified.
+panic cancellation, UUID byte order, and bounded queue FIFO/overflow. The registered
+`ios-bluetooth` validator profile runs host tests, formatting, Clippy, Rustdoc, source guards, and
+the focused device/Simulator connection link fixture through `check-link.sh`. The link fixture does
+not run CoreBluetooth.
 
 On Xcode 26.6 / iPhoneOS 26.5, the focused commands passed:
 
@@ -87,7 +85,7 @@ On Xcode 26.6 / iPhoneOS 26.5, the focused commands passed:
 - `cargo +1.94.1 test --locked --offline -p ios-bluetooth` — 15 passed; target-only link test not run on host
 - `cargo +1.94.1 clippy --locked --offline -p framework-bluetooth -p ios-bluetooth --all-targets -- -D warnings`
 - `cargo +1.94.1 doc --locked --offline --no-deps -p framework-bluetooth -p ios-bluetooth`
-- `sh platform/ios/ios-bluetooth/scripts/check-targets.sh` — device/Simulator check, Clippy, and `--no-run` link fixture passed for both targets
+- `sh platform/ios/ios-bluetooth/check-link.sh` — device/Simulator connection link fixtures passed
 
 No Simulator or physical-device runtime test ran. Compile/link success does not prove manager
 authorization UI, peer retrieval, radio connection, callback timing, cancellation behavior on-device,

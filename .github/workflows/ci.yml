@@ -309,9 +309,9 @@ jobs:
         run: cargo check --locked -p framework-bluetooth --no-default-features
       - name: Clippy portable Bluetooth authorization
         run: cargo clippy --locked -p framework-bluetooth --all-targets -- -D warnings
-      - name: Check iOS Bluetooth authorization targets
+      - name: Link iOS Bluetooth central connection targets
         if: runner.os == 'macOS'
-        run: sh platform/ios/ios-bluetooth/scripts/check-targets.sh
+        run: sh platform/ios/ios-bluetooth/check-link.sh
       - name: Test portable Bluetooth contracts
         run: cargo test --locked -p framework-bluetooth
       - name: Check portable NFC contract without default features

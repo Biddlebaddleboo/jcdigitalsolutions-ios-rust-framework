@@ -8,6 +8,7 @@ The following are configured validation profiles, not claims that every gate pas
 | --- | --- | ---: | ---: | ---: | --- |
 | ios-datagram | ios-datagram | 2 | 1 | 0 | True |
 | ios-background-tasks | ios-background-tasks | 2 | 1 | 0 | False |
+| ios-bluetooth | ios-bluetooth | 2 | 1 | 0 | True |
 | ios-app-lifecycle | ios-app-lifecycle | 2 | 1 | 1 | False |
 | ios-microphone-pcm-recorder | ios-microphone-recorder | 2 | 1 | 0 | False |
 | ios-microphone-pcm-stream | ios-microphone-pcm-stream | 2 | 1 | 0 | False |
