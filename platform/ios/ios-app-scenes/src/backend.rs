@@ -15,8 +15,8 @@ use objc2_ui_kit::{
 };
 
 use crate::{
-    EventQueue, NativeSceneNotification, SCENE_NOTIFICATIONS, SceneLifecycleEvent,
-    contain_callback_panic, copy_session_identifier, enqueue_if_live,
+    EventQueue, NativeSceneNotification, SCENE_NOTIFICATIONS, SceneEventHandlerState,
+    SceneLifecycleEvent, contain_callback_panic, copy_session_identifier, publish_event_if_live,
 };
 
 fn notification_name(notification: NativeSceneNotification) -> &'static NSNotificationName {
@@ -92,18 +92,21 @@ pub struct IosSceneLifecycleEvents {
     observers: ObserverTokens,
     _main_thread: MainThread,
     events: Arc<Mutex<EventQueue>>,
+    handler: Arc<SceneEventHandlerState>,
 }
 
 impl IosSceneLifecycleEvents {
     /// Register for the six public UIKit scene lifecycle notifications
     pub fn new(main_thread: MainThread) -> Self {
         let events = Arc::new(Mutex::new(EventQueue::new()));
+        let handler = Arc::new(SceneEventHandlerState::new());
         let mut observers = ObserverTokens::new(NSNotificationCenter::defaultCenter());
         let main_queue = NSOperationQueue::mainQueue();
 
         for notification in SCENE_NOTIFICATIONS {
             let name = notification_name(notification);
             let weak_events = Arc::downgrade(&events);
+            let weak_handler = Arc::downgrade(&handler);
             let kind = notification.event_kind();
             let block = RcBlock::new(move |notification: NonNull<NSNotification>| {
                 let _ = contain_callback_panic(|| {
@@ -121,7 +124,7 @@ impl IosSceneLifecycleEvents {
                         session_identifier: copy_session_identifier(&identifier),
                         kind,
                     };
-                    enqueue_if_live(&weak_events, event);
+                    publish_event_if_live(&weak_events, &weak_handler, event);
                 });
             });
             observers.register(name, &main_queue, &block);
@@ -131,7 +134,28 @@ impl IosSceneLifecycleEvents {
             observers,
             _main_thread: main_thread,
             events,
+            handler,
         }
+    }
+
+    /// Install or replace a direct callback for subsequent scene lifecycle events
+    ///
+    /// The callback runs on `NSOperationQueue::mainQueue()` after the event has been added to
+    /// the polling queue. It receives events independently of polling-queue overflow. The
+    /// callback must be `Send` so its synchronized `Arc<Mutex<...>>` capture satisfies the
+    /// sendable-block safety contract of `NSNotificationCenter::addObserverForName:object:queue:usingBlock:`;
+    /// callback execution remains on UIKit's main operation queue. Panics are contained.
+    /// If a callback causes nested scene notifications, those events are delivered after it
+    /// returns rather than recursively invoking this `FnMut`. The nested-delivery backlog holds
+    /// at most 32 events; excess nested events drop oldest and increment
+    /// `dropped_handler_event_count()`.
+    pub fn set_event_handler(&mut self, handler: impl FnMut(SceneLifecycleEvent) + Send + 'static) {
+        self.handler.set(handler);
+    }
+
+    /// Clear the direct callback without changing polling-queue contents
+    pub fn clear_event_handler(&mut self) {
+        self.handler.clear();
     }
 
     /// Remove and return the oldest queued scene event without waiting
@@ -148,6 +172,11 @@ impl IosSceneLifecycleEvents {
             .lock()
             .unwrap_or_else(|poisoned| poisoned.into_inner())
             .dropped()
+    }
+
+    /// Return the cumulative number of nested callback events dropped at the callback backlog limit
+    pub fn dropped_handler_event_count(&self) -> u64 {
+        self.handler.dropped()
     }
 }
 

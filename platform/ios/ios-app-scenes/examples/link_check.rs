@@ -41,8 +41,13 @@ fn main() {
     }
     if let Some(main_thread) = ios_runtime::main_thread::MainThread::current() {
         let mut events = ios_app_scenes::IosSceneLifecycleEvents::new(main_thread);
+        events.set_event_handler(|event| {
+            let _ = event.kind();
+        });
         let _ = events.poll_event();
         let _ = events.dropped_event_count();
+        let _ = events.dropped_handler_event_count();
+        events.clear_event_handler();
     }
 }
 

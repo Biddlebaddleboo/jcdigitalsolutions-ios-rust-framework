@@ -541,3 +541,11 @@ B549 adds opt-in `IosLocationBackend::start_significant_change_updates()` with d
 ### B550 — UIKit navigation-bar action (row 003)
 
 B550 adds a reusable right-side `IosNavigationBarAction` with a required accessible title, optional SF symbol, safe Rust callback, replacement, and clear. The action requires iOS 14 at runtime while the package retains its iOS 12 floor. UIKit ownership retains the callback after the Rust action value drops. This is an imperative UIKit control, not SwiftUI `NavigationLink`, route state, or declarative composition; visible presentation, accessibility output, and callback delivery remain unverified.
+
+### B551 — UIKit safe-area stack constraints (row 003)
+
+B551 adds `IosStackView::pin_edges_to_safe_area` using UIKit's public `safeAreaLayoutGuide`. Safe-area and parent-edge pinning share one-shot state and require the exact direct parent; host policy tests plus device/Simulator link checks passed, while live layout remains unverified.
+
+### B552 — scene lifecycle event callback (row 001)
+
+B552 adds optional `IosSceneLifecycleEvents` callback install, replacement, clear, and overflow-count APIs while preserving polling semantics. Nested `FnMut` delivery is serialized through a bounded 32-event backlog; the registered profile passed 42 checks, with Simulator and device runtime evidence skipped.

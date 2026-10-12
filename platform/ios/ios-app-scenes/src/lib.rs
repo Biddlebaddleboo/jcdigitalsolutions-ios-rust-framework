@@ -208,6 +208,8 @@ pub(crate) fn copy_session_identifier(identifier: &NSString) -> SceneSessionIden
 
 #[cfg(any(target_os = "ios", test))]
 const EVENT_CAPACITY: usize = 32;
+#[cfg(any(target_os = "ios", test))]
+const HANDLER_PENDING_CAPACITY: usize = 32;
 
 /// A lossless copy of a UIKit scene session's persistent identifier
 ///
@@ -312,6 +314,151 @@ impl EventQueue {
     }
 }
 
+#[cfg(any(target_os = "ios", test))]
+type SceneEventHandler = Box<dyn FnMut(SceneLifecycleEvent) + Send + 'static>;
+
+#[cfg(any(target_os = "ios", test))]
+struct EventHandlerDispatch {
+    handler: Option<SceneEventHandler>,
+    pending: VecDeque<SceneLifecycleEvent>,
+    dispatching: bool,
+    dropped: u64,
+}
+
+/// Shared callback state for the native observer blocks
+#[cfg(any(target_os = "ios", test))]
+pub(crate) struct SceneEventHandlerState {
+    dispatch: Mutex<EventHandlerDispatch>,
+}
+
+#[cfg(any(target_os = "ios", test))]
+impl SceneEventHandlerState {
+    pub(crate) fn new() -> Self {
+        Self {
+            dispatch: Mutex::new(EventHandlerDispatch {
+                handler: None,
+                pending: VecDeque::with_capacity(HANDLER_PENDING_CAPACITY),
+                dispatching: false,
+                dropped: 0,
+            }),
+        }
+    }
+
+    pub(crate) fn set(&self, handler: impl FnMut(SceneLifecycleEvent) + Send + 'static) {
+        let mut dispatch = self
+            .dispatch
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
+        dispatch.handler = Some(Box::new(handler));
+    }
+
+    pub(crate) fn clear(&self) {
+        let mut dispatch = self
+            .dispatch
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
+        dispatch.handler = None;
+        dispatch.pending.clear();
+    }
+
+    fn is_active(&self) -> bool {
+        let dispatch = self
+            .dispatch
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
+        dispatch.handler.is_some() || dispatch.dispatching
+    }
+
+    pub(crate) fn dropped(&self) -> u64 {
+        self.dispatch
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner())
+            .dropped
+    }
+
+    fn dispatch(&self, event: SceneLifecycleEvent) {
+        let should_drain = {
+            let mut dispatch = self
+                .dispatch
+                .lock()
+                .unwrap_or_else(|poisoned| poisoned.into_inner());
+            if dispatch.handler.is_none() && !dispatch.dispatching {
+                return;
+            }
+            if dispatch.pending.len() == HANDLER_PENDING_CAPACITY {
+                dispatch.pending.pop_front();
+                dispatch.dropped = dispatch.dropped.saturating_add(1);
+            }
+            dispatch.pending.push_back(event);
+            if dispatch.dispatching {
+                false
+            } else {
+                dispatch.dispatching = true;
+                true
+            }
+        };
+        if !should_drain {
+            return;
+        }
+
+        let mut handler = {
+            let mut dispatch = self
+                .dispatch
+                .lock()
+                .unwrap_or_else(|poisoned| poisoned.into_inner());
+            let Some(handler) = dispatch.handler.take() else {
+                dispatch.pending.clear();
+                dispatch.dispatching = false;
+                return;
+            };
+            handler
+        };
+
+        loop {
+            let event = {
+                let mut dispatch = self
+                    .dispatch
+                    .lock()
+                    .unwrap_or_else(|poisoned| poisoned.into_inner());
+                match dispatch.pending.pop_front() {
+                    Some(event) => event,
+                    None => {
+                        dispatch.handler = Some(handler);
+                        dispatch.dispatching = false;
+                        return;
+                    }
+                }
+            };
+            let _ = contain_callback_panic(|| handler(event));
+        }
+    }
+}
+
+#[cfg(any(target_os = "ios", test))]
+fn publish_event_if_live(
+    events: &Weak<Mutex<EventQueue>>,
+    handler: &Weak<SceneEventHandlerState>,
+    event: SceneLifecycleEvent,
+) -> bool {
+    let Some(events) = events.upgrade() else {
+        return false;
+    };
+    let handler_event = handler
+        .upgrade()
+        .filter(|handler| handler.is_active())
+        .map(|_| event.clone());
+    events
+        .lock()
+        .unwrap_or_else(|poisoned| poisoned.into_inner())
+        .push(event);
+    if let Some(event) = handler_event {
+        if let Some(handler) = handler.upgrade() {
+            handler.dispatch(event);
+        }
+    }
+    true
+}
+
 #[derive(Clone, Copy)]
 #[cfg(any(target_os = "ios", test))]
 enum NativeSceneNotification {
@@ -358,18 +505,6 @@ const SCENE_NOTIFICATIONS: [NativeSceneNotification; 6] = [
     NativeSceneNotification::WillEnterForeground,
     NativeSceneNotification::DidEnterBackground,
 ];
-
-#[cfg(any(target_os = "ios", test))]
-fn enqueue_if_live(state: &Weak<Mutex<EventQueue>>, event: SceneLifecycleEvent) -> bool {
-    let Some(state) = state.upgrade() else {
-        return false;
-    };
-    let mut events = state
-        .lock()
-        .unwrap_or_else(|poisoned| poisoned.into_inner());
-    events.push(event);
-    true
-}
 
 #[cfg(any(target_os = "ios", test))]
 fn contain_callback_panic(callback: impl FnOnce()) -> bool {
@@ -522,11 +657,186 @@ mod tests {
 
     #[test]
     fn weak_callback_does_not_resurrect_state_after_teardown() {
-        let state = Arc::new(Mutex::new(EventQueue::new()));
-        let callback_state = Arc::downgrade(&state);
-        drop(state);
-        assert!(!enqueue_if_live(&callback_state, event(1)));
-        assert!(callback_state.upgrade().is_none());
+        let events = Arc::new(Mutex::new(EventQueue::new()));
+        let handler = Arc::new(SceneEventHandlerState::new());
+        let callback_events = Arc::downgrade(&events);
+        let callback_handler = Arc::downgrade(&handler);
+        drop(events);
+        drop(handler);
+        assert!(!publish_event_if_live(
+            &callback_events,
+            &callback_handler,
+            event(1)
+        ));
+        assert!(callback_events.upgrade().is_none());
+        assert!(callback_handler.upgrade().is_none());
+    }
+
+    #[test]
+    fn direct_handler_receives_events_even_when_poll_queue_drops_oldest() {
+        let events = Arc::new(Mutex::new(EventQueue::new()));
+        let handler = Arc::new(SceneEventHandlerState::new());
+        let received = Arc::new(Mutex::new(Vec::new()));
+        let received_by_handler = Arc::clone(&received);
+        handler.set(move |event| {
+            received_by_handler
+                .lock()
+                .unwrap_or_else(|poisoned| poisoned.into_inner())
+                .push(event);
+        });
+        let weak_events = Arc::downgrade(&events);
+        let weak_handler = Arc::downgrade(&handler);
+        let count = EVENT_CAPACITY + 5;
+
+        for index in 0..count as u16 {
+            assert!(publish_event_if_live(
+                &weak_events,
+                &weak_handler,
+                event(index)
+            ));
+        }
+
+        let received = received
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
+        assert_eq!(received.len(), count);
+        assert!(received.iter().enumerate().all(|(index, event)| {
+            event.session_identifier().as_utf16_code_units() == [index as u16]
+        }));
+        assert_eq!(events.lock().unwrap().dropped(), 5);
+        assert_eq!(handler.dropped(), 0);
+    }
+
+    #[test]
+    fn no_handler_keeps_poll_delivery_without_callback_backlog() {
+        let events = Arc::new(Mutex::new(EventQueue::new()));
+        let handler = Arc::new(SceneEventHandlerState::new());
+        assert!(publish_event_if_live(
+            &Arc::downgrade(&events),
+            &Arc::downgrade(&handler),
+            event(7)
+        ));
+        assert_eq!(events.lock().unwrap().pop(), Some(event(7)));
+        assert!(!handler.is_active());
+        assert_eq!(handler.dropped(), 0);
+    }
+
+    #[test]
+    fn nested_events_wait_until_the_fn_mut_returns() {
+        let handler = Arc::new(SceneEventHandlerState::new());
+        let weak_handler = Arc::downgrade(&handler);
+        let active = Arc::new(std::sync::atomic::AtomicBool::new(false));
+        let callback_active = Arc::clone(&active);
+        let received = Arc::new(Mutex::new(Vec::new()));
+        let callback_received = Arc::clone(&received);
+        handler.set(move |received_event| {
+            assert!(!callback_active.swap(true, std::sync::atomic::Ordering::SeqCst));
+            callback_received
+                .lock()
+                .unwrap_or_else(|poisoned| poisoned.into_inner())
+                .push(received_event.session_identifier().as_utf16_code_units()[0]);
+            if received_event.session_identifier().as_utf16_code_units() == [0] {
+                weak_handler.upgrade().unwrap().dispatch(event(1));
+                assert_eq!(
+                    callback_received
+                        .lock()
+                        .unwrap_or_else(|poisoned| poisoned.into_inner())
+                        .len(),
+                    1
+                );
+            }
+            callback_active.store(false, std::sync::atomic::Ordering::SeqCst);
+        });
+
+        handler.dispatch(event(0));
+
+        assert_eq!(
+            *received
+                .lock()
+                .unwrap_or_else(|poisoned| poisoned.into_inner()),
+            [0, 1]
+        );
+        assert_eq!(handler.dropped(), 0);
+    }
+
+    #[test]
+    fn nested_callback_backlog_is_bounded_and_counts_its_own_drops() {
+        let handler = Arc::new(SceneEventHandlerState::new());
+        let weak_handler = Arc::downgrade(&handler);
+        let received = Arc::new(Mutex::new(Vec::new()));
+        let callback_received = Arc::clone(&received);
+        handler.set(move |received_event| {
+            let index = received_event.session_identifier().as_utf16_code_units()[0];
+            callback_received
+                .lock()
+                .unwrap_or_else(|poisoned| poisoned.into_inner())
+                .push(index);
+            if index == 0 {
+                let handler = weak_handler.upgrade().unwrap();
+                for nested in 1..=(HANDLER_PENDING_CAPACITY as u16 + 1) {
+                    handler.dispatch(event(nested));
+                }
+            }
+        });
+
+        handler.dispatch(event(0));
+
+        let received = received
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
+        assert_eq!(received.len(), HANDLER_PENDING_CAPACITY + 1);
+        assert_eq!(received[0], 0);
+        assert_eq!(received[1], 2);
+        assert_eq!(
+            received.last(),
+            Some(&(HANDLER_PENDING_CAPACITY as u16 + 1))
+        );
+        assert_eq!(handler.dropped(), 1);
+    }
+
+    #[test]
+    fn callback_panic_does_not_remove_the_handler() {
+        let handler = Arc::new(SceneEventHandlerState::new());
+        let calls = Arc::new(std::sync::atomic::AtomicUsize::new(0));
+        let callback_calls = Arc::clone(&calls);
+        handler.set(move |_| {
+            let call = callback_calls.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+            if call == 0 {
+                panic!("expected handler panic");
+            }
+        });
+
+        handler.dispatch(event(0));
+        assert!(handler.is_active());
+        handler.dispatch(event(1));
+
+        assert_eq!(calls.load(std::sync::atomic::Ordering::SeqCst), 2);
+    }
+
+    #[test]
+    fn handler_replacement_and_clear_apply_to_later_events() {
+        let handler = SceneEventHandlerState::new();
+        let old_calls = Arc::new(Mutex::new(0));
+        let new_calls = Arc::new(Mutex::new(0));
+        let old_handler_calls = Arc::clone(&old_calls);
+        handler.set(move |_| {
+            *old_handler_calls
+                .lock()
+                .unwrap_or_else(|poisoned| poisoned.into_inner()) += 1;
+        });
+        let new_handler_calls = Arc::clone(&new_calls);
+        handler.set(move |_| {
+            *new_handler_calls
+                .lock()
+                .unwrap_or_else(|poisoned| poisoned.into_inner()) += 1;
+        });
+        handler.dispatch(event(0));
+        handler.clear();
+        handler.dispatch(event(1));
+
+        assert_eq!(*old_calls.lock().unwrap(), 0);
+        assert_eq!(*new_calls.lock().unwrap(), 1);
+        assert!(!handler.is_active());
     }
 
     #[test]

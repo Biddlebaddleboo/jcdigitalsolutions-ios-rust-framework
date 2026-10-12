@@ -1,6 +1,6 @@
 # iOS app scene activity and lifecycle
 
-`ios-app-scenes` provides three independent iOS 13.0 surfaces. B81's synchronous snapshot remains a count-only query; B454 adds an event stream for per-scene lifecycle notifications; B526 adds current activation-state records keyed by exact session identity. None changes the portable `framework-app` API.
+`ios-app-scenes` provides three independent iOS 13.0 surfaces. B81's synchronous snapshot remains a count-only query; B454 adds an event stream for per-scene lifecycle notifications; B526 adds current activation-state records keyed by exact session identity; B552 adds an optional direct Rust handler for lifecycle events. None changes the portable `framework-app` API.
 
 ## B81 activity snapshot
 
@@ -45,7 +45,26 @@ let dropped = events.dropped_event_count();
 
 The event source listens for UIKit's `UISceneWillConnectNotification`, `UISceneDidDisconnectNotification`, `UISceneDidActivateNotification`, `UISceneWillDeactivateNotification`, `UISceneWillEnterForegroundNotification`, and `UISceneDidEnterBackgroundNotification`. UIKit puts the originating `UIScene` in each notification's `object`; the event owns the exact UTF-16 code units of `UISceneSession.persistentIdentifier`. `to_string_lossless()` returns `None` only for malformed UTF-16. `as_utf16_code_units()` remains available for exact round trips, including embedded NULs and unpaired surrogates.
 
-Observer blocks run on `NSOperationQueue::mainQueue()`. The event source owns and removes every observer token on drop. Blocks capture only weak event-queue state and contain panics before returning through Objective-C. The queue holds 32 events; when full, it drops the oldest event. `dropped_event_count()` reports the cumulative saturating count so callers can detect lost transition history. There is no initial event and no replay of notifications posted before construction.
+Observer blocks run on `NSOperationQueue::mainQueue()`. The event source owns and removes every observer token on drop. Blocks capture only weak event-queue and handler state and contain panics before returning through Objective-C. The queue holds 32 events; when full, it drops the oldest event. `dropped_event_count()` reports the cumulative saturating count so callers can detect lost transition history. There is no initial event and no replay of notifications posted before construction.
+
+### B552 direct event handler
+
+Use `set_event_handler` when a main-thread scene transition should update application-owned policy directly instead of requiring a polling loop:
+
+```rust,ignore
+let mut events = ios_app_scenes::IosSceneLifecycleEvents::new(main_thread);
+events.set_event_handler(|event| match event.kind() {
+    ios_app_scenes::SceneLifecycleEventKind::DidEnterBackground => pause_app_work(),
+    ios_app_scenes::SceneLifecycleEventKind::DidActivate => resume_app_work(),
+    _ => {}
+});
+```
+
+The handler receives each ordinary live notification after the same event has entered the polling queue. Polling-queue overflow does not suppress direct handler delivery; both paths preserve the event's exact UTF-16 session identifier and typed transition. Calling `set_event_handler` again replaces the callback, and `clear_event_handler` removes it without clearing already-polled events. The handler is optional and no notification is replayed during construction or registration.
+
+The callback runs on `NSOperationQueue::mainQueue()` and must be `Send + 'static` so its synchronized `Arc<Mutex<...>>` capture satisfies `NSNotificationCenter::addObserverForName:object:queue:usingBlock:`'s sendable-block safety contract. It accepts an owned `SceneLifecycleEvent`; the callback may retain it. Panics are contained before returning through Objective-C, and the installed handler remains available for later notifications. If handling one event synchronously causes nested scene notifications, the same `FnMut` is not invoked recursively: nested events wait until the current call returns and then drain in main-queue order. This reentrant backlog is independently bounded at 32 events, drops oldest on overflow, and is measured by the saturating `dropped_handler_event_count()`. This counter is separate from `dropped_event_count()`, which measures the poll queue only.
+
+The handler is app policy only. It does not install or replace a scene delegate, create a framework runtime, add an executor, change scene setup, or run while the process is suspended. Host tests and static compiler/link checks do not prove UIKit callback timing or live device/Simulator behavior.
 
 These are the notifications UIKit posts; this API does not install or replace a `UISceneDelegate`, configure scenes, create windows, present UI, control a scene, or perform any app/runtime initialization. It does not expose capture or media data, promise event delivery while the process is suspended, or guarantee the scene's state after an event. The host remains responsible for its own scene configuration. `UIApplication.sharedApplication` is unavailable to app extensions, so this package targets apps only.
 
