@@ -110,153 +110,8 @@
       "source_dirs": ["platform/ios/ios-app-lifecycle","platform/ios/ios-runtime"],
       "targets": [{"minimum_os":"10.0","sdk":"iphoneos","triple":"aarch64-apple-ios"},{"minimum_os":"14.0","sdk":"iphonesimulator","triple":"aarch64-apple-ios-sim"}]
     },
-    {
-      "abi_scripts": [
-        "platform/ios/ios-microphone-recorder/check-link-imports.sh"
-      ],
-      "abi_targets": [{"minimum_os":"10.0","sdk":"iphoneos","triple":"aarch64-apple-ios"},{"minimum_os":"14.0","sdk":"iphonesimulator","triple":"aarch64-apple-ios-sim"}],
-      "adapters": [],
-      "cargo_tree": false,
-      "check_script": "platform/ios/ios-microphone-recorder/check-link-imports.sh",
-      "clippy_all_targets": true,
-      "clippy_lib": false,
-      "docs": [
-        "docs/capabilities/capability-status.json",
-        "docs/ios/microphone-recorder.md",
-        "PLAN.md"
-      ],
-      "expected_imports": [
-        "AVFoundation.framework",
-        "Foundation.framework",
-        "objc_msgSend"
-      ],
-      "fmt_all": false,
-      "guards": [
-        {"message":"recorder creation must read existing microphone authorization without prompting","must_exist":true,"path":"platform/ios/ios-microphone-recorder/src/lib.rs","text":"IosMediaAuthorization::authorization_status("},
-        {"message":"recording must fail closed unless microphone authorization is Authorized","must_exist":true,"path":"platform/ios/ios-microphone-recorder/src/lib.rs","text":"matches!(status, MediaAuthorizationStatus::Authorized)"},
-        {"message":"AVAudioFormat creation must enforce the iOS 10 deployment floor","must_exist":true,"path":"platform/ios/ios-microphone-recorder/src/lib.rs","text":"objc2::available!(ios = 10.0, ..)"},
-        {"message":"PCM must use the public AVAudioFormat common-format initializer","must_exist":true,"path":"platform/ios/ios-microphone-recorder/src/lib.rs","text":"AVAudioFormat::initWithCommonFormat_sampleRate_channels_interleaved"},
-        {"message":"file recording must use the public AVAudioRecorder format initializer","must_exist":true,"path":"platform/ios/ios-microphone-recorder/src/lib.rs","text":"AVAudioRecorder::initWithURL_format_error"},
-        {"message":"recorder start must recheck microphone authorization","must_exist":true,"path":"platform/ios/ios-microphone-recorder/src/lib.rs","text":"pub fn start(&mut self) -> Result<(), MicrophoneRecorderError>"},
-        {"message":"recording must not request microphone permission","must_exist":false,"path":"platform/ios/ios-microphone-recorder/src/lib.rs","text":"IosMediaAuthorization::request"},
-        {"message":"recording must not invoke the AVFoundation permission prompt","must_exist":false,"path":"platform/ios/ios-microphone-recorder/src/lib.rs","text":"requestAccessForMediaType_completionHandler"},
-        {"message":"the recorder must not configure or activate shared AVAudioSession state","must_exist":false,"path":"platform/ios/ios-microphone-recorder/src/lib.rs","text":"AVAudioSession::sharedInstance"},
-        {"message":"the recorder must not change the shared audio-session category","must_exist":false,"path":"platform/ios/ios-microphone-recorder/src/lib.rs","text":"setCategory_mode_options_error"},
-        {"message":"the recorder must not activate or deactivate the shared audio session","must_exist":false,"path":"platform/ios/ios-microphone-recorder/src/lib.rs","text":"setActive_error"},
-        {"message":"the output file must close when the recorder is dropped","must_exist":true,"path":"platform/ios/ios-microphone-recorder/src/lib.rs","text":"impl Drop for IosMicrophoneRecorder"},
-        {"message":"the recorder dependency must not enable AVAudioSession","must_exist":false,"path":"platform/ios/ios-microphone-recorder/Cargo.toml","text":"\"AVAudioSession\""}
-      ],
-      "id": "ios-microphone-pcm-recorder",
-      "manifest": "platform/ios/ios-microphone-recorder/Cargo.toml",
-      "offline": false,
-      "package": "ios-microphone-recorder",
-      "rustdoc_warnings": false,
-      "scoped_files": [
-        "PLAN.md",
-        "platform/ios/ios-microphone-recorder/Cargo.toml",
-        "platform/ios/ios-microphone-recorder/check-link-imports.sh",
-        "platform/ios/ios-microphone-recorder/examples/microphone_recorder_link_probe.rs",
-        "platform/ios/ios-microphone-recorder/src/lib.rs"
-      ],
-      "shell_scripts": [
-        "platform/ios/ios-microphone-recorder/check-link-imports.sh"
-      ],
-      "source_dirs": [
-        "platform/ios/ios-microphone-recorder"
-      ],
-      "targets": [{"minimum_os":"10.0","sdk":"iphoneos","triple":"aarch64-apple-ios"},{"minimum_os":"14.0","sdk":"iphonesimulator","triple":"aarch64-apple-ios-sim"}]
-    },
-    {
-      "abi_scripts": [
-        "platform/ios/ios-microphone-pcm-stream/check-link-imports.sh"
-      ],
-      "abi_targets": [{"minimum_os":"10.0","sdk":"iphoneos","triple":"aarch64-apple-ios"},{"minimum_os":"14.0","sdk":"iphonesimulator","triple":"aarch64-apple-ios-sim"}],
-      "adapters": [],
-      "cargo_tree": false,
-      "check_script": "platform/ios/ios-microphone-pcm-stream/check-link-imports.sh",
-      "clippy_all_targets": true,
-      "clippy_lib": false,
-      "docs": [
-        "docs/capabilities/capability-status.json",
-        "docs/ios/microphone-pcm-stream.md",
-        "PLAN.md"
-      ],
-      "expected_imports": [
-        "AVFoundation.framework",
-        "Foundation.framework",
-        "objc_msgSend"
-      ],
-      "fmt_all": false,
-      "guards": [
-        {"message":"stream creation must read existing microphone authorization","must_exist":true,"path":"platform/ios/ios-microphone-pcm-stream/src/lib.rs","text":"IosMediaAuthorization::authorization_status("},
-        {"message":"capture must fail closed unless microphone authorization is Authorized","must_exist":true,"path":"platform/ios/ios-microphone-pcm-stream/src/lib.rs","text":"matches!(status, MediaAuthorizationStatus::Authorized)"},
-        {"message":"stream start must recheck microphone authorization","must_exist":true,"path":"platform/ios/ios-microphone-pcm-stream/src/lib.rs","text":"pub fn start(&mut self) -> Result<PcmInputFormat, MicrophoneStreamError>"},
-        {"message":"the engine path must enforce its iOS 8 public API floor","must_exist":true,"path":"platform/ios/ios-microphone-pcm-stream/src/lib.rs","text":"objc2::available!(ios = 8.0, ..)"},
-        {"message":"the stream must read the input node native output format","must_exist":true,"path":"platform/ios/ios-microphone-pcm-stream/src/lib.rs","text":"input.outputFormatForBus(0)"},
-        {"message":"the stream must fail closed for non-Float32 native input","must_exist":true,"path":"platform/ios/ios-microphone-pcm-stream/src/lib.rs","text":"native_format.commonFormat() == AVAudioCommonFormat::PCMFormatFloat32"},
-        {"message":"tap format must be the unconverted native input format","must_exist":true,"path":"platform/ios/ios-microphone-pcm-stream/src/lib.rs","text":"Some(&native_format)"},
-        {"message":"the engine must install a public input-node tap","must_exist":true,"path":"platform/ios/ios-microphone-pcm-stream/src/lib.rs","text":"input.installTapOnBus_bufferSize_format_block("},
-        {"message":"the tap callback must inspect the live buffer format and stride","must_exist":true,"path":"platform/ios/ios-microphone-pcm-stream/src/lib.rs","text":"native_buffer.stride()"},
-        {"message":"the tap callback must latch a changed format for the consumer","must_exist":true,"path":"platform/ios/ios-microphone-pcm-stream/src/lib.rs","text":"self.callback_error.store(true, Ordering::Relaxed)"},
-        {"message":"ring overflow must drop a whole tap block and count its frames","must_exist":true,"path":"platform/ios/ios-microphone-pcm-stream/src/lib.rs","text":"if frames > self.capacity_frames - queued"},
-        {"message":"dropped-frame count must saturate without a lock","must_exist":true,"path":"platform/ios/ios-microphone-pcm-stream/src/lib.rs","text":"current.saturating_add(u64::from(frames))"},
-        {"message":"panic must not unwind across the Objective-C tap callback","must_exist":true,"path":"platform/ios/ios-microphone-pcm-stream/src/lib.rs","text":"catch_unwind(AssertUnwindSafe("},
-        {"message":"stop and drop must remove the engine tap","must_exist":true,"path":"platform/ios/ios-microphone-pcm-stream/src/lib.rs","text":"input.removeTapOnBus(0)"},
-        {"message":"the stream must explicitly remain local-thread-only","must_exist":true,"path":"platform/ios/ios-microphone-pcm-stream/src/lib.rs","text":"_not_send_or_sync: PhantomData<Rc<()>>"},
-        {"message":"stream drop must stop and release native capture","must_exist":true,"path":"platform/ios/ios-microphone-pcm-stream/src/lib.rs","text":"impl Drop for IosMicrophonePcmStream"},
-        {"message":"input-port snapshots must expose the owned Rust API","must_exist":true,"path":"platform/ios/ios-microphone-pcm-stream/src/lib.rs","text":"pub fn available_input_ports() -> Result<Vec<IosAudioInputPort>, MicrophoneInputQueryError>"},
-        {"message":"input-port query must enforce the public iOS 7.0 API floor","must_exist":true,"path":"platform/ios/ios-microphone-pcm-stream/src/lib.rs","text":"objc2::available!(ios = 7.0, ..)"},
-        {"message":"preferred-input selection must expose the UID-based Rust API","must_exist":true,"path":"platform/ios/ios-microphone-pcm-stream/src/lib.rs","text":"pub fn select_input_port(uid: &str) -> Result<(), MicrophoneInputSelectionError>"},
-        {"message":"preferred-input selection must resolve UIDs against the current available-input list","must_exist":true,"path":"platform/ios/ios-microphone-pcm-stream/src/lib.rs","text":"select_available_input("},
-        {"message":"input-port query must read only the host session availableInputs property","must_exist":true,"path":"platform/ios/ios-microphone-pcm-stream/src/lib.rs","text":"session.availableInputs()"},
-        {"message":"input-port snapshots must copy the system port type, name, and UID","must_exist":true,"path":"platform/ios/ios-microphone-pcm-stream/src/lib.rs","text":"port.portType()"},
-        {"message":"input-port snapshots must copy the descriptive port name","must_exist":true,"path":"platform/ios/ios-microphone-pcm-stream/src/lib.rs","text":"port.portName()"},
-        {"message":"input-port snapshots must copy the port UID","must_exist":true,"path":"platform/ios/ios-microphone-pcm-stream/src/lib.rs","text":"port.UID()"},
-        {"message":"input-port snapshots must own their copied Rust strings","must_exist":true,"path":"platform/ios/ios-microphone-pcm-stream/src/lib.rs","text":"(port_type.to_string(), name.to_string(), uid.to_string())"},
-        {"message":"live capture must not request microphone permission","must_exist":false,"path":"platform/ios/ios-microphone-pcm-stream/src/lib.rs","text":"IosMediaAuthorization::request"},
-        {"message":"live capture must not invoke the microphone permission prompt","must_exist":false,"path":"platform/ios/ios-microphone-pcm-stream/src/lib.rs","text":"requestAccessForMediaType_completionHandler"},
-        {"message":"the input-port snapshot and stream must not invoke a permission prompt","must_exist":false,"path":"platform/ios/ios-microphone-pcm-stream/src/lib.rs","text":"requestRecordPermission"},
-        {"message":"audio queries, selection, capture, and observation must not set the host session category","must_exist":false,"path":"platform/ios/ios-microphone-pcm-stream/src/lib.rs","text":"setCategory"},
-        {"message":"audio queries, selection, capture, and observation must not set the host session mode","must_exist":false,"path":"platform/ios/ios-microphone-pcm-stream/src/lib.rs","text":"setMode"},
-        {"message":"audio queries, selection, capture, and observation must not activate or deactivate the host session","must_exist":false,"path":"platform/ios/ios-microphone-pcm-stream/src/lib.rs","text":"setActive"},
-        {"message":"preferred-input selection must request the exact currently available port","must_exist":true,"path":"platform/ios/ios-microphone-pcm-stream/src/lib.rs","text":"session.setPreferredInput_error(Some(&port))"},
-        {"message":"preferred-input selection must not clear the host's preferred route","must_exist":false,"path":"platform/ios/ios-microphone-pcm-stream/src/lib.rs","text":"setPreferredInput_error(None)"},
-        {"message":"preferred-input selection must not change preferred channel count or orientation","must_exist":false,"path":"platform/ios/ios-microphone-pcm-stream/src/lib.rs","text":"setPreferredInputNumberOfChannels"},
-        {"message":"preferred-input selection must not change preferred channel count or orientation","must_exist":false,"path":"platform/ios/ios-microphone-pcm-stream/src/lib.rs","text":"setPreferredInputOrientation"},
-        {"message":"the input-port query must not override audio routing","must_exist":false,"path":"platform/ios/ios-microphone-pcm-stream/src/lib.rs","text":"overrideOutputAudioPort"},
-        {"message":"the audio event monitor must observe route-change notifications","must_exist":true,"path":"platform/ios/ios-microphone-pcm-stream/src/lib.rs","text":"AVAudioSessionRouteChangeNotification"},
-        {"message":"the audio event monitor must observe interruption notifications","must_exist":true,"path":"platform/ios/ios-microphone-pcm-stream/src/lib.rs","text":"AVAudioSessionInterruptionNotification"},
-        {"message":"interruption type must be read from the documented public notification key","must_exist":true,"path":"platform/ios/ios-microphone-pcm-stream/src/lib.rs","text":"AVAudioSessionInterruptionTypeKey"},
-        {"message":"interruption type must be parsed from userInfo as an NSNumber","must_exist":true,"path":"platform/ios/ios-microphone-pcm-stream/src/lib.rs","text":".downcast::<NSNumber>()"},
-        {"message":"interruption payload must map the public began and ended values","must_exist":true,"path":"platform/ios/ios-microphone-pcm-stream/src/lib.rs","text":"Some(1) => INTERRUPTION_BEGAN_EVENT"},
-        {"message":"the public interruption-ended value must remain distinct from began","must_exist":true,"path":"platform/ios/ios-microphone-pcm-stream/src/lib.rs","text":"Some(0) => INTERRUPTION_ENDED_EVENT"},
-        {"message":"interruption payload parsing must read NSNumber's integer value","must_exist":true,"path":"platform/ios/ios-microphone-pcm-stream/src/lib.rs","text":"number.integerValue()"},
-        {"message":"missing or unknown interruption types must remain observable","must_exist":true,"path":"platform/ios/ios-microphone-pcm-stream/src/lib.rs","text":"_ => INTERRUPTION_UNCLASSIFIED_EVENT"},
-        {"message":"interruption notification objects must not be retained by monitor state","must_exist":true,"path":"platform/ios/ios-microphone-pcm-stream/src/lib.rs","text":"the borrowed payload is parsed immediately and is never retained"},
-        {"message":"the monitor must expose an owned, nonblocking drain API","must_exist":true,"path":"platform/ios/ios-microphone-pcm-stream/src/lib.rs","text":"pub fn drain(&self) -> IosAudioSessionEventFlags"},
-        {"message":"event drain must atomically reset its bounded flag state","must_exist":true,"path":"platform/ios/ios-microphone-pcm-stream/src/lib.rs","text":"self.0.swap(0, Ordering::Relaxed)"},
-        {"message":"notification callbacks must update flags without a mutex","must_exist":false,"path":"platform/ios/ios-microphone-pcm-stream/src/lib.rs","text":"Mutex"},
-        {"message":"observer state must be weakly captured","must_exist":true,"path":"platform/ios/ios-microphone-pcm-stream/src/lib.rs","text":"events: Weak<PendingAudioSessionEvents>"},
-        {"message":"observer tokens must be removed on drop","must_exist":true,"path":"platform/ios/ios-microphone-pcm-stream/src/lib.rs","text":"impl<C, T, const N: usize> Drop for ObserverTokenOwner"},
-        {"message":"AVAudioSession notification observers must remove their Foundation tokens","must_exist":true,"path":"platform/ios/ios-microphone-pcm-stream/src/lib.rs","text":"self.removeObserver(observer)"},
-        {"message":"the monitor must use no object filter or operation queue","must_exist":true,"path":"platform/ios/ios-microphone-pcm-stream/src/lib.rs","text":"Some(name), None, None, &block"},
-        {"message":"the native binding must enable the AVAudioSession class","must_exist":true,"path":"platform/ios/ios-microphone-pcm-stream/Cargo.toml","text":"\"AVAudioSession\""},
-        {"message":"the native binding must enable public AVAudioSession route descriptions","must_exist":true,"path":"platform/ios/ios-microphone-pcm-stream/Cargo.toml","text":"\"AVAudioSessionRoute\""},
-        {"message":"the native binding must enable public AVAudioSession port types","must_exist":true,"path":"platform/ios/ios-microphone-pcm-stream/Cargo.toml","text":"\"AVAudioSessionTypes\""},
-        {"message":"Foundation must enable notification payload parsing and NotificationCenter block registration","must_exist":true,"path":"platform/ios/ios-microphone-pcm-stream/Cargo.toml","text":"features = [\"NSDictionary\", \"NSNotification\", \"NSObject\", \"NSOperation\", \"NSValue\", \"NSString\", \"block2\"]"}
-      ],
-      "id": "ios-microphone-pcm-stream",
-      "manifest": "platform/ios/ios-microphone-pcm-stream/Cargo.toml",
-      "offline": false,
-      "package": "ios-microphone-pcm-stream",
-      "rustdoc_warnings": false,
-      "scoped_files": ["PLAN.md","platform/ios/ios-microphone-pcm-stream/Cargo.toml","platform/ios/ios-microphone-pcm-stream/check-link-imports.sh","platform/ios/ios-microphone-pcm-stream/examples/microphone_pcm_stream_link_probe.rs","platform/ios/ios-microphone-pcm-stream/src/lib.rs"],
-      "shell_scripts": [],
-      "source_dirs": [
-        "platform/ios/ios-microphone-pcm-stream"
-      ],
-      "targets": [{"minimum_os":"10.0","sdk":"iphoneos","triple":"aarch64-apple-ios"},{"minimum_os":"14.0","sdk":"iphonesimulator","triple":"aarch64-apple-ios-sim"}]
-    },
+    {"abi_scripts":["platform/ios/ios-microphone-recorder/check-link-imports.sh"],"abi_targets":[{"minimum_os":"10.0","sdk":"iphoneos","triple":"aarch64-apple-ios"},{"minimum_os":"14.0","sdk":"iphonesimulator","triple":"aarch64-apple-ios-sim"}],"adapters":[],"cargo_tree":false,"check_script":"platform/ios/ios-microphone-recorder/check-link-imports.sh","clippy_all_targets":true,"clippy_lib":false,"docs":["docs/capabilities/capability-status.json","docs/ios/microphone-recorder.md","PLAN.md"],"expected_imports":["AVFoundation.framework","Foundation.framework","objc_msgSend"],"fmt_all":false,"guards":[{"message":"recorder creation must read existing microphone authorization without prompting","must_exist":true,"path":"platform/ios/ios-microphone-recorder/src/lib.rs","text":"IosMediaAuthorization::authorization_status("},{"message":"recording must fail closed unless microphone authorization is Authorized","must_exist":true,"path":"platform/ios/ios-microphone-recorder/src/lib.rs","text":"matches!(status, MediaAuthorizationStatus::Authorized)"},{"message":"AVAudioFormat creation must enforce the iOS 10 deployment floor","must_exist":true,"path":"platform/ios/ios-microphone-recorder/src/lib.rs","text":"objc2::available!(ios = 10.0, ..)"},{"message":"PCM must use the public AVAudioFormat common-format initializer","must_exist":true,"path":"platform/ios/ios-microphone-recorder/src/lib.rs","text":"AVAudioFormat::initWithCommonFormat_sampleRate_channels_interleaved"},{"message":"file recording must use the public AVAudioRecorder format initializer","must_exist":true,"path":"platform/ios/ios-microphone-recorder/src/lib.rs","text":"AVAudioRecorder::initWithURL_format_error"},{"message":"recorder start must recheck microphone authorization","must_exist":true,"path":"platform/ios/ios-microphone-recorder/src/lib.rs","text":"pub fn start(&mut self) -> Result<(), MicrophoneRecorderError>"},{"message":"recording must not request microphone permission","must_exist":false,"path":"platform/ios/ios-microphone-recorder/src/lib.rs","text":"IosMediaAuthorization::request"},{"message":"recording must not invoke the AVFoundation permission prompt","must_exist":false,"path":"platform/ios/ios-microphone-recorder/src/lib.rs","text":"requestAccessForMediaType_completionHandler"},{"message":"the recorder must not configure or activate shared AVAudioSession state","must_exist":false,"path":"platform/ios/ios-microphone-recorder/src/lib.rs","text":"AVAudioSession::sharedInstance"},{"message":"the recorder must not change the shared audio-session category","must_exist":false,"path":"platform/ios/ios-microphone-recorder/src/lib.rs","text":"setCategory_mode_options_error"},{"message":"the recorder must not activate or deactivate the shared audio session","must_exist":false,"path":"platform/ios/ios-microphone-recorder/src/lib.rs","text":"setActive_error"},{"message":"the output file must close when the recorder is dropped","must_exist":true,"path":"platform/ios/ios-microphone-recorder/src/lib.rs","text":"impl Drop for IosMicrophoneRecorder"},{"message":"the recorder dependency must not enable AVAudioSession","must_exist":false,"path":"platform/ios/ios-microphone-recorder/Cargo.toml","text":"\"AVAudioSession\""}],"id":"ios-microphone-pcm-recorder","manifest":"platform/ios/ios-microphone-recorder/Cargo.toml","offline":false,"package":"ios-microphone-recorder","rustdoc_warnings":false,"scoped_files":["PLAN.md","platform/ios/ios-microphone-recorder/Cargo.toml","platform/ios/ios-microphone-recorder/check-link-imports.sh","platform/ios/ios-microphone-recorder/examples/microphone_recorder_link_probe.rs","platform/ios/ios-microphone-recorder/src/lib.rs"],"shell_scripts":["platform/ios/ios-microphone-recorder/check-link-imports.sh"],"source_dirs":["platform/ios/ios-microphone-recorder"],"targets":[{"minimum_os":"10.0","sdk":"iphoneos","triple":"aarch64-apple-ios"},{"minimum_os":"14.0","sdk":"iphonesimulator","triple":"aarch64-apple-ios-sim"}]},
+    {"abi_scripts":["platform/ios/ios-microphone-pcm-stream/check-link-imports.sh"],"abi_targets":[{"minimum_os":"10.0","sdk":"iphoneos","triple":"aarch64-apple-ios"},{"minimum_os":"14.0","sdk":"iphonesimulator","triple":"aarch64-apple-ios-sim"}],"adapters":[],"cargo_tree":false,"check_script":"platform/ios/ios-microphone-pcm-stream/check-link-imports.sh","clippy_all_targets":true,"clippy_lib":false,"docs":["docs/capabilities/capability-status.json","docs/ios/microphone-pcm-stream.md","PLAN.md"],"expected_imports":["AVFoundation.framework","Foundation.framework","objc_msgSend"],"fmt_all":false,"guards":[{"message":"stream creation must read existing microphone authorization","must_exist":true,"path":"platform/ios/ios-microphone-pcm-stream/src/lib.rs","text":"IosMediaAuthorization::authorization_status("},{"message":"capture must fail closed unless microphone authorization is Authorized","must_exist":true,"path":"platform/ios/ios-microphone-pcm-stream/src/lib.rs","text":"matches!(status, MediaAuthorizationStatus::Authorized)"},{"message":"stream start must recheck microphone authorization","must_exist":true,"path":"platform/ios/ios-microphone-pcm-stream/src/lib.rs","text":"pub fn start(&mut self) -> Result<PcmInputFormat, MicrophoneStreamError>"},{"message":"the engine path must enforce its iOS 8 public API floor","must_exist":true,"path":"platform/ios/ios-microphone-pcm-stream/src/lib.rs","text":"objc2::available!(ios = 8.0, ..)"},{"message":"the stream must read the input node native output format","must_exist":true,"path":"platform/ios/ios-microphone-pcm-stream/src/lib.rs","text":"input.outputFormatForBus(0)"},{"message":"the stream must fail closed for non-Float32 native input","must_exist":true,"path":"platform/ios/ios-microphone-pcm-stream/src/lib.rs","text":"native_format.commonFormat() == AVAudioCommonFormat::PCMFormatFloat32"},{"message":"tap format must be the unconverted native input format","must_exist":true,"path":"platform/ios/ios-microphone-pcm-stream/src/lib.rs","text":"Some(&native_format)"},{"message":"the engine must install a public input-node tap","must_exist":true,"path":"platform/ios/ios-microphone-pcm-stream/src/lib.rs","text":"input.installTapOnBus_bufferSize_format_block("},{"message":"the tap callback must inspect the live buffer format and stride","must_exist":true,"path":"platform/ios/ios-microphone-pcm-stream/src/lib.rs","text":"native_buffer.stride()"},{"message":"the tap callback must latch a changed format for the consumer","must_exist":true,"path":"platform/ios/ios-microphone-pcm-stream/src/lib.rs","text":"self.callback_error.store(true, Ordering::Relaxed)"},{"message":"ring overflow must drop a whole tap block and count its frames","must_exist":true,"path":"platform/ios/ios-microphone-pcm-stream/src/lib.rs","text":"if frames > self.capacity_frames - queued"},{"message":"dropped-frame count must saturate without a lock","must_exist":true,"path":"platform/ios/ios-microphone-pcm-stream/src/lib.rs","text":"current.saturating_add(u64::from(frames))"},{"message":"panic must not unwind across the Objective-C tap callback","must_exist":true,"path":"platform/ios/ios-microphone-pcm-stream/src/lib.rs","text":"catch_unwind(AssertUnwindSafe("},{"message":"stop and drop must remove the engine tap","must_exist":true,"path":"platform/ios/ios-microphone-pcm-stream/src/lib.rs","text":"input.removeTapOnBus(0)"},{"message":"the stream must explicitly remain local-thread-only","must_exist":true,"path":"platform/ios/ios-microphone-pcm-stream/src/lib.rs","text":"_not_send_or_sync: PhantomData<Rc<()>>"},{"message":"stream drop must stop and release native capture","must_exist":true,"path":"platform/ios/ios-microphone-pcm-stream/src/lib.rs","text":"impl Drop for IosMicrophonePcmStream"},{"message":"input-port snapshots must expose the owned Rust API","must_exist":true,"path":"platform/ios/ios-microphone-pcm-stream/src/lib.rs","text":"pub fn available_input_ports() -> Result<Vec<IosAudioInputPort>, MicrophoneInputQueryError>"},{"message":"input-port query must enforce the public iOS 7.0 API floor","must_exist":true,"path":"platform/ios/ios-microphone-pcm-stream/src/lib.rs","text":"objc2::available!(ios = 7.0, ..)"},{"message":"preferred-input selection must expose the UID-based Rust API","must_exist":true,"path":"platform/ios/ios-microphone-pcm-stream/src/lib.rs","text":"pub fn select_input_port(uid: &str) -> Result<(), MicrophoneInputSelectionError>"},{"message":"preferred-input selection must resolve UIDs against the current available-input list","must_exist":true,"path":"platform/ios/ios-microphone-pcm-stream/src/lib.rs","text":"select_available_input("},{"message":"input-port query must read only the host session availableInputs property","must_exist":true,"path":"platform/ios/ios-microphone-pcm-stream/src/lib.rs","text":"session.availableInputs()"},{"message":"input-port snapshots must copy the system port type, name, and UID","must_exist":true,"path":"platform/ios/ios-microphone-pcm-stream/src/lib.rs","text":"port.portType()"},{"message":"input-port snapshots must copy the descriptive port name","must_exist":true,"path":"platform/ios/ios-microphone-pcm-stream/src/lib.rs","text":"port.portName()"},{"message":"input-port snapshots must copy the port UID","must_exist":true,"path":"platform/ios/ios-microphone-pcm-stream/src/lib.rs","text":"port.UID()"},{"message":"input-port snapshots must own their copied Rust strings","must_exist":true,"path":"platform/ios/ios-microphone-pcm-stream/src/lib.rs","text":"(port_type.to_string(), name.to_string(), uid.to_string())"},{"message":"live capture must not request microphone permission","must_exist":false,"path":"platform/ios/ios-microphone-pcm-stream/src/lib.rs","text":"IosMediaAuthorization::request"},{"message":"live capture must not invoke the microphone permission prompt","must_exist":false,"path":"platform/ios/ios-microphone-pcm-stream/src/lib.rs","text":"requestAccessForMediaType_completionHandler"},{"message":"the input-port snapshot and stream must not invoke a permission prompt","must_exist":false,"path":"platform/ios/ios-microphone-pcm-stream/src/lib.rs","text":"requestRecordPermission"},{"message":"audio queries, selection, capture, and observation must not set the host session category","must_exist":false,"path":"platform/ios/ios-microphone-pcm-stream/src/lib.rs","text":"setCategory"},{"message":"audio queries, selection, capture, and observation must not set the host session mode","must_exist":false,"path":"platform/ios/ios-microphone-pcm-stream/src/lib.rs","text":"setMode"},{"message":"audio queries, selection, capture, and observation must not activate or deactivate the host session","must_exist":false,"path":"platform/ios/ios-microphone-pcm-stream/src/lib.rs","text":"setActive"},{"message":"preferred-input selection must request the exact currently available port","must_exist":true,"path":"platform/ios/ios-microphone-pcm-stream/src/lib.rs","text":"session.setPreferredInput_error(Some(&port))"},{"message":"preferred-input selection must not clear the host's preferred route","must_exist":false,"path":"platform/ios/ios-microphone-pcm-stream/src/lib.rs","text":"setPreferredInput_error(None)"},{"message":"preferred-input selection must not change preferred channel count or orientation","must_exist":false,"path":"platform/ios/ios-microphone-pcm-stream/src/lib.rs","text":"setPreferredInputNumberOfChannels"},{"message":"preferred-input selection must not change preferred channel count or orientation","must_exist":false,"path":"platform/ios/ios-microphone-pcm-stream/src/lib.rs","text":"setPreferredInputOrientation"},{"message":"the input-port query must not override audio routing","must_exist":false,"path":"platform/ios/ios-microphone-pcm-stream/src/lib.rs","text":"overrideOutputAudioPort"},{"message":"the audio event monitor must observe route-change notifications","must_exist":true,"path":"platform/ios/ios-microphone-pcm-stream/src/lib.rs","text":"AVAudioSessionRouteChangeNotification"},{"message":"the audio event monitor must observe interruption notifications","must_exist":true,"path":"platform/ios/ios-microphone-pcm-stream/src/lib.rs","text":"AVAudioSessionInterruptionNotification"},{"message":"interruption type must be read from the documented public notification key","must_exist":true,"path":"platform/ios/ios-microphone-pcm-stream/src/lib.rs","text":"AVAudioSessionInterruptionTypeKey"},{"message":"interruption type must be parsed from userInfo as an NSNumber","must_exist":true,"path":"platform/ios/ios-microphone-pcm-stream/src/lib.rs","text":".downcast::<NSNumber>()"},{"message":"interruption payload must map the public began and ended values","must_exist":true,"path":"platform/ios/ios-microphone-pcm-stream/src/lib.rs","text":"Some(1) => INTERRUPTION_BEGAN_EVENT"},{"message":"the public interruption-ended value must remain distinct from began","must_exist":true,"path":"platform/ios/ios-microphone-pcm-stream/src/lib.rs","text":"Some(0) => INTERRUPTION_ENDED_EVENT"},{"message":"interruption payload parsing must read NSNumber's integer value","must_exist":true,"path":"platform/ios/ios-microphone-pcm-stream/src/lib.rs","text":"number.integerValue()"},{"message":"missing or unknown interruption types must remain observable","must_exist":true,"path":"platform/ios/ios-microphone-pcm-stream/src/lib.rs","text":"_ => INTERRUPTION_UNCLASSIFIED_EVENT"},{"message":"interruption notification objects must not be retained by monitor state","must_exist":true,"path":"platform/ios/ios-microphone-pcm-stream/src/lib.rs","text":"the borrowed payload is parsed immediately and is never retained"},{"message":"the monitor must expose an owned, nonblocking drain API","must_exist":true,"path":"platform/ios/ios-microphone-pcm-stream/src/lib.rs","text":"pub fn drain(&self) -> IosAudioSessionEventFlags"},{"message":"event drain must atomically reset its bounded flag state","must_exist":true,"path":"platform/ios/ios-microphone-pcm-stream/src/lib.rs","text":"self.0.swap(0, Ordering::Relaxed)"},{"message":"notification callbacks must update flags without a mutex","must_exist":false,"path":"platform/ios/ios-microphone-pcm-stream/src/lib.rs","text":"Mutex"},{"message":"observer state must be weakly captured","must_exist":true,"path":"platform/ios/ios-microphone-pcm-stream/src/lib.rs","text":"events: Weak<PendingAudioSessionEvents>"},{"message":"observer tokens must be removed on drop","must_exist":true,"path":"platform/ios/ios-microphone-pcm-stream/src/lib.rs","text":"impl<C, T, const N: usize> Drop for ObserverTokenOwner"},{"message":"AVAudioSession notification observers must remove their Foundation tokens","must_exist":true,"path":"platform/ios/ios-microphone-pcm-stream/src/lib.rs","text":"self.removeObserver(observer)"},{"message":"the monitor must use no object filter or operation queue","must_exist":true,"path":"platform/ios/ios-microphone-pcm-stream/src/lib.rs","text":"Some(name), None, None, &block"},{"message":"the native binding must enable the AVAudioSession class","must_exist":true,"path":"platform/ios/ios-microphone-pcm-stream/Cargo.toml","text":"\"AVAudioSession\""},{"message":"the native binding must enable public AVAudioSession route descriptions","must_exist":true,"path":"platform/ios/ios-microphone-pcm-stream/Cargo.toml","text":"\"AVAudioSessionRoute\""},{"message":"the native binding must enable public AVAudioSession port types","must_exist":true,"path":"platform/ios/ios-microphone-pcm-stream/Cargo.toml","text":"\"AVAudioSessionTypes\""},{"message":"Foundation must enable notification payload parsing and NotificationCenter block registration","must_exist":true,"path":"platform/ios/ios-microphone-pcm-stream/Cargo.toml","text":"features = [\"NSDictionary\", \"NSNotification\", \"NSObject\", \"NSOperation\", \"NSValue\", \"NSString\", \"block2\"]"}],"id":"ios-microphone-pcm-stream","manifest":"platform/ios/ios-microphone-pcm-stream/Cargo.toml","offline":false,"package":"ios-microphone-pcm-stream","rustdoc_warnings":false,"scoped_files":["PLAN.md","platform/ios/ios-microphone-pcm-stream/Cargo.toml","platform/ios/ios-microphone-pcm-stream/check-link-imports.sh","platform/ios/ios-microphone-pcm-stream/examples/microphone_pcm_stream_link_probe.rs","platform/ios/ios-microphone-pcm-stream/src/lib.rs"],"shell_scripts":[],"source_dirs":["platform/ios/ios-microphone-pcm-stream"],"targets":[{"minimum_os":"10.0","sdk":"iphoneos","triple":"aarch64-apple-ios"},{"minimum_os":"14.0","sdk":"iphonesimulator","triple":"aarch64-apple-ios-sim"}]},
     {
       "abi_scripts": [
         "platform/ios/ios-app-scenes/check-link-imports.sh"
@@ -290,74 +145,7 @@
       ],
       "targets": [{"minimum_os":"13.0","sdk":"iphoneos","triple":"aarch64-apple-ios"},{"minimum_os":"14.0","sdk":"iphonesimulator","triple":"aarch64-apple-ios-sim"}]
     },
-    {
-      "abi_scripts": [
-        "platform/ios/ios-media-authorization/check-link-imports.sh"
-      ],
-      "abi_targets": [{"minimum_os":"10.0","sdk":"iphoneos","triple":"aarch64-apple-ios"},{"minimum_os":"14.0","sdk":"iphonesimulator","triple":"aarch64-apple-ios-sim"}],
-      "cargo_tree": false,
-      "check_script": "platform/ios/ios-media-authorization/check.sh",
-      "clippy_all_targets": true,
-      "clippy_lib": false,
-      "docs": [
-        "docs/capabilities/media-authorization.md",
-        "docs/capabilities/capability-status.json",
-        "docs/ios/media-authorization.md",
-        "PLAN.md",
-        "PLAN_CAPABILITIES_MEDIA_AUTHORIZATION.md",
-        "PLAN_IOS_MEDIA_AUTHORIZATION.md",
-        "PLAN_IOS_NATIVE.md"
-      ],
-      "expected_imports": [
-        "AVFoundation.framework",
-        "Foundation.framework",
-        "objc_msgSend"
-      ],
-      "fmt_all": false,
-      "guards": [
-        {"message":"explicit AVFoundation media authorization request is required","must_exist":true,"path":"platform/ios/ios-media-authorization/src/request.rs","text":"requestAccessForMediaType_completionHandler"},
-        {"message":"capture sessions are outside this authorization capability","must_exist":false,"path":"platform/ios/ios-media-authorization/src/request.rs","text":"AVCaptureSession"},
-        {"message":"audio engines are outside this authorization capability","must_exist":false,"path":"platform/ios/ios-media-authorization/src/request.rs","text":"AVAudioEngine"},
-        {"message":"Objective-C block support is required for asynchronous authorization","must_exist":true,"path":"platform/ios/ios-media-authorization/Cargo.toml","text":"features = [\"AVCaptureDevice\", \"AVMediaFormat\", \"block2\"]"}
-      ],
-      "id": "ios-media-authorization",
-      "manifest": "platform/ios/ios-media-authorization/Cargo.toml",
-      "offline": false,
-      "package": "ios-media-authorization",
-      "rustdoc_warnings": false,
-      "scoped_files": ["PLAN.md","PLAN_CAPABILITIES_MEDIA_AUTHORIZATION.md","PLAN_IOS_MEDIA_AUTHORIZATION.md","PLAN_IOS_NATIVE.md","crates/framework-media-authorization/src/lib.rs","platform/ios/ios-media-authorization/Cargo.toml","platform/ios/ios-media-authorization/check-link-imports.sh","platform/ios/ios-media-authorization/check-surface.sh","platform/ios/ios-media-authorization/check.sh","platform/ios/ios-media-authorization/examples/media_authorization_link_probe.rs","platform/ios/ios-media-authorization/src/lib.rs","platform/ios/ios-media-authorization/src/operation.rs","platform/ios/ios-media-authorization/src/platform.rs","platform/ios/ios-media-authorization/src/request.rs","platform/ios/ios-media-authorization/src/status.rs","tools/validation/adapters/check_media_authorization.py"],
-      "shell_scripts": ["platform/ios/ios-media-authorization/check.sh","platform/ios/ios-media-authorization/check-surface.sh"],
-      "source_dirs": [
-        "platform/ios/ios-media-authorization"
-      ],
-      "targets": [{"minimum_os":"10.0","sdk":"iphoneos","triple":"aarch64-apple-ios"},{"minimum_os":"14.0","sdk":"iphonesimulator","triple":"aarch64-apple-ios-sim"}],
-      "adapters": [
-        {
-          "id": "media-authorization-request-contract",
-          "interpreter": "python3",
-          "minimum_version": "3.9",
-          "script": "tools/validation/adapters/check_media_authorization.py",
-          "input_paths": [
-            "crates/framework-media-authorization/src/lib.rs",
-            "platform/ios/ios-media-authorization/src/platform.rs",
-            "platform/ios/ios-media-authorization/src/request.rs",
-            "platform/ios/ios-media-authorization/src/status.rs",
-            "platform/ios/ios-media-authorization/check-surface.sh",
-            "platform/ios/ios-media-authorization/check-link-imports.sh",
-            "platform/ios/ios-media-authorization/examples/media_authorization_link_probe.rs",
-            "docs/ios/media-authorization.md",
-            "docs/capabilities/capability-status.json",
-            "tools/validation/specs/validation-v1.json"
-          ],
-          "required": true,
-          "evidence_type": "source-contract-consistency",
-          "deadline_seconds": 10,
-          "stdout_limit_bytes": 4096,
-          "stderr_limit_bytes": 4096,
-          "temporary_space_bytes": 1048576
-        }
-      ]
-    },
+    {"abi_scripts":["platform/ios/ios-media-authorization/check-link-imports.sh"],"abi_targets":[{"minimum_os":"10.0","sdk":"iphoneos","triple":"aarch64-apple-ios"},{"minimum_os":"14.0","sdk":"iphonesimulator","triple":"aarch64-apple-ios-sim"}],"cargo_tree":false,"check_script":"platform/ios/ios-media-authorization/check.sh","clippy_all_targets":true,"clippy_lib":false,"docs":["docs/capabilities/media-authorization.md","docs/capabilities/capability-status.json","docs/ios/media-authorization.md","PLAN.md","PLAN_CAPABILITIES_MEDIA_AUTHORIZATION.md","PLAN_IOS_MEDIA_AUTHORIZATION.md","PLAN_IOS_NATIVE.md"],"expected_imports":["AVFoundation.framework","Foundation.framework","objc_msgSend"],"fmt_all":false,"guards":[{"message":"explicit AVFoundation media authorization request is required","must_exist":true,"path":"platform/ios/ios-media-authorization/src/request.rs","text":"requestAccessForMediaType_completionHandler"},{"message":"capture sessions are outside this authorization capability","must_exist":false,"path":"platform/ios/ios-media-authorization/src/request.rs","text":"AVCaptureSession"},{"message":"audio engines are outside this authorization capability","must_exist":false,"path":"platform/ios/ios-media-authorization/src/request.rs","text":"AVAudioEngine"},{"message":"Objective-C block support is required for asynchronous authorization","must_exist":true,"path":"platform/ios/ios-media-authorization/Cargo.toml","text":"features = [\"AVCaptureDevice\", \"AVMediaFormat\", \"block2\"]"}],"id":"ios-media-authorization","manifest":"platform/ios/ios-media-authorization/Cargo.toml","offline":false,"package":"ios-media-authorization","rustdoc_warnings":false,"scoped_files":["PLAN.md","PLAN_CAPABILITIES_MEDIA_AUTHORIZATION.md","PLAN_IOS_MEDIA_AUTHORIZATION.md","PLAN_IOS_NATIVE.md","crates/framework-media-authorization/src/lib.rs","platform/ios/ios-media-authorization/Cargo.toml","platform/ios/ios-media-authorization/check-link-imports.sh","platform/ios/ios-media-authorization/check-surface.sh","platform/ios/ios-media-authorization/check.sh","platform/ios/ios-media-authorization/examples/media_authorization_link_probe.rs","platform/ios/ios-media-authorization/src/lib.rs","platform/ios/ios-media-authorization/src/operation.rs","platform/ios/ios-media-authorization/src/platform.rs","platform/ios/ios-media-authorization/src/request.rs","platform/ios/ios-media-authorization/src/status.rs","tools/validation/adapters/check_media_authorization.py"],"shell_scripts":["platform/ios/ios-media-authorization/check.sh","platform/ios/ios-media-authorization/check-surface.sh"],"source_dirs":["platform/ios/ios-media-authorization"],"targets":[{"minimum_os":"10.0","sdk":"iphoneos","triple":"aarch64-apple-ios"},{"minimum_os":"14.0","sdk":"iphonesimulator","triple":"aarch64-apple-ios-sim"}],"adapters":[{"id":"media-authorization-request-contract","interpreter":"python3","minimum_version":"3.9","script":"tools/validation/adapters/check_media_authorization.py","input_paths":["crates/framework-media-authorization/src/lib.rs","platform/ios/ios-media-authorization/src/platform.rs","platform/ios/ios-media-authorization/src/request.rs","platform/ios/ios-media-authorization/src/status.rs","platform/ios/ios-media-authorization/check-surface.sh","platform/ios/ios-media-authorization/check-link-imports.sh","platform/ios/ios-media-authorization/examples/media_authorization_link_probe.rs","docs/ios/media-authorization.md","docs/capabilities/capability-status.json","tools/validation/specs/validation-v1.json"],"required":true,"evidence_type":"source-contract-consistency","deadline_seconds":10,"stdout_limit_bytes":4096,"stderr_limit_bytes":4096,"temporary_space_bytes":1048576}]},
     {
       "abi_scripts": [
         "platform/ios/ios-camera-capture-session/check-link-imports.sh"
@@ -926,100 +714,7 @@
       ],
       "targets": [{"minimum_os":"14.0","sdk":"iphoneos","triple":"aarch64-apple-ios"},{"minimum_os":"14.0","sdk":"iphonesimulator","triple":"aarch64-apple-ios-sim"}]
     },
-    {
-      "abi_scripts": [
-        "platform/ios/ios-playback/check-link-imports.sh"
-      ],
-      "abi_targets": [{"minimum_os":"13.4","sdk":"iphoneos","triple":"aarch64-apple-ios"},{"minimum_os":"14.0","sdk":"iphonesimulator","triple":"aarch64-apple-ios-sim"}],
-      "adapters": [],
-      "cargo_tree": false,
-      "check_script": "platform/ios/ios-playback/check.sh",
-      "clippy_all_targets": true,
-      "clippy_lib": false,
-      "docs": ["docs/capabilities/capability-status.json","docs/capabilities/playback.md","docs/generated/CAPABILITY_STATUS.md","docs/generated/VALIDATION_PROFILES.md","docs/ios/playback.md","platform/ios/ios-playback/README.md","PLAN.md","PLAN_IOS_PLAYBACK.md"],
-      "expected_imports": [
-        "AVFoundation.framework",
-        "CoreFoundation.framework",
-        "CoreMedia.framework",
-        "Foundation.framework",
-        "objc_msgSend"
-      ],
-      "fmt_all": false,
-      "guards": [
-        {"message":"local playback rejects relative paths","must_exist":true,"path":"platform/ios/ios-playback/src/lib.rs","text":"Path::new(path).is_absolute()"},
-        {"message":"local playback rejects embedded NUL","must_exist":true,"path":"platform/ios/ios-playback/src/lib.rs","text":"path.contains('\\0')"},
-        {"message":"local playback opens its path before AVPlayer construction","must_exist":true,"path":"platform/ios/ios-playback/src/lib.rs","text":"File::open(path)"},
-        {"message":"local playback rejects non-regular files","must_exist":true,"path":"platform/ios/ios-playback/src/lib.rs","text":"metadata.is_file()"},
-        {"message":"local playback preserves the validated UTF-8 path for Foundation conversion","must_exist":true,"path":"platform/ios/ios-playback/src/lib.rs","text":"NSString::from_str(path)"},
-        {"message":"local playback uses public AVPlayer URL construction","must_exist":true,"path":"platform/ios/ios-playback/src/lib.rs","text":"AVPlayer::playerWithURL(&url, main_thread)"},
-        {"message":"player creation requires a main-thread marker","must_exist":true,"path":"platform/ios/ios-playback/src/lib.rs","text":"main_thread: objc2::MainThreadMarker"},
-        {"message":"play control requires a main-thread marker","must_exist":true,"path":"platform/ios/ios-playback/src/lib.rs","text":"pub fn play(&self, _main_thread: objc2::MainThreadMarker)"},
-        {"message":"pause control requires a main-thread marker","must_exist":true,"path":"platform/ios/ios-playback/src/lib.rs","text":"pub fn pause(&self, _main_thread: objc2::MainThreadMarker)"},
-        {"message":"player exposes its volume read operation","must_exist":true,"path":"platform/ios/ios-playback/src/lib.rs","text":"pub fn volume("},
-        {"message":"player exposes its volume setter operation","must_exist":true,"path":"platform/ios/ios-playback/src/lib.rs","text":"pub fn set_volume("},
-        {"message":"player exposes its mute read operation","must_exist":true,"path":"platform/ios/ios-playback/src/lib.rs","text":"pub fn is_muted("},
-        {"message":"player exposes its mute setter operation","must_exist":true,"path":"platform/ios/ios-playback/src/lib.rs","text":"pub fn set_muted("},
-        {"message":"AVPlayer output controls are unavailable below iOS 7","must_exist":true,"path":"platform/ios/ios-playback/src/lib.rs","text":"objc2::available!(ios = 7.0, ..)"},
-        {"message":"player volume read must use the typed AVPlayer getter","must_exist":true,"path":"platform/ios/ios-playback/src/lib.rs","text":"self.player.volume()"},
-        {"message":"player volume write must use the typed AVPlayer setter","must_exist":true,"path":"platform/ios/ios-playback/src/lib.rs","text":"self.player.setVolume(volume)"},
-        {"message":"player mute read must use the typed AVPlayer getter","must_exist":true,"path":"platform/ios/ios-playback/src/lib.rs","text":"self.player.isMuted()"},
-        {"message":"player mute write must use the typed AVPlayer setter","must_exist":true,"path":"platform/ios/ios-playback/src/lib.rs","text":"self.player.setMuted(muted)"},
-        {"message":"player volume setters must reject non-finite input","must_exist":true,"path":"platform/ios/ios-playback/src/lib.rs","text":"if !volume.is_finite()"},
-        {"message":"player volume setters must enforce the closed 0.0 through 1.0 range","must_exist":true,"path":"platform/ios/ios-playback/src/lib.rs","text":"!(0.0..=1.0).contains(&volume)"},
-        {"message":"player volume getter must validate native output","must_exist":true,"path":"platform/ios/ios-playback/src/lib.rs","text":"validate_native_player_volume(unsafe { self.player.volume() })"},
-        {"message":"host tests must reject non-finite player volume inputs","must_exist":true,"path":"platform/ios/ios-playback/src/lib.rs","text":"fn player_volume_rejects_non_finite_inputs()"},
-        {"message":"host tests must reject out-of-range player volume without clamping","must_exist":true,"path":"platform/ios/ios-playback/src/lib.rs","text":"fn player_volume_rejects_out_of_range_inputs_without_clamping()"},
-        {"message":"native AVPlayer access is borrowed","must_exist":true,"path":"platform/ios/ios-playback/src/lib.rs","text":") -> &objc2_av_foundation::AVPlayer"},
-        {"message":"play invokes the AVPlayer play control","must_exist":true,"path":"platform/ios/ios-playback/src/lib.rs","text":"self.player.play()"},
-        {"message":"pause invokes the AVPlayer pause control","must_exist":true,"path":"platform/ios/ios-playback/src/lib.rs","text":"self.player.pause()"},
-        {"message":"seek is exposed as a public IosFilePlayer method","must_exist":true,"path":"platform/ios/ios-playback/src/lib.rs","text":"pub fn seek_to("},
-        {"message":"seek accepts finite portable media time on the main thread","must_exist":true,"path":"platform/ios/ios-playback/src/lib.rs","text":"time: MediaTime,"},
-        {"message":"seek uses AVPlayer's public completion-handler method","must_exist":true,"path":"platform/ios/ios-playback/src/lib.rs","text":"seekToTime_completionHandler"},
-        {"message":"seek maps MediaTime to a valid epoch-zero CMTime","must_exist":true,"path":"platform/ios/ios-playback/src/lib.rs","text":"flags: objc2_core_media::CMTimeFlags::Valid"},
-        {"message":"seek CMTime uses epoch zero","must_exist":true,"path":"platform/ios/ios-playback/src/lib.rs","text":"epoch: 0"},
-        {"message":"seek preserves the exact rational numerator and timescale","must_exist":true,"path":"platform/ios/ios-playback/src/lib.rs","text":"let (value, timescale) = media_time_parts(time)"},
-        {"message":"seek completion capture is compile-time Send and Sync","must_exist":true,"path":"platform/ios/ios-playback/src/lib.rs","text":"assert_seek_handler_send_sync(&callback)"},
-        {"message":"seek callback contains panics","must_exist":true,"path":"platform/ios/ios-playback/src/lib.rs","text":"catch_unwind(AssertUnwindSafe(|| cell.complete(seek_outcome(finished))))"},
-        {"message":"seek completion settles only once","must_exist":true,"path":"platform/ios/ios-playback/src/lib.rs","text":"if state.completed"},
-        {"message":"seek future borrows its player","must_exist":true,"path":"platform/ios/ios-playback/src/lib.rs","text":"_player: &'a IosFilePlayer"},
-        {"message":"seek future retains its main-thread marker","must_exist":true,"path":"platform/ios/ios-playback/src/lib.rs","text":"_main_thread: objc2::MainThreadMarker"},
-        {"message":"dropping a seek future detaches Rust completion state","must_exist":true,"path":"platform/ios/ios-playback/src/lib.rs","text":"self.cell.detach()"},
-        {"message":"seek does not convert through floating point","must_exist":false,"path":"platform/ios/ios-playback/src/lib.rs","text":"as_secs_f64"},
-        {"message":"seek does not construct rounded CMTime through helper calls","must_exist":false,"path":"platform/ios/ios-playback/src/lib.rs","text":"CMTimeMake"},
-        {"message":"playback does not expose invalidatable current time","must_exist":false,"path":"platform/ios/ios-playback/src/lib.rs","text":"currentTime"},
-        {"message":"playback does not expose invalidatable duration","must_exist":false,"path":"platform/ios/ios-playback/src/lib.rs","text":"duration"},
-        {"message":"playback does not mutate the host audio session","must_exist":false,"path":"platform/ios/ios-playback/src/lib.rs","text":"AVAudioSession::sharedInstance"},
-        {"message":"playback does not implement system volume UI or control","must_exist":false,"path":"platform/ios/ios-playback/src/lib.rs","text":"MPVolumeView"},
-        {"message":"player volume setters must not clamp input","must_exist":false,"path":"platform/ios/ios-playback/src/lib.rs","text":"volume.clamp("},
-        {"message":"the link probe must retain the AVPlayer volume selector","must_exist":true,"path":"platform/ios/ios-playback/check-link-imports.sh","text":"grep -Fxq 'volume'"},
-        {"message":"the link probe must retain the AVPlayer volume setter selector","must_exist":true,"path":"platform/ios/ios-playback/check-link-imports.sh","text":"grep -Fxq 'setVolume:'"},
-        {"message":"the link probe must retain the AVPlayer mute getter selector","must_exist":true,"path":"platform/ios/ios-playback/check-link-imports.sh","text":"grep -Fxq 'isMuted'"},
-        {"message":"the link probe must retain the AVPlayer mute setter selector","must_exist":true,"path":"platform/ios/ios-playback/check-link-imports.sh","text":"grep -Fxq 'setMuted:'"}
-      ],
-      "id": "ios-playback",
-      "manifest": "platform/ios/ios-playback/Cargo.toml",
-      "offline": false,
-      "package": "ios-playback",
-      "rustdoc_warnings": false,
-      "scoped_files": [
-        "PLAN.md",
-        "PLAN_IOS_PLAYBACK.md",
-        "platform/ios/ios-playback/Cargo.toml",
-        "platform/ios/ios-playback/README.md",
-        "platform/ios/ios-playback/check-link-imports.sh",
-        "platform/ios/ios-playback/check.sh",
-        "platform/ios/ios-playback/examples/ios_playback_link_probe.rs",
-        "platform/ios/ios-playback/src/lib.rs"
-      ],
-      "shell_scripts": [
-        "platform/ios/ios-playback/check.sh",
-        "platform/ios/ios-playback/check-link-imports.sh"
-      ],
-      "source_dirs": [
-        "platform/ios/ios-playback"
-      ],
-      "targets": [{"minimum_os":"13.4","sdk":"iphoneos","triple":"aarch64-apple-ios"},{"minimum_os":"14.0","sdk":"iphonesimulator","triple":"aarch64-apple-ios-sim"}]
-    },
+    {"abi_scripts":["platform/ios/ios-playback/check-link-imports.sh"],"abi_targets":[{"minimum_os":"13.4","sdk":"iphoneos","triple":"aarch64-apple-ios"},{"minimum_os":"14.0","sdk":"iphonesimulator","triple":"aarch64-apple-ios-sim"}],"adapters":[],"cargo_tree":false,"check_script":"platform/ios/ios-playback/check.sh","clippy_all_targets":true,"clippy_lib":false,"docs":["docs/capabilities/capability-status.json","docs/capabilities/playback.md","docs/generated/CAPABILITY_STATUS.md","docs/generated/VALIDATION_PROFILES.md","docs/ios/playback.md","platform/ios/ios-playback/README.md","PLAN.md","PLAN_IOS_PLAYBACK.md"],"expected_imports":["AVFoundation.framework","CoreFoundation.framework","CoreMedia.framework","Foundation.framework","objc_msgSend"],"fmt_all":false,"guards":[{"message":"local playback rejects relative paths","must_exist":true,"path":"platform/ios/ios-playback/src/lib.rs","text":"Path::new(path).is_absolute()"},{"message":"local playback rejects embedded NUL","must_exist":true,"path":"platform/ios/ios-playback/src/lib.rs","text":"path.contains('\\0')"},{"message":"local playback opens its path before AVPlayer construction","must_exist":true,"path":"platform/ios/ios-playback/src/lib.rs","text":"File::open(path)"},{"message":"local playback rejects non-regular files","must_exist":true,"path":"platform/ios/ios-playback/src/lib.rs","text":"metadata.is_file()"},{"message":"local playback preserves the validated UTF-8 path for Foundation conversion","must_exist":true,"path":"platform/ios/ios-playback/src/lib.rs","text":"NSString::from_str(path)"},{"message":"local playback uses public AVPlayer URL construction","must_exist":true,"path":"platform/ios/ios-playback/src/lib.rs","text":"AVPlayer::playerWithURL(&url, main_thread)"},{"message":"player creation requires a main-thread marker","must_exist":true,"path":"platform/ios/ios-playback/src/lib.rs","text":"main_thread: objc2::MainThreadMarker"},{"message":"play control requires a main-thread marker","must_exist":true,"path":"platform/ios/ios-playback/src/lib.rs","text":"pub fn play(&self, _main_thread: objc2::MainThreadMarker)"},{"message":"pause control requires a main-thread marker","must_exist":true,"path":"platform/ios/ios-playback/src/lib.rs","text":"pub fn pause(&self, _main_thread: objc2::MainThreadMarker)"},{"message":"player exposes its volume read operation","must_exist":true,"path":"platform/ios/ios-playback/src/lib.rs","text":"pub fn volume("},{"message":"player exposes its volume setter operation","must_exist":true,"path":"platform/ios/ios-playback/src/lib.rs","text":"pub fn set_volume("},{"message":"player exposes its mute read operation","must_exist":true,"path":"platform/ios/ios-playback/src/lib.rs","text":"pub fn is_muted("},{"message":"player exposes its mute setter operation","must_exist":true,"path":"platform/ios/ios-playback/src/lib.rs","text":"pub fn set_muted("},{"message":"AVPlayer output controls are unavailable below iOS 7","must_exist":true,"path":"platform/ios/ios-playback/src/lib.rs","text":"objc2::available!(ios = 7.0, ..)"},{"message":"player volume read must use the typed AVPlayer getter","must_exist":true,"path":"platform/ios/ios-playback/src/lib.rs","text":"self.player.volume()"},{"message":"player volume write must use the typed AVPlayer setter","must_exist":true,"path":"platform/ios/ios-playback/src/lib.rs","text":"self.player.setVolume(volume)"},{"message":"player mute read must use the typed AVPlayer getter","must_exist":true,"path":"platform/ios/ios-playback/src/lib.rs","text":"self.player.isMuted()"},{"message":"player mute write must use the typed AVPlayer setter","must_exist":true,"path":"platform/ios/ios-playback/src/lib.rs","text":"self.player.setMuted(muted)"},{"message":"player volume setters must reject non-finite input","must_exist":true,"path":"platform/ios/ios-playback/src/lib.rs","text":"if !volume.is_finite()"},{"message":"player volume setters must enforce the closed 0.0 through 1.0 range","must_exist":true,"path":"platform/ios/ios-playback/src/lib.rs","text":"!(0.0..=1.0).contains(&volume)"},{"message":"player volume getter must validate native output","must_exist":true,"path":"platform/ios/ios-playback/src/lib.rs","text":"validate_native_player_volume(unsafe { self.player.volume() })"},{"message":"host tests must reject non-finite player volume inputs","must_exist":true,"path":"platform/ios/ios-playback/src/lib.rs","text":"fn player_volume_rejects_non_finite_inputs()"},{"message":"host tests must reject out-of-range player volume without clamping","must_exist":true,"path":"platform/ios/ios-playback/src/lib.rs","text":"fn player_volume_rejects_out_of_range_inputs_without_clamping()"},{"message":"native AVPlayer access is borrowed","must_exist":true,"path":"platform/ios/ios-playback/src/lib.rs","text":") -> &objc2_av_foundation::AVPlayer"},{"message":"play invokes the AVPlayer play control","must_exist":true,"path":"platform/ios/ios-playback/src/lib.rs","text":"self.player.play()"},{"message":"pause invokes the AVPlayer pause control","must_exist":true,"path":"platform/ios/ios-playback/src/lib.rs","text":"self.player.pause()"},{"message":"seek is exposed as a public IosFilePlayer method","must_exist":true,"path":"platform/ios/ios-playback/src/lib.rs","text":"pub fn seek_to("},{"message":"seek accepts finite portable media time on the main thread","must_exist":true,"path":"platform/ios/ios-playback/src/lib.rs","text":"time: MediaTime,"},{"message":"seek uses AVPlayer's public completion-handler method","must_exist":true,"path":"platform/ios/ios-playback/src/lib.rs","text":"seekToTime_completionHandler"},{"message":"seek maps MediaTime to a valid epoch-zero CMTime","must_exist":true,"path":"platform/ios/ios-playback/src/lib.rs","text":"flags: objc2_core_media::CMTimeFlags::Valid"},{"message":"seek CMTime uses epoch zero","must_exist":true,"path":"platform/ios/ios-playback/src/lib.rs","text":"epoch: 0"},{"message":"seek preserves the exact rational numerator and timescale","must_exist":true,"path":"platform/ios/ios-playback/src/lib.rs","text":"let (value, timescale) = media_time_parts(time)"},{"message":"seek completion capture is compile-time Send and Sync","must_exist":true,"path":"platform/ios/ios-playback/src/lib.rs","text":"assert_seek_handler_send_sync(&callback)"},{"message":"seek callback contains panics","must_exist":true,"path":"platform/ios/ios-playback/src/lib.rs","text":"catch_unwind(AssertUnwindSafe(|| cell.complete(seek_outcome(finished))))"},{"message":"seek completion settles only once","must_exist":true,"path":"platform/ios/ios-playback/src/lib.rs","text":"if state.completed"},{"message":"seek future borrows its player","must_exist":true,"path":"platform/ios/ios-playback/src/lib.rs","text":"_player: &'a IosFilePlayer"},{"message":"seek future retains its main-thread marker","must_exist":true,"path":"platform/ios/ios-playback/src/lib.rs","text":"_main_thread: objc2::MainThreadMarker"},{"message":"dropping a seek future detaches Rust completion state","must_exist":true,"path":"platform/ios/ios-playback/src/lib.rs","text":"self.cell.detach()"},{"message":"seek does not convert through floating point","must_exist":false,"path":"platform/ios/ios-playback/src/lib.rs","text":"as_secs_f64"},{"message":"seek does not construct rounded CMTime through helper calls","must_exist":false,"path":"platform/ios/ios-playback/src/lib.rs","text":"CMTimeMake"},{"message":"playback does not expose invalidatable current time","must_exist":false,"path":"platform/ios/ios-playback/src/lib.rs","text":"currentTime"},{"message":"playback does not expose invalidatable duration","must_exist":false,"path":"platform/ios/ios-playback/src/lib.rs","text":"duration"},{"message":"playback does not mutate the host audio session","must_exist":false,"path":"platform/ios/ios-playback/src/lib.rs","text":"AVAudioSession::sharedInstance"},{"message":"playback does not implement system volume UI or control","must_exist":false,"path":"platform/ios/ios-playback/src/lib.rs","text":"MPVolumeView"},{"message":"player volume setters must not clamp input","must_exist":false,"path":"platform/ios/ios-playback/src/lib.rs","text":"volume.clamp("},{"message":"the link probe must retain the AVPlayer volume selector","must_exist":true,"path":"platform/ios/ios-playback/check-link-imports.sh","text":"grep -Fxq 'volume'"},{"message":"the link probe must retain the AVPlayer volume setter selector","must_exist":true,"path":"platform/ios/ios-playback/check-link-imports.sh","text":"grep -Fxq 'setVolume:'"},{"message":"the link probe must retain the AVPlayer mute getter selector","must_exist":true,"path":"platform/ios/ios-playback/check-link-imports.sh","text":"grep -Fxq 'isMuted'"},{"message":"the link probe must retain the AVPlayer mute setter selector","must_exist":true,"path":"platform/ios/ios-playback/check-link-imports.sh","text":"grep -Fxq 'setMuted:'"}],"id":"ios-playback","manifest":"platform/ios/ios-playback/Cargo.toml","offline":false,"package":"ios-playback","rustdoc_warnings":false,"scoped_files":["PLAN.md","PLAN_IOS_PLAYBACK.md","platform/ios/ios-playback/Cargo.toml","platform/ios/ios-playback/README.md","platform/ios/ios-playback/check-link-imports.sh","platform/ios/ios-playback/check.sh","platform/ios/ios-playback/examples/ios_playback_link_probe.rs","platform/ios/ios-playback/src/lib.rs"],"shell_scripts":["platform/ios/ios-playback/check.sh","platform/ios/ios-playback/check-link-imports.sh"],"source_dirs":["platform/ios/ios-playback"],"targets":[{"minimum_os":"13.4","sdk":"iphoneos","triple":"aarch64-apple-ios"},{"minimum_os":"14.0","sdk":"iphonesimulator","triple":"aarch64-apple-ios-sim"}]},
     {
       "abi_scripts": [
         "platform/ios/ios-contacts/scripts/check-link-imports.sh"
@@ -1685,7 +1380,8 @@
       "rustdoc_warnings": true,
       "cargo_tree": false
     },
-    {"abi_scripts":["platform/ios/ios-pcm-audio-output/check-link-imports.sh"],"abi_targets":[{"triple":"aarch64-apple-ios","sdk":"iphoneos","minimum_os":"13.0"},{"triple":"aarch64-apple-ios-sim","sdk":"iphonesimulator","minimum_os":"14.0"}],"adapters":[],"cargo_tree":false,"check_script":"platform/ios/ios-pcm-audio-output/check-link-imports.sh","clippy_all_targets":true,"clippy_lib":false,"docs":["docs/ios/pcm-audio-output.md"],"expected_imports":["AVFoundation.framework","Foundation.framework","libSystem.B.dylib","libobjc.A.dylib","objc_msgSend"],"fmt_all":false,"guards":[],"id":"ios-pcm-audio-output","manifest":"platform/ios/ios-pcm-audio-output/Cargo.toml","offline":true,"package":"ios-pcm-audio-output","rustdoc_warnings":true,"scoped_files":["platform/ios/ios-pcm-audio-output/Cargo.toml","platform/ios/ios-pcm-audio-output/check-link-imports.sh","platform/ios/ios-pcm-audio-output/examples/pcm_audio_output_link_probe.rs","platform/ios/ios-pcm-audio-output/src/lib.rs"],"shell_scripts":["platform/ios/ios-pcm-audio-output/check-link-imports.sh"],"source_dirs":["platform/ios/ios-pcm-audio-output"],"targets":[{"triple":"aarch64-apple-ios","sdk":"iphoneos","minimum_os":"13.0"},{"triple":"aarch64-apple-ios-sim","sdk":"iphonesimulator","minimum_os":"14.0"}]}
+    {"abi_scripts":["platform/ios/ios-pcm-audio-output/check-link-imports.sh"],"abi_targets":[{"triple":"aarch64-apple-ios","sdk":"iphoneos","minimum_os":"13.0"},{"triple":"aarch64-apple-ios-sim","sdk":"iphonesimulator","minimum_os":"14.0"}],"adapters":[],"cargo_tree":false,"check_script":"platform/ios/ios-pcm-audio-output/check-link-imports.sh","clippy_all_targets":true,"clippy_lib":false,"docs":["docs/ios/pcm-audio-output.md"],"expected_imports":["AVFoundation.framework","Foundation.framework","libSystem.B.dylib","libobjc.A.dylib","objc_msgSend"],"fmt_all":false,"guards":[],"id":"ios-pcm-audio-output","manifest":"platform/ios/ios-pcm-audio-output/Cargo.toml","offline":true,"package":"ios-pcm-audio-output","rustdoc_warnings":true,"scoped_files":["platform/ios/ios-pcm-audio-output/Cargo.toml","platform/ios/ios-pcm-audio-output/check-link-imports.sh","platform/ios/ios-pcm-audio-output/examples/pcm_audio_output_link_probe.rs","platform/ios/ios-pcm-audio-output/src/lib.rs"],"shell_scripts":["platform/ios/ios-pcm-audio-output/check-link-imports.sh"],"source_dirs":["platform/ios/ios-pcm-audio-output"],"targets":[{"triple":"aarch64-apple-ios","sdk":"iphoneos","minimum_os":"13.0"},{"triple":"aarch64-apple-ios-sim","sdk":"iphonesimulator","minimum_os":"14.0"}]},
+    {"abi_scripts":["platform/ios/ios-audio-session/check-link-imports.sh"],"abi_targets":[{"triple":"aarch64-apple-ios","sdk":"iphoneos","minimum_os":"10.0"},{"triple":"aarch64-apple-ios-sim","sdk":"iphonesimulator","minimum_os":"14.0"}],"adapters":[],"cargo_tree":false,"check_script":"platform/ios/ios-audio-session/check-link-imports.sh","clippy_all_targets":true,"clippy_lib":false,"docs":["docs/capabilities/capability-status.json","docs/ios/audio-session.md","docs/DOCUMENTATION.md","PLAN.md"],"expected_imports":["AVFoundation.framework","Foundation.framework","libSystem.B.dylib","libobjc.A.dylib","objc_msgSend"],"fmt_all":false,"guards":[{"message":"the zero-state shared handle constructor must be const","must_exist":true,"path":"platform/ios/ios-audio-session/src/lib.rs","text":"pub const fn shared() -> Self {"},{"message":"handle drop must not mutate shared session policy","must_exist":false,"path":"platform/ios/ios-audio-session/src/lib.rs","text":"impl Drop for IosAudioSession"},{"message":"category mode and options must use the public combined setter","must_exist":true,"path":"platform/ios/ios-audio-session/src/platform.rs","text":"session.setCategory_mode_options_error("},{"message":"activation must be an explicit public session call","must_exist":true,"path":"platform/ios/ios-audio-session/src/platform.rs","text":"setActive_withOptions_error(true,"},{"message":"deactivation must be an explicit public session call","must_exist":true,"path":"platform/ios/ios-audio-session/src/platform.rs","text":"setActive_withOptions_error(false,"},{"message":"session control must not request microphone permission","must_exist":false,"path":"platform/ios/ios-audio-session/src/platform.rs","text":"requestRecordPermission"}],"id":"ios-audio-session","manifest":"platform/ios/ios-audio-session/Cargo.toml","offline":true,"package":"ios-audio-session","rustdoc_warnings":true,"scoped_files":["platform/ios/ios-audio-session/Cargo.toml","platform/ios/ios-audio-session/check-link-imports.sh","platform/ios/ios-audio-session/examples/ios_audio_session_link_probe.rs","platform/ios/ios-audio-session/src/lib.rs","platform/ios/ios-audio-session/src/platform.rs"],"shell_scripts":["platform/ios/ios-audio-session/check-link-imports.sh"],"source_dirs":["platform/ios/ios-audio-session"],"targets":[{"triple":"aarch64-apple-ios","sdk":"iphoneos","minimum_os":"10.0"},{"triple":"aarch64-apple-ios-sim","sdk":"iphonesimulator","minimum_os":"14.0"}]}
   ],
   "schema_version": 1,
   "path_rules": [
@@ -1742,6 +1438,7 @@
     {"path":"crates/framework-files/","node":"framework-files","global":false},
     {"path":"platform/ios/ios-files/","node":"ios-files","global":false},
     {"path":"crates/framework-connection/","node":"framework-connection","global":false},
-    {"path":"platform/ios/ios-connection/","node":"ios-connection","global":false}
+    {"path":"platform/ios/ios-connection/","node":"ios-connection","global":false},
+    {"path":"platform/ios/ios-audio-session/","node":"ios-audio-session","global":false}
   ]
 }

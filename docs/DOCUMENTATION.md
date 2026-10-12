@@ -296,6 +296,10 @@ The portable camera/microphone authorization-status contract and AVFoundation ad
 [media authorization](capabilities/media-authorization.md) and
 [iOS media authorization](ios/media-authorization.md) guides.
 
+The explicit host-owned `AVAudioSession` category, mode, and activation controls have a separate
+[iOS audio-session guide](ios/audio-session.md); the API does not request permission or mutate state
+on handle create or drop.
+
 The portable NFC reader-support snapshot and Core NFC adapter have separate
 [NFC](capabilities/nfc.md) and [iOS NFC](ios/nfc.md) guides.
 

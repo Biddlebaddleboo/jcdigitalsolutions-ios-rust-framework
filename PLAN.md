@@ -499,3 +499,12 @@ Before integration: verify current `main`, use isolated worktrees for parallel-s
 ## Retired infrastructure plans (historical only)
 
 `PLAN_REUSE_BUILD.md`, `PLAN_REUSE_VALIDATION.md`, and `PLAN_TOOLING_FINALIZATION.md` were deleted from current `main` in `f3b14892a560da05a086caf9e6d30a0c9beda25e` because their shared tooling implementation is finished. Do not recreate these plans or assign R1/R2 implementation work. Their former Git history is archival. Any unrelated API-specific validation registration is a capability/validation integration task, not an engine rewrite.
+
+### B544 — explicit iOS audio-session control (row 047)
+
+B544 adds a zero-state `IosAudioSession` handle for explicit shared-session category/mode/options,
+activation, and deactivation. The caller owns process-wide policy; handle create/drop do not mutate
+session state, and the API does not prompt or own stream lifecycle. The registered iOS 10.0 device
+and iOS 14.0 Simulator gates prove compile/link/import and deployment metadata only. Host tests
+cover option mapping and stable Rust error mapping; no audio-session or CallKit runtime behavior is
+claimed. See [the API guide](docs/ios/audio-session.md).
