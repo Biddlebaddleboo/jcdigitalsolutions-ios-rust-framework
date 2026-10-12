@@ -1012,8 +1012,11 @@ dependencies = [
 name = "ios-nfc"
 version = "0.1.0"
 dependencies = [
+ "dispatch2",
  "framework-nfc",
+ "objc2",
  "objc2-core-nfc",
+ "objc2-foundation",
 ]
 
 [[package]]
@@ -1688,6 +1691,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "758693d59bdcb001f1dc43de1137934471709869206c6b0cfe4d238a47d9cc30"
 dependencies = [
  "bitflags",
+ "dispatch2",
  "objc2",
  "objc2-foundation",
 ]

@@ -42,3 +42,9 @@ Do not edit the root workspace manifest, canonical capability status manifest, a
 - Rust 1.94.1 checks passed: `cargo +1.94.1 fmt --all -- --check`; `cargo +1.94.1 test --locked --offline -p framework-nfc` (1 passed); `cargo +1.94.1 check --locked --offline -p framework-nfc --no-default-features`; `cargo +1.94.1 tree --locked --offline -p framework-nfc` (only `framework-core`); and `git diff --check`.
 - The pinned `ios-rust-build` and `ios-rust-validate` binaries reported version 0.1.0 and source SHA `2289e6a73257b696f6ae5ecd61ee20fd16ab8b37`. `ios-rust-validate --list` has no D32 profile; it lists only the four current iOS pilot profiles. The source/API audit found no `std`, `alloc`, dynamic dispatch, global state, Apple types, or NFC session/tag API in `framework-nfc`.
 - No native NFC query, hardware behavior, session, scan, or tag operation was run. Canonical capability row 040 remains `partial`; this slice does not claim full NFC session/tag support.
+
+## B573 reconciliation — one-shot NDEF reads — 2026-10-12
+
+- `framework-nfc` now defines byte-preserving NDEF formats, records and messages plus a static `NdefReadBackend` / `NdefReader` contract; opaque payload bytes and record order are preserved.
+- `ios-nfc` retains the B37 support query and adds one-shot `NFCNDEFReaderSession` reads. The session begins on first future poll; the first message, error or cancellation settles once, and dropping an active read invalidates its session. Its retained delegate and callback state remain main-queue-bound.
+- Canonical row 040 remains `partial`: NDEF writes, non-NDEF tag protocols, native tag handles and background reads remain unsupported. App provisioning, prompts, hardware access and live tag behavior were not verified on-device.

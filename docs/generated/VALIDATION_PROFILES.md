@@ -43,6 +43,8 @@ The following are configured validation profiles, not claims that every gate pas
 | ios-contact-picker | ios-contact-picker | 2 | 1 | 0 | False |
 | ios-photo-picker | ios-photo-picker | 2 | 1 | 0 | False |
 | ios-voip-pushkit | ios-voip-pushkit | 2 | 1 | 0 | True |
+| framework-nfc | framework-nfc | 2 | 0 | 1 | True |
+| ios-nfc | ios-nfc | 2 | 1 | 0 | True |
 
 
 ## Inspect actual gates

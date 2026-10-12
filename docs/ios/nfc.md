@@ -72,4 +72,4 @@ implement custom `NFCTagReaderSession` protocols, ISO7816 APDUs, MIFARE commands
 or background reading. Host tests and device/Simulator compile/link checks are not proof of
 provisioning, prompt behavior, physical tag access, or Simulator NFC runtime support.
 
-The original reader-support query remains described in [PLAN_IOS_NFC.md](../../PLAN_IOS_NFC.md).
+The capability boundary and remaining NFC gaps are tracked in [the Core NFC plan](../../PLAN_CAPABILITIES_NFC.md).

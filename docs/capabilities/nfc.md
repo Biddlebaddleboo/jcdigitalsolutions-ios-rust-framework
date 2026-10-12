@@ -37,5 +37,4 @@ checks do not establish entitlement provisioning, the system prompt, physical ta
 Simulator/device runtime behavior.
 
 The prior availability-only increment and its query safety boundary remain in
-[the iOS NFC guide](../ios/nfc.md). The scoped implementation record is
-[PLAN_IOS_NFC.md](../../PLAN_IOS_NFC.md).
+[the iOS NFC guide](../ios/nfc.md).
