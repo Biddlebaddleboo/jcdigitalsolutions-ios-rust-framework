@@ -78,6 +78,10 @@ for target in aarch64-apple-ios aarch64-apple-ios-sim; do
         printf '%s probe does not import the built-in wide-angle device type\n' "$target" >&2
         exit 1
     }
+    printf '%s\n' "$symbols" | grep -F '_AVCaptureDeviceTypeBuiltInTelephotoCamera' >/dev/null || {
+        printf '%s probe does not import the built-in telephoto device type\n' "$target" >&2
+        exit 1
+    }
     printf '%s\n' "$symbols" | grep -F '_AVMediaTypeAudio' >/dev/null || {
         printf '%s probe does not import the public audio media-type constant _AVMediaTypeAudio\n' "$target" >&2
         exit 1
@@ -86,6 +90,7 @@ for target in aarch64-apple-ios aarch64-apple-ios-sim; do
     for symbol in \
         AVCaptureSession \
         AVCaptureDeviceInput \
+        AVCaptureDeviceDiscoverySession \
         AVCapturePhotoOutput \
         AVCaptureMovieFileOutput \
         AVCaptureVideoDataOutput \
@@ -97,6 +102,10 @@ for target in aarch64-apple-ios aarch64-apple-ios-sim; do
         authorizationStatusForMediaType: \
         defaultDeviceWithMediaType: \
         defaultDeviceWithDeviceType:mediaType:position: \
+        discoverySessionWithDeviceTypes:mediaType:position: \
+        deviceType \
+        firstObject \
+        isEqualToString: \
         deviceInputWithDevice:error: \
         hasTorch \
         isTorchAvailable \

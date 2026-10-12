@@ -5,6 +5,36 @@ processed JPEG capture, video recording, and optional video samples through publ
 Session construction does not prompt; request camera access through `ios-media-authorization` and
 provide `NSCameraUsageDescription` before an app asks for access.
 
+## Exact built-in camera selection
+
+`IosCameraDeviceSelection` combines `IosCameraDeviceType::{WideAngle, Telephoto}` with
+`IosCameraPosition::{Front, Back}`. Use `new_with_camera_selection` at construction or
+`set_camera_selection` to switch an existing session. Both types are public AVFoundation device
+types available from iOS 10.0; telephoto is found with a one-type, one-position
+`AVCaptureDeviceDiscoverySession` query. An unavailable exact selection returns a typed error and
+never falls back to another type or position. The existing position-only APIs still select the
+default built-in wide-angle camera, and neither API requests permission.
+
+Existing-session changes create the requested device/input before one AVFoundation session
+configuration transaction. The old input is restored if the new input is rejected; restoration
+failure invalidates the retained camera graph and is reported distinctly. Photo, movie, sample,
+preview, and session settings remain attached. Selection is serialized with capture operations and
+is rejected during movie finalization or pending shutdown. Static host, device, and Simulator
+checks do not prove hardware availability, camera switching, preview continuity, or runtime
+behavior.
+
+```rust,ignore
+let selection = IosCameraDeviceSelection::new(
+    IosCameraDeviceType::Telephoto,
+    IosCameraPosition::Back,
+);
+let session = IosCameraCaptureSession::new_with_camera_selection(main_thread, selection)?;
+session.set_camera_selection(IosCameraDeviceSelection::new(
+    IosCameraDeviceType::WideAngle,
+    IosCameraPosition::Front,
+))?;
+```
+
 ## Live preview orientation
 
 `set_preview_orientation(main_thread, orientation)` sets the live preview layer's public AVFoundation video connection to `Portrait`, `PortraitUpsideDown`, `LandscapeRight`, or `LandscapeLeft`. Call it on the main thread after session creation. The method checks native orientation support before it calls the setter and returns `PreviewOrientationError` if the connection is absent or rejects the choice

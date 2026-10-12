@@ -128,6 +128,24 @@ fn main() {
     let _ = std::hint::black_box(
         session.set_camera_position(ios_camera_capture_session::IosCameraPosition::Back),
     );
+    for device_type in [
+        ios_camera_capture_session::IosCameraDeviceType::WideAngle,
+        ios_camera_capture_session::IosCameraDeviceType::Telephoto,
+    ] {
+        let selection = ios_camera_capture_session::IosCameraDeviceSelection::new(
+            device_type,
+            ios_camera_capture_session::IosCameraPosition::Back,
+        );
+        let _ = std::hint::black_box(session.set_camera_selection(selection));
+        if let Some(main_thread) = objc2::MainThreadMarker::new() {
+            let _ = std::hint::black_box(
+                ios_camera_capture_session::IosCameraCaptureSession::new_with_camera_selection(
+                    main_thread,
+                    selection,
+                ),
+            );
+        }
+    }
 }
 
 #[cfg(not(target_os = "ios"))]

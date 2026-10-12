@@ -37,7 +37,8 @@ use objc2::runtime::ProtocolObject;
 use objc2::{AnyThread, DefinedClass, MainThreadMarker, define_class, msg_send};
 #[cfg(target_os = "ios")]
 use objc2_av_foundation::{
-    AVCaptureConnection, AVCaptureDevice, AVCaptureDeviceInput, AVCaptureDevicePosition,
+    AVCaptureConnection, AVCaptureDevice, AVCaptureDeviceDiscoverySession, AVCaptureDeviceInput,
+    AVCaptureDevicePosition, AVCaptureDeviceTypeBuiltInTelephotoCamera,
     AVCaptureDeviceTypeBuiltInWideAngleCamera, AVCaptureExposureMode, AVCaptureFileOutput,
     AVCaptureFileOutputRecordingDelegate, AVCaptureFlashMode, AVCaptureFocusMode,
     AVCaptureMovieFileOutput, AVCaptureOutput, AVCapturePhoto, AVCapturePhotoCaptureDelegate,
@@ -487,6 +488,7 @@ where
 fn camera_position_switch_required(
     movie_state: &MovieRecordingState,
     current_position: Option<IosCameraPosition>,
+    current_device_type: Option<IosCameraDeviceType>,
     has_video_input: bool,
     requested: IosCameraPosition,
 ) -> Result<bool, CameraPositionSwitchError> {
@@ -499,7 +501,70 @@ fn camera_position_switch_required(
     if !has_video_input {
         return Err(CameraPositionSwitchError::NoSelectedCamera);
     }
-    Ok(current_position != Some(requested))
+    Ok(current_position != Some(requested)
+        || current_device_type
+            .is_some_and(|device_type| device_type != IosCameraDeviceType::WideAngle))
+}
+
+#[cfg(any(target_os = "ios", test))]
+fn camera_device_selection_switch_required(
+    movie_state: &MovieRecordingState,
+    current_selection: Option<IosCameraDeviceSelection>,
+    has_video_input: bool,
+    requested: IosCameraDeviceSelection,
+) -> Result<bool, CameraDeviceSelectionError> {
+    if movie_state.pending_session_stop {
+        return Err(CameraDeviceSelectionError::SessionStopping);
+    }
+    if movie_state.active {
+        return Err(CameraDeviceSelectionError::MovieRecordingActive);
+    }
+    if !has_video_input {
+        return Err(CameraDeviceSelectionError::NoSelectedCamera);
+    }
+    Ok(current_selection != Some(requested))
+}
+
+#[cfg(any(target_os = "ios", test))]
+fn camera_device_selection_matches(
+    requested: IosCameraDeviceSelection,
+    candidate_type: IosCameraDeviceType,
+    candidate_position: IosCameraPosition,
+) -> bool {
+    requested == IosCameraDeviceSelection::new(candidate_type, candidate_position)
+}
+
+#[cfg(any(target_os = "ios", test))]
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum CameraInputReplacementError {
+    SessionRejectedInput,
+    InputRollbackFailed,
+}
+
+#[cfg(any(target_os = "ios", test))]
+fn map_position_replacement_error(error: CameraInputReplacementError) -> CameraPositionSwitchError {
+    match error {
+        CameraInputReplacementError::SessionRejectedInput => {
+            CameraPositionSwitchError::SessionRejectedInput
+        }
+        CameraInputReplacementError::InputRollbackFailed => {
+            CameraPositionSwitchError::InputRollbackFailed
+        }
+    }
+}
+
+#[cfg(any(target_os = "ios", test))]
+fn map_selection_replacement_error(
+    error: CameraInputReplacementError,
+) -> CameraDeviceSelectionError {
+    match error {
+        CameraInputReplacementError::SessionRejectedInput => {
+            CameraDeviceSelectionError::SessionRejectedInput
+        }
+        CameraInputReplacementError::InputRollbackFailed => {
+            CameraDeviceSelectionError::InputRollbackFailed
+        }
+    }
 }
 
 #[cfg(any(target_os = "ios", test))]
@@ -511,7 +576,7 @@ fn replace_camera_session_input<T>(
     mut add_input: impl FnMut(&T),
     begin_configuration: impl FnOnce(),
     commit_configuration: impl FnOnce(),
-) -> Result<T, CameraPositionSwitchError> {
+) -> Result<T, CameraInputReplacementError> {
     begin_configuration();
     remove_input(old_input);
     if can_add_input(&new_input) {
@@ -521,33 +586,37 @@ fn replace_camera_session_input<T>(
     } else if can_add_input(old_input) {
         add_input(old_input);
         commit_configuration();
-        Err(CameraPositionSwitchError::SessionRejectedInput)
+        Err(CameraInputReplacementError::SessionRejectedInput)
     } else {
         commit_configuration();
-        Err(CameraPositionSwitchError::InputRollbackFailed)
+        Err(CameraInputReplacementError::InputRollbackFailed)
     }
 }
 
 #[cfg(any(target_os = "ios", test))]
-fn finish_camera_input_replacement<D, I>(
+fn finish_camera_input_replacement<D, I, E: Copy + PartialEq>(
     device: &mut Option<D>,
     input: &mut Option<I>,
     current_position: &mut Option<IosCameraPosition>,
-    requested: IosCameraPosition,
-    replacement: Result<(D, I), CameraPositionSwitchError>,
-) -> Result<(), CameraPositionSwitchError> {
+    current_device_type: &mut Option<IosCameraDeviceType>,
+    requested: IosCameraDeviceSelection,
+    replacement: Result<(D, I), E>,
+    rollback_failed_error: E,
+) -> Result<(), E> {
     match replacement {
         Ok((new_device, new_input)) => {
             *input = Some(new_input);
             *device = Some(new_device);
-            *current_position = Some(requested);
+            *current_position = Some(requested.position());
+            *current_device_type = Some(requested.device_type());
             Ok(())
         }
         Err(error) => {
-            if error == CameraPositionSwitchError::InputRollbackFailed {
+            if error == rollback_failed_error {
                 *input = None;
                 *device = None;
                 *current_position = None;
+                *current_device_type = None;
             }
             Err(error)
         }
@@ -1384,7 +1453,7 @@ fn settle_movie_audio_on_queue(graph: &mut CaptureGraph) -> bool {
     })
 }
 
-/// Front- or back-facing built-in wide-angle camera position
+/// Front- or back-facing built-in video camera position
 #[cfg(any(target_os = "ios", test))]
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum IosCameraPosition {
@@ -1392,6 +1461,45 @@ pub enum IosCameraPosition {
     Front,
     /// The subject-facing built-in wide-angle camera
     Back,
+}
+
+/// Public built-in video camera device type
+#[cfg(any(target_os = "ios", test))]
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum IosCameraDeviceType {
+    /// General-purpose built-in wide-angle camera
+    WideAngle,
+    /// Built-in camera with a longer focal length than the wide-angle camera
+    Telephoto,
+}
+
+/// Exact built-in camera device type and front/back position
+#[cfg(any(target_os = "ios", test))]
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct IosCameraDeviceSelection {
+    device_type: IosCameraDeviceType,
+    position: IosCameraPosition,
+}
+
+#[cfg(any(target_os = "ios", test))]
+impl IosCameraDeviceSelection {
+    /// Create an exact built-in camera selection
+    pub const fn new(device_type: IosCameraDeviceType, position: IosCameraPosition) -> Self {
+        Self {
+            device_type,
+            position,
+        }
+    }
+
+    /// Return the requested built-in camera device type
+    pub const fn device_type(self) -> IosCameraDeviceType {
+        self.device_type
+    }
+
+    /// Return the requested front/back camera position
+    pub const fn position(self) -> IosCameraPosition {
+        self.position
+    }
 }
 
 /// Failure to switch an existing session's selected built-in wide-angle camera
@@ -1404,6 +1512,30 @@ pub enum CameraPositionSwitchError {
     VideoMediaTypeUnavailable,
     /// The requested built-in wide-angle camera is unavailable
     NoCameraAtPosition(IosCameraPosition),
+    /// AVFoundation could not create an input for the requested camera
+    DeviceInputCreationFailed,
+    /// The capture session has no selected video device/input to replace
+    NoSelectedCamera,
+    /// AVFoundation rejected the requested input; the prior input was restored
+    SessionRejectedInput,
+    /// AVFoundation rejected the requested input and could not restore the prior input
+    InputRollbackFailed,
+    /// A movie recording or its terminal finalization is active
+    MovieRecordingActive,
+    /// Session shutdown is pending after an active movie recording
+    SessionStopping,
+}
+
+/// Failure to construct or switch to an exact built-in camera selection
+#[cfg(any(target_os = "ios", test))]
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum CameraDeviceSelectionError {
+    /// The operating system predates camera device discovery
+    UnsupportedOperatingSystem,
+    /// The public AVFoundation video media-type constant is unavailable
+    VideoMediaTypeUnavailable,
+    /// The exact built-in camera type and position are unavailable
+    NoCameraAtSelection(IosCameraDeviceSelection),
     /// AVFoundation could not create an input for the requested camera
     DeviceInputCreationFailed,
     /// The capture session has no selected video device/input to replace
@@ -1454,6 +1586,8 @@ pub enum CameraCaptureError {
     NoDefaultVideoDevice,
     /// The system has no built-in wide-angle video device at the requested position
     NoCameraAtPosition(IosCameraPosition),
+    /// The system has no device for the exact requested type and position
+    NoCameraAtSelection(IosCameraDeviceSelection),
     /// AVFoundation could not create an input for the selected video device
     DeviceInputCreationFailed,
     /// AVFoundation rejected the selected video input for the new session
@@ -1999,11 +2133,27 @@ fn require_camera_at_position<T>(
 }
 
 #[cfg(any(target_os = "ios", test))]
+fn require_camera_at_selection<T>(
+    selection: IosCameraDeviceSelection,
+    device: Option<T>,
+) -> Result<T, CameraCaptureError> {
+    device.ok_or(CameraCaptureError::NoCameraAtSelection(selection))
+}
+
+#[cfg(any(target_os = "ios", test))]
 fn require_switch_camera<T>(
     position: IosCameraPosition,
     device: Option<T>,
 ) -> Result<T, CameraPositionSwitchError> {
     device.ok_or(CameraPositionSwitchError::NoCameraAtPosition(position))
+}
+
+#[cfg(any(target_os = "ios", test))]
+fn require_switch_camera_selection<T>(
+    selection: IosCameraDeviceSelection,
+    device: Option<T>,
+) -> Result<T, CameraDeviceSelectionError> {
+    device.ok_or(CameraDeviceSelectionError::NoCameraAtSelection(selection))
 }
 
 #[cfg(target_os = "ios")]
@@ -2012,6 +2162,7 @@ struct CaptureGraph {
     device: Option<Retained<AVCaptureDevice>>,
     video_input: Option<Retained<AVCaptureDeviceInput>>,
     camera_position: Option<IosCameraPosition>,
+    camera_device_type: Option<IosCameraDeviceType>,
     photo_output: Option<Retained<AVCapturePhotoOutput>>,
     movie_output: Option<Retained<AVCaptureMovieFileOutput>>,
     video_output: Option<Retained<AVCaptureVideoDataOutput>>,
@@ -2140,6 +2291,26 @@ impl IosCameraCaptureSession {
         Self::new_for_camera_position(_main_thread, Some(position))
     }
 
+    /// Create a session for the exact already-authorized built-in camera selection
+    ///
+    /// The wide-angle and telephoto device types require iOS 10.0 or later. The selection uses
+    /// AVFoundation's public discovery query for the exact device type and front/back position;
+    /// it does not fall back to another camera or show a permission prompt. Request camera
+    /// authorization through the framework's media-authorization capability before calling.
+    ///
+    /// Returns `CameraCaptureError::NoCameraAtSelection` when no exact device is available, or
+    /// `CameraCaptureError::UnsupportedOperatingSystem` below iOS 10.0.
+    pub fn new_with_camera_selection(
+        _main_thread: MainThreadMarker,
+        selection: IosCameraDeviceSelection,
+    ) -> Result<Self, CameraCaptureError> {
+        if !objc2::available!(ios = 10.0, ..) {
+            return Err(CameraCaptureError::UnsupportedOperatingSystem);
+        }
+
+        Self::new_for_camera_selection(_main_thread, selection)
+    }
+
     /// Switch this session to the requested default built-in wide-angle camera
     ///
     /// The synchronous change requires iOS 10 or later and uses the system's default front or
@@ -2181,9 +2352,64 @@ impl IosCameraCaptureSession {
         )
     }
 
+    /// Switch this session to the exact requested built-in camera type and position
+    ///
+    /// The synchronous change requires iOS 10 or later. It performs a one-type/one-position
+    /// public discovery query and never falls back to another device. A same-selection request
+    /// is a no-op. The existing photo, movie, sample, preview, and session graph stays intact; an
+    /// active/finalizing movie or pending shutdown rejects the request. This call does not request
+    /// authorization or mutate audio-session policy.
+    pub fn set_camera_selection(
+        &self,
+        selection: IosCameraDeviceSelection,
+    ) -> Result<(), CameraDeviceSelectionError> {
+        if !objc2::available!(ios = 10.0, ..) {
+            return Err(CameraDeviceSelectionError::UnsupportedOperatingSystem);
+        }
+
+        let graph = Arc::clone(&self.graph);
+        let queue = self.queue.clone();
+        run_on_capture_queue(
+            is_current_capture_queue(&self.queue_key),
+            move || {
+                let mut graph = graph
+                    .lock()
+                    .unwrap_or_else(std::sync::PoisonError::into_inner);
+                switch_camera_selection_on_queue(&mut graph, selection)
+            },
+            move |work| {
+                let result = Mutex::new(None);
+                queue.exec_sync(|| {
+                    *result
+                        .lock()
+                        .unwrap_or_else(std::sync::PoisonError::into_inner) = Some(work());
+                });
+                result
+                    .into_inner()
+                    .unwrap_or_else(std::sync::PoisonError::into_inner)
+                    .expect("capture queue returns a camera-selection result")
+            },
+        )
+    }
+
     fn new_for_camera_position(
         _main_thread: MainThreadMarker,
         camera_position: Option<IosCameraPosition>,
+    ) -> Result<Self, CameraCaptureError> {
+        Self::new_for_camera_setup(_main_thread, camera_position, None)
+    }
+
+    fn new_for_camera_selection(
+        _main_thread: MainThreadMarker,
+        selection: IosCameraDeviceSelection,
+    ) -> Result<Self, CameraCaptureError> {
+        Self::new_for_camera_setup(_main_thread, Some(selection.position()), Some(selection))
+    }
+
+    fn new_for_camera_setup(
+        _main_thread: MainThreadMarker,
+        camera_position: Option<IosCameraPosition>,
+        camera_selection: Option<IosCameraDeviceSelection>,
     ) -> Result<Self, CameraCaptureError> {
         if !objc2::available!(ios = 7.0, ..) {
             return Err(CameraCaptureError::UnsupportedOperatingSystem);
@@ -2212,6 +2438,7 @@ impl IosCameraCaptureSession {
             device: None,
             video_input: None,
             camera_position: None,
+            camera_device_type: None,
             photo_output: None,
             movie_output: None,
             video_output: None,
@@ -2229,7 +2456,7 @@ impl IosCameraCaptureSession {
             let mut graph = graph_for_configuration
                 .lock()
                 .unwrap_or_else(std::sync::PoisonError::into_inner);
-            configuration = configure_session(&mut graph, camera_position);
+            configuration = configure_session(&mut graph, camera_position, camera_selection);
         });
         if let Err(error) = configuration {
             let graph_to_drop = Arc::clone(&graph);
@@ -3396,16 +3623,17 @@ fn stop_video_frame_stream_on_queue(
 fn configure_session(
     graph: &mut CaptureGraph,
     camera_position: Option<IosCameraPosition>,
+    camera_selection: Option<IosCameraDeviceSelection>,
 ) -> Result<(), CameraCaptureError> {
     // SAFETY: This is AVFoundation's public video media-type constant. The constructor checks the
     // iOS 7.0 API floor before this function runs.
     let media_type =
         unsafe { AVMediaTypeVideo }.ok_or(CameraCaptureError::VideoMediaTypeUnavailable)?;
-    let device = if let Some(position) = camera_position {
-        let native_position = match position {
-            IosCameraPosition::Front => AVCaptureDevicePosition::Front,
-            IosCameraPosition::Back => AVCaptureDevicePosition::Back,
-        };
+    let device = if let Some(selection) = camera_selection {
+        let device = discover_camera_device(selection, media_type);
+        require_camera_at_selection(selection, device)?
+    } else if let Some(position) = camera_position {
+        let native_position = avfoundation_camera_position(position);
         // SAFETY: The new constructor checks the iOS 10.0 availability floor. The wide-angle
         // type and requested front/back position are valid AVFoundation criteria, and the media
         // type is exactly AVMediaTypeVideo.
@@ -3434,6 +3662,9 @@ fn configure_session(
     // SAFETY: The immediately preceding canAddInput call accepted this exact input.
     unsafe { graph.session.addInput(&input) };
     graph.camera_position = camera_position_for_device(&device).or(camera_position);
+    graph.camera_device_type = camera_selection
+        .map(IosCameraDeviceSelection::device_type)
+        .or_else(|| camera_position.map(|_| IosCameraDeviceType::WideAngle));
     graph.device = Some(device);
     graph.video_input = Some(input);
 
@@ -3463,6 +3694,72 @@ fn configure_session(
 }
 
 #[cfg(target_os = "ios")]
+fn avfoundation_camera_position(position: IosCameraPosition) -> AVCaptureDevicePosition {
+    match position {
+        IosCameraPosition::Front => AVCaptureDevicePosition::Front,
+        IosCameraPosition::Back => AVCaptureDevicePosition::Back,
+    }
+}
+
+#[cfg(target_os = "ios")]
+fn avfoundation_camera_device_type(
+    device_type: IosCameraDeviceType,
+) -> Option<&'static objc2_av_foundation::AVCaptureDeviceType> {
+    if !objc2::available!(ios = 10.0, ..) {
+        return None;
+    }
+    // SAFETY: Both public built-in type constants are available from iOS 10.0, checked above.
+    Some(unsafe {
+        match device_type {
+            IosCameraDeviceType::WideAngle => AVCaptureDeviceTypeBuiltInWideAngleCamera,
+            IosCameraDeviceType::Telephoto => AVCaptureDeviceTypeBuiltInTelephotoCamera,
+        }
+    })
+}
+
+#[cfg(target_os = "ios")]
+fn discover_camera_device(
+    selection: IosCameraDeviceSelection,
+    media_type: &objc2_av_foundation::AVMediaType,
+) -> Option<Retained<AVCaptureDevice>> {
+    let device_type = avfoundation_camera_device_type(selection.device_type())?;
+    let device_types = NSArray::from_slice(&[device_type]);
+    // SAFETY: AVCaptureDeviceDiscoverySession and this criteria-based query are public from
+    // iOS 10.0. Its one-type, video-only, front/back criteria are values from these bindings.
+    let discovery = unsafe {
+        AVCaptureDeviceDiscoverySession::discoverySessionWithDeviceTypes_mediaType_position(
+            &device_types,
+            Some(media_type),
+            avfoundation_camera_position(selection.position()),
+        )
+    };
+    // SAFETY: `devices` is the read-only result of the public discovery query above.
+    let device = unsafe { discovery.devices() }.firstObject()?;
+    // SAFETY: These are public, read-only properties on the retained discovered device.
+    let actual_device_type = unsafe { device.deviceType() };
+    // SAFETY: `position` is a public, read-only property on the retained discovered device.
+    let actual_position = unsafe { device.position() };
+    let actual_device_type = if actual_device_type.isEqualToString(avfoundation_camera_device_type(
+        IosCameraDeviceType::WideAngle,
+    )?) {
+        IosCameraDeviceType::WideAngle
+    } else if actual_device_type.isEqualToString(avfoundation_camera_device_type(
+        IosCameraDeviceType::Telephoto,
+    )?) {
+        IosCameraDeviceType::Telephoto
+    } else {
+        return None;
+    };
+    let actual_position = match actual_position {
+        AVCaptureDevicePosition::Front => IosCameraPosition::Front,
+        AVCaptureDevicePosition::Back => IosCameraPosition::Back,
+        _ => return None,
+    };
+    camera_device_selection_matches(selection, actual_device_type, actual_position)
+        .then_some(device)
+}
+
+#[cfg(target_os = "ios")]
 fn switch_camera_position_on_queue(
     graph: &mut CaptureGraph,
     requested: IosCameraPosition,
@@ -3470,6 +3767,7 @@ fn switch_camera_position_on_queue(
     let should_switch = camera_position_switch_required(
         &graph.movie_recording,
         graph.camera_position,
+        graph.camera_device_type,
         graph.video_input.is_some() && graph.device.is_some(),
         requested,
     )?;
@@ -3531,13 +3829,90 @@ fn switch_camera_position_on_queue(
             unsafe { session.commitConfiguration() }
         },
     )
+    .map_err(map_position_replacement_error)
     .map(|new_input| (device, new_input));
     finish_camera_input_replacement(
         &mut graph.device,
         &mut graph.video_input,
         &mut graph.camera_position,
+        &mut graph.camera_device_type,
+        IosCameraDeviceSelection::new(IosCameraDeviceType::WideAngle, requested),
+        replacement,
+        CameraPositionSwitchError::InputRollbackFailed,
+    )
+}
+
+#[cfg(target_os = "ios")]
+fn switch_camera_selection_on_queue(
+    graph: &mut CaptureGraph,
+    requested: IosCameraDeviceSelection,
+) -> Result<(), CameraDeviceSelectionError> {
+    let current_selection = graph
+        .camera_position
+        .zip(graph.camera_device_type)
+        .map(|(position, device_type)| IosCameraDeviceSelection::new(device_type, position));
+    let should_switch = camera_device_selection_switch_required(
+        &graph.movie_recording,
+        current_selection,
+        graph.video_input.is_some() && graph.device.is_some(),
+        requested,
+    )?;
+    if !should_switch {
+        return Ok(());
+    }
+
+    let old_input = graph
+        .video_input
+        .as_ref()
+        .ok_or(CameraDeviceSelectionError::NoSelectedCamera)?
+        .clone();
+    if graph.device.is_none() {
+        return Err(CameraDeviceSelectionError::NoSelectedCamera);
+    }
+    let media_type =
+        unsafe { AVMediaTypeVideo }.ok_or(CameraDeviceSelectionError::VideoMediaTypeUnavailable)?;
+    let device =
+        require_switch_camera_selection(requested, discover_camera_device(requested, media_type))?;
+    // SAFETY: Existing authorization was checked before session construction. This public
+    // initializer reports any later device-open or permission-state failure without prompting.
+    let input = unsafe { AVCaptureDeviceInput::deviceInputWithDevice_error(&device) }
+        .map_err(|_| CameraDeviceSelectionError::DeviceInputCreationFailed)?;
+
+    let session = &graph.session;
+    let replacement = replace_camera_session_input(
+        &old_input,
+        input,
+        |candidate| {
+            // SAFETY: The candidate is a valid input for the exact requested public camera.
+            unsafe { session.canAddInput(candidate) }
+        },
+        |old| {
+            // SAFETY: This is the exact video input retained by the current graph.
+            unsafe { session.removeInput(old) }
+        },
+        |candidate| {
+            // SAFETY: The immediately preceding canAddInput call accepted this exact input.
+            unsafe { session.addInput(candidate) }
+        },
+        || {
+            // SAFETY: This is the single serialized session configuration transaction.
+            unsafe { session.beginConfiguration() }
+        },
+        || {
+            // SAFETY: Every beginConfiguration call is paired with this commit.
+            unsafe { session.commitConfiguration() }
+        },
+    )
+    .map_err(map_selection_replacement_error)
+    .map(|new_input| (device, new_input));
+    finish_camera_input_replacement(
+        &mut graph.device,
+        &mut graph.video_input,
+        &mut graph.camera_position,
+        &mut graph.camera_device_type,
         requested,
         replacement,
+        CameraDeviceSelectionError::InputRollbackFailed,
     )
 }
 
@@ -3647,14 +4022,16 @@ fn invoke_video_completion(completion: VideoRecordingCompletion, result: VideoRe
 #[cfg(test)]
 mod tests {
     use super::{
-        CameraCaptureError, CameraPositionSwitchError, ExposureControlError, FocusControlError,
-        IosCameraExposureMode, IosCameraFlashMode, IosCameraFocusMode, IosCameraPhotoQuality,
-        IosCameraPosition, IosCameraSessionPreset, IosCameraVideoOrientation,
-        IosCameraWhiteBalanceMode, MediaAuthorizationStatus, MediaTime, MovieOrientationError,
-        MovieRecordingState, NormalizedFocusPoint, PhotoCaptureError, PhotoCaptureResult,
-        PhotoQualityPrioritizationError, PreviewOrientationError, SessionPresetError,
-        TorchControlError, VideoFrameStreamError, VideoFrameStreamState, VideoRecordingError,
-        VideoRecordingResult, WhiteBalanceControlError, ZoomControlError,
+        CameraCaptureError, CameraDeviceSelectionError, CameraInputReplacementError,
+        CameraPositionSwitchError, ExposureControlError, FocusControlError,
+        IosCameraDeviceSelection, IosCameraDeviceType, IosCameraExposureMode, IosCameraFlashMode,
+        IosCameraFocusMode, IosCameraPhotoQuality, IosCameraPosition, IosCameraSessionPreset,
+        IosCameraVideoOrientation, IosCameraWhiteBalanceMode, MediaAuthorizationStatus, MediaTime,
+        MovieOrientationError, MovieRecordingState, NormalizedFocusPoint, PhotoCaptureError,
+        PhotoCaptureResult, PhotoQualityPrioritizationError, PreviewOrientationError,
+        SessionPresetError, TorchControlError, VideoFrameStreamError, VideoFrameStreamState,
+        VideoRecordingError, VideoRecordingResult, WhiteBalanceControlError, ZoomControlError,
+        camera_device_selection_matches, camera_device_selection_switch_required,
         camera_position_switch_required, configure_custom_exposure, configure_exposure,
         configure_exposure_target_bias, configure_focus, configure_movie_orientation,
         configure_photo_quality_limit, configure_preview_orientation, configure_session_preset,
@@ -3662,14 +4039,15 @@ mod tests {
         custom_exposure_duration_from_parts, custom_exposure_range,
         drop_video_frame_callback_safely, exposure_target_bias_range,
         finish_camera_input_replacement, invoke_video_frame_callback, map_camera_video_orientation,
-        map_ios_camera_session_preset, may_create_device_input, photo_request_error,
+        map_ios_camera_session_preset, map_position_replacement_error,
+        map_selection_replacement_error, may_create_device_input, photo_request_error,
         preflight_photo_flash_mode, preflight_photo_quality, prepare_optional_movie_audio,
-        replace_camera_session_input, require_camera_at_position, require_selected_camera,
-        require_selected_focus_camera, require_switch_camera, run_on_capture_queue,
-        set_supported_orientation, settle_movie_result, settle_movie_terminal, settle_photo_result,
-        take_photo_completion, take_video_completion, validate_movie_destination,
-        with_authorized_microphone, with_selected_exposure_camera,
-        with_selected_white_balance_camera,
+        replace_camera_session_input, require_camera_at_position, require_camera_at_selection,
+        require_selected_camera, require_selected_focus_camera, require_switch_camera,
+        require_switch_camera_selection, run_on_capture_queue, set_supported_orientation,
+        settle_movie_result, settle_movie_terminal, settle_photo_result, take_photo_completion,
+        take_video_completion, validate_movie_destination, with_authorized_microphone,
+        with_selected_exposure_camera, with_selected_white_balance_camera,
     };
     use std::cell::RefCell;
     use std::path::PathBuf;
@@ -3761,6 +4139,7 @@ mod tests {
             camera_position_switch_required(
                 &state,
                 Some(IosCameraPosition::Back),
+                Some(IosCameraDeviceType::WideAngle),
                 true,
                 IosCameraPosition::Front,
             ),
@@ -4112,20 +4491,126 @@ mod tests {
     }
 
     #[test]
+    fn camera_device_selection_requires_exact_type_and_position_without_fallback() {
+        let wide_front =
+            IosCameraDeviceSelection::new(IosCameraDeviceType::WideAngle, IosCameraPosition::Front);
+        let telephoto_back =
+            IosCameraDeviceSelection::new(IosCameraDeviceType::Telephoto, IosCameraPosition::Back);
+        assert_eq!(wide_front.device_type(), IosCameraDeviceType::WideAngle);
+        assert_eq!(wide_front.position(), IosCameraPosition::Front);
+        assert_eq!(telephoto_back.device_type(), IosCameraDeviceType::Telephoto);
+        assert_eq!(telephoto_back.position(), IosCameraPosition::Back);
+        assert!(camera_device_selection_matches(
+            telephoto_back,
+            IosCameraDeviceType::Telephoto,
+            IosCameraPosition::Back
+        ));
+        assert!(!camera_device_selection_matches(
+            telephoto_back,
+            IosCameraDeviceType::WideAngle,
+            IosCameraPosition::Back
+        ));
+        assert!(!camera_device_selection_matches(
+            telephoto_back,
+            IosCameraDeviceType::Telephoto,
+            IosCameraPosition::Front
+        ));
+        assert_eq!(require_camera_at_selection(wide_front, Some(17_u8)), Ok(17));
+        assert_eq!(
+            require_camera_at_selection::<u8>(telephoto_back, None),
+            Err(CameraCaptureError::NoCameraAtSelection(telephoto_back))
+        );
+        assert_eq!(
+            require_switch_camera_selection::<u8>(telephoto_back, None),
+            Err(CameraDeviceSelectionError::NoCameraAtSelection(
+                telephoto_back
+            ))
+        );
+        assert_eq!(
+            require_switch_camera_selection(telephoto_back, Some(23_u8)),
+            Ok(23)
+        );
+    }
+
+    #[test]
+    fn camera_device_selection_preflight_uses_exact_type_position_and_lifecycle() {
+        let wide_back =
+            IosCameraDeviceSelection::new(IosCameraDeviceType::WideAngle, IosCameraPosition::Back);
+        let telephoto_back =
+            IosCameraDeviceSelection::new(IosCameraDeviceType::Telephoto, IosCameraPosition::Back);
+        let telephoto_front =
+            IosCameraDeviceSelection::new(IosCameraDeviceType::Telephoto, IosCameraPosition::Front);
+        let mut state = MovieRecordingState::default();
+        assert_eq!(
+            camera_device_selection_switch_required(&state, Some(wide_back), true, wide_back),
+            Ok(false)
+        );
+        assert_eq!(
+            camera_device_selection_switch_required(&state, Some(wide_back), true, telephoto_back,),
+            Ok(true)
+        );
+        assert_eq!(
+            camera_device_selection_switch_required(
+                &state,
+                Some(telephoto_back),
+                true,
+                telephoto_front,
+            ),
+            Ok(true)
+        );
+        assert_eq!(
+            camera_device_selection_switch_required(&state, None, false, telephoto_back),
+            Err(CameraDeviceSelectionError::NoSelectedCamera)
+        );
+        assert_eq!(state.begin(), Ok(()));
+        assert_eq!(
+            camera_device_selection_switch_required(&state, Some(wide_back), true, telephoto_back),
+            Err(CameraDeviceSelectionError::MovieRecordingActive)
+        );
+        assert!(state.request_session_stop());
+        assert_eq!(
+            camera_device_selection_switch_required(&state, Some(wide_back), true, telephoto_back),
+            Err(CameraDeviceSelectionError::SessionStopping)
+        );
+    }
+
+    #[test]
     fn camera_switch_preflight_skips_same_position_and_rejects_busy_or_missing_graph() {
         use IosCameraPosition::{Back, Front};
 
         let mut state = MovieRecordingState::default();
         assert_eq!(
-            camera_position_switch_required(&state, Some(Back), true, Back),
+            camera_position_switch_required(
+                &state,
+                Some(Back),
+                Some(IosCameraDeviceType::WideAngle),
+                true,
+                Back,
+            ),
             Ok(false)
         );
         assert_eq!(
-            camera_position_switch_required(&state, Some(Back), true, Front),
+            camera_position_switch_required(
+                &state,
+                Some(Back),
+                Some(IosCameraDeviceType::Telephoto),
+                true,
+                Back,
+            ),
             Ok(true)
         );
         assert_eq!(
-            camera_position_switch_required(&state, None, false, Front),
+            camera_position_switch_required(
+                &state,
+                Some(Back),
+                Some(IosCameraDeviceType::WideAngle),
+                true,
+                Front,
+            ),
+            Ok(true)
+        );
+        assert_eq!(
+            camera_position_switch_required(&state, None, None, false, Front),
             Err(CameraPositionSwitchError::NoSelectedCamera)
         );
 
@@ -4133,12 +4618,24 @@ mod tests {
         assert!(state.request_recording_stop());
         assert!(state.active);
         assert_eq!(
-            camera_position_switch_required(&state, Some(Back), true, Front),
+            camera_position_switch_required(
+                &state,
+                Some(Back),
+                Some(IosCameraDeviceType::WideAngle),
+                true,
+                Front,
+            ),
             Err(CameraPositionSwitchError::MovieRecordingActive)
         );
         assert!(state.request_session_stop());
         assert_eq!(
-            camera_position_switch_required(&state, Some(Back), true, Front),
+            camera_position_switch_required(
+                &state,
+                Some(Back),
+                Some(IosCameraDeviceType::WideAngle),
+                true,
+                Front,
+            ),
             Err(CameraPositionSwitchError::SessionStopping)
         );
     }
@@ -4229,7 +4726,7 @@ mod tests {
                 || events.borrow_mut().push("begin"),
                 || events.borrow_mut().push("commit"),
             ),
-            Err(CameraPositionSwitchError::SessionRejectedInput)
+            Err(CameraInputReplacementError::SessionRejectedInput)
         );
         assert_eq!(
             *events.borrow(),
@@ -4302,7 +4799,7 @@ mod tests {
         );
         assert_eq!(
             replacement,
-            Err(CameraPositionSwitchError::InputRollbackFailed)
+            Err(CameraInputReplacementError::InputRollbackFailed)
         );
         assert_eq!(
             *events.borrow(),
@@ -4312,17 +4809,28 @@ mod tests {
         let mut device = Some(3_u8);
         let mut input = Some(1_u8);
         let mut position = Some(IosCameraPosition::Back);
+        let mut device_type = Some(IosCameraDeviceType::WideAngle);
         assert_eq!(
             finish_camera_input_replacement(
                 &mut device,
                 &mut input,
                 &mut position,
-                IosCameraPosition::Front,
-                Err(CameraPositionSwitchError::InputRollbackFailed),
+                &mut device_type,
+                IosCameraDeviceSelection::new(
+                    IosCameraDeviceType::Telephoto,
+                    IosCameraPosition::Front,
+                ),
+                replacement
+                    .map(|new_input| (4_u8, new_input))
+                    .map_err(map_position_replacement_error),
+                CameraPositionSwitchError::InputRollbackFailed,
             ),
             Err(CameraPositionSwitchError::InputRollbackFailed)
         );
-        assert_eq!((device, input, position), (None, None, None));
+        assert_eq!(
+            (device, input, position, device_type),
+            (None, None, None, None)
+        );
     }
 
     #[test]
@@ -4330,19 +4838,30 @@ mod tests {
         let mut device = Some(3_u8);
         let mut input = Some(1_u8);
         let mut position = Some(IosCameraPosition::Back);
+        let mut device_type = Some(IosCameraDeviceType::WideAngle);
         assert_eq!(
             finish_camera_input_replacement(
                 &mut device,
                 &mut input,
                 &mut position,
-                IosCameraPosition::Front,
+                &mut device_type,
+                IosCameraDeviceSelection::new(
+                    IosCameraDeviceType::Telephoto,
+                    IosCameraPosition::Front,
+                ),
                 Ok((4_u8, 2_u8)),
+                CameraPositionSwitchError::InputRollbackFailed,
             ),
             Ok(())
         );
         assert_eq!(
-            (device, input, position),
-            (Some(4), Some(2), Some(IosCameraPosition::Front))
+            (device, input, position, device_type),
+            (
+                Some(4),
+                Some(2),
+                Some(IosCameraPosition::Front),
+                Some(IosCameraDeviceType::Telephoto)
+            )
         );
 
         assert_eq!(
@@ -4350,14 +4869,117 @@ mod tests {
                 &mut device,
                 &mut input,
                 &mut position,
-                IosCameraPosition::Back,
+                &mut device_type,
+                IosCameraDeviceSelection::new(
+                    IosCameraDeviceType::WideAngle,
+                    IosCameraPosition::Back,
+                ),
                 Err(CameraPositionSwitchError::SessionRejectedInput),
+                CameraPositionSwitchError::InputRollbackFailed,
             ),
             Err(CameraPositionSwitchError::SessionRejectedInput)
         );
         assert_eq!(
-            (device, input, position),
-            (Some(4), Some(2), Some(IosCameraPosition::Front))
+            (device, input, position, device_type),
+            (
+                Some(4),
+                Some(2),
+                Some(IosCameraPosition::Front),
+                Some(IosCameraDeviceType::Telephoto)
+            )
+        );
+    }
+
+    #[test]
+    fn camera_device_selection_transaction_preserves_or_invalidates_exact_graph_state() {
+        let requested =
+            IosCameraDeviceSelection::new(IosCameraDeviceType::Telephoto, IosCameraPosition::Back);
+        let original =
+            IosCameraDeviceSelection::new(IosCameraDeviceType::WideAngle, IosCameraPosition::Back);
+        let rejected = replace_camera_session_input(
+            &1_u8,
+            2_u8,
+            |input| *input == 1,
+            |_| {},
+            |_| {},
+            || {},
+            || {},
+        )
+        .map_err(map_selection_replacement_error);
+        assert_eq!(
+            rejected,
+            Err(CameraDeviceSelectionError::SessionRejectedInput)
+        );
+        let mut device = Some(3_u8);
+        let mut input = Some(1_u8);
+        let mut position = Some(original.position());
+        let mut device_type = Some(original.device_type());
+        assert_eq!(
+            finish_camera_input_replacement(
+                &mut device,
+                &mut input,
+                &mut position,
+                &mut device_type,
+                requested,
+                rejected.map(|new_input| (4_u8, new_input)),
+                CameraDeviceSelectionError::InputRollbackFailed,
+            ),
+            Err(CameraDeviceSelectionError::SessionRejectedInput)
+        );
+        assert_eq!(
+            (device, input, position, device_type),
+            (
+                Some(3),
+                Some(1),
+                Some(IosCameraPosition::Back),
+                Some(IosCameraDeviceType::WideAngle)
+            )
+        );
+
+        let rollback_failed =
+            replace_camera_session_input(&1_u8, 2_u8, |_| false, |_| {}, |_| {}, || {}, || {})
+                .map_err(map_selection_replacement_error);
+        assert_eq!(
+            finish_camera_input_replacement(
+                &mut device,
+                &mut input,
+                &mut position,
+                &mut device_type,
+                requested,
+                rollback_failed.map(|new_input| (4_u8, new_input)),
+                CameraDeviceSelectionError::InputRollbackFailed,
+            ),
+            Err(CameraDeviceSelectionError::InputRollbackFailed)
+        );
+        assert_eq!(
+            (device, input, position, device_type),
+            (None, None, None, None)
+        );
+
+        let committed =
+            replace_camera_session_input(&1_u8, 2_u8, |_| true, |_| {}, |_| {}, || {}, || {});
+        assert_eq!(
+            finish_camera_input_replacement(
+                &mut device,
+                &mut input,
+                &mut position,
+                &mut device_type,
+                requested,
+                committed
+                    .map(|new_input| (4_u8, new_input))
+                    .map_err(map_selection_replacement_error),
+                CameraDeviceSelectionError::InputRollbackFailed,
+            ),
+            Ok(())
+        );
+        assert_eq!(
+            (device, input, position, device_type),
+            (
+                Some(4),
+                Some(2),
+                Some(IosCameraPosition::Back),
+                Some(IosCameraDeviceType::Telephoto)
+            )
         );
     }
 
