@@ -23,7 +23,22 @@ fn main() {
         return;
     };
     let _ = list.replace_rows(vec![IosListRow::new(303, "updated")]);
+    let Ok(mut copy_button) = backend.add_button(
+        &mut parent,
+        Frame::new(0.0, 0.0, 44.0, 44.0).expect("valid button frame"),
+        "Copy",
+        || {},
+    ) else {
+        return;
+    };
+    let _ = copy_button.set_accessibility_label(Some("Copy\0 log entry 🚗"));
+    let _ = copy_button.set_accessibility_hint(Some("Copies the entry to the clipboard"));
+    let _ = copy_button.set_accessibility_identifier(Some("log.copy"));
+    let _ = copy_button.set_accessibility_label(Some(""));
+    let _ = copy_button.set_accessibility_hint(None);
+    let _ = copy_button.set_accessibility_identifier(None);
     core::hint::black_box(list.native_table_view());
+    core::hint::black_box(copy_button.native_button());
 }
 
 #[cfg(not(target_os = "ios"))]

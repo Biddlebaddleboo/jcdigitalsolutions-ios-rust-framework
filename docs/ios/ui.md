@@ -40,6 +40,19 @@ borrowed typed UIKit references as
 integration escape hatches. Any direct native mutation remains subject to UIKit's main-thread and
 ownership rules
 
+## Button accessibility metadata
+
+`IosButton::set_accessibility_label`, `set_accessibility_hint`, and
+`set_accessibility_identifier` set UIKit's public `UIAccessibility` and
+`UIAccessibilityIdentification` metadata on a native button. Calls require the same main-thread
+proof as other button updates. Rust UTF-8 values become length-aware `NSString` values; UIKit copies
+them. `None` writes native `nil`, while `Some("")` remains an explicitly empty string. An
+identifier is not user-facing and should be unique in the app's accessibility hierarchy; the
+framework does not enforce uniqueness. These methods do not add a portable accessibility tree or
+prove VoiceOver announcements. Host regressions cover nil versus empty and embedded NUL/Unicode
+preservation; Device and Simulator link probes verify the three UIKit selectors at the existing
+iOS 12.0 and iOS 14.0 floors. Live assistive-technology behavior remains unverified
+
 ## Native stack composition
 
 `IosUiBackend::add_stack_view` adds a `UIStackView` child to a caller-owned `IosView`. Choose a

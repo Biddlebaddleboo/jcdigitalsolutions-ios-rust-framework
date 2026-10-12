@@ -243,3 +243,15 @@ with 0 FAIL, 0 BLOCKED, and 2 SKIPPED for Simulator execution and physical-devic
 `503b35c5a213ee26d4dae2c3126b477484c75923`. `framework-ui`, `IosGridView`, arbitrary view
 composition, bindings, and SwiftUI-style state observation remain unchanged. Simulator execution,
 header rendering/accessibility, and physical-device behavior remain unverified.
+
+## B562 — button accessibility metadata
+
+B562 adds main-thread-only `IosButton::set_accessibility_label`,
+`IosButton::set_accessibility_hint`, and `IosButton::set_accessibility_identifier` through public
+UIKit accessibility properties. Each accepts `Option<&str>`: `None` writes native `nil`, `Some("")`
+is an empty string, and valid UTF-8 including embedded NUL is passed to length-aware `NSString`
+conversion. Host regressions cover nil/empty distinction and exact text preservation. The existing
+`ios-ui` profile's list link probe compiles and links all three selectors on Device iOS 12.0 and
+Simulator iOS 14.0; live VoiceOver announcements and identifier behavior remain unverified. This
+closes the metadata API gap used by Rideshare Bot's `BinaryLogViewerView` row copy button but does
+not add portable accessibility or SwiftUI state APIs.

@@ -75,9 +75,10 @@ for target in aarch64-apple-ios aarch64-apple-ios-sim; do
     for symbol in UITableView UITableViewCell 'setDataSource:' 'setDelegate:' \
         'tableView:numberOfRowsInSection:' 'tableView:cellForRowAtIndexPath:' \
         'tableView:didSelectRowAtIndexPath:' 'dequeueReusableCellWithIdentifier:' \
-        'initWithStyle:reuseIdentifier:' textLabel detailTextLabel reloadData; do
+        'initWithStyle:reuseIdentifier:' textLabel detailTextLabel reloadData \
+        'setAccessibilityLabel:' 'setAccessibilityHint:' 'setAccessibilityIdentifier:'; do
         printf '%s\n' "$list_strings" | grep -F "$symbol" >/dev/null || {
-            echo "$target list probe is missing UIKit symbol or selector $symbol" >&2
+            echo "$target list/accessibility probe is missing UIKit symbol or selector $symbol" >&2
             exit 1
         }
     done
@@ -90,7 +91,7 @@ for target in aarch64-apple-ios aarch64-apple-ios-sim; do
         echo "$target list probe has deployment target ${list_deployment_target:-unknown}; expected $deployment_target" >&2
         exit 1
     fi
-    printf '%s UITableView reuse and selection selectors verified at iOS %s; probe not executed\n' \
+    printf '%s UITableView reuse, selection, and button accessibility selectors verified at iOS %s; probe not executed\n' \
         "$target" "$deployment_target"
 
     context_menu_target_dir="target/ios-ui-context-menu-link-$target"

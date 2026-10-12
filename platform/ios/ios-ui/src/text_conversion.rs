@@ -4,6 +4,28 @@ pub(crate) enum Utf16Error {
     ResourceExhausted,
 }
 
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(crate) enum AccessibilityText<'a> {
+    Clear,
+    Set(&'a str),
+}
+
+impl<'a> AccessibilityText<'a> {
+    pub(crate) const fn from_optional(value: Option<&'a str>) -> Self {
+        match value {
+            Some(value) => Self::Set(value),
+            None => Self::Clear,
+        }
+    }
+
+    pub(crate) const fn as_optional(self) -> Option<&'a str> {
+        match self {
+            Self::Clear => None,
+            Self::Set(value) => Some(value),
+        }
+    }
+}
+
 pub(crate) fn decode_utf16(units: &[u16]) -> Result<String, Utf16Error> {
     let mut byte_len = 0_usize;
     for decoded in char::decode_utf16(units.iter().copied()) {
@@ -24,7 +46,25 @@ pub(crate) fn decode_utf16(units: &[u16]) -> Result<String, Utf16Error> {
 
 #[cfg(test)]
 mod tests {
-    use super::{Utf16Error, decode_utf16};
+    use super::{AccessibilityText, Utf16Error, decode_utf16};
+
+    #[test]
+    fn accessibility_metadata_distinguishes_cleared_and_empty_values() {
+        assert_eq!(AccessibilityText::from_optional(None).as_optional(), None);
+        assert_eq!(
+            AccessibilityText::from_optional(Some("")).as_optional(),
+            Some("")
+        );
+    }
+
+    #[test]
+    fn accessibility_metadata_preserves_embedded_nul_and_unicode() {
+        let value = "copy\0 🚗";
+        assert_eq!(
+            AccessibilityText::from_optional(Some(value)).as_optional(),
+            Some(value)
+        );
+    }
 
     #[test]
     fn decodes_empty_and_embedded_nul() {

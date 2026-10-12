@@ -12,14 +12,16 @@ use ios_runtime::ffi::catch_unwind;
 use ios_runtime::main_thread::MainThread;
 use objc2::rc::{Retained, autoreleasepool};
 use objc2::runtime::NSObject;
-use objc2::{DefinedClass, MainThreadMarker, MainThreadOnly, Message, define_class, msg_send, sel};
+use objc2::{
+    ClassType, DefinedClass, MainThreadMarker, MainThreadOnly, Message, define_class, msg_send, sel,
+};
 use objc2_core_foundation::{CGPoint, CGRect, CGSize};
 use objc2_foundation::{NSObjectProtocol, NSRange, NSString};
 use objc2_ui_kit::{
-    UIApplication, UIButton, UIColor, UIControlEvents, UIControlState, UIImage, UIImageView,
-    UIKeyboardType, UILabel, UILayoutConstraintAxis, UIScrollView, UIStackView,
-    UIStackViewAlignment, UIStackViewDistribution, UISwitch, UITextField, UITextInputTraits,
-    UIView,
+    NSObjectUIAccessibility, UIAccessibilityIdentification, UIApplication, UIButton, UIColor,
+    UIControlEvents, UIControlState, UIImage, UIImageView, UIKeyboardType, UILabel,
+    UILayoutConstraintAxis, UIScrollView, UIStackView, UIStackViewAlignment,
+    UIStackViewDistribution, UISwitch, UITextField, UITextInputTraits, UIView,
 };
 
 use crate::keyboard_action_policy::run_with_main_thread_marker;
@@ -27,7 +29,7 @@ use crate::layout_policy::{OneShotConstraints, ScrollLayoutPolicy};
 use crate::scroll_policy::validated_content_size;
 use crate::stack_spacing::{is_valid_stack_alignment, is_valid_stack_spacing};
 use crate::system_symbol_policy::{resolve_system_symbol, validate_system_symbol_name};
-use crate::text_conversion::{Utf16Error, decode_utf16};
+use crate::text_conversion::{AccessibilityText, Utf16Error, decode_utf16};
 use crate::text_policy::{KeyboardHint, TextFieldCallback, input_traits, invoke_text_callback};
 use crate::toggle_policy::invoke_toggle_callback;
 
@@ -924,6 +926,57 @@ impl ToggleControl for IosToggle {
 }
 
 impl IosButton {
+    /// Sets or clears the button's accessibility label.
+    ///
+    /// `None` writes native `nil`; `Some("")` sets an empty label. UIKit copies the UTF-8 text
+    /// into its native string. This setter does not prove that VoiceOver or another assistive
+    /// technology will announce the value.
+    pub fn set_accessibility_label(&mut self, label: Option<&str>) -> Result<()> {
+        let marker = main_thread_marker()?;
+        autoreleasepool(|_| {
+            let label = AccessibilityText::from_optional(label)
+                .as_optional()
+                .map(NSString::from_str);
+            self.native.setAccessibilityLabel(label.as_deref(), marker);
+        });
+        Ok(())
+    }
+
+    /// Sets or clears the button's accessibility hint.
+    ///
+    /// `None` removes the hint; `Some("")` sets an empty hint. UIKit copies the UTF-8 text into
+    /// its native string. This setter does not prove that an assistive technology will announce
+    /// the value.
+    pub fn set_accessibility_hint(&mut self, hint: Option<&str>) -> Result<()> {
+        let marker = main_thread_marker()?;
+        autoreleasepool(|_| {
+            let hint = AccessibilityText::from_optional(hint)
+                .as_optional()
+                .map(NSString::from_str);
+            self.native.setAccessibilityHint(hint.as_deref(), marker);
+        });
+        Ok(())
+    }
+
+    /// Sets or clears the button's non-user-facing accessibility identifier.
+    ///
+    /// `None` clears the identifier; `Some("")` sets an empty identifier. UIKit copies the UTF-8
+    /// text into its native string. Identifiers should be unique within the app's accessibility
+    /// hierarchy; this API does not enforce uniqueness or expose a testing framework.
+    pub fn set_accessibility_identifier(&mut self, identifier: Option<&str>) -> Result<()> {
+        let _identifier_thread = main_thread_marker()?;
+        autoreleasepool(|_| {
+            let identifier = AccessibilityText::from_optional(identifier)
+                .as_optional()
+                .map(NSString::from_str);
+            self.native
+                .as_super()
+                .as_super()
+                .setAccessibilityIdentifier(identifier.as_deref());
+        });
+        Ok(())
+    }
+
     /// Borrows the native button for UIKit integration.
     pub fn native_button(&self) -> &UIButton {
         &self.native
