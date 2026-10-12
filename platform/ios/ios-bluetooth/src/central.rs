@@ -4,28 +4,35 @@ use std::rc::Rc;
 
 use crate::characteristic_read_policy::{CharacteristicReadPolicy, ReadDecision, ReadRequest};
 use crate::characteristic_read_selection::{UniqueMatch, unique_match};
+use crate::characteristic_write_policy::{CharacteristicWritePolicy, WriteDecision, WriteRequest};
 use crate::connection_policy::{
     ConnectionAction, ConnectionEffect, ConnectionPolicy, ManagerAvailability,
 };
 use crate::queue::{
-    CharacteristicReadQueue, ConnectionQueue, DiscoveryQueue, ServiceDiscoveryQueue,
+    CharacteristicReadQueue, CharacteristicWriteQueue, ConnectionQueue, DiscoveryQueue,
+    ServiceDiscoveryQueue,
 };
 use crate::service_discovery_policy::ServiceDiscoveryPolicy;
 use framework_bluetooth::{
     BluetoothCentralBackend, BluetoothCharacteristicReadBackend, BluetoothCharacteristicReadError,
     BluetoothCharacteristicReadEvent, BluetoothCharacteristicReadState,
-    BluetoothCharacteristicUuid, BluetoothCharacteristicValue, BluetoothConnectionBackend,
-    BluetoothConnectionError, BluetoothConnectionEvent, BluetoothConnectionState,
-    BluetoothDiscovery, BluetoothPeripheralId, BluetoothScanError, BluetoothScanState,
-    BluetoothServiceDiscoveryBackend, BluetoothServiceDiscoveryError,
-    BluetoothServiceDiscoveryEvent, BluetoothServiceDiscoveryState, BluetoothServiceUuid,
+    BluetoothCharacteristicUuid, BluetoothCharacteristicValue, BluetoothCharacteristicWriteBackend,
+    BluetoothCharacteristicWriteError, BluetoothCharacteristicWriteEvent,
+    BluetoothCharacteristicWriteState, BluetoothConnectionBackend, BluetoothConnectionError,
+    BluetoothConnectionEvent, BluetoothConnectionState, BluetoothDiscovery, BluetoothPeripheralId,
+    BluetoothScanError, BluetoothScanState, BluetoothServiceDiscoveryBackend,
+    BluetoothServiceDiscoveryError, BluetoothServiceDiscoveryEvent, BluetoothServiceDiscoveryState,
+    BluetoothServiceUuid,
 };
 use objc2::rc::{Allocated, Retained};
 use objc2::runtime::ProtocolObject;
-use objc2::{AnyThread, DefinedClass, MainThreadMarker, MainThreadOnly, define_class, msg_send};
+use objc2::{
+    AnyThread, DefinedClass, MainThreadMarker, MainThreadOnly, define_class, msg_send, sel,
+};
 use objc2_core_bluetooth::{
     CBCentralManager, CBCentralManagerDelegate, CBCharacteristic, CBCharacteristicProperties,
-    CBManagerState, CBPeripheral, CBPeripheralDelegate, CBPeripheralState, CBService, CBUUID,
+    CBCharacteristicWriteType, CBManagerState, CBPeripheral, CBPeripheralDelegate,
+    CBPeripheralState, CBService, CBUUID,
 };
 use objc2_foundation::{NSArray, NSData, NSObject, NSObjectProtocol, NSString, NSUUID};
 
@@ -43,6 +50,11 @@ struct CentralState {
     characteristic_read_events: RefCell<CharacteristicReadQueue>,
     characteristic_read_service: RefCell<Option<Retained<CBService>>>,
     characteristic_read_characteristic: RefCell<Option<Retained<CBCharacteristic>>>,
+    characteristic_write: RefCell<CharacteristicWritePolicy>,
+    characteristic_write_events: RefCell<CharacteristicWriteQueue>,
+    characteristic_write_service: RefCell<Option<Retained<CBService>>>,
+    characteristic_write_characteristic: RefCell<Option<Retained<CBCharacteristic>>>,
+    characteristic_write_data: RefCell<Option<Retained<NSData>>>,
 }
 
 impl CentralState {
@@ -61,6 +73,11 @@ impl CentralState {
             characteristic_read_events: RefCell::new(CharacteristicReadQueue::new()),
             characteristic_read_service: RefCell::new(None),
             characteristic_read_characteristic: RefCell::new(None),
+            characteristic_write: RefCell::new(CharacteristicWritePolicy::new()),
+            characteristic_write_events: RefCell::new(CharacteristicWriteQueue::new()),
+            characteristic_write_service: RefCell::new(None),
+            characteristic_write_characteristic: RefCell::new(None),
+            characteristic_write_data: RefCell::new(None),
         }
     }
 }
@@ -195,9 +212,15 @@ define_class!(
                             id,
                             BluetoothCharacteristicReadError::Disconnected,
                         );
+                        terminate_characteristic_write(
+                            state,
+                            id,
+                            BluetoothCharacteristicWriteError::Disconnected,
+                        );
                         // SAFETY: A selected peer's failed native connection cannot produce
                         // later service events; remove the weak delegate before releasing it.
                         unsafe { peripheral.setDelegate(None) };
+                        clear_quarantined_characteristic_write_objects(state);
                     }
                     apply_connection_effect(state, central, effect);
                     release_terminal_peripheral(state);
@@ -236,9 +259,15 @@ define_class!(
                             id,
                             BluetoothCharacteristicReadError::Disconnected,
                         );
+                        terminate_characteristic_write(
+                            state,
+                            id,
+                            BluetoothCharacteristicWriteError::Disconnected,
+                        );
                         // SAFETY: This is the selected peer's terminal central callback; its
                         // service delegate is no longer needed after this point.
                         unsafe { peripheral.setDelegate(None) };
+                        clear_quarantined_characteristic_write_objects(state);
                     }
                     apply_connection_effect(state, central, effect);
                     release_terminal_peripheral(state);
@@ -286,7 +315,7 @@ define_class!(
                 );
             }));
             if outcome.is_err() {
-                contain_characteristic_read_panic(&self.ivars().state);
+                contain_characteristic_operation_panic(&self.ivars().state);
             }
         }
 
@@ -307,6 +336,26 @@ define_class!(
             }));
             if outcome.is_err() {
                 contain_characteristic_read_panic(&self.ivars().state);
+            }
+        }
+
+        #[unsafe(method(peripheral:didWriteValueForCharacteristic:error:))]
+        unsafe fn peripheral_didWriteValueForCharacteristic_error(
+            &self,
+            peripheral: &CBPeripheral,
+            characteristic: &CBCharacteristic,
+            error: Option<&objc2_foundation::NSError>,
+        ) {
+            let outcome = catch_unwind(AssertUnwindSafe(|| {
+                handle_characteristic_write(
+                    &self.ivars().state,
+                    peripheral,
+                    characteristic,
+                    error.is_some(),
+                );
+            }));
+            if outcome.is_err() {
+                contain_characteristic_write_panic(&self.ivars().state);
             }
         }
     }
@@ -334,9 +383,10 @@ impl CentralDelegate {
 /// event and increments its saturating count. Discovery does not retain `CBPeripheral`; an
 /// explicit connection retains at most one selected peer until its terminal callback or backend
 /// teardown. Service discovery copies UUIDs into a separate 32-event queue and retains no service
-/// objects. A characteristic read is limited to one UUID-unique, readable value at a time; its
-/// copied 512-byte result FIFO is separate. Writes, notifications, and peripheral-role APIs are
-/// not exposed.
+/// objects. A characteristic read or write is limited to one UUID-unique operation at a time;
+/// read results and write completion events use separate four-entry FIFOs. Writes use only the
+/// public write-with-response operation and retain copied bytes until its terminal callback.
+/// Notifications and peripheral-role APIs are not exposed.
 pub struct IosBluetoothCentralBackend {
     state: Rc<CentralState>,
     manager: Option<Retained<CBCentralManager>>,
@@ -448,13 +498,14 @@ impl BluetoothConnectionBackend for IosBluetoothCentralBackend {
         let connection_peer = self.state.connection.borrow().target();
         let discovering_peer = self.state.service_discovery.borrow().peripheral();
         let reading_peer = self.state.characteristic_read.borrow().peripheral();
+        let writing_peer = self.state.characteristic_write.borrow().peripheral();
         if let Some(peripheral) = connection_peer {
             self.state
                 .service_discovery
                 .borrow_mut()
                 .invalidate(peripheral);
         }
-        if discovering_peer.is_some() || reading_peer.is_some() {
+        if discovering_peer.is_some() || reading_peer.is_some() || writing_peer.is_some() {
             if let Some(peripheral) = self.state.connection_peripheral.borrow().as_deref() {
                 // SAFETY: This is the selected peer's explicit connection cancellation on the
                 // backend's main thread; remove its weak delegate before the native cancel call.
@@ -473,6 +524,13 @@ impl BluetoothConnectionBackend for IosBluetoothCentralBackend {
                 &self.state,
                 peripheral_id,
                 BluetoothCharacteristicReadError::Disconnected,
+            );
+        }
+        if let Some(peripheral_id) = writing_peer {
+            terminate_characteristic_write(
+                &self.state,
+                peripheral_id,
+                BluetoothCharacteristicWriteError::Disconnected,
             );
         }
         let effect = self.state.connection.borrow_mut().cancel();
@@ -499,7 +557,9 @@ impl BluetoothConnectionBackend for IosBluetoothCentralBackend {
 
 impl BluetoothServiceDiscoveryBackend for IosBluetoothCentralBackend {
     fn discover_services(&mut self) -> Result<(), BluetoothServiceDiscoveryError> {
-        if self.state.characteristic_read.borrow().is_active() {
+        if self.state.characteristic_read.borrow().is_active()
+            || self.state.characteristic_write.borrow().is_active()
+        {
             return Err(BluetoothServiceDiscoveryError::AlreadyActive);
         }
         let (connection_state, peripheral_id) = {
@@ -567,6 +627,7 @@ impl BluetoothCharacteristicReadBackend for IosBluetoothCentralBackend {
         characteristic_uuid: BluetoothCharacteristicUuid,
     ) -> Result<(), BluetoothCharacteristicReadError> {
         if self.state.characteristic_read.borrow().is_active()
+            || self.state.characteristic_write.borrow().is_active()
             || self.state.service_discovery.borrow().state()
                 == BluetoothServiceDiscoveryState::Discovering
         {
@@ -668,10 +729,144 @@ impl BluetoothCharacteristicReadBackend for IosBluetoothCentralBackend {
     }
 }
 
+impl BluetoothCharacteristicWriteBackend for IosBluetoothCentralBackend {
+    fn write_characteristic(
+        &mut self,
+        service_uuid: BluetoothServiceUuid,
+        characteristic_uuid: BluetoothCharacteristicUuid,
+        value: &[u8],
+    ) -> Result<(), BluetoothCharacteristicWriteError> {
+        if self.state.characteristic_read.borrow().is_active()
+            || self.state.characteristic_write.borrow().is_active()
+            || self.state.service_discovery.borrow().state()
+                == BluetoothServiceDiscoveryState::Discovering
+        {
+            return Err(BluetoothCharacteristicWriteError::AlreadyActive);
+        }
+        if value.len() > framework_bluetooth::BLUETOOTH_GATT_ATTRIBUTE_VALUE_MAX_BYTES {
+            return Err(BluetoothCharacteristicWriteError::PayloadTooLarge);
+        }
+        let (connection_state, peripheral_id) = {
+            let connection = self.state.connection.borrow();
+            (connection.state(), connection.target())
+        };
+        let Some(peripheral_id) = peripheral_id else {
+            return Err(BluetoothCharacteristicWriteError::NotConnected);
+        };
+        let connection_peripheral = self.state.connection_peripheral.borrow();
+        let Some(peripheral) = connection_peripheral.as_deref() else {
+            return Err(BluetoothCharacteristicWriteError::NotConnected);
+        };
+        // SAFETY: The peer is retained by this backend and queried on its required main thread.
+        let native_connected = unsafe { peripheral.state() } == CBPeripheralState::Connected;
+        let native_id: Retained<NSUUID> = unsafe { peripheral.identifier() };
+        if peripheral_id_from_native(&native_id) != Some(peripheral_id) {
+            return Err(BluetoothCharacteristicWriteError::NotConnected);
+        }
+        let Some(manager) = self.manager.as_deref() else {
+            return Err(BluetoothCharacteristicWriteError::NotConnected);
+        };
+        // SAFETY: This manager was created by this backend and is used on the same main thread.
+        let manager_state = unsafe { manager.state() };
+        if manager_state == CBManagerState::Unsupported {
+            return Err(BluetoothCharacteristicWriteError::Unsupported);
+        }
+        if manager_state != CBManagerState::PoweredOn {
+            return Err(BluetoothCharacteristicWriteError::NotConnected);
+        }
+        let maximum_write_len = if peripheral
+            .respondsToSelector(sel!(maximumWriteValueLengthForType:))
+        {
+            // SAFETY: The selector is available from iOS 9.0; respondsToSelector: guards the
+            // existing iOS 8.0 package floor. CoreBluetooth reports the current negotiated limit.
+            unsafe {
+                peripheral.maximumWriteValueLengthForType(CBCharacteristicWriteType::WithResponse)
+            }
+        } else {
+            // The ATT minimum MTU is 23 bytes, leaving at most 20 value bytes after ATT headers.
+            20
+        };
+        let Some(services) = (unsafe { peripheral.services() }) else {
+            return Err(BluetoothCharacteristicWriteError::ServiceDiscoveryRequired);
+        };
+        let service_match = unique_match(services.count(), |index| {
+            let service = services.objectAtIndex(index);
+            // SAFETY: This is a live CBService returned by the selected peripheral.
+            let native_uuid: Retained<CBUUID> = unsafe { service.UUID() };
+            service_uuid_from_native(&native_uuid)
+                .map(|uuid| uuid == service_uuid)
+                .ok_or(())
+        });
+        let (service_state, service_discovered_for_peer) = {
+            let discovery = self.state.service_discovery.borrow();
+            (discovery.state(), discovery.completed_for(peripheral_id))
+        };
+        let service_index = self
+            .state
+            .characteristic_write
+            .borrow_mut()
+            .begin(WriteRequest {
+                peripheral: peripheral_id,
+                service: service_uuid,
+                characteristic: characteristic_uuid,
+                connection_state,
+                native_connected,
+                manager_supported: true,
+                service_state,
+                service_discovered_for_peer,
+                service_match,
+                payload_len: value.len(),
+                maximum_write_len,
+            })?;
+        *self.state.characteristic_write_service.borrow_mut() =
+            Some(services.objectAtIndex(service_index));
+        *self.state.characteristic_write_data.borrow_mut() = Some(NSData::with_bytes(value));
+        let Some(delegate) = self.delegate.as_deref() else {
+            terminate_characteristic_write(
+                &self.state,
+                peripheral_id,
+                BluetoothCharacteristicWriteError::Unavailable,
+            );
+            return Err(BluetoothCharacteristicWriteError::Unavailable);
+        };
+        let delegate_object = ProtocolObject::from_ref(delegate);
+        let selected_service = self
+            .state
+            .characteristic_write_service
+            .borrow()
+            .as_ref()
+            .expect("selected write service is retained")
+            .clone();
+        // SAFETY: The selected peer is connected, B592 discovery completed, exactly one target
+        // service was found, and CoreBluetooth retains this backend's main-thread delegate weakly.
+        unsafe {
+            peripheral.setDelegate(Some(delegate_object));
+            peripheral.discoverCharacteristics_forService(None, &selected_service);
+        }
+        Ok(())
+    }
+
+    fn characteristic_write_state(&self) -> BluetoothCharacteristicWriteState {
+        self.state.characteristic_write.borrow().state()
+    }
+
+    fn try_next_characteristic_write_event(&mut self) -> Option<BluetoothCharacteristicWriteEvent> {
+        self.state.characteristic_write_events.borrow_mut().pop()
+    }
+
+    fn take_dropped_characteristic_write_event_count(&mut self) -> u32 {
+        self.state
+            .characteristic_write_events
+            .borrow_mut()
+            .take_dropped()
+    }
+}
+
 impl Drop for IosBluetoothCentralBackend {
     fn drop(&mut self) {
         self.state.requested.set(false);
         self.state.characteristic_read.borrow_mut().teardown();
+        self.state.characteristic_write.borrow_mut().teardown();
         let teardown = self.state.connection.borrow_mut().teardown();
         if let Some(manager) = self.manager.as_deref() {
             // SAFETY: Drop runs on the same main thread enforced by the stored marker. Stopping
@@ -695,6 +890,12 @@ impl Drop for IosBluetoothCentralBackend {
             .characteristic_read_characteristic
             .borrow_mut()
             .take();
+        self.state.characteristic_write_service.borrow_mut().take();
+        self.state
+            .characteristic_write_characteristic
+            .borrow_mut()
+            .take();
+        self.state.characteristic_write_data.borrow_mut().take();
         self.state.connection_peripheral.borrow_mut().take();
     }
 }
@@ -804,6 +1005,7 @@ fn contain_connection_panic(state: &CentralState, central: &CBCentralManager) {
         );
     }
     contain_characteristic_read_panic(state);
+    contain_characteristic_write_panic(state);
     let effect = state.connection.borrow_mut().callback_panicked();
     apply_connection_effect(state, central, effect);
 }
@@ -823,6 +1025,35 @@ fn terminate_characteristic_read(
 fn contain_characteristic_read_panic(state: &CentralState) {
     let decision = state.characteristic_read.borrow_mut().callback_panicked();
     apply_characteristic_read_decision(state, decision, None);
+}
+
+fn terminate_characteristic_write(
+    state: &CentralState,
+    peripheral: BluetoothPeripheralId,
+    error: BluetoothCharacteristicWriteError,
+) {
+    let decision = if error == BluetoothCharacteristicWriteError::Disconnected {
+        state
+            .characteristic_write
+            .borrow_mut()
+            .disconnected(peripheral)
+    } else {
+        state
+            .characteristic_write
+            .borrow_mut()
+            .terminate(peripheral, error)
+    };
+    apply_characteristic_write_decision(state, decision);
+}
+
+fn contain_characteristic_write_panic(state: &CentralState) {
+    let decision = state.characteristic_write.borrow_mut().callback_panicked();
+    apply_characteristic_write_decision(state, decision);
+}
+
+fn contain_characteristic_operation_panic(state: &CentralState) {
+    contain_characteristic_read_panic(state);
+    contain_characteristic_write_panic(state);
 }
 
 fn handle_service_discovery(state: &CentralState, peripheral: &CBPeripheral, had_error: bool) {
@@ -889,6 +1120,29 @@ fn handle_service_discovery(state: &CentralState, peripheral: &CBPeripheral, had
 }
 
 fn handle_characteristic_discovery(
+    state: &CentralState,
+    delegate: &CentralDelegate,
+    peripheral: &CBPeripheral,
+    service: &CBService,
+    had_error: bool,
+) {
+    let read_discovery = state.characteristic_read.borrow().state()
+        == BluetoothCharacteristicReadState::DiscoveringCharacteristics;
+    let write_discovery = state.characteristic_write.borrow().state()
+        == BluetoothCharacteristicWriteState::DiscoveringCharacteristics;
+    match (read_discovery, write_discovery) {
+        (true, false) => {
+            handle_characteristic_read_discovery(state, delegate, peripheral, service, had_error)
+        }
+        (false, true) => {
+            handle_characteristic_write_discovery(state, delegate, peripheral, service, had_error)
+        }
+        (true, true) => contain_characteristic_operation_panic(state),
+        (false, false) => {}
+    }
+}
+
+fn handle_characteristic_read_discovery(
     state: &CentralState,
     delegate: &CentralDelegate,
     peripheral: &CBPeripheral,
@@ -1001,6 +1255,186 @@ fn handle_characteristic_discovery(
         }
         decision => apply_characteristic_read_decision(state, decision, None),
     }
+}
+
+fn handle_characteristic_write_discovery(
+    state: &CentralState,
+    delegate: &CentralDelegate,
+    peripheral: &CBPeripheral,
+    service: &CBService,
+    had_error: bool,
+) {
+    // SAFETY: CoreBluetooth invokes this delegate with its live connected peripheral.
+    let native_id: Retained<NSUUID> = unsafe { peripheral.identifier() };
+    let Some(peripheral_id) = peripheral_id_from_native(&native_id) else {
+        contain_characteristic_write_panic(state);
+        return;
+    };
+    let (expected_service, active) = {
+        let write = state.characteristic_write.borrow();
+        (
+            write.service(),
+            write.peripheral() == Some(peripheral_id)
+                && write.state() == BluetoothCharacteristicWriteState::DiscoveringCharacteristics,
+        )
+    };
+    if !active || state.connection.borrow().target() != Some(peripheral_id) {
+        return;
+    }
+    let selected_service = state
+        .characteristic_write_service
+        .borrow()
+        .as_deref()
+        .is_some_and(|selected| core::ptr::eq(selected, service));
+    if !selected_service {
+        return;
+    }
+    // SAFETY: CoreBluetooth supplies the selected live peripheral on its main callback queue.
+    if unsafe { peripheral.state() } != CBPeripheralState::Connected {
+        let decision = state
+            .characteristic_write
+            .borrow_mut()
+            .disconnected(peripheral_id);
+        apply_characteristic_write_decision(state, decision);
+        return;
+    }
+    let Some(expected_service) = expected_service else {
+        contain_characteristic_write_panic(state);
+        return;
+    };
+    // SAFETY: The callback's CBService remains live for this invocation.
+    let native_service_uuid: Retained<CBUUID> = unsafe { service.UUID() };
+    if service_uuid_from_native(&native_service_uuid) != Some(expected_service) {
+        contain_characteristic_write_panic(state);
+        return;
+    }
+    if had_error {
+        let decision = state
+            .characteristic_write
+            .borrow_mut()
+            .characteristics_discovered(peripheral_id, true, Ok((UniqueMatch::Missing, false)));
+        apply_characteristic_write_decision(state, decision);
+        return;
+    }
+    // SAFETY: CoreBluetooth owns the service's discovered characteristic array; items are retained
+    // while selected and UUID/property snapshots are copied during this callback.
+    let Some(characteristics) = (unsafe { service.characteristics() }) else {
+        let decision = state
+            .characteristic_write
+            .borrow_mut()
+            .characteristics_discovered(peripheral_id, false, Err(()));
+        apply_characteristic_write_decision(state, decision);
+        return;
+    };
+    let expected_characteristic = state.characteristic_write.borrow().characteristic();
+    let Some(expected_characteristic) = expected_characteristic else {
+        contain_characteristic_write_panic(state);
+        return;
+    };
+    let selection = unique_match(characteristics.count(), |index| {
+        let candidate = characteristics.objectAtIndex(index);
+        // SAFETY: The characteristic is a live member of the selected service's native array.
+        let native_uuid: Retained<CBUUID> = unsafe { candidate.UUID() };
+        characteristic_uuid_from_native(&native_uuid)
+            .map(|uuid| uuid == expected_characteristic)
+            .ok_or(())
+    });
+    let selected = match selection {
+        Ok(UniqueMatch::One(index)) => Some(characteristics.objectAtIndex(index)),
+        _ => None,
+    };
+    let writable = selected.as_deref().is_some_and(|characteristic| {
+        // SAFETY: This is the unique characteristic returned by CoreBluetooth for the service.
+        unsafe { characteristic.properties() }.contains(CBCharacteristicProperties::Write)
+    });
+    let decision = state
+        .characteristic_write
+        .borrow_mut()
+        .characteristics_discovered(peripheral_id, false, selection.map(|m| (m, writable)));
+    match decision {
+        WriteDecision::Write => {
+            let Some(characteristic) = selected else {
+                contain_characteristic_write_panic(state);
+                return;
+            };
+            let data = state.characteristic_write_data.borrow().clone();
+            let Some(data) = data else {
+                contain_characteristic_write_panic(state);
+                return;
+            };
+            *state.characteristic_write_characteristic.borrow_mut() = Some(characteristic.clone());
+            let delegate_object = ProtocolObject::from_ref(delegate);
+            // SAFETY: One UUID-unique characteristic has the public Write property. The copied
+            // NSData, peer, and callback delegate remain retained for the acknowledged operation.
+            unsafe {
+                peripheral.setDelegate(Some(delegate_object));
+                peripheral.writeValue_forCharacteristic_type(
+                    &data,
+                    &characteristic,
+                    CBCharacteristicWriteType::WithResponse,
+                );
+            }
+        }
+        decision => apply_characteristic_write_decision(state, decision),
+    }
+}
+
+fn handle_characteristic_write(
+    state: &CentralState,
+    peripheral: &CBPeripheral,
+    characteristic: &CBCharacteristic,
+    had_error: bool,
+) {
+    // SAFETY: CoreBluetooth invokes this delegate with its live connected peripheral.
+    let native_id: Retained<NSUUID> = unsafe { peripheral.identifier() };
+    let Some(peripheral_id) = peripheral_id_from_native(&native_id) else {
+        contain_characteristic_write_panic(state);
+        return;
+    };
+    let (expected_characteristic, active) = {
+        let write = state.characteristic_write.borrow();
+        (
+            write.characteristic(),
+            write.peripheral() == Some(peripheral_id)
+                && write.state() == BluetoothCharacteristicWriteState::Writing,
+        )
+    };
+    if !active || state.connection.borrow().target() != Some(peripheral_id) {
+        return;
+    }
+    let selected_characteristic = state
+        .characteristic_write_characteristic
+        .borrow()
+        .as_deref()
+        .is_some_and(|selected| core::ptr::eq(selected, characteristic));
+    if !selected_characteristic {
+        return;
+    }
+    // SAFETY: The selected peripheral is live and callback-bound to the main queue.
+    if unsafe { peripheral.state() } != CBPeripheralState::Connected {
+        let decision = state
+            .characteristic_write
+            .borrow_mut()
+            .disconnected(peripheral_id);
+        apply_characteristic_write_decision(state, decision);
+        return;
+    }
+    let Some(expected_characteristic) = expected_characteristic else {
+        contain_characteristic_write_panic(state);
+        return;
+    };
+    // SAFETY: CoreBluetooth provides the selected live characteristic for this callback.
+    let native_uuid: Retained<CBUUID> = unsafe { characteristic.UUID() };
+    if characteristic_uuid_from_native(&native_uuid) != Some(expected_characteristic) {
+        contain_characteristic_write_panic(state);
+        return;
+    }
+    let decision = state.characteristic_write.borrow_mut().value_written(
+        peripheral_id,
+        expected_characteristic,
+        had_error,
+    );
+    apply_characteristic_write_decision(state, decision);
 }
 
 fn handle_characteristic_value(
@@ -1138,6 +1572,51 @@ fn apply_characteristic_read_decision(
 fn clear_characteristic_read_objects(state: &CentralState) {
     state.characteristic_read_characteristic.borrow_mut().take();
     state.characteristic_read_service.borrow_mut().take();
+}
+
+fn apply_characteristic_write_decision(state: &CentralState, decision: WriteDecision) {
+    let event = match decision {
+        WriteDecision::Failed {
+            peripheral,
+            service,
+            characteristic,
+            error,
+        } => BluetoothCharacteristicWriteEvent::Failed {
+            peripheral,
+            service,
+            characteristic,
+            error,
+        },
+        WriteDecision::Completed {
+            peripheral,
+            service,
+            characteristic,
+        } => BluetoothCharacteristicWriteEvent::Completed {
+            peripheral,
+            service,
+            characteristic,
+        },
+        WriteDecision::Write | WriteDecision::Ignore => return,
+    };
+    state.characteristic_write_events.borrow_mut().push(event);
+    if !state.characteristic_write.borrow().callback_ambiguous() {
+        clear_characteristic_write_objects(state);
+    }
+}
+
+fn clear_characteristic_write_objects(state: &CentralState) {
+    state
+        .characteristic_write_characteristic
+        .borrow_mut()
+        .take();
+    state.characteristic_write_service.borrow_mut().take();
+    state.characteristic_write_data.borrow_mut().take();
+}
+
+fn clear_quarantined_characteristic_write_objects(state: &CentralState) {
+    if state.characteristic_write.borrow().callback_ambiguous() {
+        clear_characteristic_write_objects(state);
+    }
 }
 
 fn service_uuid_from_native(uuid: &CBUUID) -> Option<framework_bluetooth::BluetoothServiceUuid> {

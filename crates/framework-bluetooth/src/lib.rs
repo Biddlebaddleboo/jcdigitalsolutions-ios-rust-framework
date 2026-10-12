@@ -475,6 +475,113 @@ pub trait BluetoothCharacteristicReadBackend: BluetoothServiceDiscoveryBackend {
     fn take_dropped_characteristic_read_event_count(&mut self) -> u32;
 }
 
+/// The latest lifecycle state of one connected-peer, write-with-response GATT operation.
+#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
+#[non_exhaustive]
+#[repr(u8)]
+pub enum BluetoothCharacteristicWriteState {
+    /// No characteristic write has been requested.
+    Idle = 0,
+    /// The backend is discovering characteristics for the selected service.
+    DiscoveringCharacteristics = 1,
+    /// The backend requested a write with response for the unique writable characteristic.
+    Writing = 2,
+    /// CoreBluetooth reported that the write request succeeded.
+    Completed = 3,
+    /// The operation ended with an error.
+    Failed = 4,
+}
+
+/// A synchronous rejection or normalized terminal GATT characteristic-write failure.
+#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
+#[non_exhaustive]
+#[repr(u8)]
+pub enum BluetoothCharacteristicWriteError {
+    /// No caller-selected peripheral is currently connected.
+    NotConnected = 0,
+    /// The central manager reports that this Bluetooth role is unsupported.
+    Unsupported = 1,
+    /// Successful service discovery has not completed for the selected peer.
+    ServiceDiscoveryRequired = 2,
+    /// A service-discovery, read, or write operation is still active.
+    AlreadyActive = 3,
+    /// The requested service UUID is absent from the selected peer.
+    ServiceNotFound = 4,
+    /// The requested service UUID matches more than one service instance.
+    AmbiguousService = 5,
+    /// The requested characteristic UUID is absent from the unique service.
+    CharacteristicNotFound = 6,
+    /// The requested characteristic UUID matches more than one characteristic instance.
+    AmbiguousCharacteristic = 7,
+    /// The unique characteristic does not have the public GATT Write property.
+    NotWritable = 8,
+    /// The payload exceeds the 512-byte attribute or current native write limit.
+    PayloadTooLarge = 9,
+    /// CoreBluetooth reported an error while discovering or writing the characteristic.
+    NativeFailure = 10,
+    /// The selected peer disconnected before the operation completed.
+    Disconnected = 11,
+    /// The backend could not safely process the native callback.
+    Unavailable = 12,
+}
+
+/// A copied terminal event from one connected-peer GATT characteristic write.
+#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
+#[non_exhaustive]
+pub enum BluetoothCharacteristicWriteEvent {
+    /// CoreBluetooth reported successful completion of the write-with-response request.
+    Completed {
+        /// The caller-selected OS peer UUID.
+        peripheral: BluetoothPeripheralId,
+        /// The unique service type UUID selected for the write.
+        service: BluetoothServiceUuid,
+        /// The unique writable characteristic type UUID selected for the write.
+        characteristic: BluetoothCharacteristicUuid,
+    },
+    /// The operation failed; native `NSError` details are not exposed cross-platform.
+    Failed {
+        /// The caller-selected OS peer UUID.
+        peripheral: BluetoothPeripheralId,
+        /// The requested service type UUID.
+        service: BluetoothServiceUuid,
+        /// The requested characteristic type UUID.
+        characteristic: BluetoothCharacteristicUuid,
+        /// The normalized failure reason.
+        error: BluetoothCharacteristicWriteError,
+    },
+}
+
+/// A statically selected backend for one write-with-response GATT operation on the connected peer.
+///
+/// A request requires successful service discovery and exactly one matching service and
+/// characteristic. The characteristic must have the public GATT Write property; the borrowed
+/// payload is copied before this method returns and must fit both the 512-byte attribute bound and
+/// the backend's current native write limit. The backend rejects overlapping service-discovery,
+/// read, or write operations and reports one terminal event through polling. Disconnect or
+/// connection cancellation ends an active write; backend teardown suppresses later callbacks.
+/// If an interrupted CoreBluetooth characteristic-discovery or write callback cannot be correlated
+/// safely, the backend may reject later writes until it is recreated.
+/// Write-without-response, notifications, descriptors, native object handles, and peripheral-role
+/// operations are outside this contract.
+pub trait BluetoothCharacteristicWriteBackend: BluetoothServiceDiscoveryBackend {
+    /// Requests one write-with-response operation by a unique service/characteristic UUID pair.
+    fn write_characteristic(
+        &mut self,
+        service: BluetoothServiceUuid,
+        characteristic: BluetoothCharacteristicUuid,
+        value: &[u8],
+    ) -> Result<(), BluetoothCharacteristicWriteError>;
+
+    /// Returns the latest characteristic-write lifecycle state.
+    fn characteristic_write_state(&self) -> BluetoothCharacteristicWriteState;
+
+    /// Removes one copied terminal write event, if one is queued.
+    fn try_next_characteristic_write_event(&mut self) -> Option<BluetoothCharacteristicWriteEvent>;
+
+    /// Returns and resets the saturating count of write events dropped by the bounded queue.
+    fn take_dropped_characteristic_write_event_count(&mut self) -> u32;
+}
+
 /// A thin facade over caller-owned central backend state.
 pub struct BluetoothCentral<B> {
     backend: B,
@@ -591,6 +698,36 @@ impl<B: BluetoothCharacteristicReadBackend> BluetoothCentral<B> {
     /// bounded queue.
     pub fn take_dropped_characteristic_read_event_count(&mut self) -> u32 {
         self.backend.take_dropped_characteristic_read_event_count()
+    }
+}
+
+impl<B: BluetoothCharacteristicWriteBackend> BluetoothCentral<B> {
+    /// Explicitly requests a write-with-response to one UUID-unique connected-peer characteristic.
+    pub fn write_characteristic(
+        &mut self,
+        service: BluetoothServiceUuid,
+        characteristic: BluetoothCharacteristicUuid,
+        value: &[u8],
+    ) -> Result<(), BluetoothCharacteristicWriteError> {
+        self.backend
+            .write_characteristic(service, characteristic, value)
+    }
+
+    /// Returns the latest characteristic-write lifecycle state.
+    pub fn characteristic_write_state(&self) -> BluetoothCharacteristicWriteState {
+        self.backend.characteristic_write_state()
+    }
+
+    /// Removes one already-delivered terminal write event, if one is queued.
+    pub fn try_next_characteristic_write_event(
+        &mut self,
+    ) -> Option<BluetoothCharacteristicWriteEvent> {
+        self.backend.try_next_characteristic_write_event()
+    }
+
+    /// Returns and resets the saturating count of write events dropped by the bounded queue.
+    pub fn take_dropped_characteristic_write_event_count(&mut self) -> u32 {
+        self.backend.take_dropped_characteristic_write_event_count()
     }
 }
 

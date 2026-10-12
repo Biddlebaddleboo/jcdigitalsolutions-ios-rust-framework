@@ -148,3 +148,32 @@ Simulator execution and physical-device proof. Host tests passed `framework-blue
 `ios-bluetooth` 36/36 (33 unit + 3 service-contract tests); device/Simulator compile, Clippy,
 Rustdoc, and link checks passed. No live GATT read was performed; CoreBluetooth exposes no per-read
 cancellation ID or timeout.
+
+## B597 — connected-peer GATT characteristic writes
+
+B597 adds `BluetoothCharacteristicWriteBackend` and a caller-owned `write_characteristic` facade for
+one-at-a-time write-with-response operations over the existing connected-peer selection path. It
+requires peer-scoped successful B592 service discovery, unique service/characteristic UUID matches,
+the public GATT Write property, and a payload within both the 512-byte attribute bound and
+CoreBluetooth's current write-with-response limit. The iOS adapter copies the borrowed bytes into
+`NSData`, retains them through `didWriteValueForCharacteristic:error:`, and reports one terminal
+event through a separate four-entry FIFO. Service discovery, reads, and writes cannot overlap. The
+existing iOS 8.0 package floor is preserved: `maximumWriteValueLengthForType:` is called only when
+the iOS 9.0 selector is present; older systems use a conservative 20-byte cap. CoreBluetooth
+characteristic-discovery and write callbacks carry no operation token, so disconnect or callback
+panic during either step quarantines later writes on that backend instance until it is recreated.
+Write-without-response, notifications, descriptors, peripheral
+role, and per-operation native cancellation remain out of scope.
+
+Host regressions cover disconnected and incomplete discovery, foreign-peer proof, absent/duplicate
+service and characteristic matches, missing Write property, 512-byte and negotiated-limit bounds,
+overlap, native callback result policy, disconnect during discovery and write, panic during
+discovery and write, late callback suppression, quarantine, and FIFO overflow. The link fixture
+references the new facade; the registered profile adds a guard
+for `didWriteValueForCharacteristic:` and already snapshots the package source/test tree. Using
+`/Users/john/.local/bin/ios-rust-validate` (`source_sha=350971094cc3b77191cd6b3d07e01af04d71943d`,
+SHA-256 `77f9c7aa941ba1335827ffc6ce274898987ce1d5f408d91d1a7c1daf34527944`), the registered
+`ios-bluetooth` profile passed 32 checks with 0 FAIL, 0 BLOCKED, and 2 SKIPPED at snapshot
+`9c209b2f3fed1cb7b6a3dd6fd64c455941460067f67e8946fb041cb4e7cb4e35`. Device iOS 8.0 and Simulator
+iOS 14.0 compilation, strict Clippy, Rustdoc, and link fixture passed; SKIPPED were Simulator
+execution and physical-device proof. No radio write, peer response, or runtime callback is claimed.

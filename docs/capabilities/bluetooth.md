@@ -1,10 +1,10 @@
 # Portable Bluetooth
 
 `framework-bluetooth` defines portable authorization, central-discovery, explicit central-
-connection, connected-peer GATT service-discovery, and read-only characteristic-value contracts.
-Platform managers and peripheral objects remain private to native backends. The portable API has
-no advertisement, peripheral-role, beacon, characteristic write/notification, or radio-control
-contract.
+connection, connected-peer GATT service-discovery, characteristic-read, and write-with-response
+contracts. Platform managers and peripheral objects remain private to native backends. The
+portable API has no advertisement, peripheral-role, beacon, write-without-response,
+characteristic-notification, or radio-control contract.
 
 ## Authorization states
 
@@ -89,7 +89,7 @@ is introduced.
 service discovery. `read_characteristic` selects a service and characteristic by their fixed-width,
 canonical 128-bit UUIDs; the iOS backend rejects an absent or duplicate service immediately, then
 discovers characteristics and rejects an absent, duplicate, or non-readable match. An active service
-discovery or characteristic read blocks another GATT operation with `AlreadyActive`.
+discovery, read, or write blocks another GATT operation with `AlreadyActive`.
 
 The iOS adapter uses public `CBPeripheral.discoverCharacteristics:forService:` and
 `readValueForCharacteristic:` APIs. It copies a complete `NSData` result into a 512-byte inline
@@ -104,6 +104,17 @@ The portable value exposes no CoreBluetooth handle, borrowed buffer, or native e
 contract does not write values, subscribe to notifications, discover descriptors, or implement a
 peripheral role. Host policy tests and device/Simulator compile/link checks do not prove a live GATT
 read.
+
+`BluetoothCharacteristicWriteBackend` adds one explicit write-with-response operation for a unique
+connected-peer service/characteristic UUID pair with the public GATT Write property. The iOS backend
+copies and retains the caller payload through CoreBluetooth's terminal write callback; it rejects
+payloads above the 512-byte attribute bound or the current native limit (20 bytes conservatively on
+iOS 8). A disconnect/cancel during native characteristic discovery or a write reports
+`Disconnected` and quarantines later writes on that backend instance because CoreBluetooth
+callbacks carry no operation token. Its
+four-event FIFO reports only CoreBluetooth's write result, not an application-level effect. No
+write-without-response, notification subscription, descriptor operation, or peripheral role is
+implemented; static checks do not prove live radio behavior.
 
 See [iOS Bluetooth central discovery](../ios/bluetooth-discovery.md) for queue, lifecycle, privacy,
 and runtime limits.

@@ -5,7 +5,7 @@ edition.workspace = true
 rust-version.workspace = true
 license.workspace = true
 repository.workspace = true
-description = "Bluetooth discovery, connections, and read-only GATT values for iOS"
+description = "Bluetooth discovery, connections, and GATT values for iOS"
 
 [dependencies]
 framework-bluetooth = { path = "../../../crates/framework-bluetooth" }

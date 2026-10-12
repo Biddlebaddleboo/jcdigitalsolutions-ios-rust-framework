@@ -2,8 +2,8 @@
 
 use framework_bluetooth::{
     BluetoothCentral, BluetoothCharacteristicReadEvent, BluetoothCharacteristicReadState,
-    BluetoothCharacteristicUuid, BluetoothPeripheralId, BluetoothServiceDiscoveryState,
-    BluetoothServiceUuid,
+    BluetoothCharacteristicUuid, BluetoothCharacteristicWriteState, BluetoothPeripheralId,
+    BluetoothServiceDiscoveryState, BluetoothServiceUuid,
 };
 use ios_bluetooth::IosBluetoothCentralBackend;
 use objc2::MainThreadMarker;
@@ -37,6 +37,13 @@ fn explicit_connection_and_gatt_surface_links_without_starting_core_bluetooth() 
         }
     }
     let _ = central.take_dropped_characteristic_read_event_count();
+    assert_eq!(
+        central.characteristic_write_state(),
+        BluetoothCharacteristicWriteState::Idle
+    );
+    let _ = central.write_characteristic(service, characteristic, &[0xA5; 20]);
+    let _ = central.try_next_characteristic_write_event();
+    let _ = central.take_dropped_characteristic_write_event_count();
     let id = BluetoothPeripheralId::from_uuid_bytes([0xA5; 16]);
     let _ = central.connect_peripheral(id);
     central.cancel_connection();

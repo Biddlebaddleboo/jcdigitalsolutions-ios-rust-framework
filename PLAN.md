@@ -696,3 +696,15 @@ B593 adds opt-in one-shot NDEF writes and gates its writer probe by the declared
 ### B594 — read-only connected-peer GATT characteristic values (row 039)
 
 B594 adds unique `(service UUID, characteristic UUID)` selection, a public CoreBluetooth characteristic-discovery/read sequence, and copied values bounded at 512 bytes in a four-event FIFO. Successful B592 discovery is scoped to the exact peer and invalidated on disconnect, cancellation, connection retry, or new discovery; stale global Completed state and cached service arrays cannot authorize another peer's read. The registered `ios-bluetooth` profile passed 31 checks, 0 FAIL/BLOCKED, and 2 SKIPPED for Simulator execution and physical-device proof; host tests passed 6/6 for `framework-bluetooth` and 36/36 for `ios-bluetooth`, with device/Simulator compile, Clippy, Rustdoc, and link checks passing. No runtime GATT read is claimed; GATT writes/notifications, peripheral role, descriptors, and per-read native cancellation remain out of scope. The implementation SHA is reported in the workstream handoff because it cannot be self-referenced by this same commit.
+
+### B595 — opt-in camera session lifecycle events (row 046)
+
+B595 adds opt-in AVFoundation did-start, did-stop, interruption, interruption-ended, and runtime-error events with bounded copied error details and teardown-safe observation. Commit `7c00582c7fd447b02510a2834849b68d36530944`; the registered `ios-camera-capture-session` profile passed 271 checks, 0 FAIL/BLOCKED, and 2 SKIPPED for Simulator execution and physical-device proof. No camera runtime event delivery or automatic recovery is claimed.
+
+### B596 — daily local notification trigger (row 031)
+
+B596 adds a validated local wall-clock daily trigger using public `UNCalendarNotificationTrigger` and the autoupdating current calendar without changing existing elapsed or absolute triggers. Commit `2f32533c787b5753725a1f7eb876bbdd38908547`; the registered `ios-notifications` profile passed 28 checks, 0 FAIL/BLOCKED, and 2 SKIPPED for Simulator execution and physical-device proof. Portable notification tests passed 13 unit tests plus one doctest, and the no-default-features portable check passed. Delivery, DST, and timezone-transition behavior remain runtime-unverified.
+
+### B597 — connected-peer GATT write-with-response (row 039)
+
+B597 adds bounded one-at-a-time connected-peer writes with unique UUID selection, native Write-property checks, copied payloads, CoreBluetooth response events, and stale-callback quarantine after interrupted discovery or writes. The registered `ios-bluetooth` profile passed 32 checks, 0 FAIL/BLOCKED, and 2 SKIPPED at snapshot `9c209b2f3fed1cb7b6a3dd6fd64c455941460067f67e8946fb041cb4e7cb4e35`; the skips are Simulator execution and physical-device proof. Host policy/contract tests, iOS device/Simulator compile and link gates, strict Clippy, and Rustdoc passed. No live radio write or peer response is claimed.

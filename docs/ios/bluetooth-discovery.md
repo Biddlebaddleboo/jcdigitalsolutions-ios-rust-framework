@@ -186,6 +186,41 @@ descriptors, or add peripheral-role behavior. Compile and link checks do not pro
 permission, callback delivery, or live value behavior; no Simulator or physical-device runtime test
 is claimed.
 
+## Write one connected-peer characteristic value
+
+`BluetoothCentral::write_characteristic` accepts a borrowed payload, copies it before returning, and
+requests one `CBCharacteristicWriteWithResponse` operation for a unique service/characteristic UUID
+pair. It requires fresh B592 service discovery for the exact connected peer and the characteristic's
+public Write property. The backend rejects payloads above 512 bytes or CoreBluetooth's current
+write-with-response limit; on iOS 8, before that limit query exists, it conservatively caps a write
+at 20 bytes. Other active service-discovery/read/write operations are rejected synchronously.
+
+```rust,ignore
+use framework_bluetooth::BluetoothCharacteristicWriteEvent;
+
+central.write_characteristic(service, characteristic, payload)?;
+while let Some(event) = central.try_next_characteristic_write_event() {
+    match event {
+        BluetoothCharacteristicWriteEvent::Completed { .. } => { /* CoreBluetooth reported success */ }
+        BluetoothCharacteristicWriteEvent::Failed { error, .. } => { let _ = error; }
+    }
+}
+let _ = central.characteristic_write_state();
+let dropped = central.take_dropped_characteristic_write_event_count();
+```
+
+The backend retains its copied `NSData` and selected native objects through the terminal
+`didWriteValueForCharacteristic:error:` callback, then queues one terminal event in a separate
+four-entry FIFO. A disconnect or `cancel_connection` during native characteristic discovery or a
+write reports `Disconnected`; it retains the native objects until the disconnect callback or
+backend drop. Because CoreBluetooth characteristic-discovery and write callbacks carry no operation
+token, that backend instance rejects later writes with `Unavailable` rather than risk attributing a
+delayed callback to a later write. Drop and recreate
+the backend before issuing another write. This completion is CoreBluetooth's
+write-with-response result, not proof of an application-level effect on the peripheral. No
+write-without-response, notification subscription, descriptor operation, peripheral role,
+Simulator run, or physical-device behavior is claimed.
+
 ## Scope and host configuration
 
 The CoreBluetooth manager and scan method are available from iOS 5.0 per the installed Xcode 26.6 /
