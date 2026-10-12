@@ -421,6 +421,13 @@ Release link/import checks pass at iOS 10.0 / 14.0. The integrated profile repor
 `2dbb1b68803921183c0eb0ab3b72cd0432bc07cfa8466681409147e78037a852`; no CallKit runtime behavior
 is claimed.
 
+### B542 — UIKit multiline text editor (row 003)
+
+B542 adds a main-thread-bound editable `UITextView` handle with strict UTF-16 snapshots, owned
+edit callbacks, silent programmatic text updates, responder requests, and delegate teardown. It is
+an imperative UIKit control; it does not add SwiftUI state binding or declarative composition.
+Keyboard and live text/callback behavior remain unverified.
+
 ### B543 — current AVPlayer item end observation
 
 B543 extends row 048 with `IosFilePlayer::observe_current_item_end`. The observation binds to the

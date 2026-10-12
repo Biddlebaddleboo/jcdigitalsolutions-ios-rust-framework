@@ -176,3 +176,20 @@ Root owns workspace, lockfile, docs-index, capability-matrix, and CI integration
 - Until those gates run, report only source-level review and any direct non-Cargo checks. Do not
   claim Xcode compilation, UIKit linking, simulator launch, device behavior, callback execution, or
   visual/layout correctness
+
+## B542 — editable multiline text
+
+B542 adds the iOS-specific `IosTextEditor` over public `UITextView`, separate from the existing
+read-only `IosSelectableTextView`. It owns strict UTF-16 snapshots, synchronous owned edit
+callbacks, silent programmatic `set_text`, responder requests, and a retained Objective-C delegate
+that detaches on handle drop. Reentrant callback calls are ignored, panic is contained, and active
+callback replacement fails without removing the current callback. The API stays imperative and
+UIKit-native; it does not add state binding, automatic observation, diffing, or declarative
+composition. Host and registered device/Simulator static checks do not prove live text input,
+keyboard behavior, focus, or callback delivery.
+
+The integrated command `ios-rust-validate --workspace-root "$PWD" --spec
+"$PWD/tools/validation/specs/validation-v1.json" --capability ios-ui --format json` reported 271
+PASS, 0 FAIL, 0 BLOCKED, and 2 SKIPPED of 273 at snapshot
+`2b0a501c10b79e12943a818681f768ffac24b10bb3bb88567c94476585ef462b`. Skips are Simulator
+execution and physical-device proof; no live UI behavior is claimed.
