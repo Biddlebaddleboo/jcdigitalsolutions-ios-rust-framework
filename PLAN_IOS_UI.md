@@ -292,3 +292,7 @@ setting a trait when Dynamic Type style tracking is desired. Host regressions co
 clearing, and preservation; Device iOS 12.0 and Simulator iOS 14.0 Release probes check the new
 selectors. The local host tests, strict Clippy, target checks, and probes pass; the integrated
 `ios-ui` validator run and live font/Dynamic Type behavior remain pending.
+
+## B589 — locale-aware optional integer text-field values
+
+B589 adds `IosTextField::integer_value` and `set_integer_value` using public Foundation decimal formatting with the current locale. Nil and empty input map to `None`; parsing requires full UTF-16 range consumption and an exact decimal-to-`i64` conversion, so malformed, fractional, and out-of-range text returns `InvalidInput` without rounding, truncation, or mutation. Formatting takes `Option<i64>` without passing through floating point; existing plain-text and edit-callback behavior is unchanged. Host policy regressions cover boundaries and rejected inputs, and the registered `ios-ui` Release link fixture covers Foundation imports and selectors at the existing device iOS 12.0 and Simulator iOS 14.0 floors. Locale formatting and field behavior remain runtime-unverified.

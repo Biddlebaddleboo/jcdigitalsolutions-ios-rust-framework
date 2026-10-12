@@ -23,9 +23,12 @@ fn main() {
     let _ = field.set_enabled(false);
     let _ = field.set_enabled(true);
     let _ = field.text();
+    let _ = field.integer_value();
     let _ = field.placeholder();
     let _ = field.set_text(None);
     let _ = field.set_text(Some("replacement"));
+    let _ = field.set_integer_value(Some(i64::MIN));
+    let _ = field.set_integer_value(None);
     let _ = field.set_placeholder(None);
     let _ = field.set_placeholder(Some("new hint"));
     let _ = field.set_accessibility_label(None);

@@ -36,6 +36,8 @@ mod grid;
 #[cfg(any(test, target_os = "ios"))]
 mod grid_policy;
 #[cfg(any(test, target_os = "ios"))]
+mod integer_text_policy;
+#[cfg(any(test, target_os = "ios"))]
 mod keyboard_action_policy;
 #[cfg(any(test, target_os = "ios"))]
 mod layout_policy;

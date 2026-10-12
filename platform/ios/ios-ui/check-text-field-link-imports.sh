@@ -15,7 +15,14 @@ for assertion in \
     'pub fn set_accessibility_identifier(&mut self, identifier: Option<&str>) -> Result<()>' \
     'self.native.setAccessibilityLabel(label.as_deref(), marker);' \
     'self.native.setAccessibilityHint(hint.as_deref(), marker);' \
-    '.setAccessibilityIdentifier(identifier.as_deref());'; do
+    '.setAccessibilityIdentifier(identifier.as_deref());' \
+    'pub fn integer_value(&self) -> Result<Option<i64>>' \
+    'pub fn set_integer_value(&mut self, value: Option<i64>) -> Result<()>' \
+    'getObjectValue_forString_range_error(' \
+    'parsed_range != full_range' \
+    'setAllowsFloats(false)' \
+    'setGeneratesDecimalNumbers(true)' \
+    'parse_optional_integer_text(Some(&canonical))'; do
     grep -F "$assertion" "$source_file" >/dev/null || {
         echo "iOS text-field source contract is missing $assertion" >&2
         exit 1
@@ -45,6 +52,10 @@ for target in aarch64-apple-ios aarch64-apple-ios-sim; do
         echo "$target text-field probe does not link UIKit" >&2
         exit 1
     }
+    printf '%s\n' "$imports" | grep -F '/Foundation.framework/Foundation' >/dev/null || {
+        echo "$target text-field probe does not link Foundation" >&2
+        exit 1
+    }
     symbols=$(nm -u "$binary")
     binary_strings=$(strings "$binary")
     printf '%s\n' "$symbols" | grep -F 'objc_getClass' >/dev/null || {
@@ -55,6 +66,12 @@ for target in aarch64-apple-ios aarch64-apple-ios-sim; do
         echo "$target text-field probe is missing the public UITextField runtime class name" >&2
         exit 1
     }
+    for class_name in 'NSNumberFormatter' 'NSLocale' 'NSDecimalNumber'; do
+        printf '%s\n' "$binary_strings" | grep -Fx "$class_name" >/dev/null || {
+            echo "$target text-field probe is missing the public $class_name runtime class name" >&2
+            exit 1
+        }
+    done
     printf '%s\n' "$symbols" | grep -F 'objc_msgSend' >/dev/null || {
         echo "$target text-field probe is missing Objective-C message dispatch" >&2
         exit 1
@@ -63,7 +80,10 @@ for target in aarch64-apple-ios aarch64-apple-ios-sim; do
         'becomeFirstResponder' 'resignFirstResponder' 'setSecureTextEntry:' \
         'setKeyboardType:' 'textFieldChanged:' 'textFieldSubmitted:' 'endEditing:' \
         'setAccessibilityLabel:' 'setAccessibilityHint:' 'setAccessibilityIdentifier:' \
-        'removeTarget:action:forControlEvents:'; do
+        'removeTarget:action:forControlEvents:' 'setNumberStyle:' 'setLocale:' \
+        'setUsesGroupingSeparator:' 'setAllowsFloats:' 'setLenient:' \
+        'setGeneratesDecimalNumbers:' 'stringFromNumber:' \
+        'getObjectValue:forString:range:error:'; do
         printf '%s\n' "$binary_strings" | grep -F "$selector" >/dev/null || {
             echo "$target text-field probe is missing the $selector selector" >&2
             exit 1

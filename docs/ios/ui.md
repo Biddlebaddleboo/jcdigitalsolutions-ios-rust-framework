@@ -373,6 +373,16 @@ Encoding uses the explicit-length NSString initializer. Reads copy the exact UTF
 malformed surrogate sequences as `InvalidInput`; embedded NUL and supplementary Unicode scalars
 are preserved. No UTF-8 C-string conversion is used
 
+`IosTextField::integer_value` and `set_integer_value` are explicit iOS-only optional-`i64` helpers.
+They use public Foundation `NSNumberFormatter` decimal style with the current locale and grouping
+separators. A nil or empty field returns `None`; parsing requires complete UTF-16 range consumption,
+disables floating-point input, obtains an `NSDecimalNumber`, then checks its canonical decimal text
+with Rust's exact `i64` parser. Malformed, fractional, partial, and out-of-range text returns
+`InvalidInput` without changing the field. `set_integer_value(None)` writes native nil; a value is
+formatted directly to localized text without floating-point conversion or an edit callback. These
+are explicit snapshot/set operations, not value bindings or automatic state observation. Compile
+and link checks do not prove locale-specific display or live text-entry behavior
+
 `request_first_responder` and `resign_first_responder` return UIKit's `Bool` result. These values do
 not prove keyboard visibility or text-input runtime behavior. The handle is retained and
 `!Send`/`!Sync`; all operations require the current main thread. This slice adds no delegate,

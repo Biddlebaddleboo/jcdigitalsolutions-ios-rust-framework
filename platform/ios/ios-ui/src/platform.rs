@@ -11,12 +11,15 @@ use framework_ui::{
 use ios_runtime::ffi::catch_unwind;
 use ios_runtime::main_thread::MainThread;
 use objc2::rc::{Retained, autoreleasepool};
-use objc2::runtime::NSObject;
+use objc2::runtime::{AnyObject, NSObject};
 use objc2::{
     ClassType, DefinedClass, MainThreadMarker, MainThreadOnly, Message, define_class, msg_send, sel,
 };
 use objc2_core_foundation::{CGPoint, CGRect, CGSize};
-use objc2_foundation::{NSObjectProtocol, NSRange, NSString};
+use objc2_foundation::{
+    NSDecimalNumber, NSLocale, NSNumber, NSNumberFormatter, NSNumberFormatterStyle,
+    NSObjectProtocol, NSRange, NSString,
+};
 use objc2_ui_kit::{
     NSObjectUIAccessibility, UIAccessibilityIdentification, UIApplication, UIButton, UIColor,
     UIContentSizeCategoryAdjusting, UIControlEvents, UIControlState, UIFont,
@@ -30,6 +33,7 @@ use objc2_ui_kit::{
 };
 
 use crate::font_traits_policy::{IosFontDesign, IosFontWeight, with_font_design, with_font_weight};
+use crate::integer_text_policy::parse_optional_integer_text;
 use crate::keyboard_action_policy::run_with_main_thread_marker;
 use crate::layout_policy::{OneShotConstraints, ScrollLayoutPolicy};
 use crate::scroll_policy::validated_content_size;
@@ -655,6 +659,72 @@ impl IosTextField {
         Ok(())
     }
 
+    /// Returns the current field value as an optional, exact base-10 integer.
+    ///
+    /// Nil or empty text returns `None`. Parsing uses the current locale's public Foundation
+    /// decimal formatter, requires it to consume the full field value, rejects floating-point
+    /// input, and checks the exact decimal string against the `i64` range. Invalid or fractional
+    /// text returns `InvalidInput` and does not mutate the field.
+    pub fn integer_value(&self) -> Result<Option<i64>> {
+        let _field_integer_read_thread = main_thread_marker()?;
+        autoreleasepool(|_| {
+            let Some(text) = self.native.text() else {
+                return Ok(None);
+            };
+            if text.length() == 0 {
+                return Ok(None);
+            }
+
+            let formatter = integer_number_formatter();
+            let full_range = NSRange::new(0, text.length());
+            let mut parsed_range = full_range;
+            let mut parsed_object: Option<Retained<AnyObject>> = None;
+            // SAFETY: The output slot is an Objective-C object pointer, and `parsed_range` is a
+            // live writable NSRange. `generatesDecimalNumbers` requests NSDecimalNumber output.
+            let parsed = unsafe {
+                formatter.getObjectValue_forString_range_error(
+                    Some(&mut parsed_object),
+                    &text,
+                    &mut parsed_range,
+                )
+            };
+            if parsed.is_err() || parsed_range != full_range {
+                return Err(Error::new(ErrorKind::InvalidInput));
+            }
+            let parsed_object = parsed_object.ok_or_else(|| Error::new(ErrorKind::InvalidInput))?;
+            let decimal = parsed_object
+                .downcast::<NSDecimalNumber>()
+                .map_err(|_| Error::new(ErrorKind::Unavailable))?;
+            let canonical = native_string_to_rust(&decimal.stringValue())?;
+            parse_optional_integer_text(Some(&canonical))
+        })
+    }
+
+    /// Replaces the field text with an optional integer formatted for the current locale.
+    ///
+    /// `None` writes native nil and `Some(0)` writes a localized zero. Formatting uses public
+    /// Foundation decimal formatting without floating-point conversion; it does not add a binding
+    /// or invoke the user-edit callback.
+    pub fn set_integer_value(&mut self, value: Option<i64>) -> Result<()> {
+        let _field_integer_write_thread = main_thread_marker()?;
+        autoreleasepool(|_| {
+            let text = match value {
+                None => None,
+                Some(value) => {
+                    let formatter = integer_number_formatter();
+                    let number = NSNumber::numberWithLongLong(value);
+                    Some(
+                        formatter
+                            .stringFromNumber(&number)
+                            .ok_or_else(|| Error::new(ErrorKind::Unavailable))?,
+                    )
+                }
+            };
+            self.native.setText(text.as_deref());
+            Ok(())
+        })
+    }
+
     /// Returns the current placeholder, preserving `nil`, empty strings, and embedded NUL values.
     pub fn placeholder(&self) -> Result<Option<String>> {
         let _field_placeholder_read_thread = main_thread_marker()?;
@@ -781,6 +851,18 @@ impl IosTextField {
     pub fn native_text_field(&self) -> &UITextField {
         &self.native
     }
+}
+
+fn integer_number_formatter() -> Retained<NSNumberFormatter> {
+    let formatter = NSNumberFormatter::new();
+    formatter.setNumberStyle(NSNumberFormatterStyle::DecimalStyle);
+    let locale = NSLocale::currentLocale();
+    formatter.setLocale(Some(&locale));
+    formatter.setUsesGroupingSeparator(true);
+    formatter.setAllowsFloats(false);
+    formatter.setLenient(false);
+    formatter.setGeneratesDecimalNumbers(true);
+    formatter
 }
 
 impl TextFieldControl for IosTextField {

@@ -18,7 +18,7 @@
 | --- | --- | --- | --- | --- | --- |
 | 001-core-app-ui-application-lifecycle | Core app/UI | application lifecycle | implemented | partial | not_tested_live_behavior_or_Apple_parity |
 | 002-core-app-ui-windows-screens | Core app/UI | windows/screens | not_implemented | partial | not_tested_live_behavior_or_Apple_parity |
-| 003-core-app-ui-basic-native-views-controllers-controls | Core app/UI | native controls, enabled state, system text styles/colors/font traits | partial | partial | not_tested_live_behavior_or_Apple_parity |
+| 003-core-app-ui-basic-native-views-controllers-controls | Core app/UI | native controls, enabled state, system text styles/colors/font traits, localized integer values | partial | partial | not_tested_live_behavior_or_Apple_parity |
 | 004-core-app-ui-events-target-action-delegates | Core app/UI | events/target-action/delegates | partial | partial | not_tested_live_behavior_or_Apple_parity |
 | 005-core-app-ui-native-presentation | Core app/UI | native presentation | not_implemented | partial | not_tested_live_behavior_or_Apple_parity |
 | 006-core-app-ui-pasteboard-clipboard | Core app/UI | pasteboard/clipboard | partial | partial | not_tested_live_behavior_or_Apple_parity |
