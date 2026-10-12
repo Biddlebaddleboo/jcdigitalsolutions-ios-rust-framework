@@ -215,9 +215,9 @@ impl NotificationContent {
 
 /// A local-notification trigger.
 ///
-/// Trigger forms are immediate delivery, an absolute Unix timestamp in milliseconds, or a
-/// repeating interval in whole seconds. Calendar-based recurrence and one-shot relative delays
-/// are not represented.
+/// Trigger forms are immediate delivery, an absolute Unix timestamp in milliseconds, a repeating
+/// elapsed interval in whole seconds, or a daily local clock time. One-shot relative delays are
+/// not represented.
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
 pub struct NotificationTrigger(TriggerValue);
 
@@ -226,6 +226,7 @@ enum TriggerValue {
     Immediate,
     AtUnixMillis(u64),
     RepeatingIntervalSeconds(u32),
+    DailyLocalTime { hour: u8, minute: u8, second: u8 },
 }
 
 impl NotificationTrigger {
@@ -259,6 +260,28 @@ impl NotificationTrigger {
         }
     }
 
+    /// Creates a daily trigger for a local wall-clock time.
+    ///
+    /// The hour must be 0–23; minute and second must each be 0–59. The portable value does not
+    /// select a calendar or time zone. A backend determines how its local calendar interprets
+    /// this time, including daylight-saving gaps or overlaps and later calendar/time-zone changes;
+    /// exact delivery time is not promised.
+    pub const fn daily_at_local_time(
+        hour: u8,
+        minute: u8,
+        second: u8,
+    ) -> Result<Self, NotificationError> {
+        if hour <= 23 && minute <= 59 && second <= 59 {
+            Ok(Self(TriggerValue::DailyLocalTime {
+                hour,
+                minute,
+                second,
+            }))
+        } else {
+            Err(NotificationError::InvalidLocalTime)
+        }
+    }
+
     /// Reports whether this trigger requests immediate eligibility.
     pub const fn is_immediate(self) -> bool {
         matches!(self.0, TriggerValue::Immediate)
@@ -269,7 +292,7 @@ impl NotificationTrigger {
         match self.0 {
             TriggerValue::Immediate => None,
             TriggerValue::AtUnixMillis(timestamp) => Some(timestamp),
-            TriggerValue::RepeatingIntervalSeconds(_) => None,
+            TriggerValue::RepeatingIntervalSeconds(_) | TriggerValue::DailyLocalTime { .. } => None,
         }
     }
 
@@ -277,7 +300,23 @@ impl NotificationTrigger {
     pub const fn repeating_interval_seconds(self) -> Option<u32> {
         match self.0 {
             TriggerValue::RepeatingIntervalSeconds(seconds) => Some(seconds),
-            TriggerValue::Immediate | TriggerValue::AtUnixMillis(_) => None,
+            TriggerValue::Immediate
+            | TriggerValue::AtUnixMillis(_)
+            | TriggerValue::DailyLocalTime { .. } => None,
+        }
+    }
+
+    /// Returns the daily local hour, minute, and second, or `None` for another trigger form.
+    pub const fn daily_local_time(self) -> Option<(u8, u8, u8)> {
+        match self.0 {
+            TriggerValue::DailyLocalTime {
+                hour,
+                minute,
+                second,
+            } => Some((hour, minute, second)),
+            TriggerValue::Immediate
+            | TriggerValue::AtUnixMillis(_)
+            | TriggerValue::RepeatingIntervalSeconds(_) => None,
         }
     }
 }
@@ -353,6 +392,8 @@ pub enum NotificationError {
     InvalidTimestamp,
     /// A repeating interval is less than the supported 60-second minimum.
     InvalidRepeatInterval,
+    /// A daily local time has an hour above 23 or a minute/second above 59.
+    InvalidLocalTime,
     /// The selected backend returned a framework error.
     Backend(Error),
 }
@@ -364,7 +405,8 @@ impl NotificationError {
             Self::InvalidIdentifier
             | Self::InvalidCategoryIdentifier
             | Self::InvalidTimestamp
-            | Self::InvalidRepeatInterval => ErrorKind::InvalidInput,
+            | Self::InvalidRepeatInterval
+            | Self::InvalidLocalTime => ErrorKind::InvalidInput,
             Self::Backend(error) => error.kind(),
         }
     }
@@ -375,7 +417,8 @@ impl NotificationError {
             Self::InvalidIdentifier
             | Self::InvalidCategoryIdentifier
             | Self::InvalidTimestamp
-            | Self::InvalidRepeatInterval => None,
+            | Self::InvalidRepeatInterval
+            | Self::InvalidLocalTime => None,
             Self::Backend(error) => error.platform_code(),
         }
     }
@@ -808,6 +851,24 @@ mod tests {
             NotificationTrigger::at_unix_millis(MAX_UNIX_TIMESTAMP_MILLIS + 1),
             Err(NotificationError::InvalidTimestamp)
         );
+    }
+
+    #[test]
+    fn daily_local_time_preserves_valid_fields_and_rejects_each_invalid_range() {
+        for (hour, minute, second) in [(0, 0, 0), (23, 59, 59)] {
+            let trigger = NotificationTrigger::daily_at_local_time(hour, minute, second).unwrap();
+            assert!(!trigger.is_immediate());
+            assert_eq!(trigger.unix_timestamp_millis(), None);
+            assert_eq!(trigger.repeating_interval_seconds(), None);
+            assert_eq!(trigger.daily_local_time(), Some((hour, minute, second)));
+        }
+
+        for (hour, minute, second) in [(24, 0, 0), (0, 60, 0), (0, 0, 60)] {
+            assert_eq!(
+                NotificationTrigger::daily_at_local_time(hour, minute, second),
+                Err(NotificationError::InvalidLocalTime)
+            );
+        }
     }
 
     #[test]

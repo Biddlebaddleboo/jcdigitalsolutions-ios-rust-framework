@@ -29,6 +29,20 @@ if ! grep -Fq 'backend.request_authorization_with_options(' "$probe_source"; the
     echo "iOS notifications link probe must retain the explicit authorization-options API call" >&2
     exit 1
 fi
+for expression in 'notification_trigger.daily_local_time()' 'NSCalendar::autoupdatingCurrentCalendar()' 'UNCalendarNotificationTrigger::triggerWithDateMatchingComponents_repeats(&components, true)'; do
+    if ! grep -Fq "$expression" platform/ios/ios-notifications/src/platform.rs; then
+        echo "daily local notification mapping must retain: $expression" >&2
+        exit 1
+    fi
+done
+if ! grep -Fq 'pub const fn daily_at_local_time(' crates/framework-notifications/src/lib.rs; then
+    echo "portable daily local notification trigger constructor is required" >&2
+    exit 1
+fi
+if ! grep -Fq 'fn daily_local_clock_time_validates_and_preserves_components()' platform/ios/ios-notifications/src/lib.rs; then
+    echo "daily local notification host regression is required" >&2
+    exit 1
+fi
 for expression in 'backend.register_categories(' 'IosNotificationAction::button(' 'IosNotificationAction::text_input(' '.with_category_identifier(category_identifier)'; do
     if ! grep -Fq "$expression" "$probe_source"; then
         echo "iOS notifications link probe must retain the category/action API call: $expression" >&2

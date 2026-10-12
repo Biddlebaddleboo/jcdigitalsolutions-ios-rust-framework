@@ -87,6 +87,18 @@ B558 adds `NotificationTrigger::repeating_every_seconds(u32)` for intervals from
 system controls actual delivery timing. Host regressions reject zero and 59 seconds; device and
 Simulator checks establish compile/link behavior only, not notification delivery or cadence.
 
+### B596 — daily local notification time (row 031)
+
+B596 adds `NotificationTrigger::daily_at_local_time(hour, minute, second)` with hour 0–23 and
+minute/second 0–59. The portable value selects no calendar or time zone; iOS attaches
+`NSCalendar::autoupdatingCurrentCalendar` and maps the clock fields to a repeating public
+`UNCalendarNotificationTrigger`. DST gap/overlap resolution, behavior of pending requests after
+calendar or time-zone changes, and delivery timing remain system-defined; no runtime delivery is
+claimed. The locked `framework-notifications` host test passed 13 unit tests plus 1 doctest and
+its `--no-default-features` check passed. The registered `ios-notifications` profile passed 28
+checks with 0 FAIL, 0 BLOCKED, and 2 SKIPPED for Simulator execution and physical-device proof;
+host/device/Simulator compilation, Clippy, device Rustdoc, and Release link/import checks passed.
+
 ## Objective
 
 Implement the D3 local-notification contract with public iOS UserNotifications APIs reached from Rust, without a Swift application/source layer.

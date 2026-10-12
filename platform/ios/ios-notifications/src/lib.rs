@@ -78,6 +78,20 @@ mod notification_content_tests {
     }
 
     #[test]
+    fn daily_local_clock_time_validates_and_preserves_components() {
+        let trigger = NotificationTrigger::daily_at_local_time(7, 5, 9).unwrap();
+        assert_eq!(trigger.daily_local_time(), Some((7, 5, 9)));
+        assert_eq!(trigger.unix_timestamp_millis(), None);
+        assert_eq!(trigger.repeating_interval_seconds(), None);
+        for (hour, minute, second) in [(24, 0, 0), (0, 60, 0), (0, 0, 60)] {
+            assert_eq!(
+                NotificationTrigger::daily_at_local_time(hour, minute, second),
+                Err(NotificationError::InvalidLocalTime)
+            );
+        }
+    }
+
+    #[test]
     fn content_metadata_is_absent_by_default() {
         let content = NotificationContent::new(String::from("Title"), None);
         assert_eq!(content.category_identifier(), None);

@@ -9,6 +9,13 @@ schedule future while later completion remains owned by the backend. The command
 workspace format and diff checks pass. This does not validate an iOS permission prompt, delivery, response callback,
 or native behavior; those remain B4/B12 scope.
 
+B596 extends the trigger contract with a validated daily local clock time (hour 0–23, minute and
+second 0–59). It carries no calendar or time-zone value; the iOS adapter uses the autoupdating
+current calendar and a repeating `UNCalendarNotificationTrigger`. DST resolution and the effect of
+calendar/time-zone changes on a pending native request remain system-defined and unverified. The
+locked host test run passed 13 unit tests and 1 doctest, and the `--no-default-features` check
+passed; these do not establish native compilation or notification delivery.
+
 ## Objective
 
 Add a portable Rust contract for local user notifications, with no iOS backend or remote-push claim.
@@ -29,7 +36,8 @@ Do not modify D1-owned crates, the global support manifest, iOS backend crates, 
 ## Required contract
 
 - Provide owned, portable notification content and caller-supplied notification identifiers.
-- Provide a bounded one-shot trigger model: immediate or an absolute Unix timestamp in milliseconds.
+- Provide immediate, absolute Unix-millisecond, repeating-interval, and daily local-clock triggers.
+- Daily local time validates hour 0–23 and minute/second 0–59 without exposing a platform calendar or time zone.
 - Model authorization state without exposing `UNAuthorizationStatus` or another platform type.
 - Expose a statically selected `NotificationBackend` and a thin client for availability, authorization query/request, schedule, and cancel operations.
 - Use `no_std` plus `alloc` only as required; do not require a global executor or service registry.
@@ -39,7 +47,7 @@ Do not modify D1-owned crates, the global support manifest, iOS backend crates, 
 ## Explicit non-goals
 
 - No iOS backend, `UserNotifications` linkage, permission prompt, or runtime delivery claim.
-- No remote push/APNs/PushKit, notification response delegate, categories/actions, attachments, repeat/calendar triggers, critical alerts, or badge APIs.
+- No remote push/APNs/PushKit, notification response delegate, attachments, critical alerts, or badge APIs.
 - No C/C++/Python API.
 
 ## Validation and handoff

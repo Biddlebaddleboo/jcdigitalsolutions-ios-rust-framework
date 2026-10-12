@@ -687,7 +687,10 @@ fn make_request(
             content.setSound(Some(&sound));
         }
         let notification_trigger = notification.trigger();
-        let trigger = if let Some(seconds) = notification_trigger.repeating_interval_seconds() {
+        let trigger = if let Some((hour, minute, second)) = notification_trigger.daily_local_time()
+        {
+            Some(make_daily_local_time_trigger(hour, minute, second).into_super())
+        } else if let Some(seconds) = notification_trigger.repeating_interval_seconds() {
             Some(make_repeating_trigger(seconds))
         } else {
             let now = SystemTime::now()
@@ -789,6 +792,20 @@ fn make_calendar_trigger(
             false,
         ),
     )
+}
+
+fn make_daily_local_time_trigger(
+    hour: u8,
+    minute: u8,
+    second: u8,
+) -> Retained<UNCalendarNotificationTrigger> {
+    let calendar = NSCalendar::autoupdatingCurrentCalendar();
+    let components = NSDateComponents::new();
+    components.setCalendar(Some(&calendar));
+    components.setHour(isize::from(hour));
+    components.setMinute(isize::from(minute));
+    components.setSecond(isize::from(second));
+    UNCalendarNotificationTrigger::triggerWithDateMatchingComponents_repeats(&components, true)
 }
 
 fn make_repeating_trigger(seconds: u32) -> Retained<UNNotificationTrigger> {
