@@ -910,6 +910,7 @@ name = "ios-microphone-pcm-stream"
 version = "0.1.0"
 dependencies = [
  "block2",
+ "framework-audio",
  "framework-media-authorization",
  "ios-media-authorization",
  "objc2",

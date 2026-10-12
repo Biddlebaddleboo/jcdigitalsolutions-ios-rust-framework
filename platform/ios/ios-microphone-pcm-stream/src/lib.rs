@@ -7,6 +7,7 @@ use core::cell::UnsafeCell;
 #[cfg(any(target_os = "ios", test))]
 use core::sync::atomic::{AtomicBool, AtomicU8, AtomicU32, AtomicU64, Ordering};
 
+pub use framework_audio::{PcmInputFormat, PcmInputStream};
 #[cfg(any(target_os = "ios", test))]
 use framework_media_authorization::MediaAuthorizationStatus;
 
@@ -80,25 +81,6 @@ pub enum MicrophoneStreamError {
     InvalidOutputLength,
     /// A tap callback reported a changed or unsupported input layout.
     InputFormatChanged,
-}
-
-/// The native input format returned when a stream starts.
-#[derive(Clone, Copy, Debug, PartialEq)]
-pub struct PcmInputFormat {
-    sample_rate_hz: f64,
-    channels: u32,
-}
-
-impl PcmInputFormat {
-    /// Returns the native input sample rate in hertz.
-    pub const fn sample_rate_hz(self) -> f64 {
-        self.sample_rate_hz
-    }
-
-    /// Returns the native input channel count.
-    pub const fn channels(self) -> u32 {
-        self.channels
-    }
 }
 
 /// One owned iOS audio input port description from a point-in-time session snapshot.
@@ -593,15 +575,18 @@ fn validate_input_format(
     interleaved: bool,
     capacity_frames: u32,
 ) -> Result<ValidatedInputFormat, MicrophoneStreamError> {
-    if !sample_rate_hz.is_finite() || sample_rate_hz <= 0.0 {
-        return Err(MicrophoneStreamError::InvalidSampleRate);
-    }
+    let public = PcmInputFormat::float32_interleaved(sample_rate_hz, channels).map_err(
+        |error| match error {
+            framework_audio::PcmInputFormatError::InvalidSampleRate => {
+                MicrophoneStreamError::InvalidSampleRate
+            }
+            framework_audio::PcmInputFormatError::ZeroChannels => {
+                MicrophoneStreamError::InputUnavailable
+            }
+        },
+    )?;
     if !(1..=2).contains(&channels) {
-        return Err(if channels == 0 {
-            MicrophoneStreamError::InputUnavailable
-        } else {
-            MicrophoneStreamError::UnsupportedChannelCount
-        });
+        return Err(MicrophoneStreamError::UnsupportedChannelCount);
     }
     if !is_float32 {
         return Err(MicrophoneStreamError::UnsupportedSampleFormat);
@@ -617,10 +602,7 @@ fn validate_input_format(
     }
 
     Ok(ValidatedInputFormat {
-        public: PcmInputFormat {
-            sample_rate_hz,
-            channels,
-        },
+        public,
         stride: if interleaved { channels } else { 1 },
         interleaved,
         tap_buffer_frames,
@@ -648,8 +630,7 @@ fn allocate_storage(capacity_frames: u32) -> Result<Box<[UnsafeCell<f32>]>, Micr
 struct FrameRing {
     samples: Box<[UnsafeCell<f32>]>,
     capacity_frames: u32,
-    channels: u32,
-    sample_rate_hz: f64,
+    format: PcmInputFormat,
     stride: u32,
     interleaved: bool,
     read_frame: AtomicU32,
@@ -670,16 +651,14 @@ impl FrameRing {
     fn new(
         samples: Box<[UnsafeCell<f32>]>,
         capacity_frames: u32,
-        channels: u32,
-        sample_rate_hz: f64,
+        format: PcmInputFormat,
         stride: u32,
         interleaved: bool,
     ) -> Self {
         Self {
             samples,
             capacity_frames,
-            channels,
-            sample_rate_hz,
+            format,
             stride,
             interleaved,
             read_frame: AtomicU32::new(0),
@@ -721,11 +700,11 @@ impl FrameRing {
         }
 
         let capacity = self.capacity_frames;
-        let channels = self.channels as usize;
+        let channels = self.format.channels() as usize;
         let mut slot = write % capacity;
         for frame in 0..frames {
             let base = slot as usize * channels;
-            for channel in 0..self.channels {
+            for channel in 0..self.format.channels() {
                 let index = base + channel as usize;
                 // SAFETY: `slot < capacity_frames`; storage has two samples per frame and
                 // channels is constrained to one or two before the ring is created. The
@@ -749,11 +728,10 @@ impl FrameRing {
 
     #[cfg(test)]
     fn try_push_interleaved(&self, samples: &[f32]) -> Result<bool, MicrophoneStreamError> {
-        let channels = self.channels as usize;
-        if samples.len() % channels != 0 {
-            return Err(MicrophoneStreamError::InvalidOutputLength);
-        }
-        let frames = u32::try_from(samples.len() / channels)
+        let channels = self.format.channels() as usize;
+        let frames = self
+            .format
+            .frames_for_interleaved_samples(samples.len())
             .map_err(|_| MicrophoneStreamError::InvalidOutputLength)?;
         Ok(self.try_push_with(frames, |frame, channel| {
             samples[frame as usize * channels + channel as usize]
@@ -764,17 +742,17 @@ impl FrameRing {
         if self.callback_error.load(Ordering::Acquire) {
             return Err(MicrophoneStreamError::InputFormatChanged);
         }
-        let channels = self.channels as usize;
-        if output.len() % channels != 0 {
-            return Err(MicrophoneStreamError::InvalidOutputLength);
-        }
+        let channels = self.format.channels() as usize;
+        let requested = self
+            .format
+            .frames_for_interleaved_samples(output.len())
+            .map_err(|_| MicrophoneStreamError::InvalidOutputLength)?;
         let read = self.read_frame.load(Ordering::Relaxed);
         let write = self.write_frame.load(Ordering::Acquire);
         let queued = write.wrapping_sub(read);
         if queued > self.capacity_frames {
             return Err(MicrophoneStreamError::InputFormatChanged);
         }
-        let requested = u32::try_from(output.len() / channels).unwrap_or(u32::MAX);
         let frames = queued.min(requested);
         let capacity = self.capacity_frames;
         let mut slot = read % capacity;
@@ -813,8 +791,8 @@ impl FrameRing {
         let channels = unsafe { format.channelCount() };
         let is_float32 = unsafe { format.commonFormat() == AVAudioCommonFormat::PCMFormatFloat32 };
         let interleaved = unsafe { format.isInterleaved() };
-        if sample_rate != self.sample_rate_hz
-            || channels != self.channels
+        if sample_rate != self.format.sample_rate_hz()
+            || channels != self.format.channels()
             || !is_float32
             || interleaved != self.interleaved
         {
@@ -839,7 +817,7 @@ impl FrameRing {
         // SAFETY: The validated input format has at most two channels. The tap is installed
         // with that same native format, so this array contains the configured channel pointers.
         let first = unsafe { channel_data.read() };
-        let second = if self.channels == 2 {
+        let second = if self.format.channels() == 2 {
             // SAFETY: Channel count is two, as validated before tap installation.
             unsafe { channel_data.add(1).read() }
         } else {
@@ -1011,8 +989,7 @@ impl IosMicrophonePcmStream {
         let ring = Arc::new(FrameRing::new(
             storage,
             self.capacity_frames,
-            channels,
-            sample_rate,
+            validated.public,
             validated.stride,
             validated.interleaved,
         ));
@@ -1076,6 +1053,23 @@ impl Drop for IosMicrophonePcmStream {
     }
 }
 
+#[cfg(target_os = "ios")]
+impl PcmInputStream for IosMicrophonePcmStream {
+    type Error = MicrophoneStreamError;
+
+    fn format(&self) -> Option<PcmInputFormat> {
+        self.format
+    }
+
+    fn try_read_interleaved(&mut self, output: &mut [f32]) -> Result<u32, Self::Error> {
+        IosMicrophonePcmStream::try_read_interleaved(self, output)
+    }
+
+    fn dropped_frames(&self) -> u64 {
+        IosMicrophonePcmStream::dropped_frames(self)
+    }
+}
+
 #[cfg(any(target_os = "ios", test))]
 const fn may_stream(status: MediaAuthorizationStatus) -> bool {
     matches!(status, MediaAuthorizationStatus::Authorized)
@@ -1090,6 +1084,7 @@ mod tests {
         collect_input_port_snapshot, make_audio_event_callback, may_stream, select_available_input,
         validate_input_format,
     };
+    use crate::PcmInputFormat;
     use framework_media_authorization::MediaAuthorizationStatus;
     use std::cell::{Cell, RefCell, UnsafeCell};
     use std::rc::Rc;
@@ -1105,8 +1100,7 @@ mod tests {
         FrameRing::new(
             allocate_storage(capacity_frames).unwrap(),
             capacity_frames,
-            channels,
-            48_000.0,
+            PcmInputFormat::float32_interleaved(48_000.0, channels).unwrap(),
             stride,
             stride == channels,
         )
@@ -1388,7 +1382,7 @@ mod tests {
     #[test]
     fn spsc_ring_preserves_fifo_and_interleaved_channel_order() {
         let ring = ring(4, 2, 1);
-        assert_eq!(ring.sample_rate_hz, 48_000.0);
+        assert_eq!(ring.format.sample_rate_hz(), 48_000.0);
         assert!(!ring.interleaved);
         assert!(ring.try_push_interleaved(&[1.0, 10.0, 2.0, 20.0]).unwrap());
         let mut output = [0.0; 4];

@@ -16,3 +16,6 @@ This crate owns no clock, media playback, capture, sample, or sample-payload API
 [`OtherAudioPlaybackSnapshot`](other-audio.md) value records whether another app's audio was
 present at query time. It has no heap allocation, platform dependency, executor, permission, or
 native object
+
+The separate `framework-audio` crate defines a portable live Float32 interleaved PCM input contract
+for frame-based readers; see [portable live PCM input](audio-input.md).

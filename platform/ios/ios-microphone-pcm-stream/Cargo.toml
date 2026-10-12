@@ -8,6 +8,7 @@ repository.workspace = true
 description = "Authorized live iOS microphone PCM input"
 
 [dependencies]
+framework-audio = { path = "../../../crates/framework-audio", version = "0.1.0" }
 framework-media-authorization = { path = "../../../crates/framework-media-authorization", version = "0.1.0" }
 
 [target.'cfg(target_os = "ios")'.dependencies]
