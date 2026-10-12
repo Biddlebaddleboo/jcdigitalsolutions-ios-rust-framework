@@ -5,17 +5,20 @@ use std::rc::Rc;
 use crate::connection_policy::{
     ConnectionAction, ConnectionEffect, ConnectionPolicy, ManagerAvailability,
 };
-use crate::queue::{ConnectionQueue, DiscoveryQueue};
+use crate::queue::{ConnectionQueue, DiscoveryQueue, ServiceDiscoveryQueue};
+use crate::service_discovery_policy::ServiceDiscoveryPolicy;
 use framework_bluetooth::{
     BluetoothCentralBackend, BluetoothConnectionBackend, BluetoothConnectionError,
     BluetoothConnectionEvent, BluetoothConnectionState, BluetoothDiscovery, BluetoothPeripheralId,
-    BluetoothScanError, BluetoothScanState,
+    BluetoothScanError, BluetoothScanState, BluetoothServiceDiscoveryBackend,
+    BluetoothServiceDiscoveryError, BluetoothServiceDiscoveryEvent, BluetoothServiceDiscoveryState,
 };
 use objc2::rc::{Allocated, Retained};
 use objc2::runtime::ProtocolObject;
 use objc2::{AnyThread, DefinedClass, MainThreadMarker, MainThreadOnly, define_class, msg_send};
 use objc2_core_bluetooth::{
-    CBCentralManager, CBCentralManagerDelegate, CBManagerState, CBPeripheral,
+    CBCentralManager, CBCentralManagerDelegate, CBManagerState, CBPeripheral, CBPeripheralDelegate,
+    CBPeripheralState, CBService, CBUUID,
 };
 use objc2_foundation::{NSArray, NSObject, NSObjectProtocol, NSString, NSUUID};
 
@@ -27,6 +30,8 @@ struct CentralState {
     connection: RefCell<ConnectionPolicy>,
     connection_events: RefCell<ConnectionQueue>,
     connection_peripheral: RefCell<Option<Retained<CBPeripheral>>>,
+    service_discovery: RefCell<ServiceDiscoveryPolicy>,
+    service_discovery_events: RefCell<ServiceDiscoveryQueue>,
 }
 
 impl CentralState {
@@ -39,6 +44,8 @@ impl CentralState {
             connection: RefCell::new(ConnectionPolicy::new()),
             connection_events: RefCell::new(ConnectionQueue::new()),
             connection_peripheral: RefCell::new(None),
+            service_discovery: RefCell::new(ServiceDiscoveryPolicy::new()),
+            service_discovery_events: RefCell::new(ServiceDiscoveryQueue::new()),
         }
     }
 }
@@ -77,6 +84,7 @@ define_class!(
                     .scan_state
                     .set(BluetoothScanState::Unavailable);
                 contain_connection_panic(&self.ivars().state, central);
+                contain_service_discovery_panic(&self.ivars().state);
             }
         }
 
@@ -126,8 +134,20 @@ define_class!(
             let outcome = catch_unwind(AssertUnwindSafe(|| {
                 let native_id: Retained<NSUUID> = unsafe { peripheral.identifier() };
                 if let Some(id) = peripheral_id_from_native(&native_id) {
-                    let effect = self.ivars().state.connection.borrow_mut().did_connect(id);
-                    apply_connection_effect(&self.ivars().state, central, effect);
+                    let state = &self.ivars().state;
+                    let effect = state.connection.borrow_mut().did_connect(id);
+                    apply_connection_effect(state, central, effect);
+                    let accepted = {
+                        let connection = state.connection.borrow();
+                        connection.target() == Some(id)
+                            && connection.state() == BluetoothConnectionState::Connected
+                    };
+                    if accepted {
+                        let delegate = ProtocolObject::from_ref(self);
+                        // SAFETY: The selected connection is accepted; the backend retains this
+                        // main-thread delegate and clears it before releasing the peer.
+                        unsafe { peripheral.setDelegate(Some(delegate)) };
+                    }
                 }
             }));
             if outcome.is_err() {
@@ -145,14 +165,21 @@ define_class!(
             let outcome = catch_unwind(AssertUnwindSafe(|| {
                 let native_id: Retained<NSUUID> = unsafe { peripheral.identifier() };
                 if let Some(id) = peripheral_id_from_native(&native_id) {
-                    let effect = self
-                        .ivars()
-                        .state
-                        .connection
-                        .borrow_mut()
-                        .did_fail_to_connect(id);
-                    apply_connection_effect(&self.ivars().state, central, effect);
-                    release_terminal_peripheral(&self.ivars().state);
+                    let state = &self.ivars().state;
+                    let selected = state.connection.borrow().target() == Some(id);
+                    let effect = state.connection.borrow_mut().did_fail_to_connect(id);
+                    if selected {
+                        terminate_service_discovery(
+                            state,
+                            id,
+                            BluetoothServiceDiscoveryError::Disconnected,
+                        );
+                        // SAFETY: A selected peer's failed native connection cannot produce
+                        // later service events; remove the weak delegate before releasing it.
+                        unsafe { peripheral.setDelegate(None) };
+                    }
+                    apply_connection_effect(state, central, effect);
+                    release_terminal_peripheral(state);
                 }
             }));
             if outcome.is_err() {
@@ -170,18 +197,48 @@ define_class!(
             let outcome = catch_unwind(AssertUnwindSafe(|| {
                 let native_id: Retained<NSUUID> = unsafe { peripheral.identifier() };
                 if let Some(id) = peripheral_id_from_native(&native_id) {
-                    let effect = self
-                        .ivars()
-                        .state
+                    let state = &self.ivars().state;
+                    let selected = state.connection.borrow().target() == Some(id);
+                    let effect = state
                         .connection
                         .borrow_mut()
                         .did_disconnect(id, error.is_some());
-                    apply_connection_effect(&self.ivars().state, central, effect);
-                    release_terminal_peripheral(&self.ivars().state);
+                    if selected {
+                        terminate_service_discovery(
+                            state,
+                            id,
+                            BluetoothServiceDiscoveryError::Disconnected,
+                        );
+                        // SAFETY: This is the selected peer's terminal central callback; its
+                        // service delegate is no longer needed after this point.
+                        unsafe { peripheral.setDelegate(None) };
+                    }
+                    apply_connection_effect(state, central, effect);
+                    release_terminal_peripheral(state);
                 }
             }));
             if outcome.is_err() {
                 contain_connection_panic(&self.ivars().state, central);
+            }
+        }
+    }
+
+    // SAFETY: CoreBluetooth invokes this callback on the same main queue as the central
+    // delegate after an explicit request on the selected, connected peer. Native service objects
+    // are used only for the callback duration and copied to fixed-width Rust values.
+    #[allow(non_snake_case)]
+    unsafe impl CBPeripheralDelegate for CentralDelegate {
+        #[unsafe(method(peripheral:didDiscoverServices:))]
+        unsafe fn peripheral_didDiscoverServices(
+            &self,
+            peripheral: &CBPeripheral,
+            error: Option<&objc2_foundation::NSError>,
+        ) {
+            let outcome = catch_unwind(AssertUnwindSafe(|| {
+                handle_service_discovery(&self.ivars().state, peripheral, error.is_some());
+            }));
+            if outcome.is_err() {
+                contain_service_discovery_panic(&self.ivars().state);
             }
         }
     }
@@ -197,7 +254,7 @@ impl CentralDelegate {
     }
 }
 
-/// Caller-owned main-thread CoreBluetooth central scan and connection backend.
+/// Caller-owned main-thread CoreBluetooth central scan, connection, and service-discovery backend.
 ///
 /// Constructing this value creates no native manager and requests no authorization. Calling
 /// [`start_unfiltered_scan`](BluetoothCentralBackend::start_unfiltered_scan) or
@@ -208,7 +265,8 @@ impl CentralDelegate {
 /// queue and connection events use a separate 16-entry bounded queue; overflow drops the newest
 /// event and increments its saturating count. Discovery does not retain `CBPeripheral`; an
 /// explicit connection retains at most one selected peer until its terminal callback or backend
-/// teardown. No service discovery or peripheral data read/write is exposed.
+/// teardown. Service discovery copies UUIDs into a separate 32-event queue and retains no service
+/// objects. No characteristic or peripheral data read/write is exposed.
 pub struct IosBluetoothCentralBackend {
     state: Rc<CentralState>,
     manager: Option<Retained<CBCentralManager>>,
@@ -313,6 +371,19 @@ impl BluetoothConnectionBackend for IosBluetoothCentralBackend {
     }
 
     fn cancel_connection(&mut self) {
+        let discovering_peer = self.state.service_discovery.borrow().peripheral();
+        if let Some(peripheral_id) = discovering_peer {
+            if let Some(peripheral) = self.state.connection_peripheral.borrow().as_deref() {
+                // SAFETY: This is the selected peer's explicit connection cancellation on the
+                // backend's main thread; remove its weak delegate before the native cancel call.
+                unsafe { peripheral.setDelegate(None) };
+            }
+            terminate_service_discovery(
+                &self.state,
+                peripheral_id,
+                BluetoothServiceDiscoveryError::Disconnected,
+            );
+        }
         let effect = self.state.connection.borrow_mut().cancel();
         if let Some(manager) = self.manager.as_deref() {
             apply_connection_effect(&self.state, manager, effect);
@@ -335,6 +406,66 @@ impl BluetoothConnectionBackend for IosBluetoothCentralBackend {
     }
 }
 
+impl BluetoothServiceDiscoveryBackend for IosBluetoothCentralBackend {
+    fn discover_services(&mut self) -> Result<(), BluetoothServiceDiscoveryError> {
+        let (connection_state, peripheral_id) = {
+            let connection = self.state.connection.borrow();
+            (connection.state(), connection.target())
+        };
+        let Some(peripheral_id) = peripheral_id else {
+            return Err(BluetoothServiceDiscoveryError::NotConnected);
+        };
+        let connection_peripheral = self.state.connection_peripheral.borrow();
+        let Some(peripheral) = connection_peripheral.as_deref() else {
+            return Err(BluetoothServiceDiscoveryError::NotConnected);
+        };
+        // SAFETY: The peer was retrieved and retained by this backend; its state and identity are
+        // queried on the required main thread before starting service discovery.
+        let native_connected = unsafe { peripheral.state() } == CBPeripheralState::Connected;
+        let native_id: Retained<NSUUID> = unsafe { peripheral.identifier() };
+        if peripheral_id_from_native(&native_id) != Some(peripheral_id) {
+            return Err(BluetoothServiceDiscoveryError::NotConnected);
+        }
+        self.state.service_discovery.borrow_mut().request(
+            peripheral_id,
+            connection_state,
+            native_connected,
+        )?;
+        let Some(delegate) = self.delegate.as_deref() else {
+            let event = self
+                .state
+                .service_discovery
+                .borrow_mut()
+                .fail(peripheral_id, BluetoothServiceDiscoveryError::Unavailable);
+            enqueue_service_discovery_event(&self.state, event);
+            return Err(BluetoothServiceDiscoveryError::Unavailable);
+        };
+        let delegate = ProtocolObject::from_ref(delegate);
+        // SAFETY: The selected connected peer and retained delegate are both owned by this
+        // main-thread backend; CoreBluetooth stores the delegate weakly and discovery is explicit.
+        unsafe {
+            peripheral.setDelegate(Some(delegate));
+            peripheral.discoverServices(None);
+        }
+        Ok(())
+    }
+
+    fn service_discovery_state(&self) -> BluetoothServiceDiscoveryState {
+        self.state.service_discovery.borrow().state()
+    }
+
+    fn try_next_service_discovery_event(&mut self) -> Option<BluetoothServiceDiscoveryEvent> {
+        self.state.service_discovery_events.borrow_mut().pop()
+    }
+
+    fn take_dropped_service_discovery_event_count(&mut self) -> u32 {
+        self.state
+            .service_discovery_events
+            .borrow_mut()
+            .take_dropped()
+    }
+}
+
 impl Drop for IosBluetoothCentralBackend {
     fn drop(&mut self) {
         self.state.requested.set(false);
@@ -349,6 +480,9 @@ impl Drop for IosBluetoothCentralBackend {
                     if let Some(peripheral) = self.state.connection_peripheral.borrow().as_deref() {
                         manager.cancelPeripheralConnection(peripheral);
                     }
+                }
+                if let Some(peripheral) = self.state.connection_peripheral.borrow().as_deref() {
+                    peripheral.setDelegate(None);
                 }
                 manager.setDelegate(None);
             }
@@ -453,6 +587,116 @@ fn release_terminal_peripheral(state: &CentralState) {
 fn contain_connection_panic(state: &CentralState, central: &CBCentralManager) {
     let effect = state.connection.borrow_mut().callback_panicked();
     apply_connection_effect(state, central, effect);
+}
+
+fn handle_service_discovery(state: &CentralState, peripheral: &CBPeripheral, had_error: bool) {
+    let native_id: Retained<NSUUID> = unsafe { peripheral.identifier() };
+    let Some(peripheral_id) = peripheral_id_from_native(&native_id) else {
+        return;
+    };
+    if !state
+        .service_discovery
+        .borrow()
+        .is_active_for(peripheral_id)
+        || state.connection.borrow().target() != Some(peripheral_id)
+    {
+        return;
+    }
+    // SAFETY: CoreBluetooth supplies the selected live peripheral on the main queue.
+    if unsafe { peripheral.state() } != CBPeripheralState::Connected {
+        terminate_service_discovery(
+            state,
+            peripheral_id,
+            BluetoothServiceDiscoveryError::Disconnected,
+        );
+        return;
+    }
+    if had_error {
+        terminate_service_discovery(
+            state,
+            peripheral_id,
+            BluetoothServiceDiscoveryError::NativeFailure,
+        );
+        return;
+    }
+    // SAFETY: The `didDiscoverServices` callback reports completion; CoreBluetooth owns this
+    // array for the duration of the callback and each service UUID is copied immediately.
+    let Some(services) = (unsafe { peripheral.services() }) else {
+        terminate_service_discovery(
+            state,
+            peripheral_id,
+            BluetoothServiceDiscoveryError::Unavailable,
+        );
+        return;
+    };
+    for index in 0..services.count() {
+        let service: Retained<CBService> = services.objectAtIndex(index);
+        // SAFETY: CoreBluetooth returned a live discovered CBService from this peripheral.
+        let uuid: Retained<CBUUID> = unsafe { service.UUID() };
+        let Some(service) = service_uuid_from_native(&uuid) else {
+            terminate_service_discovery(
+                state,
+                peripheral_id,
+                BluetoothServiceDiscoveryError::Unavailable,
+            );
+            return;
+        };
+        state.service_discovery_events.borrow_mut().push(
+            BluetoothServiceDiscoveryEvent::ServiceDiscovered {
+                peripheral: peripheral_id,
+                service,
+            },
+        );
+    }
+    let completed = state.service_discovery.borrow_mut().complete(peripheral_id);
+    enqueue_service_discovery_event(state, completed);
+}
+
+fn service_uuid_from_native(uuid: &CBUUID) -> Option<framework_bluetooth::BluetoothServiceUuid> {
+    // SAFETY: CBUUID exposes a public NSString representation containing a 16-, 32-, or 128-bit
+    // UUID. The converter rejects non-ASCII, invalid widths, and malformed hyphens.
+    let string = unsafe { uuid.UUIDString() };
+    let length = string.length();
+    if length > 36 {
+        return None;
+    }
+    let mut ascii = [0; 36];
+    for (index, byte) in ascii[..length].iter_mut().enumerate() {
+        let character = string.characterAtIndex(index as _);
+        if character > 0x7f {
+            return None;
+        }
+        *byte = character as u8;
+    }
+    crate::conversion::service_uuid_from_uuid_ascii(&ascii[..length])
+}
+
+fn enqueue_service_discovery_event(
+    state: &CentralState,
+    event: Option<BluetoothServiceDiscoveryEvent>,
+) {
+    if let Some(event) = event {
+        state.service_discovery_events.borrow_mut().push(event);
+    }
+}
+
+fn terminate_service_discovery(
+    state: &CentralState,
+    peripheral: BluetoothPeripheralId,
+    error: BluetoothServiceDiscoveryError,
+) {
+    let event = state.service_discovery.borrow_mut().fail(peripheral, error);
+    enqueue_service_discovery_event(state, event);
+}
+
+fn contain_service_discovery_panic(state: &CentralState) {
+    if let Some(peripheral) = state.service_discovery.borrow().peripheral() {
+        terminate_service_discovery(
+            state,
+            peripheral,
+            BluetoothServiceDiscoveryError::Unavailable,
+        );
+    }
 }
 
 fn update_scan_state(

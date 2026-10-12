@@ -4,7 +4,7 @@
 D29 validates the existing discovery slice across `framework-bluetooth` and `ios-bluetooth`. Start with their package manifests, package-local target check script, `PLAN_VALIDATION_IOS_BLUETOOTH.md`, and `docs/ios/bluetooth.md`. The integrated root `Cargo.lock` must resolve the required `objc2-core-bluetooth` dependency. The historical instruction to add that dependency applies only if it is missing from the current lockfile; do not re-add it.
 
 ## Installed tooling contract
-R1/R2 engines are completed pinned PATH executables. Follow `docs/SHARED_TOOLING.md`. D29 is **not** one of the four registered profiles in `tools/validation/specs/validation-v1.json`; do not claim `ios-rust-validate --capability ios-bluetooth` passes. Continue running the existing package-local script and commands until a schema-v1 profile has been added with equivalent positive and negative gate coverage. A future profile may describe standard compilation/lint/doc gates, source/ABI requirements and dependency edges. Use a small Python adapter only for a discovery-specific assertion not expressible in JSON. Do not implement or inspect engine source.
+This section records the historical D29 tooling constraint only. D29 was not registered when its 2026-10-09 checks ran; B592 adds the `ios-bluetooth` schema-v1 profile guards and uses the installed validator command `ios-rust-validate --workspace-root "$PWD" --spec "$PWD/tools/validation/specs/validation-v1.json" --capability ios-bluetooth`. Follow the current `docs/SHARED_TOOLING.md` contract for later checks. Do not implement or inspect engine source.
 
 ## Required checks
 Execute from the workspace root on a suitable macOS host:

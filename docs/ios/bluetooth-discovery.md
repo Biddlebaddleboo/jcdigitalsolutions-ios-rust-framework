@@ -1,9 +1,9 @@
 # iOS Bluetooth central discovery and connection
 
 `IosBluetoothCentralBackend` implements the portable [Bluetooth central contract](../capabilities/bluetooth.md)
-with CoreBluetooth, including explicit unfiltered foreground discovery and one caller-selected
-connection. It is independent of the stateless, non-prompting [`IosBluetoothBackend`](bluetooth.md)
-authorization query.
+with CoreBluetooth, including explicit unfiltered foreground discovery, one caller-selected
+connection, and connected-peer GATT service discovery. It is independent of the stateless,
+non-prompting [`IosBluetoothBackend`](bluetooth.md) authorization query.
 
 ```rust,ignore
 use framework_bluetooth::{BluetoothCentral, BluetoothPeripheralId};
@@ -91,9 +91,51 @@ Connection events use a separate 16-entry FIFO. When full, the newest event is d
 saturating `u32` counter is observable through `take_dropped_connection_event_count`. The current
 state remains queryable, but a dropped failure event can lose its normalized reason. Native
 `NSError` details do not cross the portable contract. A `Connected` state only proves that
-CoreBluetooth reported a connection; this workstream exposes no peripheral delegate, service or
+CoreBluetooth reported a connection; the B570 connection slice did not include service or
 characteristic discovery, GATT read/write, advertisement data, peripheral role, background mode, or
 restoration API.
+
+## GATT service discovery
+
+After the selected peer reaches `BluetoothConnectionState::Connected`, call
+`BluetoothCentral::discover_services` explicitly. The backend rechecks the selected peer UUID and
+native `CBPeripheralState::Connected`; stale or disconnected state returns
+`BluetoothServiceDiscoveryError::NotConnected`. Only one request can be active. The request uses
+public `CBPeripheral::discoverServices` with nil filters, so CoreBluetooth discovers all services
+and returns asynchronously on the main queue.
+
+```rust,ignore
+use framework_bluetooth::BluetoothServiceDiscoveryEvent;
+
+central.discover_services().expect("selected peripheral is connected");
+while let Some(event) = central.try_next_service_discovery_event() {
+    match event {
+        BluetoothServiceDiscoveryEvent::ServiceDiscovered { peripheral, service } => {
+            let uuid_bytes: &[u8; 16] = service.as_uuid_bytes();
+            let _ = (peripheral, uuid_bytes);
+        }
+        BluetoothServiceDiscoveryEvent::Completed { peripheral } => { let _ = peripheral; }
+        BluetoothServiceDiscoveryEvent::Failed { peripheral, error } => { let _ = (peripheral, error); }
+    }
+}
+let _ = central.service_discovery_state();
+let dropped = central.take_dropped_service_discovery_event_count();
+```
+
+`BluetoothServiceUuid` is a fixed 16-byte value in canonical UUID-string octet order. Native
+16-bit and 32-bit UUID forms expand using the Bluetooth Base UUID; 128-bit values preserve their
+bytes. Each event copies only the peripheral UUID and service UUID; no `CBService` is retained or
+exposed. The adapter queues up to 32 service results and terminal events, drops newest events on
+overflow, and reports/reset a saturating `u32` count. Query `service_discovery_state` to distinguish
+`Discovering`, `Completed`, or `Failed` even if queue overflow drops a terminal event.
+
+Native errors map to `NativeFailure`; a disconnect during discovery maps to `Disconnected`; malformed
+UUID data or a contained callback panic maps to `Unavailable`. Native error text is not exposed.
+CoreBluetooth provides no cancellation operation for `discoverServices:`; cancelling the selected
+connection terminates active service discovery with `Disconnected` immediately, clears the weak
+peripheral delegate, and requests connection cancellation. Backend drop clears the weak peripheral
+and central delegates before release. No characteristic discovery, GATT
+read/write, peripheral role, background restoration, or automatic reconnect is added.
 
 ## Scope and host configuration
 
@@ -121,14 +163,15 @@ owns lifecycle policy and must stop scans and cancel connections when appropriat
 ## Dependency and validation limits
 
 The iOS crate uses `objc2-core-bluetooth` 0.3.2 with default features disabled and explicitly
-enables `CBManager`, `CBCentralManager`, `CBPeer`, `CBPeripheral`, `CBUUID`, and `dispatch2`. It
+enables `CBManager`, `CBCentralManager`, `CBPeer`, `CBPeripheral`, `CBAttribute`, `CBService`,
+`CBUUID`, and `dispatch2`. It
 disables `objc2-foundation` defaults and directly enables only `NSArray`, `NSString`, `NSObject`,
 `NSUUID`, and `NSValue`; the selected generated CoreBluetooth APIs also activate their required
 Foundation and `bitflags` feature dependencies. The portable contract exposes no Apple binding type.
 
-The package script checks and Clippy gates compile device and Simulator targets; its connection
-link probes cross-link the test executable without running it. They do not instantiate a manager,
-request permission, show UI, scan a radio, discover a device, validate RSSI, connect to a peer,
+The package script checks and Clippy gates compile device and Simulator targets; its central link
+probe cross-links the test executable without running it. They do not instantiate a manager, request
+permission, show UI, scan a radio, discover a device/service, validate RSSI, connect to a peer,
 prove callback timing/drop teardown on-device, or test background behavior.
 
 References: [CBCentralManager scan](https://developer.apple.com/documentation/corebluetooth/cbcentralmanager/scanforperipherals%28withservices%3Aoptions%3A%29),
@@ -138,5 +181,7 @@ References: [CBCentralManager scan](https://developer.apple.com/documentation/co
 [connection delegate callbacks](https://developer.apple.com/documentation/corebluetooth/cbcentralmanagerdelegate),
 [CBCentralManagerDelegate discovery](https://developer.apple.com/documentation/corebluetooth/cbcentralmanagerdelegate/centralmanager%28_%3Adiddiscover%3Aadvertisementdata%3Arssi%3A%29),
 [CBPeer identifier](https://developer.apple.com/documentation/corebluetooth/cbpeer/identifier),
+[CBPeripheral discover services](https://developer.apple.com/documentation/corebluetooth/cbperipheral/discoverservices%28_%3A%29),
+[CBPeripheralDelegate service callback](https://developer.apple.com/documentation/corebluetooth/cbperipheraldelegate/peripheral%28_%3Adiddiscoverservices%3A%29),
 [Core Bluetooth framework](https://developer.apple.com/documentation/corebluetooth/), and
 [NSBluetoothPeripheralUsageDescription](https://developer.apple.com/documentation/bundleresources/information-property-list/nsbluetoothperipheralusagedescription).

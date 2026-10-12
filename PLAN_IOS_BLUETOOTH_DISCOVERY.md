@@ -91,3 +91,33 @@ No Simulator or physical-device runtime test ran. Compile/link success does not 
 authorization UI, peer retrieval, radio connection, callback timing, cancellation behavior on-device,
 or background behavior. See [iOS Bluetooth central discovery and connection](docs/ios/bluetooth-discovery.md)
 and the official CoreBluetooth references above.
+
+## B592 — connected-peer GATT service discovery
+
+B592 extends the existing caller-selected central connection with explicit discovery of all GATT
+services on that connected peer. The portable contract adds `BluetoothServiceUuid`, a fixed 16-byte
+UUID in canonical octet order, plus a statically dispatched `BluetoothServiceDiscoveryBackend` with
+typed lifecycle state, normalized failures, and bounded copied service/result events. Native 16-bit
+and 32-bit UUID strings expand through the Bluetooth Base UUID; full 128-bit UUIDs preserve their
+canonical bytes.
+
+The iOS adapter rechecks its selected connection state and the native
+`CBPeripheralState::Connected` before a request. It installs its retained peripheral delegate,
+issues public `CBPeripheral::discoverServices(None)`, then copies each `CBService::UUID` into a
+fixed-width value. The queue holds 32 service and terminal events, drops newest on overflow, and
+reports a saturating drop count; `service_discovery_state` remains queryable if a terminal event is
+dropped. A native error, disconnect, malformed UUID, or contained callback panic ends the request
+with a typed failure. CoreBluetooth offers no discovery-only cancellation method. Cancelling the
+selected connection ends active discovery with `Disconnected` immediately and removes the weak
+peripheral delegate; backend teardown suppresses later events and clears both weak delegates before
+releasing the selected peer. Characteristic discovery and
+GATT reads/writes, peripheral role, background restoration, and automatic reconnect remain out of
+scope.
+
+Host regressions cover fixed-width UUID byte order, 16/32/128-bit normalization, malformed UUIDs,
+disconnected preflight, overlapping requests, mismatched/late callbacks, terminal failure, bounded
+FIFO overflow, dropped-event count reset, and public facade behavior. The registered
+`ios-bluetooth` profile includes the existing device/Simulator link fixture and asserts the new
+callback, request, and negative scope guards. These checks establish host policy behavior and
+compile/linkability only; no CoreBluetooth manager, permission prompt, live peer, radio result,
+device/Simulator runtime behavior, or App Store package was exercised.

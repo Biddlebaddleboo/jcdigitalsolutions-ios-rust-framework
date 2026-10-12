@@ -6,6 +6,7 @@
 mod connection_policy;
 mod conversion;
 mod queue;
+mod service_discovery_policy;
 
 #[cfg(target_os = "ios")]
 mod central;

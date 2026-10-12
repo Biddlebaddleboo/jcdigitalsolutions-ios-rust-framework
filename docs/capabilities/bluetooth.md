@@ -1,8 +1,9 @@
 # Portable Bluetooth
 
-`framework-bluetooth` defines portable authorization, central-discovery, and explicit central-
-connection contracts. Platform managers and peripheral objects remain private to native backends.
-The portable API has no advertisement, peripheral-role, beacon, or radio-control contract.
+`framework-bluetooth` defines portable authorization, central-discovery, explicit central-
+connection, and connected-peer GATT service-discovery contracts. Platform managers and peripheral
+objects remain private to native backends. The portable API has no advertisement, peripheral-role,
+beacon, characteristic-I/O, or radio-control contract.
 
 ## Authorization states
 
@@ -54,7 +55,32 @@ a saturating dropped-event count. `connection_state` remains a snapshot if event
 dropped failure event can lose its detailed normalized reason. Native error text/codes do not cross
 this portable boundary. An explicit connection can initialize CoreBluetooth and prompt for
 Bluetooth authorization; `Bluetooth::authorization_status` remains a separate non-prompting query.
-This contract performs no service or characteristic discovery and no GATT reads or writes.
+The connection contract alone performs no service or characteristic discovery; the separate
+service-discovery contract below does not include GATT reads or writes.
+
+## Connected-peer GATT service discovery
+
+`BluetoothServiceDiscoveryBackend` adds an explicit `discover_services` request to a backend that
+also supports a caller-selected central connection. The request is accepted only when that
+selected peripheral is currently connected; an active request cannot overlap another request.
+The backend discovers all GATT services and returns before native results arrive.
+
+`BluetoothServiceUuid` stores 16 bytes in canonical UUID-string octet order. Native 16-bit and
+32-bit Bluetooth UUID forms are expanded with the Bluetooth Base UUID; 128-bit values retain their
+canonical bytes. `BluetoothServiceDiscoveryEvent` reports copied `ServiceDiscovered`, `Completed`,
+or normalized `Failed` events. `service_discovery_state` remains queryable and
+`try_next_service_discovery_event` drains the FIFO. The iOS adapter bounds this queue at 32 events,
+drops newest on overflow, and reports/reset the saturating dropped-event count. State remains
+queryable if a terminal event is among those dropped.
+
+The iOS implementation uses public `CBPeripheral.discoverServices:` with nil service filters, then
+copies only each `CBService.UUID`. It retains no service object and exposes no characteristic
+discovery or reads/writes. Disconnect ends an active request with `Disconnected`; native errors and
+conversion/callback failures have distinct normalized terminal errors. CoreBluetooth provides no
+discovery-only cancellation method; cancelling the selected connection terminates active
+discovery with `Disconnected` and removes the weak peripheral delegate. Backend drop clears both
+weak delegates before release. Callbacks remain on the main queue and no executor or user callback
+is introduced.
 
 See [iOS Bluetooth central discovery](../ios/bluetooth-discovery.md) for queue, lifecycle, privacy,
 and runtime limits.

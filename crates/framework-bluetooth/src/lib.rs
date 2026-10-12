@@ -1,7 +1,7 @@
 #![no_std]
 #![forbid(unsafe_code)]
 #![deny(missing_docs)]
-#![doc = "Portable Bluetooth authorization, bounded discovery, and central-connection contracts."]
+#![doc = "Portable Bluetooth authorization, bounded discovery, central-connection, and GATT service-discovery contracts."]
 
 /// The normalized authorization state for Bluetooth use.
 ///
@@ -47,6 +47,25 @@ impl BluetoothPeripheralId {
     }
 
     /// Returns the 16 UUID bytes in canonical UUID-string order.
+    pub const fn as_uuid_bytes(&self) -> &[u8; 16] {
+        &self.0
+    }
+}
+
+/// A normalized Bluetooth service UUID in canonical 128-bit UUID octet order.
+///
+/// Bluetooth 16-bit and 32-bit UUIDs are expanded with the Bluetooth Base UUID. This value
+/// identifies a GATT service type; it is not a handle to a service instance or a characteristic.
+#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
+pub struct BluetoothServiceUuid([u8; 16]);
+
+impl BluetoothServiceUuid {
+    /// Creates a service UUID from 16 octets in canonical UUID-string order.
+    pub const fn from_uuid_bytes(bytes: [u8; 16]) -> Self {
+        Self(bytes)
+    }
+
+    /// Returns the 16 service UUID octets in canonical UUID-string order.
     pub const fn as_uuid_bytes(&self) -> &[u8; 16] {
         &self.0
     }
@@ -213,6 +232,87 @@ pub trait BluetoothConnectionBackend: BluetoothCentralBackend {
     fn take_dropped_connection_event_count(&mut self) -> u32;
 }
 
+/// The latest lifecycle state of one requested GATT service-discovery operation.
+#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
+#[non_exhaustive]
+#[repr(u8)]
+pub enum BluetoothServiceDiscoveryState {
+    /// No service-discovery request has been made.
+    Idle = 0,
+    /// CoreBluetooth accepted a request and its asynchronous callback is pending.
+    Discovering = 1,
+    /// The backend delivered the full discovered-service list.
+    Completed = 2,
+    /// The request ended with an error or the connected peer disconnected.
+    Failed = 3,
+}
+
+/// A synchronous rejection or normalized asynchronous GATT service-discovery failure.
+#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
+#[non_exhaustive]
+#[repr(u8)]
+pub enum BluetoothServiceDiscoveryError {
+    /// No caller-selected peripheral is currently connected.
+    NotConnected = 0,
+    /// An earlier service-discovery callback is still pending.
+    AlreadyActive = 1,
+    /// CoreBluetooth reported a service-discovery error.
+    NativeFailure = 2,
+    /// The selected peer disconnected before service discovery completed.
+    Disconnected = 3,
+    /// The backend could not safely convert or process a native result.
+    Unavailable = 4,
+}
+
+/// A copied GATT service-discovery result or terminal event.
+#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
+#[non_exhaustive]
+pub enum BluetoothServiceDiscoveryEvent {
+    /// One discovered service type, copied without retaining a native service object.
+    ServiceDiscovered {
+        /// The caller-selected OS peer UUID.
+        peripheral: BluetoothPeripheralId,
+        /// The normalized 128-bit service type UUID.
+        service: BluetoothServiceUuid,
+    },
+    /// CoreBluetooth completed service discovery for the selected peer.
+    Completed {
+        /// The caller-selected OS peer UUID.
+        peripheral: BluetoothPeripheralId,
+    },
+    /// Service discovery failed; native error details are not exposed cross-platform.
+    Failed {
+        /// The caller-selected OS peer UUID.
+        peripheral: BluetoothPeripheralId,
+        /// The normalized failure reason.
+        error: BluetoothServiceDiscoveryError,
+    },
+}
+
+/// A statically selected backend for explicit GATT service discovery on the active connection.
+///
+/// A request is accepted only while the caller-selected peripheral is connected, returns before
+/// native results arrive, and discovers all of its GATT services. Results and one terminal event
+/// are copied into a bounded queue for polling. Implementations may drop newest events on queue
+/// overflow and report the saturating drop count. There is no discovery-only cancellation method;
+/// cancelling or disconnecting the selected connection terminates the operation, and backend
+/// teardown suppresses later callbacks. This contract does not read/write characteristics,
+/// expose native service objects, or create a peripheral role.
+pub trait BluetoothServiceDiscoveryBackend: BluetoothConnectionBackend {
+    /// Explicitly requests discovery of all GATT services on the connected selected peer.
+    fn discover_services(&mut self) -> Result<(), BluetoothServiceDiscoveryError>;
+
+    /// Returns the latest service-discovery lifecycle state.
+    fn service_discovery_state(&self) -> BluetoothServiceDiscoveryState;
+
+    /// Removes one copied service-discovery event, if one is queued.
+    fn try_next_service_discovery_event(&mut self) -> Option<BluetoothServiceDiscoveryEvent>;
+
+    /// Returns and resets the saturating count of service-discovery events dropped by the bounded
+    /// queue.
+    fn take_dropped_service_discovery_event_count(&mut self) -> u32;
+}
+
 /// A thin facade over caller-owned central backend state.
 pub struct BluetoothCentral<B> {
     backend: B,
@@ -277,6 +377,29 @@ impl<B: BluetoothConnectionBackend> BluetoothCentral<B> {
     /// Returns and resets the saturating count of connection events dropped by the bounded queue.
     pub fn take_dropped_connection_event_count(&mut self) -> u32 {
         self.backend.take_dropped_connection_event_count()
+    }
+}
+
+impl<B: BluetoothServiceDiscoveryBackend> BluetoothCentral<B> {
+    /// Explicitly requests GATT service discovery on the currently connected selected peer.
+    pub fn discover_services(&mut self) -> Result<(), BluetoothServiceDiscoveryError> {
+        self.backend.discover_services()
+    }
+
+    /// Returns the latest service-discovery lifecycle state.
+    pub fn service_discovery_state(&self) -> BluetoothServiceDiscoveryState {
+        self.backend.service_discovery_state()
+    }
+
+    /// Removes one copied service-discovery event, if one is queued.
+    pub fn try_next_service_discovery_event(&mut self) -> Option<BluetoothServiceDiscoveryEvent> {
+        self.backend.try_next_service_discovery_event()
+    }
+
+    /// Returns and resets the saturating count of service-discovery events dropped by the bounded
+    /// queue.
+    pub fn take_dropped_service_discovery_event_count(&mut self) -> u32 {
+        self.backend.take_dropped_service_discovery_event_count()
     }
 }
 

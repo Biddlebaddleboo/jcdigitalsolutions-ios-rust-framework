@@ -1,4 +1,6 @@
-use framework_bluetooth::{BluetoothConnectionEvent, BluetoothDiscovery};
+use framework_bluetooth::{
+    BluetoothConnectionEvent, BluetoothDiscovery, BluetoothServiceDiscoveryEvent,
+};
 
 /// Fixed-capacity discovery queue; overflow drops the newest event and saturates the counter.
 pub(crate) struct DiscoveryQueue {
@@ -11,6 +13,14 @@ pub(crate) struct DiscoveryQueue {
 /// Fixed-capacity connection-event FIFO; overflow drops the newest event.
 pub(crate) struct ConnectionQueue {
     events: [Option<BluetoothConnectionEvent>; Self::CAPACITY],
+    head: usize,
+    len: usize,
+    dropped: u32,
+}
+
+/// Fixed-capacity GATT service-discovery FIFO; overflow drops newest events.
+pub(crate) struct ServiceDiscoveryQueue {
+    events: [Option<BluetoothServiceDiscoveryEvent>; Self::CAPACITY],
     head: usize,
     len: usize,
     dropped: u32,
@@ -94,10 +104,51 @@ impl DiscoveryQueue {
     }
 }
 
+impl ServiceDiscoveryQueue {
+    pub(crate) const CAPACITY: usize = 32;
+
+    pub(crate) const fn new() -> Self {
+        Self {
+            events: [None; Self::CAPACITY],
+            head: 0,
+            len: 0,
+            dropped: 0,
+        }
+    }
+
+    pub(crate) fn push(&mut self, event: BluetoothServiceDiscoveryEvent) {
+        if self.len == Self::CAPACITY {
+            self.dropped = self.dropped.saturating_add(1);
+            return;
+        }
+        let tail = (self.head + self.len) % Self::CAPACITY;
+        self.events[tail] = Some(event);
+        self.len += 1;
+    }
+
+    pub(crate) fn pop(&mut self) -> Option<BluetoothServiceDiscoveryEvent> {
+        if self.len == 0 {
+            return None;
+        }
+        let event = self.events[self.head].take();
+        self.head = (self.head + 1) % Self::CAPACITY;
+        self.len -= 1;
+        event
+    }
+
+    pub(crate) fn take_dropped(&mut self) -> u32 {
+        let dropped = self.dropped;
+        self.dropped = 0;
+        dropped
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
-    use framework_bluetooth::{BluetoothConnectionState, BluetoothPeripheralId};
+    use framework_bluetooth::{
+        BluetoothConnectionState, BluetoothPeripheralId, BluetoothServiceUuid,
+    };
 
     fn event(value: u8) -> BluetoothDiscovery {
         BluetoothDiscovery {
@@ -170,5 +221,37 @@ mod tests {
         queue.dropped = u32::MAX;
         queue.push(connection_event(42));
         assert_eq!(queue.dropped, u32::MAX);
+    }
+
+    #[test]
+    fn service_discovery_queue_is_bounded_fifo_and_drops_newest() {
+        let mut queue = ServiceDiscoveryQueue::new();
+        for value in 0..ServiceDiscoveryQueue::CAPACITY as u8 {
+            queue.push(service_event(value));
+        }
+        queue.push(BluetoothServiceDiscoveryEvent::Completed { peripheral: id(99) });
+        assert_eq!(queue.take_dropped(), 1);
+        for value in 0..ServiceDiscoveryQueue::CAPACITY as u8 {
+            assert_eq!(queue.pop(), Some(service_event(value)));
+        }
+        assert_eq!(queue.pop(), None);
+        assert_eq!(queue.take_dropped(), 0);
+        for value in 0..ServiceDiscoveryQueue::CAPACITY as u8 {
+            queue.push(service_event(value));
+        }
+        queue.dropped = u32::MAX;
+        queue.push(service_event(99));
+        assert_eq!(queue.take_dropped(), u32::MAX);
+    }
+
+    fn id(value: u8) -> BluetoothPeripheralId {
+        BluetoothPeripheralId::from_uuid_bytes([value; 16])
+    }
+
+    fn service_event(value: u8) -> BluetoothServiceDiscoveryEvent {
+        BluetoothServiceDiscoveryEvent::ServiceDiscovered {
+            peripheral: id(1),
+            service: BluetoothServiceUuid::from_uuid_bytes([value; 16]),
+        }
     }
 }

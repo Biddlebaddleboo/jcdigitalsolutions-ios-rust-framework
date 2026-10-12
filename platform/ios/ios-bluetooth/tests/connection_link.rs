@@ -1,6 +1,8 @@
 #![cfg(target_os = "ios")]
 
-use framework_bluetooth::{BluetoothCentral, BluetoothPeripheralId};
+use framework_bluetooth::{
+    BluetoothCentral, BluetoothPeripheralId, BluetoothServiceDiscoveryState,
+};
 use ios_bluetooth::IosBluetoothCentralBackend;
 use objc2::MainThreadMarker;
 
@@ -13,6 +15,13 @@ fn explicit_connection_surface_links_without_starting_core_bluetooth() {
         return;
     };
     let mut central = BluetoothCentral::new(IosBluetoothCentralBackend::new(marker));
+    let _ = central.discover_services();
+    assert_eq!(
+        central.service_discovery_state(),
+        BluetoothServiceDiscoveryState::Idle
+    );
+    let _ = central.try_next_service_discovery_event();
+    let _ = central.take_dropped_service_discovery_event_count();
     let id = BluetoothPeripheralId::from_uuid_bytes([0xA5; 16]);
     let _ = central.connect_peripheral(id);
     central.cancel_connection();
