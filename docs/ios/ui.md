@@ -529,6 +529,22 @@ The B530 link/import probe checks the `UIImage.systemImageNamed:` and `UIView.se
 selectors, UIKit linkage, and unchanged iOS 12.0 device / iOS 14.0 Simulator deployment targets.
 It does not execute the probe or prove symbol lookup, tint appearance, or runtime rendering
 
+`IosButton::set_system_symbol_image` sets the normal-state image using a public UIKit SF symbol.
+Named symbols require iOS 13.0 at runtime; the method returns `Unsupported` below that version
+while the crate retains its iOS 12.0 device floor. `None` clears the image, including on iOS 12.0.
+Empty names return `InvalidInput`, and unrecognized names return `Unavailable` without replacing
+the current image. No symbol allowlist or SwiftUI view composition is added
+
+```rust,ignore
+button.set_system_symbol_image(Some("doc.on.doc"))?;
+button.set_system_symbol_image(Some("square.and.arrow.down"))?;
+button.set_system_symbol_image(None)?;
+```
+
+The B599 link probe checks `UIImage.systemImageNamed:` and `UIButton.setImage:forState:` at the
+existing iOS 12.0 device and iOS 14.0 Simulator deployment floors. It does not prove SF-symbol
+rendering, image/title spacing, or button appearance at runtime
+
 ## CoreGraphics frame intersection
 
 `ios_ui::geometry::intersection(first, second)` calls the public CoreGraphics C functions

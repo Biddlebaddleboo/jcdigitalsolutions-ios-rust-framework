@@ -296,3 +296,13 @@ selectors. The local host tests, strict Clippy, target checks, and probes pass; 
 ## B589 — locale-aware optional integer text-field values
 
 B589 adds `IosTextField::integer_value` and `set_integer_value` using public Foundation decimal formatting with the current locale. Nil and empty input map to `None`; parsing requires full UTF-16 range consumption and an exact decimal-to-`i64` conversion, so malformed, fractional, and out-of-range text returns `InvalidInput` without rounding, truncation, or mutation. Formatting takes `Option<i64>` without passing through floating point; existing plain-text and edit-callback behavior is unchanged. Host policy regressions cover boundaries and rejected inputs, and the registered `ios-ui` Release link fixture covers Foundation imports and selectors at the existing device iOS 12.0 and Simulator iOS 14.0 floors. Locale formatting and field behavior remain runtime-unverified.
+
+## B599 — SF-symbol images on native buttons
+
+B599 adds main-thread `IosButton::set_system_symbol_image(Option<&str>)` through public UIKit
+`UIImage.systemImageNamed:` and `UIButton.setImage:forState:`. Named symbols require iOS 13.0 at
+runtime while preserving the iOS 12.0 device deployment floor; `None` clears the normal-state image
+on iOS 12.0 and later. Empty names return `InvalidInput`, missing UIKit symbols return
+`Unavailable`, and failures preserve the existing image. Host regressions cover invalid, missing,
+clear, and replace behavior; the registered `ios-ui` link probe checks both selectors on device and
+Simulator. Symbol rendering and button layout remain runtime-unverified.

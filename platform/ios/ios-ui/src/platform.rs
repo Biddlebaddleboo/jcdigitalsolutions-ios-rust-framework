@@ -38,7 +38,9 @@ use crate::keyboard_action_policy::run_with_main_thread_marker;
 use crate::layout_policy::{OneShotConstraints, ScrollLayoutPolicy};
 use crate::scroll_policy::validated_content_size;
 use crate::stack_spacing::{is_valid_stack_alignment, is_valid_stack_spacing};
-use crate::system_symbol_policy::{resolve_system_symbol, validate_system_symbol_name};
+use crate::system_symbol_policy::{
+    resolve_system_symbol, update_system_symbol_image, validate_system_symbol_name,
+};
 use crate::text_conversion::{AccessibilityText, Utf16Error, decode_utf16};
 use crate::text_policy::{KeyboardHint, TextFieldCallback, input_traits, invoke_text_callback};
 use crate::text_style_policy::{
@@ -1198,6 +1200,30 @@ impl IosButton {
         let _button_enabled_thread = main_thread_marker()?;
         self.native.setEnabled(enabled);
         Ok(())
+    }
+
+    /// Sets or clears a public UIKit system symbol image for the button's normal state.
+    ///
+    /// Symbol lookup requires iOS 13.0 or later; this crate returns `Unsupported` on older
+    /// systems when `symbol_name` is `Some`. An empty name returns `InvalidInput`, and a symbol
+    /// UIKit does not recognize returns `Unavailable` without replacing the current image. `None`
+    /// clears the normal-state image and is supported at the crate's iOS 12.0 deployment floor.
+    pub fn set_system_symbol_image(&mut self, symbol_name: Option<&str>) -> Result<()> {
+        let _button_symbol_thread = main_thread_marker()?;
+        update_system_symbol_image(
+            symbol_name,
+            || objc2::available!(ios = 13.0, ..),
+            |symbol_name| {
+                autoreleasepool(|_| {
+                    let name = NSString::from_str(symbol_name);
+                    UIImage::systemImageNamed(&name)
+                })
+            },
+            |image| {
+                self.native
+                    .setImage_forState(image.as_deref(), UIControlState::Normal);
+            },
+        )
     }
 
     /// Applies a UIKit bold or regular symbolic trait to the button title's current font.

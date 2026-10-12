@@ -713,6 +713,13 @@ B597 adds bounded one-at-a-time connected-peer writes with unique UUID selection
 
 B598 adds one UUID-unique connected-peer Notify/Indicate subscription, async state and bounded copied value events. It blocks reads during the stream and quarantines later reads/subscriptions after disable or callback ambiguity because CoreBluetooth value callbacks carry no operation token. Write-with-response remains available after enable. Host regressions cover selection, native state, queue bounds, and stale-callback quarantine; live radio behavior remains unverified.
 
+### B599 — SF-symbol images on native buttons (row 003)
+
+B599 adds `IosButton::set_system_symbol_image(Option<&str>)` with an iOS 13 runtime guard for
+symbol lookup and iOS 12-compatible image clearing. Host policy tests preserve the current image on
+empty or unknown names and cover clear/replace updates. The registered `ios-ui` capability includes
+the host test and two-target UIKit link probe; runtime rendering remains unverified.
+
 ### B600 — bounded read-only local GATT peripheral (row 039)
 
 Adds a no_std caller-owned one-service GATT contract with 1-8 unique static characteristics capped

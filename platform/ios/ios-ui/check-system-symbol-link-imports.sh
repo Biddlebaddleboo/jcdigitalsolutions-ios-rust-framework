@@ -41,7 +41,7 @@ for target in aarch64-apple-ios aarch64-apple-ios-sim; do
         }
     done
     for symbol in \
-        'systemImageNamed:' 'setTintColor:' 'preferredFontForTextStyle:' \
+        'systemImageNamed:' 'setImage:forState:' 'setTintColor:' 'preferredFontForTextStyle:' \
         'setAdjustsFontForContentSizeCategory:' 'setFont:' 'setTextColor:' \
         'setTitleColor:forState:' 'labelColor' 'secondaryLabelColor' \
         'systemBlueColor' 'systemRedColor' 'systemGreenColor' 'systemOrangeColor' \

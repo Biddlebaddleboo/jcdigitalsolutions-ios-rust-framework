@@ -14,6 +14,8 @@ use objc2_ui_kit::UIColor;
 type AddSystemSymbolImageView =
     fn(&mut IosUiBackend, &mut IosView, Frame, &str, Option<&UIColor>) -> Result<IosImageView>;
 #[cfg(target_os = "ios")]
+type SetSystemSymbolImage = fn(&mut IosButton, Option<&str>) -> Result<()>;
+#[cfg(target_os = "ios")]
 type SetTextStyle<T> = fn(&mut T, IosSystemTextStyle) -> Result<()>;
 #[cfg(target_os = "ios")]
 type SetTextColor<T> = fn(&mut T, IosSemanticTextColor) -> Result<()>;
@@ -25,6 +27,7 @@ type SetFontDesign<T> = fn(&mut T, IosFontDesign) -> Result<()>;
 #[cfg(target_os = "ios")]
 fn main() {
     core::hint::black_box(IosUiBackend::add_system_symbol_image_view as AddSystemSymbolImageView);
+    core::hint::black_box(IosButton::set_system_symbol_image as SetSystemSymbolImage);
     core::hint::black_box(
         IosImageView::set_tint_color as fn(&mut IosImageView, &UIColor) -> Result<()>,
     );
