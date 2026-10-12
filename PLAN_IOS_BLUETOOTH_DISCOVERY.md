@@ -190,3 +190,25 @@ misattributed. Host policy regressions cover selection, properties, state change
 disable quarantine, disconnect, panic, and stale callbacks. No live radio or runtime callback is
 claimed; the existing `ios-bluetooth` profile registers package tests, target builds, Clippy,
 Rustdoc, and ABI/link checks for this source tree.
+
+## B600 — bounded read-only local GATT peripheral (row 039)
+
+B600 adds the no_std `BluetoothPeripheralService` contract for one caller-owned service with one
+to eight unique static characteristics, each capped at 512 bytes, plus a statically dispatched
+`BluetoothPeripheral` facade. `IosBluetoothPeripheralBackend` uses public `CBPeripheralManager` APIs
+to publish the read-only service, advertise its UUID, report asynchronous authorization/power and
+native failures, recover service publication after radio power loss, and stop/remove only its own
+service. The backend is main-thread-owned; no Swift source, dynamic read callback, background
+restoration, or live radio behavior is included.
+
+Host policy regressions cover permission/power transitions, service-publication ordering and failure,
+advertising failure, stop cleanup, callback ambiguity, and power-loss re-publication. Host contract
+regressions cover invalid bounds, duplicate UUIDs, empty/excess service definitions, static value
+copying, and start/stop facade semantics. `/Users/john/.local/bin/ios-rust-validate` (source SHA
+`b6d422528c80671d828a4b0d40e9fc739652409a`, SHA-256
+`4835271071ca3b7292f09a50d6d6c682f0c58f7d219045dd05e556553a451262`) ran
+`ios-rust-validate --workspace-root "$PWD" --spec "$PWD/tools/validation/specs/validation-v1.json" --capability ios-bluetooth` at snapshot `999a1ff5b563abdaa0549cef176bf6a44ba0f78ffca96a03b1d6d6e1c3ad209f`:
+32 PASS, 0 FAIL, 0 BLOCKED, 2 SKIPPED. Host tests, device/Simulator compilation and strict
+Clippy, Rustdoc, and Release link fixture passed. The skips are Simulator execution and
+physical-device proof; no permission prompt, advertisement, remote GATT read, or background behavior
+was tested.

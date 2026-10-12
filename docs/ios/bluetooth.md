@@ -58,3 +58,7 @@ References: [Apple CBManager](https://developer.apple.com/documentation/coreblue
 [Apple CBManager authorization](https://developer.apple.com/documentation/corebluetooth/cbmanager/authorization-swift.type.property),
 [Apple authorization states](https://developer.apple.com/documentation/corebluetooth/cbmanagerauthorization),
 and [Apple NSBluetoothAlwaysUsageDescription](https://developer.apple.com/documentation/bundleresources/information-property-list/nsbluetoothalwaysusagedescription).
+
+The separate opt-in local read-only GATT peripheral backend and its host configuration are
+documented in [iOS Bluetooth APIs](bluetooth-discovery.md). The authorization query above remains
+a non-prompting snapshot; it does not start that backend.

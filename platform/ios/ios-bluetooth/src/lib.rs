@@ -9,6 +9,7 @@ mod characteristic_read_selection;
 mod characteristic_write_policy;
 mod connection_policy;
 mod conversion;
+mod peripheral_policy;
 mod queue;
 mod service_discovery_policy;
 
@@ -19,7 +20,13 @@ mod central;
 mod platform;
 
 #[cfg(target_os = "ios")]
+mod peripheral;
+
+#[cfg(target_os = "ios")]
 pub use central::IosBluetoothCentralBackend;
+
+#[cfg(target_os = "ios")]
+pub use peripheral::IosBluetoothPeripheralBackend;
 
 #[cfg(target_os = "ios")]
 pub use platform::IosBluetoothBackend;

@@ -254,8 +254,33 @@ characteristic as a callback tombstone and rejects later reads or subscriptions 
 recreate the backend before starting those operations again. This prevents a late value callback from
 being attributed to a later read or subscription. Write-with-response uses a distinct callback and
 remains available after enable confirmation. Cancellation and backend teardown stop the subscription
-and clear the peripheral delegate. No descriptor, peripheral-role, background-restoration, Simulator
-runtime, or physical-device behavior is claimed.
+and clear the peripheral delegate. No descriptor or live central runtime behavior is claimed.
+
+## Local read-only peripheral service (B600)
+
+`IosBluetoothPeripheralBackend` implements the portable `BluetoothPeripheralBackend` with public
+CoreBluetooth APIs. It creates `CBPeripheralManager` only after the caller explicitly starts one
+service, publishes that service, and advertises its UUID only after service publication succeeds.
+Each configured characteristic is a CoreBluetooth `Read`/`Readable` attribute with a copied static
+value; CoreBluetooth serves that value without a dynamic read-request callback. The portable builder
+bounds the service to one through eight unique characteristic UUIDs and values to 512 bytes.
+
+Construct, use, and drop the backend on the main thread. Its manager uses the main queue, and all
+operations and lifecycle callbacks remain on that thread. The caller owns the service definition;
+start may prompt for Bluetooth access, and `BluetoothPeripheralState` distinguishes startup, power
+wait, service publication, advertising, unauthorized, unsupported, native failure, and unavailable
+callback states. A powered-off manager clears its local GATT database; an active request republishes
+the service when power returns. `stop_advertising` stops this manager's advertisement and removes
+only its owned service when CoreBluetooth permits it; backend drop also stops and releases the weak
+delegate. The host app owns `NSBluetoothAlwaysUsageDescription` and, for pre-iOS 13 deployment
+targets, Apple's documented deprecated `NSBluetoothPeripheralUsageDescription`. Background
+operation is not promised; apps that need it must configure Apple's `bluetooth-peripheral` background
+mode and still account for system scheduling and advertising limits.
+
+The registered `ios-bluetooth` profile compiles the peripheral link probe for device and Simulator
+and runs host policy/contract regressions. Neither compilation nor link inspection proves permission
+prompts, live advertisement, remote GATT reads, foreground lifecycle behavior, or background runtime.
+No Simulator or physical-device peripheral test has been performed.
 
 ## Scope and host configuration
 
@@ -284,15 +309,18 @@ owns lifecycle policy and must stop scans and cancel connections when appropriat
 
 The iOS crate uses `objc2-core-bluetooth` 0.3.2 with default features disabled and explicitly
 enables `CBManager`, `CBCentralManager`, `CBPeer`, `CBPeripheral`, `CBAttribute`, `CBService`,
-`CBUUID`, and `dispatch2`. It
+`CBUUID`, `CBAdvertisementData`, `CBPeripheralManager`, `CBPeripheralManagerConstants`, and
+`dispatch2`. It
 disables `objc2-foundation` defaults and directly enables only `NSArray`, `NSString`, `NSObject`,
 `NSUUID`, and `NSValue`; the selected generated CoreBluetooth APIs also activate their required
 Foundation and `bitflags` feature dependencies. The portable contract exposes no Apple binding type.
 
-The package script checks and Clippy gates compile device and Simulator targets; its central link
-probe cross-links the test executable without running it. They do not instantiate a manager, request
+The package script checks and Clippy gates compile device and Simulator targets; its link probe
+cross-links the test executable without running it. The optional peripheral runtime probe is gated by
+`IOS_BLUETOOTH_RUN_PERIPHERAL_RUNTIME_PROBE` and was not run. These checks do not request
 permission, show UI, scan a radio, discover a device/service, validate RSSI, connect to a peer,
-prove callback timing/drop teardown on-device, or test background behavior.
+advertise a service, validate remote reads, prove callback timing/drop teardown on-device, or test
+background behavior.
 
 References: [CBCentralManager scan](https://developer.apple.com/documentation/corebluetooth/cbcentralmanager/scanforperipherals%28withservices%3Aoptions%3A%29),
 [retrieve peripherals](https://developer.apple.com/documentation/corebluetooth/cbcentralmanager/retrieveperipherals%28withidentifiers%3A%29),

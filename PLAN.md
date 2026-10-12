@@ -713,6 +713,18 @@ B597 adds bounded one-at-a-time connected-peer writes with unique UUID selection
 
 B598 adds one UUID-unique connected-peer Notify/Indicate subscription, async state and bounded copied value events. It blocks reads during the stream and quarantines later reads/subscriptions after disable or callback ambiguity because CoreBluetooth value callbacks carry no operation token. Write-with-response remains available after enable. Host regressions cover selection, native state, queue bounds, and stale-callback quarantine; live radio behavior remains unverified.
 
+### B600 — bounded read-only local GATT peripheral (row 039)
+
+Adds a no_std caller-owned one-service GATT contract with 1-8 unique static characteristics capped
+at 512 bytes, plus a main-thread CoreBluetooth backend that explicitly publishes and advertises,
+reports authorization/power/native outcomes, recovers publication after power loss, and cleans up its
+own service. Installed validator source SHA `b6d422528c80671d828a4b0d40e9fc739652409a`, SHA-256
+`4835271071ca3b7292f09a50d6d6c682f0c58f7d219045dd05e556553a451262`, passed the registered
+`ios-bluetooth` profile at snapshot `999a1ff5b563abdaa0549cef176bf6a44ba0f78ffca96a03b1d6d6e1c3ad209f`:
+32 PASS, 0 FAIL/BLOCKED, 2 SKIPPED (Simulator execution and physical-device proof). Host policy and
+contract regressions, device/Simulator compile and strict Clippy, Rustdoc, and Release link passed;
+permission prompts, live advertisements, remote reads, and background operation remain unverified.
+
 ### B601 — bounded MapKit polygon overlay (row 093)
 
 B601 adds `IosMapView::replace_polygon`/`clear_polygon` for one public `MKPolygon` with 3–4,096 validated coordinates and a fixed translucent blue fill/2-point stroke. It shares the existing owned renderer delegate with B583's route, permits one of each, rejects an unrelated host delegate before mutation, and clears only owned overlays. Host regressions cover count bounds, delegate rejection, and shared delegate lifetime. The registered `ios-map-view` profile passed 28 checks with 0 FAIL, 0 BLOCKED, and 2 SKIPPED at the final implementation snapshot; the skips are Simulator execution and physical-device proof. Device/Simulator compilation, strict Clippy, Rustdoc, and public-symbol link checks do not establish visible polygon rendering or runtime coexistence. See [the MapKit implementation plan](PLAN_CAPABILITIES_MAPKIT.md#b601-bounded-polygon-overlay).

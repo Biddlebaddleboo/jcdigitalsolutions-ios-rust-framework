@@ -1,10 +1,9 @@
 # Portable Bluetooth
 
 `framework-bluetooth` defines portable authorization, central-discovery, explicit central-
-connection, connected-peer GATT service-discovery, characteristic read/write-with-response, and
-notification/indication contracts. Platform managers and peripheral objects remain private to native
-backends. The portable API has no advertisement, peripheral-role, beacon,
-write-without-response, or radio-control contract.
+connection, connected-peer GATT operations, and a bounded local peripheral-service contract.
+Platform managers and peripheral objects remain private to native backends. The portable API has no
+beacon or write-without-response contract.
 
 ## Authorization states
 
@@ -20,6 +19,20 @@ state to `Unknown`. A status query is a snapshot and does not request permission
 require a global registry, allocation, an executor, or hidden initialization. A backend must not
 prompt or begin Bluetooth use while answering the query. This contract does not imply that a
 Bluetooth permission request exists; no request operation is represented here.
+
+## Local read-only peripheral service
+
+`BluetoothPeripheralService` owns one fixed-capacity service definition with one through eight
+unique-UUID characteristics. Each characteristic copies a static value up to 512 bytes; oversized
+values, empty service definitions, excess entries, and duplicate characteristic UUIDs are rejected
+before reaching a platform backend. The portable contract uses inline storage, no allocator, and
+static dispatch.
+
+`BluetoothPeripheral<B>` exposes explicit `start_advertising` and idempotent `stop_advertising`
+operations. Starting may prompt for Bluetooth permission and returns before native permission,
+power, service-publication, or advertising callbacks complete. Poll `state` and `last_error` for
+those outcomes. The contract is deliberately read-only and single-service: writes, notifications,
+descriptors, dynamic read callbacks, background restoration, and automatic restart are not included.
 
 ## Central discovery
 
@@ -113,8 +126,8 @@ iOS 8). A disconnect/cancel during native characteristic discovery or a write re
 `Disconnected` and quarantines later writes on that backend instance because CoreBluetooth
 callbacks carry no operation token. Its
 four-event FIFO reports only CoreBluetooth's write result, not an application-level effect. No
-write-without-response, descriptor operation, or peripheral role is implemented; static checks do
-not prove live radio behavior.
+write-without-response or descriptor operation is implemented; static checks do not prove live radio
+behavior.
 
 `BluetoothCharacteristicNotificationBackend` adds one connected-peer Notify/Indicate subscription
 after peer-scoped service discovery. Enable and disable remain asynchronous; copied values are capped
@@ -125,5 +138,5 @@ tombstone and rejects later reads/subscriptions until backend recreation, so lat
 misattributed. Write-with-response remains available after subscription confirmation. Static checks do
 not prove live radio behavior.
 
-See [iOS Bluetooth central discovery](../ios/bluetooth-discovery.md) for queue, lifecycle, privacy,
-and runtime limits.
+See [iOS Bluetooth APIs](../ios/bluetooth-discovery.md) for queue, lifecycle, privacy, and runtime
+limits.

@@ -21,6 +21,9 @@ objc2-core-bluetooth = { workspace = true, features = [
     "CBCharacteristic",
     "CBService",
     "CBUUID",
+    "CBAdvertisementData",
+    "CBPeripheralManager",
+    "CBPeripheralManagerConstants",
     "dispatch2",
 ] }
 objc2-foundation = { workspace = true, features = ["NSArray", "NSData", "NSString", "NSObject", "NSUUID", "NSValue"] }

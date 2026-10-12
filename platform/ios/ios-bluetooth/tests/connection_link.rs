@@ -3,10 +3,11 @@
 use framework_bluetooth::{
     BluetoothCentral, BluetoothCharacteristicNotificationState, BluetoothCharacteristicReadEvent,
     BluetoothCharacteristicReadState, BluetoothCharacteristicUuid,
-    BluetoothCharacteristicWriteState, BluetoothPeripheralId, BluetoothServiceDiscoveryState,
-    BluetoothServiceUuid,
+    BluetoothCharacteristicWriteState, BluetoothPeripheral, BluetoothPeripheralCharacteristic,
+    BluetoothPeripheralId, BluetoothPeripheralService, BluetoothPeripheralState,
+    BluetoothServiceDiscoveryState, BluetoothServiceUuid,
 };
-use ios_bluetooth::IosBluetoothCentralBackend;
+use ios_bluetooth::{IosBluetoothCentralBackend, IosBluetoothPeripheralBackend};
 use objc2::MainThreadMarker;
 
 #[test]
@@ -60,4 +61,29 @@ fn explicit_connection_and_gatt_surface_links_without_starting_core_bluetooth() 
     let _ = central.connection_state();
     let _ = central.try_next_connection_event();
     let _ = central.take_dropped_connection_event_count();
+}
+
+#[test]
+fn static_peripheral_service_surface_links_without_starting_core_bluetooth() {
+    if std::env::var_os("IOS_BLUETOOTH_RUN_PERIPHERAL_RUNTIME_PROBE").is_none() {
+        return;
+    }
+    let Some(marker) = MainThreadMarker::new() else {
+        return;
+    };
+    let characteristic = BluetoothPeripheralCharacteristic::new(
+        BluetoothCharacteristicUuid::from_uuid_bytes([0x2A; 16]),
+        &[0xA5, 0x5A],
+    )
+    .unwrap();
+    let service = BluetoothPeripheralService::new(
+        BluetoothServiceUuid::from_uuid_bytes([0x18; 16]),
+        &[characteristic],
+    )
+    .unwrap();
+    let mut peripheral = BluetoothPeripheral::new(IosBluetoothPeripheralBackend::new(marker));
+    assert_eq!(peripheral.state(), BluetoothPeripheralState::Idle);
+    let _ = peripheral.start_advertising(service);
+    peripheral.stop_advertising();
+    assert_eq!(peripheral.last_error(), None);
 }

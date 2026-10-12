@@ -124,6 +124,215 @@ impl BluetoothCharacteristicValue {
     }
 }
 
+/// Maximum number of read-only characteristics in one caller-owned peripheral service.
+pub const BLUETOOTH_PERIPHERAL_CHARACTERISTIC_MAX_COUNT: usize = 8;
+
+/// A validated, fixed-capacity read-only characteristic for a local Bluetooth GATT service.
+#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
+pub struct BluetoothPeripheralCharacteristic {
+    uuid: BluetoothCharacteristicUuid,
+    value: BluetoothCharacteristicValue,
+}
+
+impl BluetoothPeripheralCharacteristic {
+    /// Copies one characteristic value into the 512-byte Bluetooth attribute bound.
+    pub fn new(
+        uuid: BluetoothCharacteristicUuid,
+        value: &[u8],
+    ) -> Result<Self, BluetoothPeripheralConfigurationError> {
+        let Some(value) = BluetoothCharacteristicValue::from_bytes(value) else {
+            return Err(BluetoothPeripheralConfigurationError::ValueTooLarge);
+        };
+        Ok(Self { uuid, value })
+    }
+
+    /// Returns the characteristic UUID.
+    pub const fn uuid(&self) -> BluetoothCharacteristicUuid {
+        self.uuid
+    }
+
+    /// Returns the copied static value.
+    pub const fn value(&self) -> &BluetoothCharacteristicValue {
+        &self.value
+    }
+}
+
+/// Validation failure for a caller-owned peripheral service or characteristic.
+#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
+#[non_exhaustive]
+#[repr(u8)]
+pub enum BluetoothPeripheralConfigurationError {
+    /// A characteristic value exceeds the 512-byte GATT attribute bound.
+    ValueTooLarge = 0,
+    /// A GATT service must contain at least one characteristic.
+    EmptyCharacteristics = 1,
+    /// A service contains more than [`BLUETOOTH_PERIPHERAL_CHARACTERISTIC_MAX_COUNT`] entries.
+    TooManyCharacteristics = 2,
+    /// A characteristic UUID is repeated within one service.
+    DuplicateCharacteristicUuid = 3,
+}
+
+/// A caller-owned, bounded, single-service, static read-only GATT database description.
+///
+/// The value copies live inline in fixed-capacity Rust storage. A service contains one through
+/// eight characteristics, each with a copied value no larger than 512 bytes. No allocation,
+/// native object, or platform dispatch is part of this portable contract.
+#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
+pub struct BluetoothPeripheralService {
+    uuid: BluetoothServiceUuid,
+    characteristics:
+        [BluetoothPeripheralCharacteristic; BLUETOOTH_PERIPHERAL_CHARACTERISTIC_MAX_COUNT],
+    characteristic_count: u8,
+}
+
+impl BluetoothPeripheralService {
+    /// Creates one service after validating its nonempty, bounded, UUID-unique characteristics.
+    pub fn new(
+        uuid: BluetoothServiceUuid,
+        characteristics: &[BluetoothPeripheralCharacteristic],
+    ) -> Result<Self, BluetoothPeripheralConfigurationError> {
+        if characteristics.is_empty() {
+            return Err(BluetoothPeripheralConfigurationError::EmptyCharacteristics);
+        }
+        if characteristics.len() > BLUETOOTH_PERIPHERAL_CHARACTERISTIC_MAX_COUNT {
+            return Err(BluetoothPeripheralConfigurationError::TooManyCharacteristics);
+        }
+        for (index, characteristic) in characteristics.iter().enumerate() {
+            if characteristics[..index]
+                .iter()
+                .any(|previous| previous.uuid == characteristic.uuid)
+            {
+                return Err(BluetoothPeripheralConfigurationError::DuplicateCharacteristicUuid);
+            }
+        }
+        let mut values = [characteristics[0]; BLUETOOTH_PERIPHERAL_CHARACTERISTIC_MAX_COUNT];
+        values[..characteristics.len()].copy_from_slice(characteristics);
+        Ok(Self {
+            uuid,
+            characteristics: values,
+            characteristic_count: characteristics.len() as u8,
+        })
+    }
+
+    /// Returns the service UUID.
+    pub const fn uuid(&self) -> BluetoothServiceUuid {
+        self.uuid
+    }
+
+    /// Returns the configured read-only characteristics in caller-supplied order.
+    pub fn characteristics(&self) -> &[BluetoothPeripheralCharacteristic] {
+        &self.characteristics[..usize::from(self.characteristic_count)]
+    }
+}
+
+/// Caller-visible state of one local read-only GATT service advertisement request.
+#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
+#[non_exhaustive]
+#[repr(u8)]
+pub enum BluetoothPeripheralState {
+    /// No advertisement request has been made through this backend.
+    Idle = 0,
+    /// CoreBluetooth manager readiness is not yet known.
+    Starting = 1,
+    /// Bluetooth is powered off; the caller's request remains pending.
+    WaitingForPower = 2,
+    /// CoreBluetooth is publishing the service into the local GATT database.
+    PublishingService = 3,
+    /// CoreBluetooth accepted the advertisement request; its callback is pending.
+    StartingAdvertising = 4,
+    /// CoreBluetooth confirmed that advertising started.
+    Advertising = 5,
+    /// The caller stopped the request.
+    Stopped = 6,
+    /// Bluetooth access is denied or restricted by operating-system policy.
+    Unauthorized = 7,
+    /// The device or platform does not support the peripheral role.
+    Unsupported = 8,
+    /// A native service publication or advertising request failed.
+    Failed = 9,
+    /// A native callback could not be safely processed.
+    Unavailable = 10,
+}
+
+/// Synchronous rejection or normalized asynchronous error for a local peripheral request.
+#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
+#[non_exhaustive]
+#[repr(u8)]
+pub enum BluetoothPeripheralError {
+    /// A request or uncorrelatable native callback is still active; recreate the backend if needed.
+    AlreadyActive = 0,
+    /// The operating system does not authorize Bluetooth use.
+    Unauthorized = 1,
+    /// The device or platform does not support the peripheral role.
+    Unsupported = 2,
+    /// CoreBluetooth reported a service-publication or advertising failure.
+    NativeFailure = 3,
+    /// The backend could not safely process a native state or callback.
+    Unavailable = 4,
+}
+
+/// Statically selected backend for one caller-owned local read-only GATT service.
+///
+/// Starting is explicit and may prompt for Bluetooth access. It returns before CoreBluetooth
+/// reports permission, power, service publication, or advertising results; query
+/// [`peripheral_state`](Self::peripheral_state) and [`last_peripheral_error`](Self::last_peripheral_error)
+/// for those asynchronous outcomes. Stopping is idempotent and must stop advertising and remove
+/// this backend's published service when CoreBluetooth is powered on. Implementations must not
+/// remove unrelated services owned by the host application. Static values are readable by remote
+/// centrals; writes, notifications, descriptors, multiple services, background restoration, and
+/// dynamic read callbacks are outside this contract.
+pub trait BluetoothPeripheralBackend {
+    /// Copies and explicitly publishes the caller's service, then advertises its UUID.
+    fn start_advertising(
+        &mut self,
+        service: BluetoothPeripheralService,
+    ) -> Result<(), BluetoothPeripheralError>;
+
+    /// Stops advertising and removes this backend's service when CoreBluetooth permits it.
+    fn stop_advertising(&mut self);
+
+    /// Returns the latest backend-observed request state.
+    fn peripheral_state(&self) -> BluetoothPeripheralState;
+
+    /// Returns the latest normalized asynchronous permission or native failure.
+    fn last_peripheral_error(&self) -> Option<BluetoothPeripheralError>;
+}
+
+/// A thin facade over caller-owned, statically selected Bluetooth peripheral backend state.
+pub struct BluetoothPeripheral<B> {
+    backend: B,
+}
+
+impl<B: BluetoothPeripheralBackend> BluetoothPeripheral<B> {
+    /// Creates a facade around an explicitly supplied backend.
+    pub const fn new(backend: B) -> Self {
+        Self { backend }
+    }
+
+    /// Copies and explicitly publishes one read-only service, then advertises its UUID.
+    pub fn start_advertising(
+        &mut self,
+        service: BluetoothPeripheralService,
+    ) -> Result<(), BluetoothPeripheralError> {
+        self.backend.start_advertising(service)
+    }
+
+    /// Stops advertising and removes the backend-owned service when supported.
+    pub fn stop_advertising(&mut self) {
+        self.backend.stop_advertising();
+    }
+
+    /// Returns the latest backend-observed request state.
+    pub fn state(&self) -> BluetoothPeripheralState {
+        self.backend.peripheral_state()
+    }
+
+    /// Returns the latest normalized asynchronous permission or native failure.
+    pub fn last_error(&self) -> Option<BluetoothPeripheralError> {
+        self.backend.last_peripheral_error()
+    }
+}
+
 /// One asynchronous central-discovery callback copied into portable fixed-width values.
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
 pub struct BluetoothDiscovery {
