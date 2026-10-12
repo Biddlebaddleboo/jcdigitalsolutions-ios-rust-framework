@@ -15,7 +15,7 @@ use objc2_ui_kit::{UIAction, UIBarButtonItem, UIImage, UINavigationController, U
 use crate::navigation_action_policy::{
     SharedActionCallback, callback_cell, invoke_action_callback, validate_action_input,
 };
-use crate::push_policy::perform_push_if_unparented;
+use crate::push_policy::perform_if_unattached;
 
 /// One generic native screen controller backed by an owned `IosView`.
 ///
@@ -166,16 +166,65 @@ impl IosNavigationController {
         }
     }
 
+    /// Creates a navigation controller with an app-owned native controller as its root.
+    ///
+    /// UIKit retains `root`; this wrapper keeps no second controller reference. Returns
+    /// `framework_core::ErrorKind::InvalidInput` if the controller already has a parent or its
+    /// loaded view already belongs to a window. The preflight does not load the view or change its
+    /// containment. The app remains responsible for attaching the returned native controller to
+    /// its scene or window.
+    pub fn from_native_root(
+        main_thread: MainThread,
+        root: &UIViewController,
+    ) -> Result<Self, Error> {
+        let already_parented = root.parentViewController().is_some();
+        let already_in_window = root
+            .viewIfLoaded()
+            .is_some_and(|view| view.window().is_some());
+        let native = perform_if_unattached(already_parented, already_in_window, || {
+            UINavigationController::initWithRootViewController(
+                UINavigationController::alloc(main_thread.into_objc2()),
+                root,
+            )
+        })
+        .map_err(Error::new)?;
+        Ok(Self {
+            native,
+            _not_send: PhantomData,
+        })
+    }
+
     /// Pushes an unparented screen through UIKit.
     ///
     /// Returns `framework_core::ErrorKind::InvalidInput` if the controller already belongs to a
-    /// parent controller.
+    /// parent controller or its loaded view already belongs to a window. The preflight does not
+    /// load the view or reparent the controller.
     /// UIKit owns the pushed controller after this call. Its own transition and back-button
     /// behavior remain authoritative; `animated` is passed through unchanged.
     pub fn push(&mut self, screen: &IosScreenController, animated: bool) -> Result<(), Error> {
-        perform_push_if_unparented(screen.native.parentViewController().is_some(), || {
+        self.push_view_controller(&screen.native, animated)?;
+        Ok(())
+    }
+
+    /// Pushes a borrowed app-owned native screen controller through UIKit.
+    ///
+    /// UIKit retains the controller in its navigation stack; this wrapper does not take or store
+    /// a second controller reference. Returns `framework_core::ErrorKind::InvalidInput` if the
+    /// controller already has a parent or its loaded view already belongs to a window. The
+    /// preflight does not load the view or change containment. UIKit owns transition and native
+    /// back-button behavior; `animated` is passed through unchanged.
+    pub fn push_view_controller(
+        &mut self,
+        controller: &UIViewController,
+        animated: bool,
+    ) -> Result<(), Error> {
+        let already_parented = controller.parentViewController().is_some();
+        let already_in_window = controller
+            .viewIfLoaded()
+            .is_some_and(|view| view.window().is_some());
+        perform_if_unattached(already_parented, already_in_window, || {
             self.native
-                .pushViewController_animated(&screen.native, animated);
+                .pushViewController_animated(controller, animated);
         })
         .map_err(Error::new)?;
         Ok(())

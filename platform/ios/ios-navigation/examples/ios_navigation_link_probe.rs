@@ -6,6 +6,8 @@ use ios_navigation::{IosNavigationBarAction, IosNavigationController, IosScreenC
 use ios_runtime::main_thread::MainThread;
 #[cfg(target_os = "ios")]
 use ios_ui::IosUiBackend;
+#[cfg(target_os = "ios")]
+use objc2_ui_kit::UIViewController;
 
 #[cfg(target_os = "ios")]
 fn main() {
@@ -54,6 +56,27 @@ fn main() {
     let _ = navigation.push(&next, false);
     let _ = navigation.native_controller();
     let _ = navigation.pop(false);
+
+    let Some(main_thread) = MainThread::current() else {
+        return;
+    };
+    let native_root = UIViewController::new(main_thread.into_objc2());
+    let Some(main_thread) = MainThread::current() else {
+        return;
+    };
+    let Ok(mut native_navigation) =
+        IosNavigationController::from_native_root(main_thread, &native_root)
+    else {
+        return;
+    };
+    let Some(main_thread) = MainThread::current() else {
+        return;
+    };
+    let native_screen = UIViewController::new(main_thread.into_objc2());
+    let _ = native_navigation.push_view_controller(&native_screen, false);
+    drop((native_root, native_screen));
+    let _ = native_navigation.native_controller();
+    let _ = native_navigation.pop(false);
 }
 
 #[cfg(not(target_os = "ios"))]

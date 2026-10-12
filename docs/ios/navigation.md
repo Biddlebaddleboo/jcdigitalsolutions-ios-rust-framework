@@ -40,6 +40,33 @@ Titles are optional UTF-8 values on `IosScreenController::new` and `set_title`. 
 title, while `Some("")` sets an empty title. Applications supply their own screen titles without
 adding app-specific route types to the framework
 
+## App-owned native controllers
+
+`IosNavigationController::from_native_root` and `push_view_controller` accept borrowed UIKit
+`UIViewController` references, including app-owned subclasses. They do not create a view or screen
+wrapper. UIKit retains the root and pushed controllers in its native stack; the app may drop its
+own retained reference after a successful call if it does not need independent ownership. The
+adapter retains only the `UINavigationController`, and `pop` keeps its existing boolean result;
+retain a controller in the app if it must survive after UIKit pops it
+
+Both entry points return `ErrorKind::InvalidInput` when the controller already has a parent or
+its already-loaded view belongs to a window. The preflight does not load the view or alter
+containment. Scene and window attachment remain app-owned. These APIs expose imperative UIKit
+stack operations only; they do not add `NavigationLink`, route state, bindings, or declarative
+screen reconciliation
+
+```rust
+use ios_navigation::IosNavigationController;
+use objc2_ui_kit::UIViewController;
+
+let root = UIViewController::new(main_thread()?.into_objc2());
+let mut navigation = IosNavigationController::from_native_root(main_thread()?, &root)?;
+let settings = UIViewController::new(main_thread()?.into_objc2());
+navigation.push_view_controller(&settings, true)?;
+drop((root, settings)); // UIKit owns them while they remain in its stack
+let popped = navigation.pop(true);
+```
+
 ## Navigation-bar action
 
 `IosNavigationBarAction` creates a public UIKit `UIAction` and a `UIBarButtonItem` primary action.
@@ -75,8 +102,9 @@ owns the callback's behavior, route changes, screen composition and state
 Create screens and navigation controllers with `ios_runtime::main_thread::MainThread`. Their
 wrappers are `!Send` and `!Sync`. `IosScreenController::new` consumes its `IosView`; after
 `UIViewController::setView`, UIKit retains the native view, so the wrapper does not retain a second
-view handle. UIKit retains the root and pushed controllers in its navigation stack. Keep the
-`IosNavigationController` alive while the app needs its Rust `push` and `pop` methods
+view handle. `from_native_root` and `push_view_controller` borrow native controllers only for the
+call; UIKit owns stack members. Keep the `IosNavigationController` alive while the app needs its
+Rust `push`, `push_view_controller`, and `pop` methods
 
 `native_controller()` returns a borrow of the underlying `UINavigationController` for app-owned
 scene or window setup. The framework does not create or own a `UIWindow`, `UIWindowScene`, app
@@ -85,11 +113,13 @@ controller through its own UIKit lifecycle
 
 ## Scope and evidence
 
-The host tests cover only the pure push preflight: an unparented controller reaches the push
-operation once, while an already-parented controller is rejected before it is called. Navigation
-action host tests cover input validation, panic containment, callback reentry and the Rust-side
-handler-capture lifetime; they do not execute UIKit or prove its runtime retention behavior. Target
+Host tests cover the pure controller preflight: an unattached controller reaches the requested
+operation once, while parented and window-attached controllers are rejected before UIKit mutation.
+The iOS link probe compiles borrowed root/push calls and drops the app-side `Retained` handles before
+later navigation calls; this proves the Rust adapter does not store those borrows, not that UIKit
+retains them at runtime. Navigation action host tests cover input validation, panic containment,
+callback reentry and the Rust-side handler-capture lifetime; they do not execute UIKit. Target
 compilation and link/import checks can establish that the native types and selectors build and link;
-they do not prove window attachment, visible action presentation, accessibility output, callback
-delivery, a visible transition, back-button behavior, or simulator/device runtime. Those require an
-app run on the target
+they do not prove UIKit retention, window attachment, visible action presentation, accessibility
+output, callback delivery, a visible transition, back-button behavior, or simulator/device runtime.
+Those require an app run on the target

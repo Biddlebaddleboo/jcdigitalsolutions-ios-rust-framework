@@ -54,7 +54,7 @@ for target in aarch64-apple-ios aarch64-apple-ios-sim; do
             exit 1
         }
     done
-    for selector in 'initWithRootViewController:' 'setView:' 'setTitle:' \
+    for selector in 'initWithRootViewController:' 'setView:' 'setTitle:' 'window' \
         'pushViewController:animated:' 'popViewControllerAnimated:' \
         'navigationItem' 'setRightBarButtonItem:' 'actionWithTitle:image:identifier:handler:' \
         'initWithPrimaryAction:' 'systemImageNamed:'; do

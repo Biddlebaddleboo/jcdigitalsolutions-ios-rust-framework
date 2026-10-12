@@ -29,6 +29,7 @@ objc2-ui-kit = { workspace = true, features = [
     "UIMenuElement",
     "UIView",
     "UIViewController",
+    "UIWindow",
     "block2",
 ] }
 
