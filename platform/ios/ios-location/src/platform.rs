@@ -8,6 +8,7 @@ use crate::conversion::{
     native_accuracy, should_request_always_authorization, significant_change_preflight,
     updates_permitted,
 };
+use crate::geofence::{IosGeofenceError, geofence_authorization_preflight};
 use crate::operation::{CompletionCell, LocationUpdateQueue};
 use core::cell::Cell;
 use core::future::Future;
@@ -635,6 +636,28 @@ impl IosLocationBackend {
     /// Creates the backend on the supplied main-thread/run-loop context.
     pub const fn new(marker: MainThreadMarker) -> Self {
         Self { marker }
+    }
+
+    /// Opens the caller-named persistent `CLMonitor` after a non-prompting Always preflight.
+    ///
+    /// The returned future starts the native open request on first poll. Core Location requires
+    /// the monitor name to contain only ASCII letters and digits and not start with `_`. Only one
+    /// monitor may be pending or open through this crate in a process; this avoids a second open
+    /// request for a name that Core Location already owns. Existing conditions persist until
+    /// explicitly removed. After app launch, reopen the same name to receive events; this API
+    /// does not promise delivery, relaunch, or permission prompts.
+    pub fn open_geofence_monitor(
+        &mut self,
+        name: &str,
+    ) -> Result<crate::geofence_platform::IosGeofenceMonitorFuture, IosGeofenceError> {
+        if !objc2::available!(ios = 17.0, ..) {
+            return Err(IosGeofenceError::Unsupported);
+        }
+        geofence_authorization_preflight(authorization_from_native(native_authorization_status()))?;
+        if !main_bundle_has_always_usage_descriptions() {
+            return Err(IosGeofenceError::InvalidConfiguration);
+        }
+        crate::geofence_platform::prepare_monitor_open(name, self.marker)
     }
 
     /// Explicitly requests Always location authorization when the current status allows a request.

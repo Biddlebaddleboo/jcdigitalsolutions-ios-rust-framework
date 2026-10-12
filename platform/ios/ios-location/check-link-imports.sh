@@ -45,9 +45,17 @@ if ! awk '
     exit 1
 fi
 cat > target/ios-location-core-location-features-expected.txt <<'FEATURES'
+objc2-core-location feature "CLCircularGeographicCondition"
+objc2-core-location feature "CLCondition"
 objc2-core-location feature "CLLocation"
 objc2-core-location feature "CLLocationManager"
 objc2-core-location feature "CLLocationManagerDelegate"
+objc2-core-location feature "CLMonitor"
+objc2-core-location feature "CLMonitorConfiguration"
+objc2-core-location feature "CLMonitoringEvent"
+objc2-core-location feature "CLMonitoringRecord"
+objc2-core-location feature "block2"
+objc2-core-location feature "dispatch2"
 FEATURES
 
 cat > target/ios-location-link-imports-expected.txt <<'IMPORTS'

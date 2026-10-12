@@ -1,6 +1,6 @@
 # iOS location
 
-`ios-location` implements the portable one-shot and foreground update-session `framework-location` contracts with public Core Location APIs. B477 adds `Location::updates()` as a separate API from the one-shot `Location::current()` request. B496 adds an iOS-only explicit Always-authorization request and background-enabled continuous session without changing the portable foreground contract. B549 adds an opt-in iOS significant-change session alongside standard updates; region monitoring remains out of scope. Start the background session in the foreground when requesting system continuation after the app backgrounds. iOS controls actual delivery; no delivery while suspended or after termination is guaranteed
+`ios-location` implements the portable one-shot and foreground update-session `framework-location` contracts with public Core Location APIs. B477 adds `Location::updates()` as a separate API from the one-shot `Location::current()` request. B496 adds an iOS-only explicit Always-authorization request and background-enabled continuous session without changing the portable foreground contract. B549 adds an opt-in iOS significant-change session alongside standard updates. B556 adds named iOS geofence monitoring as a platform extension over public `CLMonitor`; no portable geofence contract is implied. Start background sessions in the foreground when requesting system continuation after the app backgrounds. iOS controls actual delivery; no delivery while suspended or after termination is guaranteed
 
 ## Create and use the backend
 
@@ -93,6 +93,38 @@ The mutable backend borrow prevents two simultaneous operations through this bac
 
 Dropping a pending current-location future detaches its result and calls `stopUpdatingLocation()` on its operation-scoped manager. Any racing or late delegate completion is discarded. Dropping an update session closes its queue, clears the manager's delegate, then calls `stopUpdatingLocation()`; a callback racing with teardown cannot publish another event. Dropping an authorization future detaches the result but cannot promise to dismiss a prompt already shown; releasing the future releases its delegate, and Core Location's weak delegate reference does not point into freed Rust state. `native_location_manager()` exposes a borrowed manager only after the one-shot future starts; direct calls can alter that active operation. It remains valid only while the future is alive.
 
+## Persistent iOS geofence monitors
+
+`IosLocationBackend::open_geofence_monitor(name)` is an iOS-only extension and requires iOS 17.0 or newer at runtime. It returns `Unsupported` on older systems. The call does not prompt: current authorization must already map to `LocationAuthorization::Background` (Always), and the app bundle must contain the required nonempty When In Use and Always usage-description strings, including the legacy Always key when the deployment-target rule requires it. It returns `PermissionDenied` or `InvalidConfiguration` before creating a native monitor when those preconditions fail
+
+~~~rust
+use ios_location::{IosGeofence, IosLocationBackend};
+
+async fn watch_home(backend: &mut IosLocationBackend) -> Result<(), ios_location::IosGeofenceError> {
+    let open = backend.open_geofence_monitor("HomeMonitor")?;
+    let mut monitor = open.await?;
+    let home = IosGeofence::new("home", 43.6532, -79.3832, 150.0)?;
+    monitor.add_or_replace(&home)?;
+    let persisted = monitor.list()?;
+    for region in &persisted {
+        record_region(region.identifier());
+    }
+    while let Some(event) = monitor.next_event().await {
+        if event.missed_before() != 0 {
+            record_evicted_geofence_events(event.missed_before());
+        }
+        handle_geofence_event(event.identifier(), event.state(), event.issues());
+    }
+    Ok(())
+}
+~~~
+
+`IosGeofence::new` requires a nonempty identifier, a finite WGS-84 latitude/longitude, and a finite positive radius in meters. There is no invented maximum radius; Core Location can report unsupported conditions or its condition-count limit through typed event issues. `add_or_replace`, `remove`, and `list` are synchronous operations serialized on the monitor's configured serial queue. `list` returns circular conditions; a persisted condition of another native type is reported as `NativeFailure` rather than silently converted
+
+Monitor names must be nonempty ASCII letters and digits and must not begin with `_`. Core Location permits only one live monitor per name; this crate narrows the process contract further and rejects any second pending/open monitor with `MonitorAlreadyOpen`, even if its name differs. Reserve the chosen name exclusively for this backend, since another direct `CLMonitor` client is outside the crate's lease. Conditions remain persisted until explicitly removed. Dropping the Rust session releases the native monitor on its configured queue but does not remove its regions. Reopen the same name on each app launch to receive events; persistence does not guarantee background relaunch, event delivery while suspended, or any delivery cadence
+
+Events expose an optional identifier, `Unknown`/`Satisfied`/`Unsatisfied`/`Unmonitored` state, an optional representable Unix-millisecond timestamp, and typed issue flags. The issue flags for authorization, support, persistence, and condition limits are available starting in iOS 18; on iOS 17 the issue slice may be empty. A failed native callback copy is emitted as a monitor-level event with no identifier and `IosGeofenceIssue::CallbackFailure`. The queue retains at most 16 events. `missed_before()` counts only earlier queued events evicted by overflow; a callback-copy failure has its own issue and does not itself increase that count. Dropping a pending `next_event()` future cancels only that wait; dropping the monitor detaches event delivery and leaves persisted conditions intact
+
 ## SDK floor and validation limits
 
 The installed Xcode 26.6 / iPhoneOS 26.5 SDK headers mark `requestLocation()` available starting in iOS 9.0; this remains the backend's base API floor. The significant-change availability query and start/stop selectors are available from iOS 4.0, below that floor. `requestWhenInUseAuthorization()` and `requestAlwaysAuthorization()` are available from iOS 8.0, `allowsBackgroundLocationUpdates` from iOS 9.0, and the background indicator from iOS 11.0. The backend uses the deprecated class-level `authorizationStatus` query to retain compatibility with iOS versions before the iOS 14 instance property. The old and new authorization delegate callbacks are both implemented. The separate `accuracy_authorization()` query is runtime-gated to iOS 14.0 and newer. Registered device and Simulator gates compile and link with their configured minimum deployment targets; they do not prove callback delivery on a running OS or hardware
@@ -103,4 +135,4 @@ Apple API references: [`CLLocationManager`](https://developer.apple.com/document
 
 ## Binding dependency
 
-The backend uses `objc2-core-location` 0.3.2 with only the `CLLocation`, `CLLocationManager`, and `CLLocationManagerDelegate` features enabled. The device and Simulator link/import gate checks each target's Cargo feature tree for exactly these Core Location binding features. Its executable source guard confines `requestWhenInUseAuthorization()`, `requestAlwaysAuthorization()`, `requestLocation()`, `startUpdatingLocation()`, and `startMonitoringSignificantLocationChanges()` to their explicit operation paths; negative fixtures verify selector scope, prompt eligibility, Always/background configuration ordering, significant-change device support and teardown, caller-option mapping, downgrade event/suppression behavior, indicator availability, and prohibited APIs. The guard still rejects region, visit, heading, and beacon-ranging APIs, plus temporary full accuracy. These source and link checks do not prove runtime behavior. Calls made by a host through the borrowed one-shot native-manager escape remain outside this contract and can alter the active operation. The portable crate exposes none of the binding types. Conversion and delegate code are isolated under `ios-location`, so a future binding replacement remains local to this backend
+The backend uses `objc2-core-location` 0.3.2 with only the `CLLocation`, `CLLocationManager`, `CLLocationManagerDelegate`, `CLMonitor`, `CLMonitorConfiguration`, `CLMonitoringEvent`, `CLMonitoringRecord`, `CLCondition`, `CLCircularGeographicCondition`, `block2`, and `dispatch2` features enabled. The device and Simulator link/import gate checks each target's Cargo feature tree for exactly these Core Location binding features. Its executable source guard confines `requestWhenInUseAuthorization()`, `requestAlwaysAuthorization()`, `requestLocation()`, `startUpdatingLocation()`, and `startMonitoringSignificantLocationChanges()` to their explicit operation paths; negative fixtures verify selector scope, prompt eligibility, Always/background configuration ordering, significant-change device support and teardown, geofence availability/preflight, `CLMonitor` queue use, ownership transfer, persistent conditions, overflow semantics, caller-option mapping, downgrade event/suppression behavior, indicator availability, and prohibited APIs. It rejects deprecated region, visit, heading, and beacon-ranging APIs, plus temporary full accuracy. These source and link checks do not prove runtime behavior. Calls made by a host through the borrowed one-shot native-manager escape remain outside this contract and can alter the active operation. The portable crate exposes none of the binding types. Conversion, monitor, and delegate code are isolated under `ios-location`, so a future binding replacement remains local to this backend

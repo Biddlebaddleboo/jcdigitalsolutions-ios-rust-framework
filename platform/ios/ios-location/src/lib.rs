@@ -5,10 +5,18 @@
 
 mod configuration;
 mod conversion;
+mod geofence;
 mod operation;
 
 #[cfg(target_os = "ios")]
+mod geofence_platform;
+#[cfg(target_os = "ios")]
 mod platform;
+
+pub use geofence::{
+    GeofenceEventFuture as IosGeofenceEventFuture, IosGeofence, IosGeofenceError, IosGeofenceEvent,
+    IosGeofenceIssue, IosGeofenceState,
+};
 
 #[cfg(target_os = "ios")]
 pub use platform::{
@@ -17,3 +25,6 @@ pub use platform::{
     IosLocationUpdateFuture, IosLocationUpdates, IosRequestAlwaysAuthorizationFuture,
     IosRequestAuthorizationFuture,
 };
+
+#[cfg(target_os = "ios")]
+pub use geofence_platform::{IosGeofenceMonitor, IosGeofenceMonitorFuture};

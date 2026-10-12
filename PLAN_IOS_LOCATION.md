@@ -157,3 +157,15 @@ settings do not define this service's events. The API makes no fixed-threshold, 
 delivery, app-relaunch, or runtime claim. Host preflight tests and negative source regressions cover
 support, permission, selector scope, and cancellation mapping; registered device and Simulator
 gates provide compile/link evidence only
+
+## B556 — Named iOS geofence monitoring
+
+B556 adds `IosLocationBackend::open_geofence_monitor(name)` as an iOS 17+ extension over public
+`CLMonitor` and `CLCircularGeographicCondition`; the portable `framework-location` contract remains
+unchanged. The API requires existing Always authorization plus valid app usage-description strings
+and never prompts. A process-wide lease rejects duplicate pending/open monitors, all native access
+uses the monitor's configured serial queue, and drop releases the native monitor without removing
+persisted conditions. Regions have validated WGS-84 centers, nonempty identifiers, and finite
+positive radii with no invented maximum. The bounded 16-event queue reports evictions separately
+from callback-copy issues. Host regressions and registered static device/Simulator checks do not
+prove live state mapping, event delivery, background relaunch, permission UI, or Apple parity

@@ -97,6 +97,7 @@ def check(source):
  functions = {}
  for name in ("start_authorization_request", "start_always_authorization_request", "start_current",
               "start_background_updates", "start_updates", "start_significant_change_updates",
+              "open_geofence_monitor",
               "start_location_updates",
               "main_bundle_has_location_background_mode", "main_bundle_has_always_usage_descriptions",
               "main_bundle_requires_legacy_always_usage_description",
@@ -158,6 +159,21 @@ def check(source):
          "requestAlwaysAuthorization" not in significant_method and
          "setAllowsBackgroundLocationUpdates" not in significant_method,
          "significant-change session does not prompt or enable standard background updates")
+
+ geofence_open = functions["open_geofence_monitor"]
+ runtime_guard = "objc2::available!(ios = 17.0, ..)"
+ authorization_preflight = "geofence_authorization_preflight(authorization_from_native(native_authorization_status()))?"
+ usage_config_preflight = "if !main_bundle_has_always_usage_descriptions()"
+ prepare_monitor = "crate::geofence_platform::prepare_monitor_open(name, self.marker)"
+ require(runtime_guard in geofence_open and authorization_preflight in geofence_open and
+         usage_config_preflight in geofence_open and prepare_monitor in geofence_open and
+         geofence_open.index(runtime_guard) < geofence_open.index(prepare_monitor) and
+         geofence_open.index(authorization_preflight) < geofence_open.index(prepare_monitor) and
+         geofence_open.index(usage_config_preflight) < geofence_open.index(prepare_monitor),
+         "geofence iOS 17, Always authorization, and usage configuration preflight")
+ require("requestWhenInUseAuthorization" not in geofence_open and
+         "requestAlwaysAuthorization" not in geofence_open,
+         "geofence preflight never prompts")
 
  updates = functions["start_location_updates"]
  mode_check = "if !main_bundle_has_location_background_mode()"
@@ -234,6 +250,172 @@ def check(source):
          "queue.push_batch([LocationUpdateKind::Error(permission_error())])" in authorization_callback,
          "authorization callback reports background downgrade")
  return errors
+
+
+def check_geofence_contract(contract_source, native_source):
+ errors = []
+ def require(condition, label):
+  if not condition:
+   errors.append(label)
+
+ require("const GEOFENCE_EVENT_QUEUE_CAPACITY: usize = 16" in contract_source,
+         "geofence event queue capacity")
+ require("MonitorLease::acquire()" in native_source and
+         "MonitorAlreadyOpen" in contract_source and "compare_exchange(false, true" in contract_source,
+         "single live monitor lease rejects duplicate opens")
+ require('DispatchQueue::new("com.jcdigitalsolutions.ios-location.geofence", None)' in native_source and
+         "CLMonitorConfiguration::configWithMonitorName_queue_eventHandler" in native_source and
+         "CLMonitor::requestMonitorWithConfiguration_completion" in native_source and
+         "shared.queue.as_ref()" in native_source,
+         "CLMonitor uses configured serial queue")
+ require("fn with_monitor" in native_source and "self.queue.exec_sync(||" in native_source,
+         "native monitor access is serialized on its configured queue")
+ for method in ("add_or_replace", "remove", "list"):
+  try:
+   body = function_body(native_source, method)
+  except ValueError:
+   body = ""
+  require("self.shared.with_monitor(" in body, "geofence operation queue scope " + method)
+ try:
+  add_replace = function_body(native_source, "add_or_replace")
+ except ValueError:
+  add_replace = ""
+ require("monitor.addConditionForMonitoring_identifier" in add_replace and
+         "removeConditionFromMonitoringWithIdentifier" not in add_replace,
+         "same-identifier replacement directly calls CLMonitor add")
+ require("CLCircularGeographicCondition::initWithCenter_radius" in native_source and
+         "monitor.addConditionForMonitoring_identifier" in native_source and
+         "monitor.removeConditionFromMonitoringWithIdentifier" in native_source,
+         "geofence add replace and remove use CLMonitor condition API")
+ require("available!(ios = 18.0, ..)" in native_source and
+         "event.conditionUnsupported()" in native_source and
+         "event.conditionLimitExceeded()" in native_source and
+         "event.persistenceUnavailable()" in native_source and
+         "event.authorizationDenied()" in native_source,
+         "typed native issue flags are availability guarded")
+ require("complete_with_deferred" in native_source and "push_deferred" in native_source and
+         native_source.count("wake_off_monitor_queue(waker)") >= 2 and
+         "DispatchQueue::global_queue" in native_source and "queue.exec_async" in native_source,
+         "foreign callback wakes are deferred off monitor queue")
+ try:
+  monitor_drop = impl_body(native_source, "impl Drop for IosGeofenceMonitor {")
+ except ValueError:
+  monitor_drop = ""
+ require("self.shared.events.detach()" in monitor_drop and
+         "self.shared.close_on_queue()" in monitor_drop and
+         "removeConditionFromMonitoringWithIdentifier" not in monitor_drop,
+         "geofence conditions remain persisted on session drop")
+ try:
+  monitor_remove = function_body(native_source, "remove")
+ except ValueError:
+  monitor_remove = ""
+ require("removeConditionFromMonitoringWithIdentifier" in monitor_remove,
+         "geofence conditions have an explicit removal operation")
+ try:
+  open_poll = function_body(native_source, "poll")
+  open_success = block_after(open_poll, "Poll::Ready(Ok(()))")
+  open_failure = block_after(open_poll, "Poll::Ready(Err(error))")
+ except ValueError:
+  open_poll = ""
+  open_success = ""
+  open_failure = ""
+ require("this.shared.take()" in open_success and "this.shared.take()" in open_failure and
+         "shared.close_on_queue()" in open_failure and "shared.events.detach()" in open_failure,
+         "open future transfers ownership and promptly releases terminal failures")
+ prohibited = re.search(r"startMonitoringForRegion|stopMonitoringForRegion|CLCircularRegion|\bCLRegion\b", native_source)
+ require(prohibited is None, "geofence uses modern CLMonitor API only")
+ return errors
+
+
+def verify_geofence_negative_fixtures(contract_source, native_source):
+ failures = []
+ mutations = (
+  ("contract", contract_source, "const GEOFENCE_EVENT_QUEUE_CAPACITY: usize = 16", "const GEOFENCE_EVENT_QUEUE_CAPACITY: usize = 17", "geofence event queue capacity"),
+  ("native", native_source, "CLCircularGeographicCondition::initWithCenter_radius", "CLCircularRegion::init", "geofence uses modern CLMonitor API only"),
+ )
+ for role, source, old, new, expected in mutations:
+  if old not in source:
+   failures.append("negative fixture needle absent: " + expected)
+   continue
+  changed = source.replace(old, new, 1)
+  changed_contract = changed if role == "contract" else contract_source
+  changed_native = changed if role == "native" else native_source
+  if expected not in check_geofence_contract(changed_contract, changed_native):
+   failures.append("mutation escaped " + expected)
+ try:
+  platform_source = (Path(__file__).parent / "src" / "platform.rs").read_text(encoding="utf-8")
+  mutated = replace_function(
+   platform_source,
+   "open_geofence_monitor",
+   "objc2::available!(ios = 17.0, ..)",
+   "();",
+  )
+ except (ValueError, OSError) as error:
+  failures.append("geofence permission negative fixture: " + str(error))
+ else:
+  if "geofence iOS 17, Always authorization, and usage configuration preflight" not in check(mutated):
+   failures.append("geofence iOS 17 availability mutation escaped")
+ try:
+  mutated = replace_function(
+   platform_source,
+   "open_geofence_monitor",
+   "geofence_authorization_preflight(authorization_from_native(native_authorization_status()))?;",
+   "();",
+  )
+ except ValueError as error:
+  failures.append("geofence permission negative fixture: " + str(error))
+ else:
+  if "geofence iOS 17, Always authorization, and usage configuration preflight" not in check(mutated):
+   failures.append("geofence permission removal mutation escaped")
+ try:
+  mutated = replace_function(
+   platform_source,
+   "open_geofence_monitor",
+   "if !main_bundle_has_always_usage_descriptions()",
+   "if false",
+  )
+ except ValueError as error:
+  failures.append("geofence configuration negative fixture: " + str(error))
+ else:
+  if "geofence iOS 17, Always authorization, and usage configuration preflight" not in check(mutated):
+   failures.append("geofence usage-description mutation escaped")
+ try:
+  mutated = replace_impl(
+   native_source,
+   "impl Drop for IosGeofenceMonitor {",
+   "self.shared.close_on_queue();",
+   'self.shared.close_on_queue();\n        let _ = self.shared.with_monitor(|monitor| unsafe { monitor.removeConditionFromMonitoringWithIdentifier(&NSString::from_str("drop")) });',
+  )
+ except ValueError as error:
+  failures.append("geofence persistence negative fixture: " + str(error))
+ else:
+  if "geofence conditions remain persisted on session drop" not in check_geofence_contract(contract_source, mutated):
+   failures.append("geofence implicit-removal mutation escaped")
+ try:
+  mutated = replace_function(
+   native_source,
+   "add_or_replace",
+   "monitor.addConditionForMonitoring_identifier(&condition, &identifier);",
+   "monitor.removeConditionFromMonitoringWithIdentifier(&identifier);\n            monitor.addConditionForMonitoring_identifier(&condition, &identifier);",
+  )
+ except ValueError as error:
+  failures.append("geofence replacement negative fixture: " + str(error))
+ else:
+  if "same-identifier replacement directly calls CLMonitor add" not in check_geofence_contract(contract_source, mutated):
+   failures.append("geofence pre-removal replacement mutation escaped")
+ try:
+  mutated = replace_function(
+   native_source,
+   "poll",
+   "this.shared.take()",
+   "this.shared.as_ref().cloned()",
+  )
+ except ValueError as error:
+  failures.append("geofence ownership negative fixture: " + str(error))
+ else:
+  if "open future transfers ownership and promptly releases terminal failures" not in check_geofence_contract(contract_source, mutated):
+   failures.append("geofence lease-transfer mutation escaped")
+ return failures
 
 
 def verify_negative_fixtures(source):
@@ -324,6 +506,15 @@ def verify_host_test_anchors(source_dir):
   ("configuration.rs", "legacy_always_key_requirement_tracks_deployment_target"),
   ("conversion.rs", "background_updates_require_always_and_report_downgrades"),
   ("conversion.rs", "significant_change_preflight_requires_device_support_and_existing_authorization"),
+  ("geofence.rs", "geofence_validates_each_negative_input"),
+  ("geofence.rs", "monitor_name_rules_reject_empty_underscore_and_non_alphanumeric_values"),
+  ("geofence.rs", "authorization_preflight_requires_already_granted_always_without_prompting"),
+  ("geofence.rs", "native_state_mapping_preserves_known_states_and_unknown_values"),
+  ("geofence.rs", "event_queue_preserves_order_and_reports_evicted_count_on_delivery"),
+  ("geofence.rs", "event_wait_cancel_and_late_open_callback_are_detached_safely"),
+  ("geofence.rs", "deferred_native_completion_wake_does_not_run_inline_and_monitor_lease_reopens"),
+  ("geofence.rs", "callback_copy_failure_is_separate_from_eviction_count"),
+  ("geofence.rs", "native_issue_flags_map_to_typed_authorization_support_and_persistence_issues"),
  )
  failures = []
  for filename, name in anchors:
@@ -341,7 +532,15 @@ def verify_host_test_anchors(source_dir):
 def main():
  path = Path(sys.argv[1])
  source = path.read_text(encoding="utf-8")
- failures = check(source) + verify_negative_fixtures(source) + verify_host_test_anchors(path.parent)
+ try:
+  contract_source = (path.parent / "geofence.rs").read_text(encoding="utf-8")
+  native_source = (path.parent / "geofence_platform.rs").read_text(encoding="utf-8")
+ except OSError as error:
+  print("FAIL: unable to inspect geofence source: " + str(error), file=sys.stderr)
+  return 1
+ failures = (check(source) + verify_negative_fixtures(source) + verify_host_test_anchors(path.parent) +
+             check_geofence_contract(contract_source, native_source) +
+             verify_geofence_negative_fixtures(contract_source, native_source))
  if failures:
   for failure in failures:
    print("FAIL: " + failure, file=sys.stderr)

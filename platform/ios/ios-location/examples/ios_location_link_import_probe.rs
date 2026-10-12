@@ -28,6 +28,30 @@ fn main() {
             .with_automatic_pausing(false)
             .with_background_indicator(true);
         let _ = core::hint::black_box(backend.start_background_updates(request, options));
+        if let Ok(open) = backend.open_geofence_monitor("B556Probe") {
+            let mut open = core::pin::pin!(open);
+            if let core::task::Poll::Ready(Ok(mut monitor)) =
+                core::future::Future::poll(open.as_mut(), &mut context)
+            {
+                let region = ios_location::IosGeofence::new("probe", 0.0, 0.0, 10.0)
+                    .expect("valid geofence");
+                let _ = monitor.add_or_replace(&region);
+                let _ = monitor.list();
+                let _ = monitor.remove(region.identifier());
+                let mut event = core::pin::pin!(monitor.next_event());
+                if let core::task::Poll::Ready(Some(event)) =
+                    core::future::Future::poll(event.as_mut(), &mut context)
+                {
+                    let _ = core::hint::black_box((
+                        event.identifier(),
+                        event.state(),
+                        event.timestamp_unix_millis(),
+                        event.issues(),
+                        event.missed_before(),
+                    ));
+                }
+            }
+        }
     }
 }
 
