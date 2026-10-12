@@ -48,3 +48,10 @@ Do not edit the root workspace manifest, canonical capability status manifest, a
 - `framework-nfc` now defines byte-preserving NDEF formats, records and messages plus a static `NdefReadBackend` / `NdefReader` contract; opaque payload bytes and record order are preserved.
 - `ios-nfc` retains the B37 support query and adds one-shot `NFCNDEFReaderSession` reads. The session begins on first future poll; the first message, error or cancellation settles once, and dropping an active read invalidates its session. Its retained delegate and callback state remain main-queue-bound.
 - Canonical row 040 remains `partial`: NDEF writes, non-NDEF tag protocols, native tag handles and background reads remain unsupported. App provisioning, prompts, hardware access and live tag behavior were not verified on-device.
+
+## B593 reconciliation — one-shot NDEF writes — 2026-10-12
+
+- `framework-nfc` adds a static `NdefWriteBackend` / `NdefWriter` contract, exact encoded-size and TNF validation, and terminal write errors while preserving opaque NDEF record bytes.
+- The opt-in iOS `ndef-write` feature uses the public `NFCNDEFReaderSessionDelegate` tag callback, connects to one detected NDEF tag, checks writable status and capacity, writes once, and settles one result. First-poll start, cancellation/drop invalidation, weak callback captures, and panic-contained callbacks are explicit; the existing read-only delegate path is unchanged.
+- Registered host regressions cover malformed/oversized message policy, capacity and status rejection, one-shot transitions, error classification, cancellation, late callbacks, and task wake. The registered iOS profile compiles and links the writer on iOS 11 and Simulator iOS 14 floors.
+- Canonical row 040 remains `partial`: non-NDEF protocols, tag handles and background NFC remain unsupported. Physical-tag write behavior, provisioning and live session behavior remain unverified.

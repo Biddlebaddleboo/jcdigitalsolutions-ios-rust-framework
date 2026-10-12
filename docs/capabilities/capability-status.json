@@ -1287,10 +1287,10 @@
       "crate_module_status": "portable_contract_and_ios_backend_partial",
       "portability_class": "portable_with_platform_extensions",
       "portable_contract_status": "partial",
-      "portable_contract_note": "framework-nfc defines byte-preserving NDEF records/messages and a statically dispatched one-shot read facade; its no_std package does not link Apple or Objective-C dependencies.",
+      "portable_contract_note": "framework-nfc defines byte-preserving NDEF records/messages, exact write validation, and statically dispatched one-shot read/write facades; its no_std package does not link Apple or Objective-C dependencies.",
       "ios_implementation_class": "B",
       "implementation_status": "partial",
-      "status_reason": "B37 retains the NFCReaderSession.readingAvailable support query. B573 adds a byte-preserving portable NDEF contract and one-shot public NFCNDEFReaderSession reads that start on first future poll; the first message, error, or cancellation settles once and session drop invalidates. NDEF writes, non-NDEF tag protocols, native tag handles, and background reads remain unsupported. Compile/link checks do not prove entitlement provisioning, user prompts, hardware availability, tag reads, or runtime lifecycle.",
+      "status_reason": "B37 retains the NFCReaderSession.readingAvailable support query. B573 adds byte-preserving one-shot public NFCNDEFReaderSession reads. B593 adds opt-in one-shot NDEF writes after tag connection, writable-status and capacity checks; errors settle once and dropping a pending session invalidates it. Non-NDEF tag protocols, native tag handles, and background NFC remain unsupported. Compile/link checks do not prove entitlement provisioning, user prompts, hardware availability, tag reads/writes, or runtime lifecycle.",
       "minimum_ios_version": "11.0",
       "required_frameworks": [
         "CoreNFC",
@@ -1303,9 +1303,9 @@
       "entitlements": [
         "com.apple.developer.nfc.readersession.formats"
       ],
-      "device_only_restrictions": "NDEF session reads require NFC-capable hardware and correct app provisioning; simulator build/link checks are not runtime proof.",
+      "device_only_restrictions": "NDEF session reads and writes require NFC-capable hardware and correct app provisioning; simulator build/link checks are not runtime proof.",
       "swift_abi_requirement": false,
-      "metadata_verification": "B37 verifies NFCReaderSession.readingAvailable from iOS 11.0. B573 uses public objc2-core-nfc 0.3.2 bindings for NFCNDEFReaderSession, with device iOS 11.0 and Simulator iOS 14.0 validation floors. NDEF use requires NFCReaderUsageDescription and com.apple.developer.nfc.readersession.formats with NDEF enabled. Compile/link checks do not prove hardware, provisioning, user prompts, or tag-read runtime.",
+      "metadata_verification": "B37 verifies NFCReaderSession.readingAvailable from iOS 11.0. B573 uses public objc2-core-nfc 0.3.2 bindings for NFCNDEFReaderSession reads; B593 uses its public tag connect, status, and write APIs. The validation floors are device iOS 11.0 and Simulator iOS 14.0. NDEF use requires NFCReaderUsageDescription and com.apple.developer.nfc.readersession.formats with NDEF enabled. Compile/link checks do not prove hardware, provisioning, user prompts, or tag runtime.",
       "parity_status": "not_tested_live_behavior_or_Apple_parity",
       "performance_status": "not_measured",
       "native_escape_handle_available": false,

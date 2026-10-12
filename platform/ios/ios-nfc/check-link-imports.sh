@@ -26,7 +26,7 @@ for target in aarch64-apple-ios aarch64-apple-ios-sim; do
         aarch64-apple-ios-sim) deployment_target=14.0; expected_platform=IOSSIMULATOR; legacy_build_command=LC_VERSION_MIN_IPHONESIMULATOR ;;
     esac
     dependencies="target/ios-nfc-dependencies-$target.txt"
-    cargo tree --locked --offline --target "$target" --features ndef-read --edges normal --prefix none -p ios-nfc > "$dependencies"
+    cargo tree --locked --offline --target "$target" --features ndef-write --edges normal --prefix none -p ios-nfc > "$dependencies"
 
     if ! grep -Eq '^objc2-core-nfc v[0-9]' "$dependencies"; then
         echo "objc2-core-nfc is not selected for $target" >&2
@@ -45,7 +45,7 @@ for target in aarch64-apple-ios aarch64-apple-ios-sim; do
         exit 1
     fi
 
-    IPHONEOS_DEPLOYMENT_TARGET="$deployment_target" cargo build --locked --offline --release -p ios-nfc --example ios_nfc_link_import_probe --features ndef-read --target "$target"
+    IPHONEOS_DEPLOYMENT_TARGET="$deployment_target" cargo build --locked --offline --release -p ios-nfc --example ios_nfc_link_import_probe --features ndef-write --target "$target"
     binary="target/$target/release/examples/ios_nfc_link_import_probe"
     imports="target/ios-nfc-link-imports-$target.txt"
     frameworks="target/ios-nfc-frameworks-$target.txt"

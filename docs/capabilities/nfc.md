@@ -1,8 +1,8 @@
-# NFC reader support and NDEF reads
+# NFC reader support and NDEF reads and writes
 
 **framework-nfc** provides a portable `no_std` contract for NFC reader support, owned NDEF
-messages, and a statically dispatched one-shot read facade. The iOS backend uses Apple's public
-Core NFC `NFCNDEFReaderSession`; it does not make the portable API depend on Apple types.
+messages, and statically dispatched one-shot read and write facades. The iOS backend uses Apple's
+public Core NFC `NFCNDEFReaderSession`; it does not make the portable API depend on Apple types.
 
 ```rust
 use framework_nfc::{NdefMessage, NdefReader, NdefReadError};
@@ -30,11 +30,41 @@ system access, user cancellation, radio-disabled, timeout, busy, and app-interru
 reported distinctly when Core NFC invalidates the session. `UnsupportedOrNotProvisioned` preserves
 Core NFC's ambiguous unsupported-feature result instead of claiming which prerequisite failed.
 
-This increment reads one NDEF message and lets Core NFC invalidate after its first successful
-read. It does not write NDEF data, expose native tag handles, implement ISO7816 or MIFARE commands,
-support arbitrary `NFCTagReaderSession` protocols, or perform background reads. Compile and link
-checks do not establish entitlement provisioning, the system prompt, physical tag reads, or
-Simulator/device runtime behavior.
+The read operation reads one NDEF message and lets Core NFC invalidate after its first successful
+read. It does not expose native tag handles, implement ISO7816 or MIFARE commands, support
+arbitrary `NFCTagReaderSession` protocols, or perform background reads. Compile and link checks do
+not establish entitlement provisioning, the system prompt, physical tag reads, or Simulator/device
+runtime behavior.
 
 The prior availability-only increment and its query safety boundary remain in
 [the iOS NFC guide](../ios/nfc.md).
+
+## One-shot NDEF write
+
+Enable the optional `ndef-write` feature to use the public iOS writer. It starts Core NFC on the
+first poll, waits for an NDEF tag, connects, checks writable status and exact encoded capacity,
+then writes the owned message. Record type, identifier and payload stay opaque bytes, including
+embedded zero bytes. Dropping a pending future invalidates the session.
+
+```rust
+use framework_nfc::{NdefMessage, NdefRecord, NdefTypeNameFormat, NdefWriter, NdefWriteError};
+use ios_nfc::CoreNfcNdefWriteBackend;
+use objc2::MainThreadMarker;
+
+async fn write_ndef(main_thread: MainThreadMarker) -> Result<(), NdefWriteError> {
+    let backend = CoreNfcNdefWriteBackend::new(main_thread, "Hold your iPhone near an NFC tag")?;
+    let mut writer = NdefWriter::new(backend);
+    let message = NdefMessage::new(vec![NdefRecord::new(
+        NdefTypeNameFormat::Media,
+        b"application/octet-stream".to_vec(),
+        Vec::new(),
+        vec![0, 0xff, b'x'],
+    )]);
+    writer.write(message).await
+}
+```
+
+The feature uses the NDEF reader-session entitlement and usage description; it does not make a
+tag writable or establish device provisioning. It does not expose tag handles, write non-NDEF
+protocols, or provide background operation. Host and compile/link checks do not prove physical-tag
+write behavior.

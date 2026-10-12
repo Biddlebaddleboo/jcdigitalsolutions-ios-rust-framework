@@ -1,6 +1,7 @@
-# iOS Core NFC reader support and NDEF reads
+# iOS Core NFC reader support and NDEF reads and writes
 
-`ios-nfc` exposes two separate operations through public Core NFC APIs.
+`ios-nfc` exposes separate reader-support, NDEF read, and opt-in NDEF write operations through
+public Core NFC APIs.
 
 ## Reader support snapshot
 
@@ -66,10 +67,31 @@ Xcode 26.6 / iOS SDK 26.5 is build-environment evidence, not a new minimum Xcode
 The dependency remains target-gated to iOS; no Swift source, raw ABI, or unrelated Apple framework
 is used.
 
-This increment reads one valid NDEF message from NFC Forum tag types 1–5 and allows Core NFC to
-invalidate after the first successful read. It does not write a tag, expose a native tag handle,
-implement custom `NFCTagReaderSession` protocols, ISO7816 APDUs, MIFARE commands, card emulation,
-or background reading. Host tests and device/Simulator compile/link checks are not proof of
+The read operation reads one valid NDEF message from NFC Forum tag types 1–5 and allows Core NFC to
+invalidate after the first successful read. It does not expose a native tag handle, implement
+custom `NFCTagReaderSession` protocols, ISO7816 APDUs, MIFARE commands, card emulation, or
+background reading. Host tests and device/Simulator compile/link checks are not proof of
 provisioning, prompt behavior, physical tag access, or Simulator NFC runtime support.
+
+## One-shot NDEF write session
+
+Enable the optional `ndef-write` Cargo feature to expose `CoreNfcNdefWriteBackend`. Its
+`NFCNDEFReaderSession` implements the public `readerSession:didDetectTags:` callback, making the
+session read-write; it sets `invalidateAfterFirstRead` to `false`. The first future poll begins
+the system session. The backend connects to the first detected NDEF tag, queries its status and
+capacity, and writes only when the tag is writable and the complete encoded message fits. Read-only,
+unsupported, too-small, access, and lifecycle failures remain terminal errors. The same NDEF
+usage-description and reader-session entitlement requirements apply.
+
+NDEF `TNF`, type, identifier, and payload bytes are passed to Core NFC without UTF-8 conversion.
+The portable contract rejects empty or malformed records, chunked continuation records, and
+messages over Core NFC's 128 KiB limit. The native message length is checked against the portable
+encoded length before polling starts. Dropping a pending future invalidates the active session;
+native callbacks are main-queue-bound, panic-contained, and settle one result.
+
+This does not add arbitrary tag protocols, persistent native tag handles, background writes, or
+hardware claims. The iOS device and Simulator link profile compiles the opt-in writer and checks
+Core NFC/Foundation imports and deployment floors; no physical-tag write or live session runtime
+was performed.
 
 The capability boundary and remaining NFC gaps are tracked in [the Core NFC plan](../../PLAN_CAPABILITIES_NFC.md).

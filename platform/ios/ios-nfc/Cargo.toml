@@ -10,11 +10,13 @@ description = "Core NFC reader support and one-shot NDEF reads for iOS"
 [features]
 default = ["ndef-read"]
 ndef-read = ["dep:dispatch2", "dep:objc2", "dep:objc2-foundation", "objc2-core-nfc/dispatch2"]
+ndef-write = ["ndef-read", "dep:block2", "objc2-core-nfc/block2"]
 
 [dependencies]
 framework-nfc = { path = "../../../crates/framework-nfc" }
 
 [target.'cfg(target_os = "ios")'.dependencies]
+block2 = { workspace = true, optional = true, features = ["alloc"] }
 objc2-core-nfc = { workspace = true }
 objc2 = { workspace = true, optional = true, features = ["std"] }
 objc2-foundation = { workspace = true, optional = true, features = ["alloc", "NSArray", "NSData", "NSError", "NSObject", "NSString"] }

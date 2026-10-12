@@ -1,7 +1,7 @@
 #![no_std]
 #![forbid(unsafe_code)]
 #![deny(missing_docs)]
-#![doc = "Portable no_std NFC reader support and NDEF read contracts with static backends."]
+#![doc = "Portable no_std NFC reader support and one-shot NDEF read/write contracts with static backends."]
 
 extern crate alloc;
 
@@ -189,6 +189,53 @@ impl NdefMessage {
     pub fn into_records(self) -> Vec<NdefRecord> {
         self.records
     }
+
+    /// Returns the encoded NDEF message size, or the write error for malformed or oversized data.
+    ///
+    /// The size includes each record header and all opaque type, identifier, and payload bytes.
+    /// Chunked continuation records are not represented by NdefRecord and are rejected. The
+    /// current Core NFC message limit is 128 KiB.
+    pub fn encoded_length(&self) -> Result<u32, NdefWriteError> {
+        if self.records.is_empty() {
+            return Err(NdefWriteError::InvalidMessage);
+        }
+
+        let mut length = 0_u32;
+        for record in &self.records {
+            let type_length = u32::try_from(record.record_type.len())
+                .map_err(|_| NdefWriteError::MessageTooLarge)?;
+            let identifier_length = u32::try_from(record.identifier.len())
+                .map_err(|_| NdefWriteError::MessageTooLarge)?;
+            let payload_length =
+                u32::try_from(record.payload.len()).map_err(|_| NdefWriteError::MessageTooLarge)?;
+            let format = record.format.as_raw();
+
+            if type_length > u8::MAX as u32 || identifier_length > u8::MAX as u32 {
+                return Err(NdefWriteError::InvalidMessage);
+            }
+            match format {
+                0 if type_length == 0 && identifier_length == 0 && payload_length == 0 => {}
+                1..=4 if type_length != 0 => {}
+                5 if type_length == 0 => {}
+                _ => return Err(NdefWriteError::InvalidMessage),
+            }
+
+            let payload_length_bytes = if payload_length < 256 { 1 } else { 4 };
+            let record_length = 2_u32
+                .checked_add(payload_length_bytes)
+                .and_then(|value| value.checked_add(u32::from(identifier_length != 0)))
+                .and_then(|value| value.checked_add(type_length))
+                .and_then(|value| value.checked_add(identifier_length))
+                .and_then(|value| value.checked_add(payload_length))
+                .ok_or(NdefWriteError::MessageTooLarge)?;
+            length = length
+                .checked_add(record_length)
+                .filter(|value| *value <= 128 * 1024)
+                .ok_or(NdefWriteError::MessageTooLarge)?;
+        }
+
+        Ok(length)
+    }
 }
 
 /// A terminal outcome from a one-shot NDEF read session.
@@ -233,6 +280,85 @@ pub trait NdefReadBackend {
     /// Dropping a pending future cancels its active native session when the backend supports
     /// cancellation.
     fn read(&mut self) -> Self::ReadFuture<'_>;
+}
+
+/// A terminal outcome from a one-shot NDEF write.
+#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
+#[non_exhaustive]
+pub enum NdefWriteError {
+    /// The device or reader mode does not support NFC tag reading.
+    Unsupported,
+    /// Core NFC reports an unsupported reader feature or missing reader entitlement.
+    UnsupportedOrNotProvisioned,
+    /// The app lacks a required NFC entitlement or usage-description declaration.
+    SecurityRequirementsUnsatisfied,
+    /// The NFC radio is disabled.
+    RadioDisabled,
+    /// The operating system rejected access to the reader session.
+    AccessDenied,
+    /// The app or device is not eligible to start the reader session.
+    Ineligible,
+    /// The user cancelled the reader session or the caller cancelled it.
+    Cancelled,
+    /// The system ended the reader session after its time limit.
+    TimedOut,
+    /// The system terminated the reader session when the app was interrupted or backgrounded.
+    Interrupted,
+    /// Another app or session currently owns the NFC reader.
+    Busy,
+    /// The detected NDEF tag does not support NDEF operations.
+    TagNotSupported,
+    /// The detected NDEF tag is permanently read-only.
+    ReadOnly,
+    /// The encoded message exceeds the tag's reported capacity or Core NFC's message limit.
+    MessageTooLarge,
+    /// The message is empty, malformed, or uses an unsupported chunk representation.
+    InvalidMessage,
+    /// The writer session produced an unclassified native failure.
+    NativeFailure,
+    /// The caller attempted to write more than once with a one-shot backend.
+    AlreadyStarted,
+}
+
+/// A backend that owns one NDEF write session and its native lifecycle.
+pub trait NdefWriteBackend {
+    /// The one-shot asynchronous result, which starts native work when first polled.
+    type WriteFuture<'a>: Future<Output = Result<(), NdefWriteError>> + 'a
+    where
+        Self: 'a;
+
+    /// Writes one owned message without requiring a framework-owned executor.
+    ///
+    /// Dropping a pending future cancels its active native session when the backend supports
+    /// cancellation.
+    fn write(&mut self, message: NdefMessage) -> Self::WriteFuture<'_>;
+}
+
+/// A statically dispatched facade for one caller-owned NDEF writer session.
+pub struct NdefWriter<B> {
+    backend: B,
+}
+
+impl<B: NdefWriteBackend> NdefWriter<B> {
+    /// Creates the facade without starting tag polling or prompting the user.
+    pub const fn new(backend: B) -> Self {
+        Self { backend }
+    }
+
+    /// Writes one message; dropping the pending future cancels the session.
+    pub fn write(&mut self, message: NdefMessage) -> B::WriteFuture<'_> {
+        self.backend.write(message)
+    }
+
+    /// Borrows the selected backend for platform-specific controls.
+    pub const fn backend(&self) -> &B {
+        &self.backend
+    }
+
+    /// Returns the selected backend and ends this facade borrow.
+    pub fn into_backend(self) -> B {
+        self.backend
+    }
 }
 
 /// A statically dispatched facade for one caller-owned NDEF reader session.
@@ -319,6 +445,168 @@ mod tests {
         assert_eq!(message.records()[1].format().as_raw(), 0x80);
     }
 
+    #[test]
+    fn ndef_write_length_counts_exact_record_fields_and_short_payload_boundary() {
+        let small = NdefMessage::new(vec![NdefRecord::new(
+            NdefTypeNameFormat::WellKnown,
+            b"T".to_vec(),
+            vec![0, 0xff],
+            vec![0, 0xff, b'x'],
+        )]);
+        assert_eq!(small.encoded_length(), Ok(10));
+
+        let short = NdefMessage::new(vec![NdefRecord::new(
+            NdefTypeNameFormat::WellKnown,
+            b"T".to_vec(),
+            Vec::new(),
+            vec![0xa5; 255],
+        )]);
+        assert_eq!(short.encoded_length(), Ok(259));
+
+        let long = NdefMessage::new(vec![NdefRecord::new(
+            NdefTypeNameFormat::WellKnown,
+            b"T".to_vec(),
+            Vec::new(),
+            vec![0xa5; 256],
+        )]);
+        assert_eq!(long.encoded_length(), Ok(263));
+
+        let multiple_records = NdefMessage::new(vec![
+            NdefRecord::new(
+                NdefTypeNameFormat::WellKnown,
+                b"T".to_vec(),
+                Vec::new(),
+                vec![1],
+            ),
+            NdefRecord::new(
+                NdefTypeNameFormat::Unknown(5),
+                Vec::new(),
+                vec![0],
+                vec![2, 3],
+            ),
+        ]);
+        assert_eq!(multiple_records.encoded_length(), Ok(12));
+    }
+
+    #[test]
+    fn ndef_write_validation_rejects_empty_malformed_reserved_and_chunk_records() {
+        assert_eq!(
+            NdefMessage::default().encoded_length(),
+            Err(NdefWriteError::InvalidMessage)
+        );
+        assert_eq!(
+            NdefMessage::new(vec![NdefRecord::new(
+                NdefTypeNameFormat::Empty,
+                Vec::new(),
+                Vec::new(),
+                vec![1],
+            )])
+            .encoded_length(),
+            Err(NdefWriteError::InvalidMessage)
+        );
+        assert_eq!(
+            NdefMessage::new(vec![NdefRecord::new(
+                NdefTypeNameFormat::WellKnown,
+                Vec::new(),
+                Vec::new(),
+                Vec::new(),
+            )])
+            .encoded_length(),
+            Err(NdefWriteError::InvalidMessage)
+        );
+        assert_eq!(
+            NdefMessage::new(vec![NdefRecord::new(
+                NdefTypeNameFormat::WellKnown,
+                vec![b'T'],
+                vec![0; 256],
+                Vec::new(),
+            )])
+            .encoded_length(),
+            Err(NdefWriteError::InvalidMessage)
+        );
+        assert_eq!(
+            NdefMessage::new(vec![NdefRecord::new(
+                NdefTypeNameFormat::Unchanged,
+                Vec::new(),
+                Vec::new(),
+                vec![1],
+            )])
+            .encoded_length(),
+            Err(NdefWriteError::InvalidMessage)
+        );
+        assert_eq!(
+            NdefMessage::new(vec![NdefRecord::new(
+                NdefTypeNameFormat::Unknown(7),
+                Vec::new(),
+                Vec::new(),
+                vec![1],
+            )])
+            .encoded_length(),
+            Err(NdefWriteError::InvalidMessage)
+        );
+        assert_eq!(
+            NdefMessage::new(vec![NdefRecord::new(
+                NdefTypeNameFormat::Unknown(5),
+                vec![b'T'],
+                Vec::new(),
+                vec![1],
+            )])
+            .encoded_length(),
+            Err(NdefWriteError::InvalidMessage)
+        );
+        assert_eq!(
+            NdefMessage::new(vec![NdefRecord::new(
+                NdefTypeNameFormat::WellKnown,
+                vec![b'T'; 256],
+                Vec::new(),
+                Vec::new(),
+            )])
+            .encoded_length(),
+            Err(NdefWriteError::InvalidMessage)
+        );
+    }
+
+    #[test]
+    fn ndef_write_validation_accepts_valid_empty_and_unknown_tnf_records() {
+        let empty_record = NdefMessage::new(vec![NdefRecord::new(
+            NdefTypeNameFormat::Empty,
+            Vec::new(),
+            Vec::new(),
+            Vec::new(),
+        )]);
+        assert_eq!(empty_record.encoded_length(), Ok(3));
+
+        let unknown_record = NdefMessage::new(vec![NdefRecord::new(
+            NdefTypeNameFormat::Unknown(5),
+            Vec::new(),
+            vec![0, 0xff],
+            vec![0, 0xff],
+        )]);
+        assert_eq!(unknown_record.encoded_length(), Ok(8));
+    }
+
+    #[test]
+    fn ndef_write_validation_enforces_core_nfc_message_bound() {
+        let maximum = NdefMessage::new(vec![NdefRecord::new(
+            NdefTypeNameFormat::WellKnown,
+            b"T".to_vec(),
+            Vec::new(),
+            vec![0; 128 * 1024 - 7],
+        )]);
+        assert_eq!(maximum.encoded_length(), Ok(128 * 1024));
+
+        let oversized = NdefMessage::new(vec![NdefRecord::new(
+            NdefTypeNameFormat::WellKnown,
+            b"T".to_vec(),
+            Vec::new(),
+            vec![0; 128 * 1024 - 6],
+        )]);
+        assert_eq!(
+            oversized.encoded_length(),
+            Err(NdefWriteError::MessageTooLarge)
+        );
+    }
+
     struct FakeNdefBackend {
         started: bool,
         result: Option<Result<NdefMessage, NdefReadError>>,
@@ -369,5 +657,54 @@ mod tests {
             core::task::Poll::Ready(Err(NdefReadError::AlreadyStarted))
         );
         assert!(reader.into_backend().started);
+    }
+
+    struct FakeNdefWriteBackend {
+        started: bool,
+        result: Option<Result<(), NdefWriteError>>,
+        message: Option<NdefMessage>,
+    }
+
+    impl NdefWriteBackend for FakeNdefWriteBackend {
+        type WriteFuture<'a>
+            = core::future::Ready<Result<(), NdefWriteError>>
+        where
+            Self: 'a;
+
+        fn write(&mut self, message: NdefMessage) -> Self::WriteFuture<'_> {
+            if self.started {
+                return core::future::ready(Err(NdefWriteError::AlreadyStarted));
+            }
+            self.started = true;
+            self.message = Some(message);
+            core::future::ready(self.result.take().expect("fixture result"))
+        }
+    }
+
+    #[test]
+    fn ndef_writer_forwards_message_and_terminal_failure_without_framework_runtime() {
+        let message = NdefMessage::new(vec![NdefRecord::new(
+            NdefTypeNameFormat::WellKnown,
+            b"T".to_vec(),
+            vec![0, 0xff],
+            vec![0, 0xff, b'x'],
+        )]);
+        let result = Err(NdefWriteError::ReadOnly);
+        let mut writer = NdefWriter::new(FakeNdefWriteBackend {
+            started: false,
+            result: Some(result),
+            message: None,
+        });
+
+        let mut first_write = writer.write(message.clone());
+        assert_eq!(poll_once(&mut first_write), core::task::Poll::Ready(result));
+        drop(first_write);
+        let mut second_write = writer.write(message.clone());
+        assert_eq!(
+            poll_once(&mut second_write),
+            core::task::Poll::Ready(Err(NdefWriteError::AlreadyStarted))
+        );
+        let backend = writer.into_backend();
+        assert_eq!(backend.message, Some(message));
     }
 }
