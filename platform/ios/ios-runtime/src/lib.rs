@@ -9,6 +9,8 @@
 
 #[cfg(feature = "dispatch")]
 pub mod dispatch;
+#[cfg(feature = "dispatch")]
+mod dispatch_gate;
 pub mod ffi;
 pub mod main_thread;
 #[cfg(feature = "dispatch-timer")]

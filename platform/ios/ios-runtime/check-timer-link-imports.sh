@@ -40,7 +40,9 @@ for target in aarch64-apple-ios aarch64-apple-ios-sim; do
         _dispatch_source_cancel \
         _dispatch_activate \
         _Block_copy \
-        _Block_release
+        _Block_release \
+        _dispatch_main_q \
+        _dispatch_async_f
     do
         if ! printf '%s\n' "$symbols" | grep -F "$symbol" >/dev/null; then
             printf '%s probe does not import %s\n' "$target" "$symbol" >&2
@@ -57,6 +59,6 @@ for target in aarch64-apple-ios aarch64-apple-ios-sim; do
         printf '%s probe does not declare the iOS %s deployment minimum\n' "$target" "$minimum" >&2
         exit 1
     }
-    printf '%s public libdispatch timer and Block imports plus iOS %s deployment minimum verified; link probe not executed\n' \
+    printf '%s public libdispatch timer, main-dispatch, and Block imports plus iOS %s deployment minimum verified; link probe not executed\n' \
         "$target" "$minimum"
 done
