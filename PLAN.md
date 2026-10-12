@@ -553,3 +553,7 @@ B552 adds optional `IosSceneLifecycleEvents` callback install, replacement, clea
 ### B553 — user-mediated single-contact picker (row 069)
 
 B553 adds an independent `ios-contact-picker` crate over public ContactsUI. It presents a single-contact picker without Contacts authorization and returns only the user's selected owned contact snapshot; cancellation is one-shot and session drop detaches callbacks. The registered profile passed 35 checks; 2 runtime checks were skipped, so presentation and selection remain unverified. See [the picker guide](docs/ios/contact-picker.md).
+
+### B554 — reusable sectioned collection grid (row 003)
+
+B554 adds `IosCollectionGrid` over native `UICollectionView`, with fixed/adaptive/carousel layouts, reusable typed card/metric/action/toggle cells, stable `u64` IDs, caller-owned full snapshots, and typed events. It is distinct from the eager lower-level `IosGridView` and remains imperative rather than SwiftUI-style composition or automatic state binding. Host policy tests (62), device/Simulator compile-link probes at the registered iOS 12.0/14.0 floors, and strict device Clippy passed before integration; the registered `ios-ui` profile result is recorded after integration validation. Runtime rendering, scrolling, selection, animation, and callback behavior remain unverified. See [the UI workstream](PLAN_IOS_UI.md#b554--reusable-sectioned-collection-grid).
