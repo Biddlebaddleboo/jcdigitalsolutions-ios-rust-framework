@@ -641,3 +641,15 @@ B582 adds portable `BonjourAdvertisement` validation and register/update/stop me
 ### B583 — bounded MapKit route overlay (row 093)
 
 B583 adds `IosMapView::replace_route`/`clear_route` for one caller-supplied path of 2–4,096 validated `MapCoordinate` values, rendered through public `MKPolyline`/`MKPolylineRenderer` with a fixed 5-point UIKit blue stroke. Replacement, clear, and drop remove only the owned route; because `MKMapView.delegate` is a weak singleton slot, a preexisting host delegate rejects activation and the wrapper does not forward delegate callbacks while its route is active. Host regressions cover route bounds and occupied-slot rejection. On rebased `main` snapshot `0b0cea98bd399605d53b8c89aec32fc586627c5a6df683ccc5f58d2203cccf93`, the installed `ios-map-view` profile passed 28 checks with 0 FAIL, 0 BLOCKED, and 2 SKIPPED for Simulator execution and physical-device proof. Device/Simulator compilation and link/import checks passed; visible route rendering and delegate callback behavior remain unverified.
+
+### B584 — explicit native control enabled state (row 003)
+
+B584 adds enabled-state getters and setters to the portable button, toggle, and text-field contracts and their UIKit controls; updates do not synthesize user callbacks. Its first isolated `ios-ui` profile reported 271 PASS, 1 source-guard FAIL, and 2 SKIPPED for Simulator execution and physical-device proof. Combined B584/B585 qualification is pending; runtime interaction is unverified.
+
+### B585 — UIKit system text styles and semantic colors (row 003)
+
+B585 adds UIKit preferred text styles and semantic colors to native labels, button titles, and text
+fields, including the Rideshare dashboard's numeric field style. iOS 13 dynamic primary/secondary
+colors have black/gray iOS 12 fallbacks; UIKit content-size-category adjustment remains native.
+Host policy regressions cover fallback availability. Combined `ios-ui` qualification and live Dynamic
+Type/color behavior remain pending.

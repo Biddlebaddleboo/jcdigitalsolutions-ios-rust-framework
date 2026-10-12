@@ -19,9 +19,13 @@ use objc2_core_foundation::{CGPoint, CGRect, CGSize};
 use objc2_foundation::{NSObjectProtocol, NSRange, NSString};
 use objc2_ui_kit::{
     NSObjectUIAccessibility, UIAccessibilityIdentification, UIApplication, UIButton, UIColor,
-    UIControlEvents, UIControlState, UIImage, UIImageView, UIKeyboardType, UILabel,
-    UILayoutConstraintAxis, UIScrollView, UIStackView, UIStackViewAlignment,
-    UIStackViewDistribution, UISwitch, UITextField, UITextInputTraits, UIView,
+    UIContentSizeCategoryAdjusting, UIControlEvents, UIControlState, UIFont, UIFontTextStyle,
+    UIFontTextStyleBody, UIFontTextStyleCallout, UIFontTextStyleCaption1, UIFontTextStyleCaption2,
+    UIFontTextStyleFootnote, UIFontTextStyleHeadline, UIFontTextStyleLargeTitle,
+    UIFontTextStyleSubheadline, UIFontTextStyleTitle1, UIFontTextStyleTitle2,
+    UIFontTextStyleTitle3, UIImage, UIImageView, UIKeyboardType, UILabel, UILayoutConstraintAxis,
+    UIScrollView, UIStackView, UIStackViewAlignment, UIStackViewDistribution, UISwitch,
+    UITextField, UITextInputTraits, UIView,
 };
 
 use crate::keyboard_action_policy::run_with_main_thread_marker;
@@ -31,6 +35,10 @@ use crate::stack_spacing::{is_valid_stack_alignment, is_valid_stack_spacing};
 use crate::system_symbol_policy::{resolve_system_symbol, validate_system_symbol_name};
 use crate::text_conversion::{AccessibilityText, Utf16Error, decode_utf16};
 use crate::text_policy::{KeyboardHint, TextFieldCallback, input_traits, invoke_text_callback};
+use crate::text_style_policy::{
+    DynamicTextColor, IosSemanticTextColor, IosSystemTextStyle, NativeTextColor,
+    TextColorResolution,
+};
 use crate::toggle_policy::invoke_toggle_callback;
 
 mod activity_indicator;
@@ -501,6 +509,25 @@ impl IosView {
 }
 
 impl IosLabel {
+    /// Sets a UIKit system text style that follows the user's preferred content size.
+    pub fn set_system_text_style(&mut self, style: IosSystemTextStyle) -> Result<()> {
+        let _label_style_thread = main_thread_marker()?;
+        set_label_system_text_style(&self.native, style);
+        Ok(())
+    }
+
+    /// Sets a UIKit semantic or system text color.
+    ///
+    /// Primary and secondary use dynamic semantic colors on iOS 13 and later, with black and gray
+    /// fallbacks on iOS 12. System accent colors use UIKit's public system colors on both versions.
+    pub fn set_semantic_text_color(&mut self, color: IosSemanticTextColor) -> Result<()> {
+        let _label_color_thread = main_thread_marker()?;
+        let color = native_text_color(color);
+        // SAFETY: `color` is a retained, non-null UIColor and the label is used on UIKit's main thread.
+        unsafe { self.native.setTextColor(Some(&color)) };
+        Ok(())
+    }
+
     /// Borrows the native label for UIKit integration.
     pub fn native_label(&self) -> &UILabel {
         &self.native
@@ -547,6 +574,26 @@ impl IosTextField {
     pub fn set_enabled(&mut self, enabled: bool) -> Result<()> {
         let _field_enabled_thread = main_thread_marker()?;
         self.native.setEnabled(enabled);
+        Ok(())
+    }
+
+    /// Sets a UIKit system text style that follows the user's preferred content size.
+    pub fn set_system_text_style(&mut self, style: IosSystemTextStyle) -> Result<()> {
+        let _field_style_thread = main_thread_marker()?;
+        let font = UIFont::preferredFontForTextStyle(native_text_style(style));
+        self.native.setFont(Some(&font));
+        self.native.setAdjustsFontForContentSizeCategory(true);
+        Ok(())
+    }
+
+    /// Sets a UIKit semantic or system text color.
+    ///
+    /// Primary and secondary use dynamic semantic colors on iOS 13 and later, with black and gray
+    /// fallbacks on iOS 12. System accent colors use UIKit's public system colors on both versions.
+    pub fn set_semantic_text_color(&mut self, color: IosSemanticTextColor) -> Result<()> {
+        let _field_color_thread = main_thread_marker()?;
+        let color = native_text_color(color);
+        self.native.setTextColor(Some(&color));
         Ok(())
     }
 
@@ -1033,6 +1080,29 @@ impl IosButton {
         Ok(())
     }
 
+    /// Sets a UIKit system text style on the button title that follows the preferred content size.
+    pub fn set_system_text_style(&mut self, style: IosSystemTextStyle) -> Result<()> {
+        let _button_style_thread = main_thread_marker()?;
+        let title = self
+            .native
+            .titleLabel()
+            .ok_or_else(|| Error::new(ErrorKind::Unavailable))?;
+        set_label_system_text_style(&title, style);
+        Ok(())
+    }
+
+    /// Sets the button title's UIKit semantic or system text color for its normal state.
+    ///
+    /// Primary and secondary use dynamic semantic colors on iOS 13 and later, with black and gray
+    /// fallbacks on iOS 12. System accent colors use UIKit's public system colors on both versions.
+    pub fn set_semantic_text_color(&mut self, color: IosSemanticTextColor) -> Result<()> {
+        let _button_color_thread = main_thread_marker()?;
+        let color = native_text_color(color);
+        self.native
+            .setTitleColor_forState(Some(&color), UIControlState::Normal);
+        Ok(())
+    }
+
     /// Sets or clears the button's accessibility label.
     ///
     /// `None` writes native `nil`; `Some("")` sets an empty label. UIKit copies the UTF-8 text
@@ -1354,6 +1424,45 @@ fn main_thread_marker() -> Result<MainThreadMarker> {
     MainThread::current()
         .map(MainThread::into_objc2)
         .ok_or_else(|| Error::new(ErrorKind::Unavailable))
+}
+
+fn native_text_style(style: IosSystemTextStyle) -> &'static UIFontTextStyle {
+    // SAFETY: each value is an immutable public UIKit text-style string constant available by iOS 12.
+    unsafe {
+        match style {
+            IosSystemTextStyle::LargeTitle => UIFontTextStyleLargeTitle,
+            IosSystemTextStyle::Title1 => UIFontTextStyleTitle1,
+            IosSystemTextStyle::Title2 => UIFontTextStyleTitle2,
+            IosSystemTextStyle::Title3 => UIFontTextStyleTitle3,
+            IosSystemTextStyle::Headline => UIFontTextStyleHeadline,
+            IosSystemTextStyle::Subheadline => UIFontTextStyleSubheadline,
+            IosSystemTextStyle::Body => UIFontTextStyleBody,
+            IosSystemTextStyle::Callout => UIFontTextStyleCallout,
+            IosSystemTextStyle::Footnote => UIFontTextStyleFootnote,
+            IosSystemTextStyle::Caption => UIFontTextStyleCaption1,
+            IosSystemTextStyle::Caption2 => UIFontTextStyleCaption2,
+        }
+    }
+}
+
+fn set_label_system_text_style(label: &UILabel, style: IosSystemTextStyle) {
+    let font = UIFont::preferredFontForTextStyle(native_text_style(style));
+    // SAFETY: UIKit's font setter receives the non-null preferred font retained above.
+    unsafe { label.setFont(Some(&font)) };
+    label.setAdjustsFontForContentSizeCategory(true);
+}
+
+fn native_text_color(color: IosSemanticTextColor) -> Retained<UIColor> {
+    match color.resolve(objc2::available!(ios = 13.0, ..)) {
+        TextColorResolution::Dynamic(DynamicTextColor::Primary) => UIColor::labelColor(),
+        TextColorResolution::Dynamic(DynamicTextColor::Secondary) => UIColor::secondaryLabelColor(),
+        TextColorResolution::Native(NativeTextColor::Black) => UIColor::blackColor(),
+        TextColorResolution::Native(NativeTextColor::Gray) => UIColor::grayColor(),
+        TextColorResolution::Native(NativeTextColor::Blue) => UIColor::systemBlueColor(),
+        TextColorResolution::Native(NativeTextColor::Red) => UIColor::systemRedColor(),
+        TextColorResolution::Native(NativeTextColor::Green) => UIColor::systemGreenColor(),
+        TextColorResolution::Native(NativeTextColor::Orange) => UIColor::systemOrangeColor(),
+    }
 }
 
 fn native_frame(frame: Frame) -> CGRect {

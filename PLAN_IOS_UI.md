@@ -266,3 +266,16 @@ including embedded NUL, uses the existing length-aware `NSString` conversion. Ex
 registered `ios-ui` text-field link fixture now compiles the setters and verifies their selectors at
 iOS 12.0 device and iOS 14.0 Simulator floors. No portable accessibility tree is added, and live
 VoiceOver or identifier behavior remains unverified.
+
+## B584 — explicit native control enabled state
+
+B584 adds `is_enabled` and `set_enabled` to `ButtonControl`, `ToggleControl`, and `TextFieldControl` and the existing UIKit button, switch, and text-field handles. UIKit setters are main-thread-only and do not emit action, value-change, edit, or submit callbacks. Its first isolated `ios-ui` profile reported 271 PASS, 1 source-guard FAIL, and 2 SKIPPED for Simulator execution and physical-device proof. The combined B584/B585 profile is pending; native interaction remains unverified.
+
+## B585 — UIKit system text style and semantic text color
+
+B585 adds one typed `IosSystemTextStyle` surface for labels, button titles, and text fields, backed
+by UIKit's preferred system fonts and content-size-category adjustment. `IosSemanticTextColor`
+provides primary, secondary, blue, red, green, and orange text colors; primary/secondary use dynamic
+UIKit colors on iOS 13+ and black/gray fallbacks on the iOS 12 device floor. Host policy tests cover
+both availability branches and ensure named system colors do not change. Full combined `ios-ui`
+qualification and runtime behavior remain pending.

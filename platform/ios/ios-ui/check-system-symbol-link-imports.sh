@@ -35,7 +35,11 @@ for target in aarch64-apple-ios aarch64-apple-ios-sim; do
             exit 1
         }
     done
-    for symbol in 'systemImageNamed:' 'setTintColor:'; do
+    for symbol in \
+        'systemImageNamed:' 'setTintColor:' 'preferredFontForTextStyle:' \
+        'setAdjustsFontForContentSizeCategory:' 'setFont:' 'setTextColor:' \
+        'setTitleColor:forState:' 'labelColor' 'secondaryLabelColor' \
+        'systemBlueColor' 'systemRedColor' 'systemGreenColor' 'systemOrangeColor'; do
         printf '%s\n' "$binary_strings" | grep -F "$symbol" >/dev/null || {
             echo "$target system-symbol probe is missing UIKit selector $symbol" >&2
             exit 1

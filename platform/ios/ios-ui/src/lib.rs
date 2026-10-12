@@ -55,6 +55,8 @@ pub mod text_metrics;
 #[cfg(any(test, target_os = "ios"))]
 mod text_policy;
 #[cfg(any(test, target_os = "ios"))]
+mod text_style_policy;
+#[cfg(any(test, target_os = "ios"))]
 mod toggle_policy;
 
 #[cfg(target_os = "ios")]
@@ -110,3 +112,5 @@ pub use platform::{
 pub use platform::{IosContextMenu, IosContextMenuAction};
 #[cfg(target_os = "ios")]
 pub use platform::{IosListRow, IosListSection, IosListView, IosSectionedListView};
+#[cfg(any(test, target_os = "ios"))]
+pub use text_style_policy::{IosSemanticTextColor, IosSystemTextStyle};

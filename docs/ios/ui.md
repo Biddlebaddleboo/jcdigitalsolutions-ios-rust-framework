@@ -40,6 +40,21 @@ borrowed typed UIKit references as
 integration escape hatches. Any direct native mutation remains subject to UIKit's main-thread and
 ownership rules
 
+## System text styles and semantic colors
+
+`IosLabel`, `IosButton`, and `IosTextField` accept the same `IosSystemTextStyle` through
+`set_system_text_style`. The styles map to UIKit's public `UIFontTextStyle` values and
+`UIFont.preferredFontForTextStyle`; each native text object enables UIKit content-size-category
+adjustment. This keeps Dynamic Type sizing in UIKit and adds no custom font family or text engine.
+
+`set_semantic_text_color` accepts `IosSemanticTextColor::{Primary, Secondary, Blue, Red, Green,
+Orange}` on those same controls. Primary and secondary use UIKit's dynamic `labelColor` and
+`secondaryLabelColor` on iOS 13 and later; the iOS 12 fallback is black and gray. Named accent
+colors use UIKit's public system colors. Button title color applies to the normal control state.
+The registered device/Simulator link probe verifies the required UIKit selectors at iOS 12.0 and
+iOS 14.0; static checks do not establish visible appearance, dark-mode adaptation, or Dynamic Type
+behavior at runtime
+
 ## Button accessibility metadata
 
 `IosButton::set_accessibility_label`, `set_accessibility_hint`, and
