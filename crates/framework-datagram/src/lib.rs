@@ -1,7 +1,7 @@
 #![no_std]
 #![forbid(unsafe_code)]
 #![deny(missing_docs)]
-#![doc = "Portable IPv4 UDP datagram values and a runtime-neutral static backend contract."]
+#![doc = "Portable IPv4 and IPv6 UDP datagram values and runtime-neutral static backend contracts."]
 
 extern crate alloc;
 
@@ -9,6 +9,9 @@ use alloc::vec::Vec;
 
 /// Maximum payload bytes in one IPv4 UDP datagram.
 pub const MAX_DATAGRAM_PAYLOAD_BYTES: u32 = 65_507;
+
+/// Maximum payload bytes in one IPv6 UDP datagram.
+pub const MAX_IPV6_DATAGRAM_PAYLOAD_BYTES: u32 = 65_527;
 
 /// An IPv4 socket endpoint. Port zero is valid only when used as a local bind endpoint.
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
@@ -49,6 +52,78 @@ impl Ipv4Endpoint {
     /// Returns whether the address is in the IPv4 multicast range `224.0.0.0/4`.
     pub const fn is_multicast(self) -> bool {
         self.address[0] & 0xf0 == 0xe0
+    }
+}
+
+/// An IPv6 socket endpoint with an explicit numeric zone/interface index.
+///
+/// `flowinfo` is represented in host byte order. `scope_id` is the platform interface index used
+/// for scoped addresses such as link-local unicast; it is not an interface name.
+#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
+pub struct Ipv6Endpoint {
+    address: [u8; 16],
+    port: u16,
+    flowinfo: u32,
+    scope_id: u32,
+}
+
+impl Ipv6Endpoint {
+    /// Creates an endpoint from IPv6 octets, a host-order UDP port, and a numeric scope ID.
+    pub const fn new(address: [u8; 16], port: u16, scope_id: u32) -> Self {
+        Self {
+            address,
+            port,
+            flowinfo: 0,
+            scope_id,
+        }
+    }
+
+    /// Returns a copy with the host-order IPv6 flow information value.
+    pub const fn with_flowinfo(mut self, flowinfo: u32) -> Self {
+        self.flowinfo = flowinfo;
+        self
+    }
+
+    /// Returns the 16 IPv6 address octets in network order.
+    pub const fn address(self) -> [u8; 16] {
+        self.address
+    }
+
+    /// Returns the host-order UDP port.
+    pub const fn port(self) -> u16 {
+        self.port
+    }
+
+    /// Returns the host-order IPv6 flow information value.
+    pub const fn flowinfo(self) -> u32 {
+        self.flowinfo
+    }
+
+    /// Returns the numeric interface index used as the address scope ID.
+    pub const fn scope_id(self) -> u32 {
+        self.scope_id
+    }
+
+    /// Returns whether the address is the unspecified address `::`.
+    pub const fn is_unspecified(self) -> bool {
+        let mut index = 0;
+        while index < self.address.len() {
+            if self.address[index] != 0 {
+                return false;
+            }
+            index += 1;
+        }
+        true
+    }
+
+    /// Returns whether the address is in the IPv6 multicast range `ff00::/8`.
+    pub const fn is_multicast(self) -> bool {
+        self.address[0] == 0xff
+    }
+
+    /// Returns whether the address is in the IPv6 link-local range `fe80::/10`.
+    pub const fn is_link_local(self) -> bool {
+        self.address[0] == 0xfe && self.address[1] & 0xc0 == 0x80
     }
 }
 
@@ -98,6 +173,39 @@ impl DatagramBindConfig {
     }
 }
 
+/// Configuration applied before an IPv6 UDP socket binds.
+#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
+pub struct Ipv6DatagramBindConfig {
+    local_endpoint: Ipv6Endpoint,
+    reuse_address: bool,
+}
+
+impl Ipv6DatagramBindConfig {
+    /// Creates an IPv6 bind configuration with address reuse disabled.
+    pub const fn new(local_endpoint: Ipv6Endpoint) -> Self {
+        Self {
+            local_endpoint,
+            reuse_address: false,
+        }
+    }
+
+    /// Returns a copy that enables or disables `SO_REUSEADDR` before bind.
+    pub const fn with_reuse_address(mut self, enabled: bool) -> Self {
+        self.reuse_address = enabled;
+        self
+    }
+
+    /// Returns the requested local bind endpoint. Port zero asks the OS to choose a port.
+    pub const fn local_endpoint(self) -> Ipv6Endpoint {
+        self.local_endpoint
+    }
+
+    /// Returns whether `SO_REUSEADDR` is requested.
+    pub const fn reuse_address(self) -> bool {
+        self.reuse_address
+    }
+}
+
 /// Wait policy for one receive operation.
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
 pub enum ReceiveWait {
@@ -144,17 +252,52 @@ impl Datagram {
     }
 }
 
+/// An owned IPv6 UDP datagram and its source endpoint.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct Ipv6Datagram {
+    source: Ipv6Endpoint,
+    payload: Vec<u8>,
+}
+
+impl Ipv6Datagram {
+    /// Creates an owned datagram and rejects invalid source ports or oversized payloads.
+    pub fn new(source: Ipv6Endpoint, payload: Vec<u8>) -> Result<Self, DatagramError> {
+        if source.port() == 0 {
+            return Err(DatagramError::InvalidEndpoint);
+        }
+        if payload.len() > MAX_IPV6_DATAGRAM_PAYLOAD_BYTES as usize {
+            return Err(DatagramError::PayloadTooLarge);
+        }
+        Ok(Self { source, payload })
+    }
+
+    /// Returns the source IPv6 endpoint, including its scope ID and flow information.
+    pub const fn source(&self) -> Ipv6Endpoint {
+        self.source
+    }
+
+    /// Borrows the owned datagram payload.
+    pub fn payload(&self) -> &[u8] {
+        &self.payload
+    }
+
+    /// Consumes the datagram and returns its owned payload.
+    pub fn into_payload(self) -> Vec<u8> {
+        self.payload
+    }
+}
+
 /// A validation, receive-state, cancellation, allocation, or native socket error.
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
 #[non_exhaustive]
 pub enum DatagramError {
-    /// A destination has port zero or an unspecified address.
+    /// An endpoint has a disallowed port, an unspecified destination, a forbidden bind address, or missing IPv6 link-local scope.
     InvalidEndpoint,
     /// The destination is multicast, which this capability does not join or send to.
     MulticastUnsupported,
     /// Limited broadcast was requested without enabling the socket broadcast option.
     BroadcastNotEnabled,
-    /// A requested receive bound is zero or exceeds [`MAX_DATAGRAM_PAYLOAD_BYTES`].
+    /// A requested receive bound is zero or exceeds the address family's maximum payload.
     InvalidReceiveBound,
     /// An outbound or inbound datagram exceeds its allowed byte bound.
     PayloadTooLarge,
@@ -199,6 +342,36 @@ pub trait DatagramBackend: Sized {
     /// Receives one owned datagram no larger than `max_payload_bytes`.
     fn receive(&self, max_payload_bytes: u32, wait: ReceiveWait)
     -> Result<Datagram, DatagramError>;
+
+    /// Cancels only the currently active receive, if any.
+    fn cancel_receive(&self) -> Result<(), DatagramError>;
+
+    /// Closes the socket and wakes a pending receive. Repeated calls succeed.
+    fn close(&self) -> Result<(), DatagramError>;
+}
+
+/// A statically selected backend for one app-owned IPv6 UDP socket.
+///
+/// Implementations preserve the endpoint's port, flow information, and numeric scope/interface
+/// index. They do not imply peer discovery, message retries, multicast membership, or application
+/// protocol framing. Link-local unicast endpoints require a nonzero scope ID. Receive and lifecycle
+/// behavior matches [`DatagramBackend`].
+pub trait Ipv6DatagramBackend: Sized {
+    /// Binds one IPv6 socket after applying local options and returns its backend state.
+    fn bind(config: Ipv6DatagramBindConfig) -> Result<Self, DatagramError>;
+
+    /// Returns the actual local endpoint, including an OS-selected port after a port-zero bind.
+    fn local_endpoint(&self) -> Result<Ipv6Endpoint, DatagramError>;
+
+    /// Sends one datagram to an explicit IPv6 destination. Empty datagrams are valid.
+    fn send_to(&self, destination: Ipv6Endpoint, payload: &[u8]) -> Result<(), DatagramError>;
+
+    /// Receives one owned datagram no larger than `max_payload_bytes`.
+    fn receive(
+        &self,
+        max_payload_bytes: u32,
+        wait: ReceiveWait,
+    ) -> Result<Ipv6Datagram, DatagramError>;
 
     /// Cancels only the currently active receive, if any.
     fn cancel_receive(&self) -> Result<(), DatagramError>;
@@ -266,6 +439,79 @@ impl<B: DatagramBackend> DatagramSession<B> {
 }
 
 impl<B: DatagramBackend> Drop for DatagramSession<B> {
+    fn drop(&mut self) {
+        let _ = self.backend.close();
+    }
+}
+
+/// A thin owner of a statically selected IPv6 datagram backend.
+pub struct Ipv6DatagramSession<B: Ipv6DatagramBackend> {
+    backend: B,
+}
+
+impl<B: Ipv6DatagramBackend> Ipv6DatagramSession<B> {
+    /// Binds the selected backend without runtime backend lookup or global initialization.
+    pub fn bind(config: Ipv6DatagramBindConfig) -> Result<Self, DatagramError> {
+        let local = config.local_endpoint();
+        if local.is_multicast() || (local.is_link_local() && local.scope_id() == 0) {
+            return Err(DatagramError::InvalidEndpoint);
+        }
+        Ok(Self {
+            backend: B::bind(config)?,
+        })
+    }
+
+    /// Wraps an explicitly constructed backend.
+    pub const fn from_backend(backend: B) -> Self {
+        Self { backend }
+    }
+
+    /// Returns the actual local endpoint.
+    pub fn local_endpoint(&self) -> Result<Ipv6Endpoint, DatagramError> {
+        self.backend.local_endpoint()
+    }
+
+    /// Sends one datagram, rejecting invalid destinations and oversized payloads before backend work.
+    pub fn send_to(&self, destination: Ipv6Endpoint, payload: &[u8]) -> Result<(), DatagramError> {
+        if destination.port() == 0 || destination.is_unspecified() {
+            return Err(DatagramError::InvalidEndpoint);
+        }
+        if destination.is_multicast() {
+            return Err(DatagramError::MulticastUnsupported);
+        }
+        if destination.is_link_local() && destination.scope_id() == 0 {
+            return Err(DatagramError::InvalidEndpoint);
+        }
+        if payload.len() > MAX_IPV6_DATAGRAM_PAYLOAD_BYTES as usize {
+            return Err(DatagramError::PayloadTooLarge);
+        }
+        self.backend.send_to(destination, payload)
+    }
+
+    /// Receives one owned datagram under a nonzero maximum payload bound.
+    pub fn receive(
+        &self,
+        max_payload_bytes: u32,
+        wait: ReceiveWait,
+    ) -> Result<Ipv6Datagram, DatagramError> {
+        if max_payload_bytes == 0 || max_payload_bytes > MAX_IPV6_DATAGRAM_PAYLOAD_BYTES {
+            return Err(DatagramError::InvalidReceiveBound);
+        }
+        self.backend.receive(max_payload_bytes, wait)
+    }
+
+    /// Cancels the active receive without closing the session.
+    pub fn cancel_receive(&self) -> Result<(), DatagramError> {
+        self.backend.cancel_receive()
+    }
+
+    /// Closes the session and wakes a pending receive.
+    pub fn close(&self) -> Result<(), DatagramError> {
+        self.backend.close()
+    }
+}
+
+impl<B: Ipv6DatagramBackend> Drop for Ipv6DatagramSession<B> {
     fn drop(&mut self) {
         let _ = self.backend.close();
     }

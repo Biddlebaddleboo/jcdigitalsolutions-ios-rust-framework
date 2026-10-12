@@ -5,7 +5,7 @@ edition.workspace = true
 rust-version.workspace = true
 license.workspace = true
 repository.workspace = true
-description = "Portable IPv4 UDP datagram values and a static backend contract"
+description = "Portable IPv4 and IPv6 UDP datagram values and static backend contracts"
 
 [dependencies]
 

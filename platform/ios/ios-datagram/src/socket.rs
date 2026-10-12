@@ -1,11 +1,12 @@
 use core::mem::{size_of, zeroed};
 use framework_datagram::{
-    Datagram, DatagramBackend, DatagramBindConfig, DatagramError, Ipv4Endpoint,
-    MAX_DATAGRAM_PAYLOAD_BYTES, ReceiveWait,
+    Datagram, DatagramBackend, DatagramBindConfig, DatagramError, Ipv4Endpoint, Ipv6Datagram,
+    Ipv6DatagramBackend, Ipv6DatagramBindConfig, Ipv6Endpoint, MAX_DATAGRAM_PAYLOAD_BYTES,
+    MAX_IPV6_DATAGRAM_PAYLOAD_BYTES, ReceiveWait,
 };
 use std::ffi::c_void;
 use std::io::{Error as IoError, ErrorKind};
-use std::net::{SocketAddr, SocketAddrV4, UdpSocket};
+use std::net::{SocketAddr, SocketAddrV4, SocketAddrV6, UdpSocket};
 use std::os::fd::{AsRawFd, FromRawFd, OwnedFd};
 use std::sync::{Arc, Mutex, MutexGuard};
 use std::time::{Duration, Instant};
@@ -134,66 +135,11 @@ impl IosDatagramBackend {
         max_payload_bytes: u32,
         wait: ReceiveWait,
     ) -> Result<Datagram, DatagramError> {
-        if max_payload_bytes == 0 || max_payload_bytes > MAX_DATAGRAM_PAYLOAD_BYTES {
-            return Err(DatagramError::InvalidReceiveBound);
-        }
-        let _guard = ReceiveGuard::begin(self)?;
-        let socket = {
-            let state = lock(&self.shared.socket)?;
-            if state.closed {
-                return Err(DatagramError::Closed);
-            }
-            Arc::clone(state.socket.as_ref().ok_or(DatagramError::Closed)?)
-        };
-        let maximum = max_payload_bytes as usize;
-        let mut buffer = Vec::new();
-        buffer
-            .try_reserve_exact(maximum + 1)
-            .map_err(|_| DatagramError::ResourceExhausted)?;
-        buffer.resize(maximum + 1, 0);
-        let started = Instant::now();
-
-        loop {
-            if self.is_closed()? {
-                return Err(DatagramError::Closed);
-            }
-            if self.is_receive_cancelled()? {
-                return Err(DatagramError::Cancelled);
-            }
-            match socket.recv_from(&mut buffer) {
-                Ok((received, source)) => {
-                    if self.is_closed()? {
-                        return Err(DatagramError::Closed);
-                    }
-                    if self.is_receive_cancelled()? {
-                        return Err(DatagramError::Cancelled);
-                    }
-                    if received > maximum {
-                        return Err(DatagramError::PayloadTooLarge);
-                    }
-                    buffer.truncate(received);
-                    let source = match source {
-                        SocketAddr::V4(address) => endpoint_from_socket(address),
-                        SocketAddr::V6(_) => return Err(DatagramError::BackendFailure),
-                    };
-                    return Datagram::new(source, buffer);
-                }
-                Err(error) if error.kind() == ErrorKind::WouldBlock => match wait {
-                    ReceiveWait::NonBlocking => return Err(DatagramError::WouldBlock),
-                    ReceiveWait::TimeoutMillis(timeout) => {
-                        let elapsed = started.elapsed();
-                        let total = Duration::from_millis(u64::from(timeout.get()));
-                        let remaining = total.saturating_sub(elapsed);
-                        if remaining.is_zero() {
-                            return Err(DatagramError::TimedOut);
-                        }
-                        self.poll_readable(&socket, Some(remaining))?;
-                    }
-                    ReceiveWait::UntilCancelled => self.poll_readable(&socket, None)?,
-                },
-                Err(error) if error.kind() == ErrorKind::Interrupted => continue,
-                Err(error) => return Err(map_io_error(error)),
-            }
+        let (source, payload) =
+            receive_socket(self, max_payload_bytes, MAX_DATAGRAM_PAYLOAD_BYTES, wait)?;
+        match source {
+            SocketAddr::V4(address) => Datagram::new(endpoint_from_socket(address), payload),
+            SocketAddr::V6(_) => Err(DatagramError::BackendFailure),
         }
     }
 
@@ -274,6 +220,198 @@ impl IosDatagramBackend {
             return Err(DatagramError::BackendFailure);
         }
         Ok(())
+    }
+}
+
+fn receive_socket(
+    backend: &IosDatagramBackend,
+    max_payload_bytes: u32,
+    maximum_allowed: u32,
+    wait: ReceiveWait,
+) -> Result<(SocketAddr, Vec<u8>), DatagramError> {
+    if max_payload_bytes == 0 || max_payload_bytes > maximum_allowed {
+        return Err(DatagramError::InvalidReceiveBound);
+    }
+    let _guard = ReceiveGuard::begin(backend)?;
+    let socket = {
+        let state = lock(&backend.shared.socket)?;
+        if state.closed {
+            return Err(DatagramError::Closed);
+        }
+        Arc::clone(state.socket.as_ref().ok_or(DatagramError::Closed)?)
+    };
+    let maximum = max_payload_bytes as usize;
+    let mut buffer = Vec::new();
+    buffer
+        .try_reserve_exact(maximum + 1)
+        .map_err(|_| DatagramError::ResourceExhausted)?;
+    buffer.resize(maximum + 1, 0);
+    let started = Instant::now();
+
+    loop {
+        if backend.is_closed()? {
+            return Err(DatagramError::Closed);
+        }
+        if backend.is_receive_cancelled()? {
+            return Err(DatagramError::Cancelled);
+        }
+        match socket.recv_from(&mut buffer) {
+            Ok((received, source)) => {
+                if backend.is_closed()? {
+                    return Err(DatagramError::Closed);
+                }
+                if backend.is_receive_cancelled()? {
+                    return Err(DatagramError::Cancelled);
+                }
+                if received > maximum {
+                    return Err(DatagramError::PayloadTooLarge);
+                }
+                buffer.truncate(received);
+                return Ok((source, buffer));
+            }
+            Err(error) if error.kind() == ErrorKind::WouldBlock => match wait {
+                ReceiveWait::NonBlocking => return Err(DatagramError::WouldBlock),
+                ReceiveWait::TimeoutMillis(timeout) => {
+                    let elapsed = started.elapsed();
+                    let total = Duration::from_millis(u64::from(timeout.get()));
+                    let remaining = total.saturating_sub(elapsed);
+                    if remaining.is_zero() {
+                        return Err(DatagramError::TimedOut);
+                    }
+                    backend.poll_readable(&socket, Some(remaining))?;
+                }
+                ReceiveWait::UntilCancelled => backend.poll_readable(&socket, None)?,
+            },
+            Err(error) if error.kind() == ErrorKind::Interrupted => continue,
+            Err(error) => return Err(map_io_error(error)),
+        }
+    }
+}
+
+/// IPv6 BSD-socket backend sharing the IPv4 session's cancellation and ownership machinery.
+pub struct IosIpv6DatagramBackend {
+    backend: IosDatagramBackend,
+}
+
+impl IosDatagramBackend {
+    fn bind_ipv6(config: Ipv6DatagramBindConfig) -> Result<Self, DatagramError> {
+        let local = config.local_endpoint();
+        if local.is_multicast() || (local.is_link_local() && local.scope_id() == 0) {
+            return Err(DatagramError::InvalidEndpoint);
+        }
+        let raw =
+            // SAFETY: `socket` receives valid domain/type/protocol constants and owns its result.
+            unsafe { libc::socket(libc::AF_INET6, libc::SOCK_DGRAM, 0) };
+        if raw < 0 {
+            return Err(last_errno());
+        }
+        // SAFETY: a nonnegative socket descriptor is uniquely transferred into `UdpSocket`.
+        let socket = unsafe { UdpSocket::from_raw_fd(raw) };
+        set_fd_flags(socket.as_raw_fd())?;
+        set_socket_option(&socket, libc::SO_REUSEADDR, config.reuse_address())?;
+        set_ipv6_only(&socket)?;
+        let address = sockaddr_from_ipv6_endpoint(local);
+        // SAFETY: `address` is a fully initialized IPv6 sockaddr for this live socket descriptor.
+        let result = unsafe {
+            libc::bind(
+                socket.as_raw_fd(),
+                (&address as *const libc::sockaddr_in6).cast::<libc::sockaddr>(),
+                size_of::<libc::sockaddr_in6>() as libc::socklen_t,
+            )
+        };
+        if result < 0 {
+            return Err(last_errno());
+        }
+        let wake = WakePipe::new()?;
+        Ok(Self {
+            shared: Shared {
+                socket: Mutex::new(SocketState {
+                    socket: Some(Arc::new(socket)),
+                    closed: false,
+                }),
+                receive: Mutex::new(ReceiveState::default()),
+                wake,
+                broadcast: false,
+            },
+        })
+    }
+
+    fn local_ipv6_endpoint(&self) -> Result<Ipv6Endpoint, DatagramError> {
+        let state = lock(&self.shared.socket)?;
+        let socket = state.socket.as_ref().ok_or(DatagramError::Closed)?;
+        match socket.local_addr().map_err(map_io_error)? {
+            SocketAddr::V6(address) => Ok(endpoint_from_socket_v6(address)),
+            SocketAddr::V4(_) => Err(DatagramError::BackendFailure),
+        }
+    }
+
+    fn send_to_ipv6(&self, destination: Ipv6Endpoint, payload: &[u8]) -> Result<(), DatagramError> {
+        validate_ipv6_destination(destination)?;
+        if payload.len() > MAX_IPV6_DATAGRAM_PAYLOAD_BYTES as usize {
+            return Err(DatagramError::PayloadTooLarge);
+        }
+        let state = lock(&self.shared.socket)?;
+        let socket = state.socket.as_ref().ok_or(DatagramError::Closed)?;
+        let address = SocketAddrV6::new(
+            destination.address().into(),
+            destination.port(),
+            destination.flowinfo(),
+            destination.scope_id(),
+        );
+        let sent = socket.send_to(payload, address).map_err(map_io_error)?;
+        if sent != payload.len() {
+            return Err(DatagramError::BackendFailure);
+        }
+        Ok(())
+    }
+
+    fn receive_ipv6(
+        &self,
+        max_payload_bytes: u32,
+        wait: ReceiveWait,
+    ) -> Result<Ipv6Datagram, DatagramError> {
+        let (source, payload) = receive_socket(
+            self,
+            max_payload_bytes,
+            MAX_IPV6_DATAGRAM_PAYLOAD_BYTES,
+            wait,
+        )?;
+        match source {
+            SocketAddr::V6(address) => Ipv6Datagram::new(endpoint_from_socket_v6(address), payload),
+            SocketAddr::V4(_) => Err(DatagramError::BackendFailure),
+        }
+    }
+}
+
+impl Ipv6DatagramBackend for IosIpv6DatagramBackend {
+    fn bind(config: Ipv6DatagramBindConfig) -> Result<Self, DatagramError> {
+        Ok(Self {
+            backend: IosDatagramBackend::bind_ipv6(config)?,
+        })
+    }
+
+    fn local_endpoint(&self) -> Result<Ipv6Endpoint, DatagramError> {
+        self.backend.local_ipv6_endpoint()
+    }
+
+    fn send_to(&self, destination: Ipv6Endpoint, payload: &[u8]) -> Result<(), DatagramError> {
+        self.backend.send_to_ipv6(destination, payload)
+    }
+
+    fn receive(
+        &self,
+        max_payload_bytes: u32,
+        wait: ReceiveWait,
+    ) -> Result<Ipv6Datagram, DatagramError> {
+        self.backend.receive_ipv6(max_payload_bytes, wait)
+    }
+
+    fn cancel_receive(&self) -> Result<(), DatagramError> {
+        self.backend.cancel_receive()
+    }
+
+    fn close(&self) -> Result<(), DatagramError> {
+        self.backend.close()
     }
 }
 
@@ -390,8 +528,26 @@ fn validate_destination(
     Ok(())
 }
 
+fn validate_ipv6_destination(destination: Ipv6Endpoint) -> Result<(), DatagramError> {
+    if destination.port() == 0 || destination.is_unspecified() {
+        return Err(DatagramError::InvalidEndpoint);
+    }
+    if destination.is_multicast() {
+        return Err(DatagramError::MulticastUnsupported);
+    }
+    if destination.is_link_local() && destination.scope_id() == 0 {
+        return Err(DatagramError::InvalidEndpoint);
+    }
+    Ok(())
+}
+
 fn endpoint_from_socket(address: SocketAddrV4) -> Ipv4Endpoint {
     Ipv4Endpoint::new(address.ip().octets(), address.port())
+}
+
+fn endpoint_from_socket_v6(address: SocketAddrV6) -> Ipv6Endpoint {
+    Ipv6Endpoint::new(address.ip().octets(), address.port(), address.scope_id())
+        .with_flowinfo(address.flowinfo())
 }
 
 fn sockaddr_from_endpoint(endpoint: Ipv4Endpoint) -> libc::sockaddr_in {
@@ -407,6 +563,23 @@ fn sockaddr_from_endpoint(endpoint: Ipv4Endpoint) -> libc::sockaddr_in {
     address
 }
 
+fn sockaddr_from_ipv6_endpoint(endpoint: Ipv6Endpoint) -> libc::sockaddr_in6 {
+    // SAFETY: zero is a valid initial bit pattern for the C sockaddr fields before assignment.
+    let mut address: libc::sockaddr_in6 = unsafe { zeroed() };
+    #[cfg(target_vendor = "apple")]
+    {
+        address.sin6_len = size_of::<libc::sockaddr_in6>() as u8;
+    }
+    address.sin6_family = libc::AF_INET6 as libc::sa_family_t;
+    address.sin6_port = endpoint.port().to_be();
+    address.sin6_flowinfo = endpoint.flowinfo().to_be();
+    address.sin6_addr = libc::in6_addr {
+        s6_addr: endpoint.address(),
+    };
+    address.sin6_scope_id = endpoint.scope_id();
+    address
+}
+
 fn set_socket_option(
     socket: &UdpSocket,
     option: libc::c_int,
@@ -419,6 +592,25 @@ fn set_socket_option(
             socket.as_raw_fd(),
             libc::SOL_SOCKET,
             option,
+            (&value as *const libc::c_int).cast::<c_void>(),
+            size_of::<libc::c_int>() as libc::socklen_t,
+        )
+    };
+    if result < 0 {
+        Err(last_errno())
+    } else {
+        Ok(())
+    }
+}
+
+fn set_ipv6_only(socket: &UdpSocket) -> Result<(), DatagramError> {
+    let value: libc::c_int = 1;
+    // SAFETY: `value` points to one initialized integer for the public IPv6 socket option.
+    let result = unsafe {
+        libc::setsockopt(
+            socket.as_raw_fd(),
+            libc::IPPROTO_IPV6,
+            libc::IPV6_V6ONLY,
             (&value as *const libc::c_int).cast::<c_void>(),
             size_of::<libc::c_int>() as libc::socklen_t,
         )
@@ -480,7 +672,7 @@ fn map_io_error(error: IoError) -> DatagramError {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::IosDatagramSession;
+    use crate::{IosDatagramSession, IosIpv6DatagramSession};
     use core::num::NonZeroU32;
     use std::sync::mpsc;
     use std::thread;
@@ -491,6 +683,15 @@ mod tests {
             0,
         )))
         .expect("loopback UDP bind")
+    }
+
+    fn bind_loopback_v6() -> IosIpv6DatagramBackend {
+        IosIpv6DatagramBackend::bind(Ipv6DatagramBindConfig::new(Ipv6Endpoint::new(
+            [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
+            0,
+            0,
+        )))
+        .expect("IPv6 loopback UDP bind")
     }
 
     #[test]
@@ -523,17 +724,87 @@ mod tests {
         );
     }
 
+    #[test]
+    fn ipv6_portable_values_preserve_flow_scope_and_payload_bound() {
+        let link_local = Ipv6Endpoint::new(
+            [0xfe, 0x80, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
+            22_000,
+            7,
+        )
+        .with_flowinfo(0x12345);
+        assert_eq!(link_local.port(), 22_000);
+        assert_eq!(link_local.scope_id(), 7);
+        assert_eq!(link_local.flowinfo(), 0x12345);
+        assert!(link_local.is_link_local());
+        assert!(!link_local.is_unspecified());
+        assert!(Ipv6Endpoint::new([0; 16], 1, 0).is_unspecified());
+        assert!(
+            Ipv6Endpoint::new([0xff, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1], 1, 0,)
+                .is_multicast()
+        );
+        assert!(
+            Ipv6Endpoint::new([0xfe, 0xbf, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1], 1, 1,)
+                .is_link_local()
+        );
+        assert!(
+            !Ipv6Endpoint::new([0xfe, 0xc0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1], 1, 1,)
+                .is_link_local()
+        );
+
+        let config = Ipv6DatagramBindConfig::new(Ipv6Endpoint::new([0; 16], 0, 0));
+        assert!(!config.reuse_address());
+        assert!(config.with_reuse_address(true).reuse_address());
+        assert_eq!(
+            Ipv6Datagram::new(Ipv6Endpoint::new([0; 16], 0, 0), Vec::new()),
+            Err(DatagramError::InvalidEndpoint)
+        );
+        assert_eq!(
+            Ipv6Datagram::new(
+                Ipv6Endpoint::new([0; 16], 1, 0),
+                vec![0; MAX_IPV6_DATAGRAM_PAYLOAD_BYTES as usize + 1]
+            ),
+            Err(DatagramError::PayloadTooLarge)
+        );
+        assert!(
+            Ipv6Datagram::new(
+                Ipv6Endpoint::new([0; 16], 1, 0),
+                vec![0; MAX_IPV6_DATAGRAM_PAYLOAD_BYTES as usize],
+            )
+            .is_ok()
+        );
+    }
+
+    #[test]
+    fn ipv6_sockaddr_translation_preserves_port_flow_and_scope() {
+        let endpoint = Ipv6Endpoint::new(
+            [0xfe, 0x80, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 9],
+            54_321,
+            17,
+        )
+        .with_flowinfo(0x12345);
+        let native = sockaddr_from_ipv6_endpoint(endpoint);
+        assert_eq!(native.sin6_family as libc::c_int, libc::AF_INET6);
+        assert_eq!(native.sin6_port, 54_321_u16.to_be());
+        assert_eq!(native.sin6_flowinfo, 0x12345_u32.to_be());
+        assert_eq!(native.sin6_addr.s6_addr, endpoint.address());
+        assert_eq!(native.sin6_scope_id, 17);
+        let socket = SocketAddrV6::new(
+            endpoint.address().into(),
+            endpoint.port(),
+            endpoint.flowinfo(),
+            endpoint.scope_id(),
+        );
+        assert_eq!(endpoint_from_socket_v6(socket), endpoint);
+    }
+
     fn timeout(milliseconds: u32) -> ReceiveWait {
         ReceiveWait::TimeoutMillis(NonZeroU32::new(milliseconds).expect("nonzero timeout"))
     }
 
-    fn wait_until_receive_is_active(session: &IosDatagramBackend) {
+    fn wait_until_receive_is_active(shared: &Shared) {
         let deadline = Instant::now() + Duration::from_secs(1);
         loop {
-            if lock(&session.shared.receive)
-                .expect("receive state lock")
-                .active
-            {
+            if lock(&shared.receive).expect("receive state lock").active {
                 return;
             }
             assert!(Instant::now() < deadline, "receive did not become active");
@@ -557,6 +828,102 @@ mod tests {
         assert_eq!(datagram.source(), source);
         assert_eq!(datagram.payload(), b"owned datagram");
         assert_eq!(datagram.into_payload(), b"owned datagram");
+    }
+
+    #[test]
+    fn ipv6_loopback_send_receive_preserves_source_port_and_empty_payload() {
+        let receiver = IosIpv6DatagramSession::bind(Ipv6DatagramBindConfig::new(
+            Ipv6Endpoint::new([0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1], 0, 0),
+        ))
+        .expect("bind IPv6 receiver");
+        let sender = IosIpv6DatagramSession::from_backend(bind_loopback_v6());
+        let source = sender.local_endpoint().expect("sender endpoint");
+        let destination = receiver.local_endpoint().expect("receiver endpoint");
+        assert_eq!(destination.address()[15], 1);
+        assert_ne!(destination.port(), 0);
+        sender
+            .send_to(destination, b"IPv6 datagram")
+            .expect("send IPv6 datagram");
+        let received = receiver
+            .receive(64, timeout(500))
+            .expect("receive IPv6 datagram");
+        assert_eq!(received.source(), source);
+        assert_eq!(received.payload(), b"IPv6 datagram");
+
+        sender
+            .send_to(destination, &[])
+            .expect("send empty IPv6 datagram");
+        let empty = receiver
+            .receive(1, timeout(500))
+            .expect("receive empty IPv6 datagram");
+        assert_eq!(empty.source(), source);
+        assert!(empty.payload().is_empty());
+    }
+
+    #[test]
+    fn ipv6_invalid_destinations_and_payload_bounds_fail_before_send() {
+        let sender = IosIpv6DatagramSession::from_backend(bind_loopback_v6());
+        for destination in [
+            Ipv6Endpoint::new([0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1], 0, 0),
+            Ipv6Endpoint::new([0; 16], 53, 0),
+            Ipv6Endpoint::new([0xff, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1], 53, 0),
+            Ipv6Endpoint::new(
+                [0xfe, 0x80, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
+                53,
+                0,
+            ),
+        ] {
+            let expected = if destination.is_multicast() {
+                DatagramError::MulticastUnsupported
+            } else {
+                DatagramError::InvalidEndpoint
+            };
+            assert_eq!(sender.send_to(destination, b"x"), Err(expected));
+        }
+        let destination = sender.local_endpoint().expect("local IPv6 endpoint");
+        assert_eq!(
+            sender.receive(32, ReceiveWait::NonBlocking),
+            Err(DatagramError::WouldBlock)
+        );
+        assert_eq!(sender.receive(32, timeout(5)), Err(DatagramError::TimedOut));
+        let oversized = vec![0; MAX_IPV6_DATAGRAM_PAYLOAD_BYTES as usize + 1];
+        assert_eq!(
+            sender.send_to(destination, &oversized),
+            Err(DatagramError::PayloadTooLarge)
+        );
+        assert_eq!(
+            sender.receive(
+                MAX_IPV6_DATAGRAM_PAYLOAD_BYTES + 1,
+                ReceiveWait::NonBlocking
+            ),
+            Err(DatagramError::InvalidReceiveBound)
+        );
+        assert_eq!(
+            sender.receive(0, ReceiveWait::NonBlocking),
+            Err(DatagramError::InvalidReceiveBound)
+        );
+    }
+
+    #[test]
+    fn ipv6_bind_rejects_multicast_and_link_local_without_interface_scope() {
+        assert_eq!(
+            IosIpv6DatagramSession::bind(Ipv6DatagramBindConfig::new(Ipv6Endpoint::new(
+                [0xff, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
+                0,
+                0,
+            )))
+            .err(),
+            Some(DatagramError::InvalidEndpoint)
+        );
+        assert_eq!(
+            IosIpv6DatagramSession::bind(Ipv6DatagramBindConfig::new(Ipv6Endpoint::new(
+                [0xfe, 0x80, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
+                0,
+                0,
+            )))
+            .err(),
+            Some(DatagramError::InvalidEndpoint)
+        );
     }
 
     #[test]
@@ -635,6 +1002,25 @@ mod tests {
     }
 
     #[test]
+    fn ipv6_receive_bound_detects_truncation_without_consuming_next_datagram() {
+        let receiver = IosIpv6DatagramSession::from_backend(bind_loopback_v6());
+        let sender = IosIpv6DatagramSession::from_backend(bind_loopback_v6());
+        let destination = receiver.local_endpoint().expect("receiver endpoint");
+        sender
+            .send_to(destination, b"oversized")
+            .expect("send oversized");
+        assert_eq!(
+            receiver.receive(4, timeout(500)),
+            Err(DatagramError::PayloadTooLarge)
+        );
+        sender.send_to(destination, b"next").expect("send next");
+        assert_eq!(
+            receiver.receive(4, timeout(500)).unwrap().payload(),
+            b"next"
+        );
+    }
+
+    #[test]
     fn nonblocking_timeout_and_native_errno_are_distinct() {
         let receiver = bind_loopback();
         assert_eq!(
@@ -668,7 +1054,7 @@ mod tests {
             thread_receiver.receive(32, ReceiveWait::UntilCancelled)
         });
         ready.recv().unwrap();
-        wait_until_receive_is_active(&receiver);
+        wait_until_receive_is_active(&receiver.shared);
         assert_eq!(
             receiver.receive(32, ReceiveWait::NonBlocking),
             Err(DatagramError::ConcurrentReceive)
@@ -689,10 +1075,34 @@ mod tests {
             thread_receiver.receive(32, ReceiveWait::UntilCancelled)
         });
         ready.recv().unwrap();
-        wait_until_receive_is_active(&receiver);
+        wait_until_receive_is_active(&receiver.shared);
         receiver.cancel_receive().unwrap();
         assert_eq!(task.join().unwrap(), Err(DatagramError::Cancelled));
         sender.send_to(destination, b"still open").unwrap();
+        assert_eq!(
+            receiver.receive(32, timeout(500)).unwrap().payload(),
+            b"still open"
+        );
+    }
+
+    #[test]
+    fn ipv6_cancel_wakes_only_the_current_receive_and_socket_remains_usable() {
+        let receiver = Arc::new(bind_loopback_v6());
+        let sender = bind_loopback_v6();
+        let destination = receiver.local_endpoint().expect("receiver IPv6 endpoint");
+        let thread_receiver = Arc::clone(&receiver);
+        let (started, ready) = mpsc::channel();
+        let task = thread::spawn(move || {
+            started.send(()).unwrap();
+            thread_receiver.receive(32, ReceiveWait::UntilCancelled)
+        });
+        ready.recv().unwrap();
+        wait_until_receive_is_active(&receiver.backend.shared);
+        receiver.cancel_receive().unwrap();
+        assert_eq!(task.join().unwrap(), Err(DatagramError::Cancelled));
+        sender
+            .send_to(destination, b"still open")
+            .expect("send after receive cancel");
         assert_eq!(
             receiver.receive(32, timeout(500)).unwrap().payload(),
             b"still open"
@@ -709,13 +1119,37 @@ mod tests {
             thread_receiver.receive(32, ReceiveWait::UntilCancelled)
         });
         ready.recv().unwrap();
-        wait_until_receive_is_active(&receiver);
+        wait_until_receive_is_active(&receiver.shared);
         receiver.close().unwrap();
         assert_eq!(task.join().unwrap(), Err(DatagramError::Closed));
         assert_eq!(receiver.close(), Ok(()));
         assert_eq!(receiver.local_endpoint(), Err(DatagramError::Closed));
         assert_eq!(
             receiver.send_to(Ipv4Endpoint::new([127, 0, 0, 1], 53), b"x"),
+            Err(DatagramError::Closed)
+        );
+    }
+
+    #[test]
+    fn ipv6_close_wakes_waiter_is_idempotent_and_rejects_later_calls() {
+        let receiver = Arc::new(bind_loopback_v6());
+        let thread_receiver = Arc::clone(&receiver);
+        let (started, ready) = mpsc::channel();
+        let task = thread::spawn(move || {
+            started.send(()).unwrap();
+            thread_receiver.receive(32, ReceiveWait::UntilCancelled)
+        });
+        ready.recv().unwrap();
+        wait_until_receive_is_active(&receiver.backend.shared);
+        receiver.close().unwrap();
+        assert_eq!(task.join().unwrap(), Err(DatagramError::Closed));
+        assert_eq!(receiver.close(), Ok(()));
+        assert_eq!(receiver.local_endpoint(), Err(DatagramError::Closed));
+        assert_eq!(
+            receiver.send_to(
+                Ipv6Endpoint::new([0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1], 53, 0),
+                b"x",
+            ),
             Err(DatagramError::Closed)
         );
     }

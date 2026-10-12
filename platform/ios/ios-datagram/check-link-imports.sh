@@ -25,6 +25,13 @@ has_direct_iconv_symbol() {
 has_exact_symbol() {
     grep -Fxq "$1" "$2"
 }
+has_forbidden_link_reference() {
+    pattern='swift_|nw_listener|nw_connection|Network.framework|objc_msgSend|objc_getClass'
+    if grep -Eqi "$pattern" "$1"; then
+        return 0
+    fi
+    printf '%s\n' "$2" | grep -Eqi "$pattern"
+}
 
 probe_name=libios_datagram_import_probe.dylib
 probe_imports=$(cat <<EOF
@@ -52,6 +59,21 @@ printf '%s\n' _socket _socketpair >"$scratch/nm-j-symbols.txt"
 if ! has_exact_symbol _socket "$scratch/nm-j-symbols.txt" \
     || has_exact_symbol _bind "$scratch/nm-j-symbols.txt"; then
     printf 'symbol parser regression: nm -j exact-symbol matching failed\n' >&2
+    exit 1
+fi
+printf '                 U _swift_allocObject\n' >"$scratch/prohibited-symbols.txt"
+if ! has_forbidden_link_reference "$scratch/prohibited-symbols.txt" "$expected_imports"; then
+    printf 'link policy regression: prohibited Swift symbol was not detected\n' >&2
+    exit 1
+fi
+printf '%s\n' _socket >"$scratch/prohibited-symbols.txt"
+if ! has_forbidden_link_reference "$scratch/prohibited-symbols.txt" \
+    '/System/Library/Frameworks/Network.framework/Network'; then
+    printf 'link policy regression: prohibited framework import was not detected\n' >&2
+    exit 1
+fi
+if has_forbidden_link_reference "$scratch/prohibited-symbols.txt" "$expected_imports"; then
+    printf 'link policy regression: allowed system imports were rejected\n' >&2
     exit 1
 fi
 
@@ -99,7 +121,7 @@ for target in aarch64-apple-ios aarch64-apple-ios-sim; do
             exit 1
         fi
     done
-    if grep -Eqi 'swift_|nw_listener|nw_connection|Network.framework|objc_msgSend|objc_getClass' "$symbols" "$imports"; then
+    if has_forbidden_link_reference "$symbols" "$imports"; then
         printf 'unexpected Swift, Objective-C, or Network.framework linkage in %s\n' "$artifact" >&2
         exit 1
     fi

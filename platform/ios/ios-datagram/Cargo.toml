@@ -5,7 +5,7 @@ edition.workspace = true
 rust-version.workspace = true
 license.workspace = true
 repository.workspace = true
-description = "Rust-native IPv4 UDP sessions through public iOS BSD sockets"
+description = "Rust-native IPv4 and IPv6 UDP sessions through public iOS BSD sockets"
 
 [dependencies]
 framework-datagram = { path = "../../../crates/framework-datagram" }
