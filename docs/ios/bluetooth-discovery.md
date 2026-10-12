@@ -221,6 +221,42 @@ write-with-response result, not proof of an application-level effect on the peri
 write-without-response, notification subscription, descriptor operation, peripheral role,
 Simulator run, or physical-device behavior is claimed.
 
+## Subscribe to one connected-peer characteristic
+
+`BluetoothCentral::enable_characteristic_notifications` starts one opt-in notification or
+indication subscription after fresh B592 service discovery. The selected service and characteristic
+UUIDs must be unique, and the characteristic must expose the public `Notify` or `Indicate` property.
+The backend reports `Enabling`, `Enabled`, `Disabling`, `Disabled`, or `Failed`; native enable and
+disable confirmation arrive asynchronously through CoreBluetooth. If both properties are present,
+CoreBluetooth selects notifications; this API does not expose transport preference.
+
+```rust,ignore
+use framework_bluetooth::{BluetoothCharacteristicNotificationState};
+
+central.enable_characteristic_notifications(service, characteristic)?;
+while let Some(event) = central.try_next_characteristic_notification_event() {
+    match event.result {
+        Ok(value) => { let bytes = value.as_bytes(); let _ = bytes; }
+        Err(error) => { let _ = error; }
+    }
+}
+if central.characteristic_notification_state() == BluetoothCharacteristicNotificationState::Enabled {
+    central.disable_characteristic_notifications()?;
+}
+let dropped = central.take_dropped_characteristic_notification_event_count();
+```
+
+Each copied value is capped at 512 bytes and queued in a separate four-event FIFO; overflow drops
+the newest event and saturates the dropped-event count. Reads are rejected while the subscription is
+active because CoreBluetooth uses the same untagged value callback for reads and notification values.
+After disable confirmation, disconnect, or an interrupted transition, the backend keeps the native
+characteristic as a callback tombstone and rejects later reads or subscriptions with `Unavailable`;
+recreate the backend before starting those operations again. This prevents a late value callback from
+being attributed to a later read or subscription. Write-with-response uses a distinct callback and
+remains available after enable confirmation. Cancellation and backend teardown stop the subscription
+and clear the peripheral delegate. No descriptor, peripheral-role, background-restoration, Simulator
+runtime, or physical-device behavior is claimed.
+
 ## Scope and host configuration
 
 The CoreBluetooth manager and scan method are available from iOS 5.0 per the installed Xcode 26.6 /

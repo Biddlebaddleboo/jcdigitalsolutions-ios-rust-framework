@@ -1,9 +1,10 @@
 #![cfg(target_os = "ios")]
 
 use framework_bluetooth::{
-    BluetoothCentral, BluetoothCharacteristicReadEvent, BluetoothCharacteristicReadState,
-    BluetoothCharacteristicUuid, BluetoothCharacteristicWriteState, BluetoothPeripheralId,
-    BluetoothServiceDiscoveryState, BluetoothServiceUuid,
+    BluetoothCentral, BluetoothCharacteristicNotificationState, BluetoothCharacteristicReadEvent,
+    BluetoothCharacteristicReadState, BluetoothCharacteristicUuid,
+    BluetoothCharacteristicWriteState, BluetoothPeripheralId, BluetoothServiceDiscoveryState,
+    BluetoothServiceUuid,
 };
 use ios_bluetooth::IosBluetoothCentralBackend;
 use objc2::MainThreadMarker;
@@ -44,6 +45,15 @@ fn explicit_connection_and_gatt_surface_links_without_starting_core_bluetooth() 
     let _ = central.write_characteristic(service, characteristic, &[0xA5; 20]);
     let _ = central.try_next_characteristic_write_event();
     let _ = central.take_dropped_characteristic_write_event_count();
+    let _ = central.enable_characteristic_notifications(service, characteristic);
+    assert_eq!(
+        central.characteristic_notification_state(),
+        BluetoothCharacteristicNotificationState::Disabled
+    );
+    let _ = central.last_characteristic_notification_error();
+    let _ = central.try_next_characteristic_notification_event();
+    let _ = central.take_dropped_characteristic_notification_event_count();
+    let _ = central.disable_characteristic_notifications();
     let id = BluetoothPeripheralId::from_uuid_bytes([0xA5; 16]);
     let _ = central.connect_peripheral(id);
     central.cancel_connection();

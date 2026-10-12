@@ -731,6 +731,175 @@ impl<B: BluetoothCharacteristicWriteBackend> BluetoothCentral<B> {
     }
 }
 
+/// The latest state of one connected-peer GATT notification subscription.
+#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
+#[non_exhaustive]
+#[repr(u8)]
+pub enum BluetoothCharacteristicNotificationState {
+    /// No characteristic is currently subscribed.
+    Disabled = 0,
+    /// The backend is discovering and enabling the selected characteristic.
+    Enabling = 1,
+    /// CoreBluetooth confirmed notification or indication delivery.
+    Enabled = 2,
+    /// The backend is waiting for CoreBluetooth to confirm that delivery stopped.
+    Disabling = 3,
+    /// The subscription ended with an error.
+    Failed = 4,
+}
+
+/// A synchronous rejection or normalized notification-subscription error.
+#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
+#[non_exhaustive]
+#[repr(u8)]
+pub enum BluetoothCharacteristicNotificationError {
+    /// No caller-selected peripheral is currently connected.
+    NotConnected = 0,
+    /// The central manager reports that this Bluetooth role is unsupported.
+    Unsupported = 1,
+    /// Successful service discovery has not completed for the selected peer.
+    ServiceDiscoveryRequired = 2,
+    /// A service-discovery, read, write, or subscription transition is active.
+    AlreadyActive = 3,
+    /// The requested service UUID is absent from the selected peer.
+    ServiceNotFound = 4,
+    /// The requested service UUID matches more than one service instance.
+    AmbiguousService = 5,
+    /// The requested characteristic UUID is absent from the unique service.
+    CharacteristicNotFound = 6,
+    /// The requested characteristic UUID matches more than one characteristic instance.
+    AmbiguousCharacteristic = 7,
+    /// The unique characteristic supports neither Notify nor Indicate.
+    NotNotifiable = 8,
+    /// No active notification subscription can be stopped.
+    NotSubscribed = 9,
+    /// CoreBluetooth reported an error while changing or delivering notifications.
+    NativeFailure = 10,
+    /// A copied notification value exceeds the 512-byte attribute bound.
+    ValueTooLarge = 11,
+    /// The selected peer disconnected before the requested state was confirmed.
+    Disconnected = 12,
+    /// The backend could not safely correlate or process a native callback.
+    Unavailable = 13,
+}
+
+/// A copied value update or normalized delivery failure for a GATT subscription.
+#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
+#[non_exhaustive]
+pub struct BluetoothCharacteristicNotificationEvent {
+    /// The caller-selected OS peer UUID.
+    pub peripheral: BluetoothPeripheralId,
+    /// The unique subscribed service type UUID.
+    pub service: BluetoothServiceUuid,
+    /// The unique subscribed characteristic type UUID.
+    pub characteristic: BluetoothCharacteristicUuid,
+    /// The copied notification/indication value or its normalized callback failure.
+    pub result: Result<BluetoothCharacteristicValue, BluetoothCharacteristicNotificationError>,
+}
+
+impl BluetoothCharacteristicNotificationEvent {
+    /// Creates a copied notification/indication value update or delivery failure.
+    pub const fn new(
+        peripheral: BluetoothPeripheralId,
+        service: BluetoothServiceUuid,
+        characteristic: BluetoothCharacteristicUuid,
+        result: Result<BluetoothCharacteristicValue, BluetoothCharacteristicNotificationError>,
+    ) -> Self {
+        Self {
+            peripheral,
+            service,
+            characteristic,
+            result,
+        }
+    }
+}
+
+/// A statically selected backend for one connected-peer GATT notification subscription.
+///
+/// The request requires successful service discovery for the selected peer, exactly one matching
+/// service and characteristic, and the public Notify or Indicate property. Values are copied into
+/// the existing 512-byte bound and delivered through a bounded polling queue. Reads are rejected
+/// while a subscription is active because CoreBluetooth reports reads and notifications through
+/// the same callback without an operation token. Write-with-response may be used after the
+/// subscription is confirmed. Disconnect, cancellation, and teardown stop the native subscription;
+/// after a confirmed disable, disconnect, or interrupted transition, a backend may retain the
+/// native characteristic and reject later reads or subscriptions until it is recreated so a queued
+/// value callback cannot be misattributed. No peripheral-role, descriptor, or background-restoration
+/// behavior is implied.
+pub trait BluetoothCharacteristicNotificationBackend: BluetoothServiceDiscoveryBackend {
+    /// Starts one UUID-unique notification or indication subscription.
+    fn enable_characteristic_notifications(
+        &mut self,
+        service: BluetoothServiceUuid,
+        characteristic: BluetoothCharacteristicUuid,
+    ) -> Result<(), BluetoothCharacteristicNotificationError>;
+
+    /// Requests that the current subscription stop and returns before native confirmation.
+    fn disable_characteristic_notifications(
+        &mut self,
+    ) -> Result<(), BluetoothCharacteristicNotificationError>;
+
+    /// Returns the latest subscription lifecycle state.
+    fn characteristic_notification_state(&self) -> BluetoothCharacteristicNotificationState;
+
+    /// Returns the latest normalized subscription or value-delivery error, if any.
+    fn last_characteristic_notification_error(
+        &self,
+    ) -> Option<BluetoothCharacteristicNotificationError>;
+
+    /// Removes one copied value update or delivery failure from the bounded FIFO.
+    fn try_next_characteristic_notification_event(
+        &mut self,
+    ) -> Option<BluetoothCharacteristicNotificationEvent>;
+
+    /// Returns and resets the saturating count of notification events dropped by the queue.
+    fn take_dropped_characteristic_notification_event_count(&mut self) -> u32;
+}
+
+impl<B: BluetoothCharacteristicNotificationBackend> BluetoothCentral<B> {
+    /// Enables notifications or indications for one UUID-unique connected-peer characteristic.
+    pub fn enable_characteristic_notifications(
+        &mut self,
+        service: BluetoothServiceUuid,
+        characteristic: BluetoothCharacteristicUuid,
+    ) -> Result<(), BluetoothCharacteristicNotificationError> {
+        self.backend
+            .enable_characteristic_notifications(service, characteristic)
+    }
+
+    /// Requests that the current notification or indication subscription stop.
+    pub fn disable_characteristic_notifications(
+        &mut self,
+    ) -> Result<(), BluetoothCharacteristicNotificationError> {
+        self.backend.disable_characteristic_notifications()
+    }
+
+    /// Returns the latest subscription lifecycle state.
+    pub fn characteristic_notification_state(&self) -> BluetoothCharacteristicNotificationState {
+        self.backend.characteristic_notification_state()
+    }
+
+    /// Returns the latest normalized subscription or value-delivery error, if any.
+    pub fn last_characteristic_notification_error(
+        &self,
+    ) -> Option<BluetoothCharacteristicNotificationError> {
+        self.backend.last_characteristic_notification_error()
+    }
+
+    /// Removes one copied notification/indication value update, if one is queued.
+    pub fn try_next_characteristic_notification_event(
+        &mut self,
+    ) -> Option<BluetoothCharacteristicNotificationEvent> {
+        self.backend.try_next_characteristic_notification_event()
+    }
+
+    /// Returns and resets the saturating count of notification/indication events dropped by the FIFO.
+    pub fn take_dropped_characteristic_notification_event_count(&mut self) -> u32 {
+        self.backend
+            .take_dropped_characteristic_notification_event_count()
+    }
+}
+
 /// A statically selected backend for a non-prompting Bluetooth authorization query.
 ///
 /// The query must not instantiate a central/peripheral manager, request permission, prompt the

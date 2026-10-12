@@ -1,10 +1,10 @@
 # Portable Bluetooth
 
 `framework-bluetooth` defines portable authorization, central-discovery, explicit central-
-connection, connected-peer GATT service-discovery, characteristic-read, and write-with-response
-contracts. Platform managers and peripheral objects remain private to native backends. The
-portable API has no advertisement, peripheral-role, beacon, write-without-response,
-characteristic-notification, or radio-control contract.
+connection, connected-peer GATT service-discovery, characteristic read/write-with-response, and
+notification/indication contracts. Platform managers and peripheral objects remain private to native
+backends. The portable API has no advertisement, peripheral-role, beacon,
+write-without-response, or radio-control contract.
 
 ## Authorization states
 
@@ -113,8 +113,17 @@ iOS 8). A disconnect/cancel during native characteristic discovery or a write re
 `Disconnected` and quarantines later writes on that backend instance because CoreBluetooth
 callbacks carry no operation token. Its
 four-event FIFO reports only CoreBluetooth's write result, not an application-level effect. No
-write-without-response, notification subscription, descriptor operation, or peripheral role is
-implemented; static checks do not prove live radio behavior.
+write-without-response, descriptor operation, or peripheral role is implemented; static checks do
+not prove live radio behavior.
+
+`BluetoothCharacteristicNotificationBackend` adds one connected-peer Notify/Indicate subscription
+after peer-scoped service discovery. Enable and disable remain asynchronous; copied values are capped
+at 512 bytes and delivered through a separate four-event FIFO. Reads are unavailable while the
+subscription is active because CoreBluetooth uses the same untagged value callback for reads and
+notifications. A confirmed disable or callback-ambiguous interruption retains a native-characteristic
+tombstone and rejects later reads/subscriptions until backend recreation, so late values cannot be
+misattributed. Write-with-response remains available after subscription confirmation. Static checks do
+not prove live radio behavior.
 
 See [iOS Bluetooth central discovery](../ios/bluetooth-discovery.md) for queue, lifecycle, privacy,
 and runtime limits.

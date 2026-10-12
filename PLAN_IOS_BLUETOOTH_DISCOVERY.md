@@ -177,3 +177,16 @@ SHA-256 `77f9c7aa941ba1335827ffc6ce274898987ce1d5f408d91d1a7c1daf34527944`), the
 `9c209b2f3fed1cb7b6a3dd6fd64c455941460067f67e8946fb041cb4e7cb4e35`. Device iOS 8.0 and Simulator
 iOS 14.0 compilation, strict Clippy, Rustdoc, and link fixture passed; SKIPPED were Simulator
 execution and physical-device proof. No radio write, peer response, or runtime callback is claimed.
+
+## B598 — connected-peer GATT notification and indication subscription (row 039)
+
+B598 adds one UUID-unique connected-peer Notify/Indicate subscription, async enable/disable state,
+bounded copied values, and a separate four-event FIFO. It requires fresh B592 peer-scoped service
+discovery, permits write-with-response after enable, and rejects reads while active because
+CoreBluetooth shares an untagged value callback between reads and notifications. A confirmed disable
+or interrupted callback path retains the native characteristic as a tombstone and quarantines later
+reads/subscriptions until backend recreation, preventing stale notification values from being
+misattributed. Host policy regressions cover selection, properties, state changes, native errors,
+disable quarantine, disconnect, panic, and stale callbacks. No live radio or runtime callback is
+claimed; the existing `ios-bluetooth` profile registers package tests, target builds, Clippy,
+Rustdoc, and ABI/link checks for this source tree.

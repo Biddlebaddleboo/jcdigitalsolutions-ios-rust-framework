@@ -708,3 +708,7 @@ B596 adds a validated local wall-clock daily trigger using public `UNCalendarNot
 ### B597 — connected-peer GATT write-with-response (row 039)
 
 B597 adds bounded one-at-a-time connected-peer writes with unique UUID selection, native Write-property checks, copied payloads, CoreBluetooth response events, and stale-callback quarantine after interrupted discovery or writes. The registered `ios-bluetooth` profile passed 32 checks, 0 FAIL/BLOCKED, and 2 SKIPPED at snapshot `9c209b2f3fed1cb7b6a3dd6fd64c455941460067f67e8946fb041cb4e7cb4e35`; the skips are Simulator execution and physical-device proof. Host policy/contract tests, iOS device/Simulator compile and link gates, strict Clippy, and Rustdoc passed. No live radio write or peer response is claimed.
+
+### B598 — connected-peer GATT notification and indication subscription (row 039)
+
+B598 adds one UUID-unique connected-peer Notify/Indicate subscription, async state and bounded copied value events. It blocks reads during the stream and quarantines later reads/subscriptions after disable or callback ambiguity because CoreBluetooth value callbacks carry no operation token. Write-with-response remains available after enable. Host regressions cover selection, native state, queue bounds, and stale-callback quarantine; live radio behavior remains unverified.

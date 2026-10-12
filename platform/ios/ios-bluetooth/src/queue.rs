@@ -1,6 +1,7 @@
 use framework_bluetooth::{
-    BluetoothCharacteristicReadEvent, BluetoothCharacteristicWriteEvent, BluetoothConnectionEvent,
-    BluetoothDiscovery, BluetoothServiceDiscoveryEvent,
+    BluetoothCharacteristicNotificationEvent, BluetoothCharacteristicReadEvent,
+    BluetoothCharacteristicWriteEvent, BluetoothConnectionEvent, BluetoothDiscovery,
+    BluetoothServiceDiscoveryEvent,
 };
 
 /// Fixed-capacity discovery queue; overflow drops the newest event and saturates the counter.
@@ -38,6 +39,14 @@ pub(crate) struct CharacteristicReadQueue {
 /// Fixed-capacity write-result FIFO; overflow drops newest events.
 pub(crate) struct CharacteristicWriteQueue {
     events: [Option<BluetoothCharacteristicWriteEvent>; Self::CAPACITY],
+    head: usize,
+    len: usize,
+    dropped: u32,
+}
+
+/// Fixed-capacity notification-value FIFO; overflow drops newest events.
+pub(crate) struct CharacteristicNotificationQueue {
+    events: [Option<BluetoothCharacteristicNotificationEvent>; Self::CAPACITY],
     head: usize,
     len: usize,
     dropped: u32,
@@ -238,10 +247,50 @@ impl CharacteristicWriteQueue {
     }
 }
 
+impl CharacteristicNotificationQueue {
+    pub(crate) const CAPACITY: usize = 4;
+
+    pub(crate) const fn new() -> Self {
+        Self {
+            events: [None; Self::CAPACITY],
+            head: 0,
+            len: 0,
+            dropped: 0,
+        }
+    }
+
+    pub(crate) fn push(&mut self, event: BluetoothCharacteristicNotificationEvent) {
+        if self.len == Self::CAPACITY {
+            self.dropped = self.dropped.saturating_add(1);
+            return;
+        }
+        let tail = (self.head + self.len) % Self::CAPACITY;
+        self.events[tail] = Some(event);
+        self.len += 1;
+    }
+
+    pub(crate) fn pop(&mut self) -> Option<BluetoothCharacteristicNotificationEvent> {
+        if self.len == 0 {
+            return None;
+        }
+        let event = self.events[self.head].take();
+        self.head = (self.head + 1) % Self::CAPACITY;
+        self.len -= 1;
+        event
+    }
+
+    pub(crate) fn take_dropped(&mut self) -> u32 {
+        let dropped = self.dropped;
+        self.dropped = 0;
+        dropped
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use framework_bluetooth::{
+        BluetoothCharacteristicNotificationError, BluetoothCharacteristicNotificationEvent,
         BluetoothCharacteristicReadEvent, BluetoothCharacteristicUuid,
         BluetoothCharacteristicValue, BluetoothCharacteristicWriteError,
         BluetoothCharacteristicWriteEvent, BluetoothConnectionState, BluetoothPeripheralId,
@@ -395,6 +444,27 @@ mod tests {
         assert_eq!(queue.take_dropped(), u32::MAX);
     }
 
+    #[test]
+    fn characteristic_notification_queue_is_bounded_fifo_and_drops_newest() {
+        let mut queue = CharacteristicNotificationQueue::new();
+        for value in 0..CharacteristicNotificationQueue::CAPACITY as u8 {
+            queue.push(notification_event(value));
+        }
+        queue.push(notification_event(255));
+        assert_eq!(queue.take_dropped(), 1);
+        for value in 0..CharacteristicNotificationQueue::CAPACITY as u8 {
+            assert_eq!(queue.pop(), Some(notification_event(value)));
+        }
+        assert_eq!(queue.pop(), None);
+        assert_eq!(queue.take_dropped(), 0);
+        for value in 0..CharacteristicNotificationQueue::CAPACITY as u8 {
+            queue.push(notification_event(value));
+        }
+        queue.dropped = u32::MAX;
+        queue.push(notification_event(42));
+        assert_eq!(queue.take_dropped(), u32::MAX);
+    }
+
     fn read_event(value: u8) -> BluetoothCharacteristicReadEvent {
         BluetoothCharacteristicReadEvent::Completed {
             peripheral: id(1),
@@ -419,5 +489,18 @@ mod tests {
                 error: BluetoothCharacteristicWriteError::NativeFailure,
             }
         }
+    }
+
+    fn notification_event(value: u8) -> BluetoothCharacteristicNotificationEvent {
+        BluetoothCharacteristicNotificationEvent::new(
+            id(1),
+            BluetoothServiceUuid::from_uuid_bytes([value; 16]),
+            BluetoothCharacteristicUuid::from_uuid_bytes([value; 16]),
+            if value % 2 == 0 {
+                Ok(BluetoothCharacteristicValue::from_bytes(&[value]).unwrap())
+            } else {
+                Err(BluetoothCharacteristicNotificationError::NativeFailure)
+            },
+        )
     }
 }
