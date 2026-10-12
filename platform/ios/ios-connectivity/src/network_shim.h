@@ -18,6 +18,10 @@ framework_path_monitor_t *framework_path_monitor_create(
     void *context,
     framework_path_update_callback_t update_callback,
     framework_path_cancel_callback_t cancel_callback);
+framework_path_monitor_t *framework_path_monitor_create_continuous(
+    void *context,
+    framework_path_update_callback_t update_callback,
+    framework_path_cancel_callback_t cancel_callback);
 void framework_path_monitor_cancel(framework_path_monitor_t *monitor);
 void framework_path_monitor_release(framework_path_monitor_t *monitor);
 

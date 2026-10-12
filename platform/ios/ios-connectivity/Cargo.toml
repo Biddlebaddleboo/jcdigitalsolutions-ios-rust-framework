@@ -5,7 +5,7 @@ edition.workspace = true
 rust-version.workspace = true
 license.workspace = true
 repository.workspace = true
-description = "One-shot iOS Network.framework path snapshots"
+description = "Informational iOS Network.framework path snapshots and updates"
 build = "build.rs"
 
 [dependencies]

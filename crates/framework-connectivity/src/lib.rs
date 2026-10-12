@@ -1,8 +1,9 @@
 #![no_std]
 #![forbid(unsafe_code)]
 #![deny(missing_docs)]
-#![doc = "Portable informational network path snapshots with static backend selection."]
+#![doc = "Portable informational network path snapshots and updates with static backend selection."]
 
+use core::cell::Cell;
 use core::future::Future;
 use framework_core::{Error, ErrorKind, PlatformErrorCode};
 
@@ -134,12 +135,142 @@ impl<B: NetworkPathBackend> Connectivity<B> {
     }
 }
 
+/// A backend for an explicitly started network-path update monitor.
+///
+/// The backend must retain at most one pending snapshot and replace it with the latest update
+/// when more updates arrive before the consumer polls. Only one `next_update` future may be
+/// pending at a time. Cancellation must detach callback state before requesting native stop,
+/// discard any pending snapshot, and wake a pending consumer with [`ErrorKind::Cancelled`].
+/// Dropping the [`NetworkPathMonitor`] calls `cancel`; native callback state must remain valid
+/// until the backend's cancellation-completion boundary. No executor or `Send` requirement is
+/// imposed.
+pub trait NetworkPathMonitorBackend {
+    /// The concrete future for one coalesced path update, selected without trait-object boxing.
+    type NextUpdateFuture<'a>: Future<Output = Result<NetworkPathSnapshot, NetworkPathError>> + 'a
+    where
+        Self: 'a;
+
+    /// Starts one monitor. A failed start must leave no native monitor active.
+    fn start(&self) -> Result<(), NetworkPathError>;
+
+    /// Waits for the latest pending snapshot or a future path update.
+    ///
+    /// The implementation must support at most one pending consumer and report
+    /// [`ErrorKind::AlreadyExists`] to another concurrent consumer.
+    fn next_update(&self) -> Self::NextUpdateFuture<'_>;
+
+    /// Stops the monitor, discards any pending update, and wakes a pending consumer as cancelled.
+    ///
+    /// This operation must be idempotent and must detach callback state before native cancellation.
+    fn cancel(&self);
+}
+
+#[derive(Clone, Copy, Eq, PartialEq)]
+enum MonitorLifecycle {
+    Created,
+    Started,
+    Cancelled,
+}
+
+/// An opt-in, caller-owned monitor of informational local network-path updates.
+///
+/// Constructing this value performs no native work. Call [`Self::start`] to begin observation,
+/// then await [`Self::next_update`]. At most one consumer may wait at a time. If several native
+/// updates arrive before the consumer polls, only the latest snapshot is retained; intermediate
+/// updates may be coalesced. The snapshots report status only and never establish Internet or
+/// endpoint reachability, nor should they gate a request. Call [`Self::cancel`] to stop explicitly;
+/// dropping this value also cancels the backend.
+pub struct NetworkPathMonitor<B: NetworkPathMonitorBackend> {
+    backend: B,
+    lifecycle: Cell<MonitorLifecycle>,
+    waiting: Cell<bool>,
+}
+
+impl<B: NetworkPathMonitorBackend> NetworkPathMonitor<B> {
+    /// Creates a monitor around caller-owned, statically selected backend state.
+    pub const fn new(backend: B) -> Self {
+        Self {
+            backend,
+            lifecycle: Cell::new(MonitorLifecycle::Created),
+            waiting: Cell::new(false),
+        }
+    }
+
+    /// Starts path observation once, without creating a global monitor or runtime.
+    pub fn start(&self) -> Result<(), NetworkPathError> {
+        match self.lifecycle.get() {
+            MonitorLifecycle::Created => {
+                self.backend.start()?;
+                self.lifecycle.set(MonitorLifecycle::Started);
+                Ok(())
+            }
+            MonitorLifecycle::Started => Err(NetworkPathError::Backend(Error::new(
+                ErrorKind::AlreadyExists,
+            ))),
+            MonitorLifecycle::Cancelled => {
+                Err(NetworkPathError::Backend(Error::new(ErrorKind::Cancelled)))
+            }
+        }
+    }
+
+    /// Waits for the latest currently pending path update or the next one.
+    ///
+    /// A second concurrent waiter receives [`ErrorKind::AlreadyExists`]. Dropping this future
+    /// releases the waiter slot; it does not cancel the monitor. To cancel while waiting, call
+    /// [`Self::cancel`] through another shared borrow.
+    pub async fn next_update(&self) -> Result<NetworkPathSnapshot, NetworkPathError> {
+        match self.lifecycle.get() {
+            MonitorLifecycle::Created => {
+                return Err(NetworkPathError::Backend(Error::new(
+                    ErrorKind::InvalidInput,
+                )));
+            }
+            MonitorLifecycle::Cancelled => {
+                return Err(NetworkPathError::Backend(Error::new(ErrorKind::Cancelled)));
+            }
+            MonitorLifecycle::Started => {}
+        }
+        if self.waiting.replace(true) {
+            return Err(NetworkPathError::Backend(Error::new(
+                ErrorKind::AlreadyExists,
+            )));
+        }
+        let _waiter = MonitorWaiter(&self.waiting);
+        if self.lifecycle.get() != MonitorLifecycle::Started {
+            return Err(NetworkPathError::Backend(Error::new(ErrorKind::Cancelled)));
+        }
+        self.backend.next_update().await
+    }
+
+    /// Requests cancellation once and wakes any pending update waiter.
+    pub fn cancel(&self) {
+        if self.lifecycle.replace(MonitorLifecycle::Cancelled) == MonitorLifecycle::Started {
+            self.backend.cancel();
+        }
+    }
+}
+
+struct MonitorWaiter<'a>(&'a Cell<bool>);
+
+impl Drop for MonitorWaiter<'_> {
+    fn drop(&mut self) {
+        self.0.set(false);
+    }
+}
+
+impl<B: NetworkPathMonitorBackend> Drop for NetworkPathMonitor<B> {
+    fn drop(&mut self) {
+        self.cancel();
+    }
+}
+
 #[cfg(test)]
 extern crate std;
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use core::marker::PhantomData;
     use core::pin::Pin;
     use core::task::{Context, Poll, Waker};
     use std::boxed::Box;
@@ -399,5 +530,269 @@ mod tests {
             NetworkPathError::Backend(Error::new(ErrorKind::Cancelled)).platform_code(),
             None
         );
+    }
+
+    #[derive(Default)]
+    struct MonitorOperation {
+        started: bool,
+        cancelled: bool,
+        start_calls: usize,
+        cancel_calls: usize,
+        pending: Option<NetworkPathSnapshot>,
+        waker: Option<Waker>,
+    }
+
+    struct FakeMonitorBackend {
+        operation: Rc<RefCell<MonitorOperation>>,
+        start_error: RefCell<Option<Error>>,
+    }
+
+    impl FakeMonitorBackend {
+        fn new() -> (Self, Rc<RefCell<MonitorOperation>>) {
+            let operation = Rc::new(RefCell::new(MonitorOperation::default()));
+            (
+                Self {
+                    operation: Rc::clone(&operation),
+                    start_error: RefCell::new(None),
+                },
+                operation,
+            )
+        }
+
+        fn fails_to_start(error: Error) -> (Self, Rc<RefCell<MonitorOperation>>) {
+            let (backend, operation) = Self::new();
+            *backend.start_error.borrow_mut() = Some(error);
+            (backend, operation)
+        }
+    }
+
+    struct FakeNextUpdate<'a> {
+        operation: Rc<RefCell<MonitorOperation>>,
+        last_waker: Option<Waker>,
+        _borrow: PhantomData<&'a ()>,
+    }
+
+    impl Future for FakeNextUpdate<'_> {
+        type Output = Result<NetworkPathSnapshot, NetworkPathError>;
+
+        fn poll(mut self: Pin<&mut Self>, context: &mut Context<'_>) -> Poll<Self::Output> {
+            let this = self.as_mut().get_mut();
+            let mut state = this.operation.borrow_mut();
+            if state.cancelled {
+                return Poll::Ready(Err(NetworkPathError::Backend(Error::new(
+                    ErrorKind::Cancelled,
+                ))));
+            }
+            if let Some(snapshot) = state.pending.take() {
+                return Poll::Ready(Ok(snapshot));
+            }
+            if state
+                .waker
+                .as_ref()
+                .is_none_or(|waker| !waker.will_wake(context.waker()))
+            {
+                let waker = context.waker().clone();
+                state.waker = Some(waker.clone());
+                this.last_waker = Some(waker);
+            }
+            Poll::Pending
+        }
+    }
+
+    impl Drop for FakeNextUpdate<'_> {
+        fn drop(&mut self) {
+            if let Some(waker) = self.last_waker.take() {
+                let mut state = self.operation.borrow_mut();
+                if state
+                    .waker
+                    .as_ref()
+                    .is_some_and(|current| current.will_wake(&waker))
+                {
+                    state.waker = None;
+                }
+            }
+        }
+    }
+
+    impl NetworkPathMonitorBackend for FakeMonitorBackend {
+        type NextUpdateFuture<'a>
+            = FakeNextUpdate<'a>
+        where
+            Self: 'a;
+
+        fn start(&self) -> Result<(), NetworkPathError> {
+            let mut state = self.operation.borrow_mut();
+            state.start_calls += 1;
+            if let Some(error) = self.start_error.borrow_mut().take() {
+                return Err(NetworkPathError::Backend(error));
+            }
+            state.started = true;
+            Ok(())
+        }
+
+        fn next_update(&self) -> Self::NextUpdateFuture<'_> {
+            FakeNextUpdate {
+                operation: Rc::clone(&self.operation),
+                last_waker: None,
+                _borrow: PhantomData,
+            }
+        }
+
+        fn cancel(&self) {
+            let waker = {
+                let mut state = self.operation.borrow_mut();
+                state.cancel_calls += 1;
+                state.cancelled = true;
+                state.pending = None;
+                state.waker.take()
+            };
+            if let Some(waker) = waker {
+                waker.wake();
+            }
+        }
+    }
+
+    fn publish_monitor_update(
+        operation: &Rc<RefCell<MonitorOperation>>,
+        snapshot: NetworkPathSnapshot,
+    ) -> bool {
+        let waker = {
+            let mut state = operation.borrow_mut();
+            if !state.started || state.cancelled {
+                return false;
+            }
+            state.pending = Some(snapshot);
+            state.waker.take()
+        };
+        if let Some(waker) = waker {
+            waker.wake();
+        }
+        true
+    }
+
+    #[test]
+    fn monitor_requires_explicit_start_and_rejects_invalid_lifecycle_calls() {
+        let (backend, operation) = FakeMonitorBackend::new();
+        let monitor = NetworkPathMonitor::new(backend);
+        let mut context = Context::from_waker(Waker::noop());
+        let mut before_start = Box::pin(monitor.next_update());
+        assert_eq!(
+            before_start.as_mut().poll(&mut context),
+            Poll::Ready(Err(NetworkPathError::Backend(Error::new(
+                ErrorKind::InvalidInput,
+            ))))
+        );
+        assert_eq!(operation.borrow().start_calls, 0);
+        assert_eq!(monitor.start(), Ok(()));
+        assert_eq!(
+            monitor.start(),
+            Err(NetworkPathError::Backend(Error::new(
+                ErrorKind::AlreadyExists,
+            )))
+        );
+        assert_eq!(operation.borrow().start_calls, 1);
+    }
+
+    #[test]
+    fn monitor_retries_after_failed_start_without_leaking_active_state() {
+        let (backend, operation) =
+            FakeMonitorBackend::fails_to_start(Error::new(ErrorKind::ResourceExhausted));
+        let monitor = NetworkPathMonitor::new(backend);
+        assert_eq!(
+            monitor.start(),
+            Err(NetworkPathError::Backend(Error::new(
+                ErrorKind::ResourceExhausted,
+            )))
+        );
+        assert!(!operation.borrow().started);
+        assert_eq!(monitor.start(), Ok(()));
+        assert!(operation.borrow().started);
+        assert_eq!(operation.borrow().start_calls, 2);
+    }
+
+    #[test]
+    fn monitor_coalesces_pending_updates_to_the_latest_snapshot() {
+        let (backend, operation) = FakeMonitorBackend::new();
+        let monitor = NetworkPathMonitor::new(backend);
+        assert_eq!(monitor.start(), Ok(()));
+        assert!(publish_monitor_update(
+            &operation,
+            NetworkPathSnapshot::new(NetworkPathStatus::Satisfied)
+        ));
+        let latest = NetworkPathSnapshot::new(NetworkPathStatus::Unsatisfied);
+        assert!(publish_monitor_update(&operation, latest));
+
+        let mut future = Box::pin(monitor.next_update());
+        let mut context = Context::from_waker(Waker::noop());
+        assert_eq!(future.as_mut().poll(&mut context), Poll::Ready(Ok(latest)));
+        assert_eq!(operation.borrow().pending, None);
+    }
+
+    #[test]
+    fn monitor_supports_one_waiter_and_releases_slot_after_drop() {
+        let (backend, operation) = FakeMonitorBackend::new();
+        let monitor = NetworkPathMonitor::new(backend);
+        assert_eq!(monitor.start(), Ok(()));
+        let mut context = Context::from_waker(Waker::noop());
+        let mut first = Box::pin(monitor.next_update());
+        assert!(first.as_mut().poll(&mut context).is_pending());
+        let mut second = Box::pin(monitor.next_update());
+        assert_eq!(
+            second.as_mut().poll(&mut context),
+            Poll::Ready(Err(NetworkPathError::Backend(Error::new(
+                ErrorKind::AlreadyExists,
+            ))))
+        );
+        drop(first);
+        let latest = NetworkPathSnapshot::new(NetworkPathStatus::Satisfiable);
+        assert!(publish_monitor_update(&operation, latest));
+        let mut next = Box::pin(monitor.next_update());
+        assert_eq!(next.as_mut().poll(&mut context), Poll::Ready(Ok(latest)));
+    }
+
+    #[test]
+    fn explicit_monitor_cancel_wakes_waiter_and_is_idempotent() {
+        let (backend, operation) = FakeMonitorBackend::new();
+        let monitor = NetworkPathMonitor::new(backend);
+        assert_eq!(monitor.start(), Ok(()));
+        let wakes = Arc::new(AtomicUsize::new(0));
+        let waker = counting_waker(Arc::clone(&wakes));
+        let mut context = Context::from_waker(&waker);
+        let mut future = Box::pin(monitor.next_update());
+        assert!(future.as_mut().poll(&mut context).is_pending());
+        monitor.cancel();
+        assert_eq!(wakes.load(Ordering::Relaxed), 1);
+        assert_eq!(
+            future.as_mut().poll(&mut context),
+            Poll::Ready(Err(NetworkPathError::Backend(Error::new(
+                ErrorKind::Cancelled,
+            ))))
+        );
+        assert_eq!(operation.borrow().cancel_calls, 1);
+        assert_eq!(
+            monitor.start(),
+            Err(NetworkPathError::Backend(Error::new(ErrorKind::Cancelled,)))
+        );
+        monitor.cancel();
+        assert_eq!(operation.borrow().cancel_calls, 1);
+        assert!(!publish_monitor_update(
+            &operation,
+            NetworkPathSnapshot::new(NetworkPathStatus::Satisfied)
+        ));
+    }
+
+    #[test]
+    fn dropping_monitor_cancels_only_when_started() {
+        let (backend, operation) = FakeMonitorBackend::new();
+        drop(NetworkPathMonitor::new(backend));
+        assert_eq!(operation.borrow().cancel_calls, 0);
+
+        let (backend, operation) = FakeMonitorBackend::new();
+        let monitor = NetworkPathMonitor::new(backend);
+        assert_eq!(monitor.start(), Ok(()));
+        drop(monitor);
+        let state = operation.borrow();
+        assert!(state.cancelled);
+        assert_eq!(state.cancel_calls, 1);
     }
 }

@@ -35,6 +35,19 @@ for target in aarch64-apple-ios aarch64-apple-ios-sim; do
     diff -u target/ios-connectivity-link-imports-expected.txt "$libraries"
 
     nm -u "$binary" > "$symbols"
+    for symbol in \
+        nw_path_get_status \
+        nw_path_monitor_create \
+        nw_path_monitor_set_queue \
+        nw_path_monitor_set_update_handler \
+        nw_path_monitor_set_cancel_handler \
+        nw_path_monitor_start \
+        nw_path_monitor_cancel; do
+        if ! grep -q "_$symbol" "$symbols"; then
+            echo "required Network.framework path symbol $symbol is missing from $symbols" >&2
+            exit 1
+        fi
+    done
     if grep -Eqi 'swift_|Py[A-Z_]|_OBJC_(CLASS|METACLASS)_\$_|\$s[0-9]|nw_(browse|connection|listener|framer|protocol|resolver|service|path_copy|path_enumerate|path_has|path_is|path_uses)' "$symbols"; then
         echo "unexpected Swift/Python runtime, Objective-C, or unrelated Network capability symbol import in $symbols" >&2
         exit 1

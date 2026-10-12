@@ -2,10 +2,11 @@
 
 ## Status
 
-Implementation and compile/link gates complete. The inspected Xcode 26.6 (build 17F113) / iOS SDK
-26.5 headers expose the public path-monitor C API from iOS 12.0. This remains an informational
-snapshot; it must not gate or preflight a URLSession or other network operation. The host is below
-the planned Xcode 27.x baseline, and no live path-change or cancellation runtime evidence exists
+The B18 one-shot snapshot and B548 opt-in path-update monitor are implemented. The inspected Xcode
+26.6 (build 17F113) / iOS SDK 26.5 headers expose the public path-monitor C API from iOS 12.0.
+Both APIs are informational; neither may gate or preflight a URLSession or other network operation.
+The host is below the planned Xcode 27.x baseline, and no live path-change or cancellation runtime
+evidence exists
 
 ## Objective
 
@@ -60,6 +61,27 @@ workspace, lockfile, CI, and matrix integration. Add no Swift source and do not 
 - Keep the iOS 12.0 base API floor; use no iOS 13/14 path properties in this slice
 - Document the callback queue, status mapping, lifecycle/cancellation, path-vs-endpoint boundary,
   and that no live request or path-change behavior is verified
+
+## B548 opt-in path-update monitor
+
+- `IosNetworkPathMonitorBackend` implements `NetworkPathMonitorBackend` as a separate caller-owned
+  continuous monitor; constructing it is inert and only explicit `NetworkPathMonitor::start`
+  creates native observation
+- Keep B18's one-shot backend unchanged. The C shim selects one-shot or continuous delivery; a
+  continuous monitor forwards path-status callbacks until explicit cancel or drop
+- Keep exactly one pending status slot and one pending waker. New callbacks overwrite the slot, so
+  consumers receive the latest status and intermediate updates may coalesce
+- Cancellation marks the Rust event cell cancelled and clears the latest value before native
+  cancel; it wakes the pending waiter with `Cancelled`. The C shim retains callback context through
+  its cancellation handler; late updates are ignored after cancellation
+- Status-only snapshots remain limited to `Unknown`, `Satisfied`, `Unsatisfied`, and `Satisfiable`.
+  No interface, expensive, or constrained fields are exposed in this increment
+- `NetworkPathMonitor` enforces single start, one consumer, idempotent cancel, cancel-on-drop, and
+  no request gating. The portable tests cover those lifecycle transitions and latest-value
+  coalescing; the iOS compile/link probe references both backends but is not executed
+- The installed validator currently has no `ios-connectivity` profile. Root integration must add
+  the profile and source guards before reporting registered validator coverage; this workstream
+  does not modify the shared validation specification
 
 ## Link and validation
 

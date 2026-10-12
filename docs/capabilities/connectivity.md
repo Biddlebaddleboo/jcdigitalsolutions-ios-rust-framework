@@ -1,6 +1,6 @@
-# Network connectivity snapshot
+# Network connectivity snapshot and updates
 
-`framework-connectivity` provides a portable **no_std** contract for one observed local network-path snapshot. It does not perform an endpoint probe, send a request, or start a monitor by itself. A separate backend is selected statically by the caller.
+`framework-connectivity` provides a portable **no_std** contract for an observed local network-path snapshot and an optional caller-owned path-update monitor. It does not perform an endpoint probe or send a request. A separate backend is selected statically by the caller.
 
 ## Rust API
 
@@ -26,6 +26,29 @@ async fn show_path<B: NetworkPathBackend>(
 
 The concrete `NetworkPathBackend` type and its associated future are statically selected. There is no boxed trait object, `Send` bound, required executor, registry, or hidden initialization. Constructing the facade or calling `current_path` does not start backend work; the returned future starts no earlier than its first poll. The first non-null native path callback completes the request, including an invalid native status mapped to `Unknown`. No update deadline or synchronous initial snapshot is promised.
 
+## Opt-in path updates
+
+Use `NetworkPathMonitor<B>` when an app wants status updates for UI or retry hints:
+
+~~~rust
+use framework_connectivity::{NetworkPathMonitor, NetworkPathMonitorBackend};
+
+async fn observe<B: NetworkPathMonitorBackend>(monitor: &NetworkPathMonitor<B>) {
+    monitor.start().expect("start path observation");
+    while let Ok(snapshot) = monitor.next_update().await {
+        // Use the status as a hint; still attempt operations and handle their results
+        let _status = snapshot.status();
+    }
+}
+~~~
+
+The monitor starts only after explicit `start`, has no global runtime, and is caller-owned. It
+supports one pending update waiter; another receives `AlreadyExists`. At most one pending snapshot
+is retained, so several native updates before the next poll coalesce to the newest observed value.
+Intermediate updates are not guaranteed to be delivered. Call `cancel` to stop observation and
+wake a pending waiter with `Cancelled`; dropping the monitor also cancels it. The iOS backend
+retains callback state until native cancellation completes.
+
 ## Status semantics and advisory use
 
 - `Satisfied` means only that the backend currently reports a path that can establish a connection attempt. It does not prove Internet access, DNS success, captive-portal clearance, endpoint reachability, or that a request will succeed.
@@ -37,10 +60,10 @@ Apple's `NWPathMonitor` is an observer of network path changes; its `satisfied` 
 
 ## Lifecycle, errors, and scope
 
-A backend starts native observation no earlier than the first poll, returns the first non-null native path callback once, and stops its native monitor after that callback. A callback with an invalid status still completes the request as `Unknown`. The backend's associated future owns callback state, detachment/invalidation, and native cancellation; dropping the facade future drops that backend future. A generic `framework_async::OperationFuture` only unregisters its waker and does not by itself own native callback detachment or cancellation. The backend future must detach or invalidate callback state before requesting native cancellation when supported, and keep callback state valid until native callbacks can no longer run. Late or duplicate callbacks must not access the dropped future, wake a detached task, or publish another result. No timeout is implied; a caller that needs a deadline must impose one and drop its future.
+A one-shot backend starts native observation no earlier than the first future poll, returns the first non-null native path callback once, and stops its native monitor after that callback. A callback with an invalid status still completes the request as `Unknown`. Its associated future owns callback state, detachment/invalidation, and native cancellation; dropping the facade future drops that backend future. A generic `framework_async::OperationFuture` only unregisters its waker and does not by itself own native callback detachment or cancellation. A continuous monitor starts only through explicit `start`, retains at most one latest pending snapshot, and cancels on explicit `cancel` or monitor drop. Both backend forms must detach or invalidate callback state before requesting native cancellation when supported and keep callback state valid until native callbacks can no longer run. No timeout is implied; a caller that needs a deadline must impose one and drop its future.
 
 `NetworkPathError::Backend` preserves the framework `ErrorKind` and optional signed native code. Errors report backend-operation failure; they are not encoded as `Unsatisfied` status.
 
-The snapshot contains only a framework-owned status. It exposes no Apple path/interface/queue/connection object, and the portable contract adds no interface enumeration, link-cost flags, event stream, endpoint check, DNS operation, socket/listener API, or request policy. `PLAN_IOS_CONNECTIVITY.md` owns the separate iOS implementation; this portable crate does not prove live `NWPathMonitor` behavior or device connectivity.
+Snapshots contain only a framework-owned status. They expose no Apple path/interface/queue/connection object, and the portable contract adds no interface enumeration, link-cost flags, endpoint check, DNS operation, socket/listener API, or request policy. `PLAN_IOS_CONNECTIVITY.md` owns the iOS implementation; host tests and target compile/link checks do not prove live `NWPathMonitor` updates, cancellation timing, or device connectivity.
 
 Apple references: [NWPathMonitor](https://developer.apple.com/documentation/network/nwpathmonitor), [NWPath status](https://developer.apple.com/documentation/network/nwpath/status-swift.enum), [Apple Developer Technical Support guidance](https://developer.apple.com/forums/thread/784268), and [URLSession `waitsForConnectivity`](https://developer.apple.com/documentation/foundation/urlsessionconfiguration/waitsforconnectivity).

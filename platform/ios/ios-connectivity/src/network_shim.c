@@ -15,6 +15,7 @@ struct framework_path_monitor {
     void *context;
     framework_path_update_callback_t update_callback;
     framework_path_cancel_callback_t cancel_callback;
+    bool one_shot;
 };
 
 static void release_reference(framework_path_monitor_t *monitor) {
@@ -48,10 +49,11 @@ static int32_t portable_status(nw_path_t path) {
     }
 }
 
-framework_path_monitor_t *framework_path_monitor_create(
+static framework_path_monitor_t *create_path_monitor(
     void *context,
     framework_path_update_callback_t update_callback,
-    framework_path_cancel_callback_t cancel_callback) {
+    framework_path_cancel_callback_t cancel_callback,
+    bool one_shot) {
     if (context == NULL || update_callback == NULL || cancel_callback == NULL) {
         return NULL;
     }
@@ -82,6 +84,7 @@ framework_path_monitor_t *framework_path_monitor_create(
     monitor->context = context;
     monitor->update_callback = update_callback;
     monitor->cancel_callback = cancel_callback;
+    monitor->one_shot = one_shot;
 
     nw_path_monitor_set_queue(monitor->native_monitor, monitor->callback_queue);
     nw_path_monitor_set_cancel_handler(monitor->native_monitor, ^{
@@ -91,14 +94,32 @@ framework_path_monitor_t *framework_path_monitor_create(
     });
     nw_path_monitor_set_update_handler(monitor->native_monitor, ^(nw_path_t path) {
         if (path == NULL
-            || atomic_exchange_explicit(&monitor->update_delivered, true, memory_order_acq_rel)) {
+            || (monitor->one_shot
+                && atomic_exchange_explicit(
+                    &monitor->update_delivered, true, memory_order_acq_rel))) {
             return;
         }
         monitor->update_callback(monitor->context, portable_status(path));
-        framework_path_monitor_cancel(monitor);
+        if (monitor->one_shot) {
+            framework_path_monitor_cancel(monitor);
+        }
     });
     nw_path_monitor_start(monitor->native_monitor);
     return monitor;
+}
+
+framework_path_monitor_t *framework_path_monitor_create(
+    void *context,
+    framework_path_update_callback_t update_callback,
+    framework_path_cancel_callback_t cancel_callback) {
+    return create_path_monitor(context, update_callback, cancel_callback, true);
+}
+
+framework_path_monitor_t *framework_path_monitor_create_continuous(
+    void *context,
+    framework_path_update_callback_t update_callback,
+    framework_path_cancel_callback_t cancel_callback) {
+    return create_path_monitor(context, update_callback, cancel_callback, false);
 }
 
 void framework_path_monitor_release(framework_path_monitor_t *monitor) {

@@ -11,10 +11,16 @@ exists; the linked probes were not run. The installed Xcode 26.6 / iOS SDK 26.5 
 Network.framework path monitor C API from iOS 12.0. This slice is informational only; it must not
 gate, suppress, or promise the success of a request.
 
+B548 adds an opt-in caller-owned path-update monitor over the same status-only contract. It has
+explicit start/cancel/drop, one waiter, and one pending snapshot slot that coalesces to the latest
+update. Host regressions cover lifecycle, cancellation wakeup, and coalescing. Target compile/link
+checks do not establish live path updates or cancellation timing.
+
 ## Objective
 
-Add a small portable contract for one observed local network-path snapshot. Keep it separate from
-D1 foreground HTTP, endpoint reachability, and low-level connection/listener APIs.
+Keep the portable one-shot local path snapshot and add a small opt-in, caller-owned path-update
+monitor. Keep both separate from D1 foreground HTTP, endpoint reachability, and low-level
+connection/listener APIs.
 
 ## Dependencies
 
@@ -58,14 +64,26 @@ integration. Do not add Swift source, endpoint checks, or a `Send` bound.
   wake a detached task, or publish a second result
 - Preserve the `framework_core::ErrorKind` category and optional native code through the portable
   error type
+- Add `NetworkPathMonitorBackend` and a thin `NetworkPathMonitor<B>` for an explicitly started,
+  caller-owned update monitor; preserve static backend selection, no `Send` requirement, and no
+  global executor/runtime
+- Allow one pending update waiter and one pending snapshot; overwrite the pending snapshot with
+  each newer update so bursts coalesce to the latest observed status. Intermediate updates are
+  not guaranteed to be delivered
+- Make start one-shot; make cancel idempotent, discard the pending snapshot, and wake a pending
+  waiter as cancelled. Dropping a started monitor requests cancellation; dropping an update future
+  only releases its waiter and does not cancel the monitor
+- Keep callback detachment, cancellation and callback-context lifetime in the selected backend;
+  do not route a monitor through the one-shot `framework_async::OperationFuture`
 - Define `Satisfied` only as a currently observed path that the backend reports can establish a
   connection. It does not prove Internet access, DNS, captive-portal clearance, endpoint
   reachability, or success of any request. `Satisfiable` is a separate native status and must not
   be collapsed into `Satisfied`
 - Document that the snapshot is advisory and subject to change immediately. Callers must attempt
   their actual operation and handle its result; this API must not gate or disable requests
-- Do not add interface enumeration, link cost/constrained flags, a continuous event stream,
-  endpoint probes, low-level sockets/listeners, DNS, or request policy
+- Do not add interface enumeration, link cost/constrained flags, endpoint probes, low-level
+  sockets/listeners, DNS, or request policy. The update monitor is a single-consumer latest-value
+  API, not an unbounded general event stream
 
 ## Apple API basis and boundaries
 
@@ -88,7 +106,8 @@ and [URLSession waitsForConnectivity](https://developer.apple.com/documentation/
 
 - Add deterministic portable tests for each path status, the fake-backend snapshot, first-poll
   start, pending-drop detachment/cancellation, and exactly-once callback behavior, including an
-  `Unknown` first callback
+  `Unknown` first callback. B548 additionally tests explicit monitor start/cancel/drop, failed
+  start, single-waiter enforcement, cancel wakeup, and latest-value coalescing
 - Root integration checks passed: `cargo +1.94.1 fmt --all -- --check`,
   `cargo +1.94.1 check --workspace --locked --offline`,
   `cargo +1.94.1 clippy --workspace --all-targets --locked --offline -- -D warnings`,
