@@ -23,7 +23,7 @@ pub use platform::{
     IosAccuracyAuthorization, IosAuthorizationFuture, IosBackgroundLocationOptions,
     IosCurrentFuture, IosLocationActivityType, IosLocationBackend, IosLocationFuture,
     IosLocationUpdateFuture, IosLocationUpdates, IosRequestAlwaysAuthorizationFuture,
-    IosRequestAuthorizationFuture,
+    IosRequestAuthorizationFuture, IosRequestTemporaryFullAccuracyAuthorizationFuture,
 };
 
 #[cfg(target_os = "ios")]

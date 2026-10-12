@@ -5,14 +5,14 @@ root=$(CDPATH= cd -- "$(dirname -- "$0")/../../.." && pwd)
 cd "$root"
 mkdir -p target
 
-for tool in awk cargo diff grep nm otool python3 sort; do
+for tool in awk cargo diff grep nm otool python3 sort strings; do
     if ! command -v "$tool" >/dev/null 2>&1; then
         echo "$tool is required for the iOS location link/import check" >&2
         exit 1
     fi
 done
 
-out_of_scope_apis='startMonitoringForRegion|startMonitoringVisits|startUpdatingHeading|startRangingBeacons|allowDeferredLocationUpdates|requestTemporaryFullAccuracyAuthorization|CLCircularRegion|CLRegion|CLVisit|CLHeading'
+out_of_scope_apis='startMonitoringForRegion|startMonitoringVisits|startUpdatingHeading|startRangingBeacons|allowDeferredLocationUpdates|CLCircularRegion|CLRegion|CLVisit|CLHeading'
 if grep -REn "$out_of_scope_apis" platform/ios/ios-location/src platform/ios/ios-location/examples; then
     echo "out-of-scope Core Location operation in ios-location Rust source" >&2
     exit 1
@@ -28,20 +28,30 @@ python3 platform/ios/ios-location/check_source_contract.py "$location_source"
 if ! awk '
     /pub fn accuracy_authorization\(/ { accuracy_query_count++; in_accuracy_query = 1 }
     in_accuracy_query {
-        if (/objc2::available!\(ios = 14\.0, \.\.\)/) guarded_query_count++
-        if (/manager\.accuracyAuthorization\(\)/) guarded_getter_count++
+        if (/current_accuracy_authorization\(\)/) delegated_query_count++
+        if (/requestTemporaryFullAccuracyAuthorization|requestWhenInUseAuthorization|requestAlwaysAuthorization/) prompt_in_query_count++
         line = $0
         opens = gsub(/\{/, "", line)
         closes = gsub(/\}/, "", line)
         brace_depth += opens - closes
         if (brace_depth == 0) in_accuracy_query = 0
     }
+    /fn current_accuracy_authorization\(/ { accuracy_reader_count++; in_accuracy_reader = 1; brace_depth = 0 }
+    in_accuracy_reader {
+        if (/objc2::available!\(ios = 14\.0, \.\.\)/) guarded_query_count++
+        if (/manager\.accuracyAuthorization\(\)/) guarded_getter_count++
+        line = $0
+        opens = gsub(/\{/, "", line)
+        closes = gsub(/\}/, "", line)
+        brace_depth += opens - closes
+        if (brace_depth == 0) in_accuracy_reader = 0
+    }
     /accuracyAuthorization\(\)/ { getter_count++ }
     END {
-        exit !(accuracy_query_count == 1 && guarded_query_count == 1 && guarded_getter_count == 1 && getter_count == 1)
+        exit !(accuracy_query_count == 1 && delegated_query_count == 1 && prompt_in_query_count == 0 && accuracy_reader_count == 1 && guarded_query_count == 1 && guarded_getter_count == 1 && getter_count == 1)
     }
 ' platform/ios/ios-location/src/platform.rs; then
-    echo "B87 accuracy-authorization getter must stay inside the iOS 14 availability guard" >&2
+    echo "B87 accuracy snapshot must delegate to its single iOS 14-guarded, non-prompting getter" >&2
     exit 1
 fi
 cat > target/ios-location-core-location-features-expected.txt <<'FEATURES'
@@ -83,6 +93,10 @@ for target in aarch64-apple-ios aarch64-apple-ios-sim; do
     diff -u target/ios-location-link-imports-expected.txt "$libraries"
 
     nm -u "$binary" > "$symbols"
+    if ! strings "$binary" | grep -Fq 'requestTemporaryFullAccuracyAuthorizationWithPurposeKey:completion:'; then
+        echo "temporary full-accuracy request selector is absent from $binary" >&2
+        exit 1
+    fi
     if grep -Eqi 'swift_|Py[A-Z_]|OBJC_CLASS_\$_(UIApplication|UIView|UNUserNotificationCenter|LAContext|SKStoreProductViewController)|(_OBJC_CLASS_\$_)?(UNUserNotificationCenter|LAContext|SKStoreProductViewController)' "$symbols"; then
         echo "unexpected Swift/Python runtime or unrelated capability symbol import in $symbols" >&2
         exit 1

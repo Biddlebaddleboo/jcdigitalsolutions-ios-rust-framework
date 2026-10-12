@@ -169,3 +169,25 @@ persisted conditions. Regions have validated WGS-84 centers, nonempty identifier
 positive radii with no invented maximum. The bounded 16-event queue reports evictions separately
 from callback-copy issues. Host regressions and registered static device/Simulator checks do not
 prove live state mapping, event delivery, background relaunch, permission UI, or Apple parity
+
+## B559 — explicit temporary full-accuracy authorization
+
+B559 extends only `platform/ios/ios-location` and its iOS documentation. The portable
+`framework-location` contract and B87's synchronous, non-prompting
+`accuracy_authorization()` behavior remain unchanged. Add the explicit lazy
+`request_temporary_full_accuracy_authorization(purpose_key)` future over Core Location's public
+iOS 14 completion-handler API. Reject a pre-iOS-14 runtime, empty/NUL purpose keys, missing or
+empty exact-key `NSLocationTemporaryUsageDescriptionDictionary` values, and callers without
+existing foreground-capable authorization. Never request foreground/Always permission
+implicitly. Before calling Core Location, return Full or preserve Unknown snapshots without a
+prompt; only Reduced accuracy reaches the request. Map a callback NSError through the existing
+Core Location error mapping; after nil NSError, query a fresh snapshot, which can remain Reduced
+when the user declines. Dropping the future detaches Rust state but cannot cancel the OS prompt;
+late callbacks must remain safe.
+
+The implementation uses the existing registered `ios-location-updates` profile and source-contract
+negative fixtures for invalid purpose keys/configuration, preconditions, explicit selector scope,
+and B87's non-prompting getter. The device and Simulator link probe must retain the exact public
+selector at the profile's existing deployment floors. Host unit tests cover key validation.
+Compilation/linking and source guards are static evidence only; live prompt, user choice, temporary
+authorization expiry, and device behavior remain runtime-unverified

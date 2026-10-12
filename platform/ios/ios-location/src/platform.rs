@@ -1,6 +1,7 @@
 use crate::configuration::{
     BackgroundModeValue, has_always_usage_descriptions, has_location_background_mode,
-    is_nonempty_string_value, requires_legacy_always_usage_description,
+    is_nonempty_string_value, is_valid_temporary_accuracy_purpose_key,
+    requires_legacy_always_usage_description,
 };
 use crate::conversion::{
     NativeAccuracy, UpdateAuthorizationRequirement, authorization_downgraded,
@@ -10,6 +11,7 @@ use crate::conversion::{
 };
 use crate::geofence::{IosGeofenceError, geofence_authorization_preflight};
 use crate::operation::{CompletionCell, LocationUpdateQueue};
+use block2::RcBlock;
 use core::cell::Cell;
 use core::future::Future;
 use core::marker::PhantomData;
@@ -26,7 +28,9 @@ use objc2::{DefinedClass, MainThreadMarker, MainThreadOnly, define_class, msg_se
 use objc2_core_location::{
     CLActivityType, CLLocation, CLLocationManager, CLLocationManagerDelegate,
 };
-use objc2_foundation::{NSArray, NSBundle, NSDate, NSError, NSObject, NSObjectProtocol, NSString};
+use objc2_foundation::{
+    NSArray, NSBundle, NSDate, NSDictionary, NSError, NSObject, NSObjectProtocol, NSString,
+};
 use std::panic::{AssertUnwindSafe, catch_unwind};
 use std::sync::Arc;
 use std::task::Waker;
@@ -36,7 +40,9 @@ type Completion = Arc<CompletionCell<NativeOutcome, LocationError>>;
 #[derive(Clone, Copy)]
 enum NativeOutcome {
     Authorization(LocationAuthorization),
+    AccuracyAuthorization(IosAccuracyAuthorization),
     Current(LocationFix),
+    TemporaryAccuracyRequested,
 }
 
 #[derive(Clone, Copy)]
@@ -279,6 +285,10 @@ pub type IosRequestAuthorizationFuture<'a> = IosLocationFuture<'a, LocationAutho
 /// iOS Always-authorization request future.
 pub type IosRequestAlwaysAuthorizationFuture<'a> = IosLocationFuture<'a, LocationAuthorization>;
 
+/// iOS temporary-full-accuracy authorization request future.
+pub type IosRequestTemporaryFullAccuracyAuthorizationFuture<'a> =
+    IosLocationFuture<'a, IosAccuracyAuthorization>;
+
 /// iOS one-shot current-location future.
 pub type IosCurrentFuture<'a> = IosLocationFuture<'a, LocationFix>;
 
@@ -362,6 +372,7 @@ pub struct IosLocationFuture<'a, T> {
     completion: Completion,
     manager: Option<Retained<CLLocationManager>>,
     delegate: Option<Retained<LocationDelegate>>,
+    temporary_accuracy_purpose_key: Option<Retained<NSString>>,
     transform: fn(NativeOutcome) -> Result<T, LocationError>,
     started: bool,
     finished: bool,
@@ -374,6 +385,7 @@ enum Operation {
     Authorization,
     RequestAuthorization,
     RequestAlwaysAuthorization,
+    RequestTemporaryFullAccuracyAuthorization,
     Current(LocationRequest),
 }
 
@@ -390,12 +402,18 @@ impl<'a, T> IosLocationFuture<'a, T> {
             completion: Arc::new(CompletionCell::new()),
             manager: None,
             delegate: None,
+            temporary_accuracy_purpose_key: None,
             transform,
             started: false,
             finished: false,
             _main_thread: marker,
             _output: PhantomData,
         }
+    }
+
+    fn with_temporary_accuracy_purpose_key(mut self, purpose_key: Retained<NSString>) -> Self {
+        self.temporary_accuracy_purpose_key = Some(purpose_key);
+        self
     }
 
     /// Borrows the operation-scoped native manager after the future's first poll.
@@ -418,6 +436,9 @@ impl<'a, T> IosLocationFuture<'a, T> {
             }
             Operation::RequestAuthorization => self.start_authorization_request(),
             Operation::RequestAlwaysAuthorization => self.start_always_authorization_request(),
+            Operation::RequestTemporaryFullAccuracyAuthorization => {
+                self.start_temporary_full_accuracy_authorization_request()
+            }
             Operation::Current(request) => self.start_current(request),
         }
     }
@@ -464,6 +485,74 @@ impl<'a, T> IosLocationFuture<'a, T> {
         // SAFETY: This explicit operation was polled on the backend's main thread, has the
         // required host usage-description keys, and retains its callback delegate.
         unsafe { manager.requestAlwaysAuthorization() };
+    }
+
+    fn start_temporary_full_accuracy_authorization_request(&mut self) {
+        if !objc2::available!(ios = 14.0, ..) {
+            self.completion.complete(Err(unsupported_error()));
+            return;
+        }
+        if !authorization_from_native(native_authorization_status()).allows_foreground() {
+            self.completion.complete(Err(permission_error()));
+            return;
+        }
+        let Some(accuracy) = current_accuracy_authorization() else {
+            self.completion.complete(Err(unsupported_error()));
+            return;
+        };
+        match accuracy {
+            IosAccuracyAuthorization::FullAccuracy | IosAccuracyAuthorization::Unknown(_) => {
+                self.completion
+                    .complete(Ok(NativeOutcome::AccuracyAuthorization(accuracy)));
+                return;
+            }
+            IosAccuracyAuthorization::ReducedAccuracy => {}
+        }
+        let Some(purpose_key) = self.temporary_accuracy_purpose_key.as_deref() else {
+            self.completion.complete(Err(internal_error()));
+            return;
+        };
+        if !main_bundle_has_temporary_full_accuracy_usage_description(purpose_key) {
+            self.completion.complete(Err(configuration_error()));
+            return;
+        }
+
+        // SAFETY: The backend's main-thread marker keeps this manager and its callback on the
+        // main run loop required by Core Location's completion-handler contract.
+        let manager = unsafe { CLLocationManager::new() };
+        self.manager = Some(manager);
+        let completion_state = Arc::clone(&self.completion);
+        let completion: RcBlock<dyn Fn(*mut NSError)> =
+            RcBlock::new(move |native_error: *mut NSError| {
+                let _ = catch_unwind(AssertUnwindSafe(|| {
+                    let result = catch_unwind(AssertUnwindSafe(|| {
+                        autoreleasepool(|_| {
+                            // SAFETY: Core Location supplies a nullable NSError valid for this block
+                            // invocation; its code is copied before the callback returns.
+                            if let Some(error) = unsafe { native_error.as_ref() } {
+                                return Err(error_from_native(error.code() as i64));
+                            }
+                            Ok(NativeOutcome::TemporaryAccuracyRequested)
+                        })
+                    }))
+                    .unwrap_or_else(|_| Err(internal_error()));
+                    completion_state.complete(result);
+                }));
+            });
+        let purpose_key = self
+            .temporary_accuracy_purpose_key
+            .as_deref()
+            .expect("temporary-accuracy operation owns its purpose key");
+        let manager = self.manager.as_ref().expect("manager set above");
+        // SAFETY: iOS 14 availability, foreground-capable app authorization, a reduced-accuracy
+        // snapshot, and an exact nonempty Info.plist purpose-key entry were checked first. This
+        // is the explicit caller-requested prompt path; the callback block owns no manager state.
+        unsafe {
+            manager.requestTemporaryFullAccuracyAuthorizationWithPurposeKey_completion(
+                purpose_key,
+                Some(&completion),
+            )
+        };
     }
 
     fn start_current(&mut self, request: LocationRequest) {
@@ -523,7 +612,17 @@ impl<T: Unpin> Future for IosLocationFuture<'_, T> {
         match this.completion.poll(context) {
             Poll::Ready(result) => {
                 this.finished = true;
-                Poll::Ready(result.and_then(this.transform))
+                Poll::Ready(result.and_then(|outcome| {
+                    match outcome {
+                        NativeOutcome::TemporaryAccuracyRequested => this
+                            .backend
+                            .accuracy_authorization()
+                            .map(NativeOutcome::AccuracyAuthorization)
+                            .ok_or_else(unsupported_error)
+                            .and_then(this.transform),
+                        outcome => (this.transform)(outcome),
+                    }
+                }))
             }
             Poll::Pending => Poll::Pending,
         }
@@ -536,7 +635,7 @@ impl<T> Drop for IosLocationFuture<'_, T> {
             return;
         }
         self.completion.detach();
-        if self.started && matches!(self.operation, Operation::Current(_)) {
+        if self.started && matches!(&self.operation, Operation::Current(_)) {
             if let Some(manager) = &self.manager {
                 // SAFETY: A pending current operation is cancelled on the same main thread where
                 // its manager was created; Core Location documents stopUpdatingLocation for this.
@@ -722,6 +821,38 @@ impl IosLocationBackend {
         )
     }
 
+    /// Explicitly requests temporary full-accuracy authorization for one declared purpose.
+    ///
+    /// Available from iOS 14.0. The request starts only when the returned future is first polled.
+    /// `purpose_key` must be nonempty, contain no NUL, and match a nonempty entry under
+    /// `NSLocationTemporaryUsageDescriptionDictionary` in the host app's `Info.plist`. The app
+    /// must already have foreground-capable location authorization; this method never requests
+    /// When In Use or Always authorization. If accuracy is already full, it returns that snapshot
+    /// without prompting. An unknown accuracy value is preserved and does not trigger a request.
+    /// Core Location may suppress its prompt, including while the app is in the background, and
+    /// reports such a failure through the returned error. On success, the future returns a fresh
+    /// accuracy snapshot. Temporary accuracy expires under Core Location's policy. Dropping the
+    /// future detaches Rust interest but cannot retract an authorization prompt already handed to
+    /// iOS; any late callback is contained and ignored.
+    pub fn request_temporary_full_accuracy_authorization<'a>(
+        &'a mut self,
+        purpose_key: &str,
+    ) -> Result<IosRequestTemporaryFullAccuracyAuthorizationFuture<'a>, LocationError> {
+        if !objc2::available!(ios = 14.0, ..) {
+            return Err(unsupported_error());
+        }
+        if !is_valid_temporary_accuracy_purpose_key(purpose_key) {
+            return Err(configuration_error());
+        }
+        let purpose_key = NSString::from_str(purpose_key);
+        Ok(IosLocationFuture::new(
+            self,
+            Operation::RequestTemporaryFullAccuracyAuthorization,
+            temporary_accuracy_result,
+        )
+        .with_temporary_accuracy_purpose_key(purpose_key))
+    }
+
     /// Reads Core Location's accuracy-authorization snapshot without prompting.
     ///
     /// Returns `None` on iOS versions before 14.0, where the public property is unavailable.
@@ -730,20 +861,7 @@ impl IosLocationBackend {
     /// services. The result is separate from `LocationAuthorization`: full accuracy does not mean
     /// location authorization is granted, and this snapshot can change before a later fix.
     pub fn accuracy_authorization(&self) -> Option<IosAccuracyAuthorization> {
-        if !objc2::available!(ios = 14.0, ..) {
-            return None;
-        }
-        autoreleasepool(|_| {
-            // SAFETY: The backend is constructed with a MainThreadMarker and is main-thread-bound.
-            let manager = unsafe { CLLocationManager::new() };
-            // SAFETY: The iOS 14 availability guard precedes the public readonly property call.
-            let authorization = unsafe { manager.accuracyAuthorization() };
-            Some(match authorization.0 {
-                0 => IosAccuracyAuthorization::FullAccuracy,
-                1 => IosAccuracyAuthorization::ReducedAccuracy,
-                raw => IosAccuracyAuthorization::Unknown(raw),
-            })
-        })
+        current_accuracy_authorization()
     }
 }
 
@@ -923,14 +1041,29 @@ fn start_location_updates<'a>(
 fn authorization_result(outcome: NativeOutcome) -> Result<LocationAuthorization, LocationError> {
     match outcome {
         NativeOutcome::Authorization(authorization) => Ok(authorization),
-        NativeOutcome::Current(_) => Err(internal_error()),
+        NativeOutcome::AccuracyAuthorization(_)
+        | NativeOutcome::Current(_)
+        | NativeOutcome::TemporaryAccuracyRequested => Err(internal_error()),
+    }
+}
+
+fn temporary_accuracy_result(
+    outcome: NativeOutcome,
+) -> Result<IosAccuracyAuthorization, LocationError> {
+    match outcome {
+        NativeOutcome::AccuracyAuthorization(authorization) => Ok(authorization),
+        NativeOutcome::Authorization(_)
+        | NativeOutcome::Current(_)
+        | NativeOutcome::TemporaryAccuracyRequested => Err(internal_error()),
     }
 }
 
 fn current_result(outcome: NativeOutcome) -> Result<LocationFix, LocationError> {
     match outcome {
         NativeOutcome::Current(fix) => Ok(fix),
-        NativeOutcome::Authorization(_) => Err(internal_error()),
+        NativeOutcome::Authorization(_)
+        | NativeOutcome::AccuracyAuthorization(_)
+        | NativeOutcome::TemporaryAccuracyRequested => Err(internal_error()),
     }
 }
 
@@ -940,6 +1073,24 @@ fn permission_error() -> LocationError {
 
 fn unsupported_error() -> LocationError {
     LocationError::Backend(Error::new(ErrorKind::Unsupported))
+}
+
+fn current_accuracy_authorization() -> Option<IosAccuracyAuthorization> {
+    if !objc2::available!(ios = 14.0, ..) {
+        return None;
+    }
+    autoreleasepool(|_| {
+        // SAFETY: Callers are bound to the backend's main thread; this synchronous query installs
+        // no delegate and starts no service.
+        let manager = unsafe { CLLocationManager::new() };
+        // SAFETY: The iOS 14 availability guard precedes the public readonly property call.
+        let authorization = unsafe { manager.accuracyAuthorization() };
+        Some(match authorization.0 {
+            0 => IosAccuracyAuthorization::FullAccuracy,
+            1 => IosAccuracyAuthorization::ReducedAccuracy,
+            raw => IosAccuracyAuthorization::Unknown(raw),
+        })
+    })
 }
 
 fn main_bundle_has_location_background_mode() -> bool {
@@ -979,6 +1130,17 @@ fn main_bundle_has_always_usage_descriptions() -> bool {
         )),
         main_bundle_requires_legacy_always_usage_description(),
     )
+}
+
+fn main_bundle_has_temporary_full_accuracy_usage_description(purpose_key: &NSString) -> bool {
+    NSBundle::mainBundle()
+        .objectForInfoDictionaryKey(objc2_foundation::ns_string!(
+            "NSLocationTemporaryUsageDescriptionDictionary"
+        ))
+        .and_then(|value| value.downcast::<NSDictionary>().ok())
+        .and_then(|descriptions| descriptions.objectForKey(purpose_key))
+        .and_then(|description| description.downcast::<NSString>().ok())
+        .is_some_and(|description| is_nonempty_string_value(true, description.length()))
 }
 
 fn main_bundle_requires_legacy_always_usage_description() -> bool {

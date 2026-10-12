@@ -95,7 +95,11 @@ def check(source):
    errors.append(label)
 
  functions = {}
- for name in ("start_authorization_request", "start_always_authorization_request", "start_current",
+ for name in ("start_authorization_request", "start_always_authorization_request",
+              "start_temporary_full_accuracy_authorization_request",
+              "request_temporary_full_accuracy_authorization", "current_accuracy_authorization",
+              "accuracy_authorization", "main_bundle_has_temporary_full_accuracy_usage_description",
+              "start_current",
               "start_background_updates", "start_updates", "start_significant_change_updates",
               "open_geofence_monitor",
               "start_location_updates",
@@ -111,6 +115,8 @@ def check(source):
  selectors = (
   ("requestWhenInUseAuthorization()", "start_authorization_request"),
   ("requestAlwaysAuthorization()", "start_always_authorization_request"),
+  ("requestTemporaryFullAccuracyAuthorizationWithPurposeKey_completion(",
+   "start_temporary_full_accuracy_authorization_request"),
   ("requestLocation()", "start_current"),
   ("startUpdatingLocation()", "start_location_updates"),
   ("startMonitoringSignificantLocationChanges()", "start_location_updates"),
@@ -174,6 +180,39 @@ def check(source):
  require("requestWhenInUseAuthorization" not in geofence_open and
          "requestAlwaysAuthorization" not in geofence_open,
          "geofence preflight never prompts")
+
+ accuracy_query = functions["accuracy_authorization"]
+ accuracy_reader = functions["current_accuracy_authorization"]
+ require("current_accuracy_authorization()" in accuracy_query and
+         "requestTemporaryFullAccuracyAuthorization" not in accuracy_query and
+         "requestWhenInUseAuthorization" not in accuracy_query and
+         "requestAlwaysAuthorization" not in accuracy_query,
+         "B87 accuracy snapshot stays non-prompting")
+ require("objc2::available!(ios = 14.0, ..)" in accuracy_reader and
+         "manager.accuracyAuthorization()" in accuracy_reader and
+         "Unknown(raw)" in accuracy_reader,
+         "B87 accuracy getter availability and unknown preservation")
+
+ temporary_method = functions["request_temporary_full_accuracy_authorization"]
+ temporary_start = functions["start_temporary_full_accuracy_authorization_request"]
+ temporary_config = functions["main_bundle_has_temporary_full_accuracy_usage_description"]
+ require("objc2::available!(ios = 14.0, ..)" in temporary_method and
+         "is_valid_temporary_accuracy_purpose_key(purpose_key)" in temporary_method,
+         "temporary accuracy request validates iOS floor and purpose-key syntax")
+ require("objc2::available!(ios = 14.0, ..)" in temporary_start and
+         "authorization_from_native(native_authorization_status()).allows_foreground()" in temporary_start and
+         "current_accuracy_authorization()" in temporary_start and
+         "main_bundle_has_temporary_full_accuracy_usage_description(purpose_key)" in temporary_start,
+         "temporary accuracy request requires iOS 14, existing authorization, and declared purpose")
+ require("requestTemporaryFullAccuracyAuthorizationWithPurposeKey_completion(" in temporary_start and
+         "RcBlock::new" in temporary_start and
+         "requestTemporaryFullAccuracyAuthorization" not in accuracy_query,
+         "temporary accuracy request is explicit and callback-scoped")
+ require('NSLocationTemporaryUsageDescriptionDictionary' in temporary_config and
+         "downcast::<NSDictionary>()" in temporary_config and
+         "objectForKey(purpose_key)" in temporary_config and
+         "description.length()" in temporary_config,
+         "temporary accuracy purpose must match a nonempty Info.plist entry")
 
  updates = functions["start_location_updates"]
  mode_check = "if !main_bundle_has_location_background_mode()"
@@ -422,6 +461,7 @@ def verify_negative_fixtures(source):
  cases = (
   ("selector scope requestWhenInUseAuthorization()", "start_authorization_request", "manager.requestWhenInUseAuthorization()", "removed_request()"),
   ("selector scope requestAlwaysAuthorization()", "start_always_authorization_request", "manager.requestAlwaysAuthorization()", "removed_request()"),
+  ("selector scope requestTemporaryFullAccuracyAuthorizationWithPurposeKey_completion(", "start_temporary_full_accuracy_authorization_request", "requestTemporaryFullAccuracyAuthorizationWithPurposeKey_completion(", "removed_request()"),
   ("selector scope requestLocation()", "start_current", "manager.requestLocation()", "removed_request()"),
   ("selector scope startUpdatingLocation()", "start_location_updates", "manager.startUpdatingLocation()", "removed_update()"),
   ("selector scope setAllowsBackgroundLocationUpdates(true)", "start_location_updates", "manager.setAllowsBackgroundLocationUpdates(true)", "removed_background_enable()"),
@@ -430,6 +470,10 @@ def verify_negative_fixtures(source):
   ("Always usage-key mapping", "main_bundle_has_always_usage_descriptions", "NSLocationWhenInUseUsageDescription", "RemovedWhenInUseUsageKey"),
   ("Always usage-key mapping", "main_bundle_has_always_usage_descriptions", "NSLocationAlwaysAndWhenInUseUsageDescription", "RemovedUsageKey"),
   ("Always usage-key mapping", "main_bundle_has_always_usage_descriptions", "NSLocationAlwaysUsageDescription", "RemovedLegacyUsageKey"),
+  ("temporary accuracy request validates iOS floor and purpose-key syntax", "request_temporary_full_accuracy_authorization", "is_valid_temporary_accuracy_purpose_key(purpose_key)", "true"),
+  ("temporary accuracy request requires iOS 14, existing authorization, and declared purpose", "start_temporary_full_accuracy_authorization_request", "authorization_from_native(native_authorization_status()).allows_foreground()", "true"),
+  ("temporary accuracy request requires iOS 14, existing authorization, and declared purpose", "start_temporary_full_accuracy_authorization_request", "main_bundle_has_temporary_full_accuracy_usage_description(purpose_key)", "true"),
+  ("temporary accuracy purpose must match a nonempty Info.plist entry", "main_bundle_has_temporary_full_accuracy_usage_description", "NSLocationTemporaryUsageDescriptionDictionary", "RemovedTemporaryUsageKey"),
   ("legacy usage-key deployment target", "main_bundle_has_always_usage_descriptions", "main_bundle_requires_legacy_always_usage_description()", "false"),
   ("legacy usage-key deployment target parser", "main_bundle_requires_legacy_always_usage_description", "MinimumOSVersion", "RemovedMinimumOSVersion"),
   ("legacy usage-key deployment target parser", "main_bundle_requires_legacy_always_usage_description", ".doubleValue()", "removed_version_parse()"),
@@ -467,6 +511,7 @@ def verify_negative_fixtures(source):
   ("selector scope startUpdatingLocation()", "start_current", "let native_accuracy =", "unsafe { manager.startUpdatingLocation() };"),
   ("selector scope requestLocation()", "start_location_updates", "if !updates_permitted(authorization, requirement)", "unsafe { manager.requestLocation() };"),
   ("selector scope requestAlwaysAuthorization()", "start_authorization_request", "let status = native_authorization_status();", "unsafe { manager.requestAlwaysAuthorization() };"),
+  ("selector scope requestTemporaryFullAccuracyAuthorizationWithPurposeKey_completion(", "start_current", "let native_accuracy =", "unsafe { manager.requestTemporaryFullAccuracyAuthorizationWithPurposeKey_completion(purpose_key, None) };"),
   ("significant selector scope", "start_updates", "start_location_updates(", "unsafe { manager.startMonitoringSignificantLocationChanges() };"),
  )
  for expected, function, marker, addition in wrong_scope_cases:
@@ -504,6 +549,7 @@ def verify_host_test_anchors(source_dir):
  anchors = (
   ("configuration.rs", "background_plist_requires_always_usage_keys"),
   ("configuration.rs", "legacy_always_key_requirement_tracks_deployment_target"),
+  ("configuration.rs", "temporary_accuracy_purpose_keys_reject_empty_and_nul"),
   ("conversion.rs", "background_updates_require_always_and_report_downgrades"),
   ("conversion.rs", "significant_change_preflight_requires_device_support_and_existing_authorization"),
   ("geofence.rs", "geofence_validates_each_negative_input"),

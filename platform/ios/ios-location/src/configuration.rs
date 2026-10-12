@@ -28,6 +28,10 @@ pub(crate) const fn is_nonempty_string_value(is_string: bool, length: usize) -> 
     is_string && length != 0
 }
 
+pub(crate) fn is_valid_temporary_accuracy_purpose_key(value: &str) -> bool {
+    !value.is_empty() && !value.contains('\0')
+}
+
 pub(crate) fn requires_legacy_always_usage_description(minimum_ios_version: Option<f64>) -> bool {
     minimum_ios_version.is_none_or(|version| !version.is_finite() || version < 11.0)
 }
@@ -76,5 +80,15 @@ mod tests {
         assert!(!is_nonempty_string_value(true, 0));
         assert!(!is_nonempty_string_value(false, 12));
         assert!(!is_nonempty_string_value(false, 0));
+    }
+
+    #[test]
+    fn temporary_accuracy_purpose_keys_reject_empty_and_nul() {
+        assert!(!is_valid_temporary_accuracy_purpose_key(""));
+        assert!(!is_valid_temporary_accuracy_purpose_key("ride\0purpose"));
+        assert!(is_valid_temporary_accuracy_purpose_key(
+            "RideLocationPurpose"
+        ));
+        assert!(is_valid_temporary_accuracy_purpose_key("精確な位置情報"));
     }
 }
