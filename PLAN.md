@@ -653,3 +653,14 @@ fields, including the Rideshare dashboard's numeric field style. iOS 13 dynamic 
 colors have black/gray iOS 12 fallbacks; UIKit content-size-category adjustment remains native.
 Host policy regressions cover fallback availability. Combined `ios-ui` qualification and live Dynamic
 Type/color behavior remain pending.
+
+### B587 — native UIKit font traits (row 003)
+
+B587 adds typed regular/bold weight and default/monospaced design setters to `IosLabel`,
+`IosButton`, and `IosTextField`. The implementation transforms the current public UIKit font
+descriptor, preserves unrelated symbolic traits and the preferred-style size, and returns
+`Unavailable` without changing the font when UIKit cannot resolve the requested descriptor. These
+public symbolic-trait APIs are available at the existing iOS 12.0 device floor; no iOS 13-only
+system-design API is used. Host tests pass 99/99, strict all-target Clippy passes, and device iOS
+12.0 / Simulator iOS 14.0 checks plus both Release link probes pass. The root combined `ios-ui`
+validator run is pending; font appearance and Dynamic Type updates remain runtime-unverified.

@@ -55,6 +55,31 @@ The registered device/Simulator link probe verifies the required UIKit selectors
 iOS 14.0; static checks do not establish visible appearance, dark-mode adaptation, or Dynamic Type
 behavior at runtime
 
+## Font weight and monospaced design
+
+`IosLabel`, `IosButton`, and `IosTextField` expose `set_font_weight` with
+`IosFontWeight::{Regular, Bold}` and `set_font_design` with
+`IosFontDesign::{Default, Monospaced}`. These setters transform the control's current public
+`UIFontDescriptor` using UIKit's symbolic bold and monospaced traits, preserving unrelated traits
+and the current descriptor size. A missing font or a descriptor conversion UIKit cannot satisfy
+returns `Unavailable` without replacing the current font. The symbolic traits and descriptor APIs
+are available from iOS 7, so they fit the existing iOS 12.0 device floor; the implementation does
+not call the iOS 13-only `fontDescriptorWithDesign:` API.
+
+Set a preferred text style first when the font should track Dynamic Type, then apply weight or
+design:
+
+```rust,ignore
+label.set_system_text_style(IosSystemTextStyle::Caption)?;
+label.set_font_design(IosFontDesign::Monospaced)?;
+count_label.set_font_weight(IosFontWeight::Bold)?;
+```
+
+UIKit's content-size-category adjustment remains enabled by the preferred-style setter. Device
+and Simulator Release link probes verify descriptor selectors and deployment floors; no live font
+rendering or Dynamic Type update behavior is claimed. Only regular/bold weight and default/mono
+symbolic traits are exposed; other weight grades and font families remain unsupported
+
 ## Button accessibility metadata
 
 `IosButton::set_accessibility_label`, `set_accessibility_hint`, and

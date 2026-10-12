@@ -19,15 +19,17 @@ use objc2_core_foundation::{CGPoint, CGRect, CGSize};
 use objc2_foundation::{NSObjectProtocol, NSRange, NSString};
 use objc2_ui_kit::{
     NSObjectUIAccessibility, UIAccessibilityIdentification, UIApplication, UIButton, UIColor,
-    UIContentSizeCategoryAdjusting, UIControlEvents, UIControlState, UIFont, UIFontTextStyle,
-    UIFontTextStyleBody, UIFontTextStyleCallout, UIFontTextStyleCaption1, UIFontTextStyleCaption2,
-    UIFontTextStyleFootnote, UIFontTextStyleHeadline, UIFontTextStyleLargeTitle,
-    UIFontTextStyleSubheadline, UIFontTextStyleTitle1, UIFontTextStyleTitle2,
-    UIFontTextStyleTitle3, UIImage, UIImageView, UIKeyboardType, UILabel, UILayoutConstraintAxis,
-    UIScrollView, UIStackView, UIStackViewAlignment, UIStackViewDistribution, UISwitch,
-    UITextField, UITextInputTraits, UIView,
+    UIContentSizeCategoryAdjusting, UIControlEvents, UIControlState, UIFont,
+    UIFontDescriptorSymbolicTraits, UIFontTextStyle, UIFontTextStyleBody, UIFontTextStyleCallout,
+    UIFontTextStyleCaption1, UIFontTextStyleCaption2, UIFontTextStyleFootnote,
+    UIFontTextStyleHeadline, UIFontTextStyleLargeTitle, UIFontTextStyleSubheadline,
+    UIFontTextStyleTitle1, UIFontTextStyleTitle2, UIFontTextStyleTitle3, UIImage, UIImageView,
+    UIKeyboardType, UILabel, UILayoutConstraintAxis, UIScrollView, UIStackView,
+    UIStackViewAlignment, UIStackViewDistribution, UISwitch, UITextField, UITextInputTraits,
+    UIView,
 };
 
+use crate::font_traits_policy::{IosFontDesign, IosFontWeight, with_font_design, with_font_weight};
 use crate::keyboard_action_policy::run_with_main_thread_marker;
 use crate::layout_policy::{OneShotConstraints, ScrollLayoutPolicy};
 use crate::scroll_policy::validated_content_size;
@@ -516,6 +518,18 @@ impl IosLabel {
         Ok(())
     }
 
+    /// Applies a UIKit bold or regular symbolic trait to the current font.
+    pub fn set_font_weight(&mut self, weight: IosFontWeight) -> Result<()> {
+        let _label_weight_thread = main_thread_marker()?;
+        set_label_font_weight(&self.native, weight)
+    }
+
+    /// Applies UIKit's default or monospaced symbolic trait to the current font.
+    pub fn set_font_design(&mut self, design: IosFontDesign) -> Result<()> {
+        let _label_design_thread = main_thread_marker()?;
+        set_label_font_design(&self.native, design)
+    }
+
     /// Sets a UIKit semantic or system text color.
     ///
     /// Primary and secondary use dynamic semantic colors on iOS 13 and later, with black and gray
@@ -574,6 +588,30 @@ impl IosTextField {
     pub fn set_enabled(&mut self, enabled: bool) -> Result<()> {
         let _field_enabled_thread = main_thread_marker()?;
         self.native.setEnabled(enabled);
+        Ok(())
+    }
+
+    /// Applies a UIKit bold or regular symbolic trait to the current font.
+    pub fn set_font_weight(&mut self, weight: IosFontWeight) -> Result<()> {
+        let _field_weight_thread = main_thread_marker()?;
+        let font = self
+            .native
+            .font()
+            .ok_or_else(|| Error::new(ErrorKind::Unavailable))?;
+        let font = font_with_weight(&font, weight)?;
+        self.native.setFont(Some(&font));
+        Ok(())
+    }
+
+    /// Applies UIKit's default or monospaced symbolic trait to the current font.
+    pub fn set_font_design(&mut self, design: IosFontDesign) -> Result<()> {
+        let _field_design_thread = main_thread_marker()?;
+        let font = self
+            .native
+            .font()
+            .ok_or_else(|| Error::new(ErrorKind::Unavailable))?;
+        let font = font_with_design(&font, design)?;
+        self.native.setFont(Some(&font));
         Ok(())
     }
 
@@ -1080,6 +1118,26 @@ impl IosButton {
         Ok(())
     }
 
+    /// Applies a UIKit bold or regular symbolic trait to the button title's current font.
+    pub fn set_font_weight(&mut self, weight: IosFontWeight) -> Result<()> {
+        let _button_weight_thread = main_thread_marker()?;
+        let title = self
+            .native
+            .titleLabel()
+            .ok_or_else(|| Error::new(ErrorKind::Unavailable))?;
+        set_label_font_weight(&title, weight)
+    }
+
+    /// Applies UIKit's default or monospaced symbolic trait to the button title's current font.
+    pub fn set_font_design(&mut self, design: IosFontDesign) -> Result<()> {
+        let _button_design_thread = main_thread_marker()?;
+        let title = self
+            .native
+            .titleLabel()
+            .ok_or_else(|| Error::new(ErrorKind::Unavailable))?;
+        set_label_font_design(&title, design)
+    }
+
     /// Sets a UIKit system text style on the button title that follows the preferred content size.
     pub fn set_system_text_style(&mut self, style: IosSystemTextStyle) -> Result<()> {
         let _button_style_thread = main_thread_marker()?;
@@ -1450,6 +1508,50 @@ fn set_label_system_text_style(label: &UILabel, style: IosSystemTextStyle) {
     // SAFETY: UIKit's font setter receives the non-null preferred font retained above.
     unsafe { label.setFont(Some(&font)) };
     label.setAdjustsFontForContentSizeCategory(true);
+}
+
+fn font_with_weight(font: &UIFont, weight: IosFontWeight) -> Result<Retained<UIFont>> {
+    transform_font_traits(font, |traits| with_font_weight(traits, weight))
+}
+
+fn font_with_design(font: &UIFont, design: IosFontDesign) -> Result<Retained<UIFont>> {
+    transform_font_traits(font, |traits| with_font_design(traits, design))
+}
+
+fn transform_font_traits(
+    font: &UIFont,
+    update: impl FnOnce(u32) -> u32,
+) -> Result<Retained<UIFont>> {
+    // SAFETY: this reads UIKit font metadata while callers hold the main-thread proof.
+    let descriptor = unsafe { font.fontDescriptor() };
+    // SAFETY: symbolic traits are immutable metadata read on UIKit's main thread.
+    let traits = unsafe { descriptor.symbolicTraits() };
+    let traits = UIFontDescriptorSymbolicTraits(update(traits.0));
+    let descriptor = descriptor
+        .fontDescriptorWithSymbolicTraits(traits)
+        .ok_or_else(|| Error::new(ErrorKind::Unavailable))?;
+    // A zero point size preserves the descriptor's preferred-style size and attributes.
+    Ok(UIFont::fontWithDescriptor_size(&descriptor, 0.0))
+}
+
+fn set_label_font_weight(label: &UILabel, weight: IosFontWeight) -> Result<()> {
+    let font = label
+        .font()
+        .ok_or_else(|| Error::new(ErrorKind::Unavailable))?;
+    let font = font_with_weight(&font, weight)?;
+    // SAFETY: the new font is retained and the label is used on UIKit's main thread.
+    unsafe { label.setFont(Some(&font)) };
+    Ok(())
+}
+
+fn set_label_font_design(label: &UILabel, design: IosFontDesign) -> Result<()> {
+    let font = label
+        .font()
+        .ok_or_else(|| Error::new(ErrorKind::Unavailable))?;
+    let font = font_with_design(&font, design)?;
+    // SAFETY: the new font is retained and the label is used on UIKit's main thread.
+    unsafe { label.setFont(Some(&font)) };
+    Ok(())
 }
 
 fn native_text_color(color: IosSemanticTextColor) -> Retained<UIColor> {

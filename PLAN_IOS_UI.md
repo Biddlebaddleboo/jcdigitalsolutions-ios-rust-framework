@@ -279,3 +279,16 @@ provides primary, secondary, blue, red, green, and orange text colors; primary/s
 UIKit colors on iOS 13+ and black/gray fallbacks on the iOS 12 device floor. Host policy tests cover
 both availability branches and ensure named system colors do not change. Full combined `ios-ui`
 qualification and runtime behavior remain pending.
+
+## B587 — UIKit font weight and design traits
+
+B587 adds `IosFontWeight::{Regular, Bold}` and `IosFontDesign::{Default, Monospaced}` setters to
+`IosLabel`, `IosButton`, and `IosTextField`. Each setter requires UIKit's main thread and transforms
+the current `UIFontDescriptor` with public symbolic traits, preserving unrelated traits and the
+preferred-style size. Unsupported descriptor conversion returns `Unavailable` before the existing
+font changes. The bold and monospaced symbolic traits are available at iOS 12; the implementation
+does not call the iOS 13-only `fontDescriptorWithDesign:` API. Call `set_system_text_style` before
+setting a trait when Dynamic Type style tracking is desired. Host regressions cover trait addition,
+clearing, and preservation; Device iOS 12.0 and Simulator iOS 14.0 Release probes check the new
+selectors. The local host tests, strict Clippy, target checks, and probes pass; the integrated
+`ios-ui` validator run and live font/Dynamic Type behavior remain pending.

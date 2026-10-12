@@ -4,6 +4,11 @@ set -eu
 root=$(CDPATH= cd -- "$(dirname -- "$0")/../../.." && pwd)
 cd "$root"
 
+if grep -F 'fontDescriptorWithDesign' platform/ios/ios-ui/src/platform.rs >/dev/null; then
+    echo "ios-ui font traits must not call the iOS 13-only fontDescriptorWithDesign API" >&2
+    exit 1
+fi
+
 for tool in awk cargo grep nm otool strings vtool; do
     if ! command -v "$tool" >/dev/null 2>&1; then
         echo "$tool is required for the iOS UI system-symbol link check" >&2
@@ -39,7 +44,9 @@ for target in aarch64-apple-ios aarch64-apple-ios-sim; do
         'systemImageNamed:' 'setTintColor:' 'preferredFontForTextStyle:' \
         'setAdjustsFontForContentSizeCategory:' 'setFont:' 'setTextColor:' \
         'setTitleColor:forState:' 'labelColor' 'secondaryLabelColor' \
-        'systemBlueColor' 'systemRedColor' 'systemGreenColor' 'systemOrangeColor'; do
+        'systemBlueColor' 'systemRedColor' 'systemGreenColor' 'systemOrangeColor' \
+        'fontDescriptor' 'symbolicTraits' 'fontDescriptorWithSymbolicTraits:' \
+        'fontWithDescriptor:size:'; do
         printf '%s\n' "$binary_strings" | grep -F "$symbol" >/dev/null || {
             echo "$target system-symbol probe is missing UIKit selector $symbol" >&2
             exit 1
