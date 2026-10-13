@@ -195,6 +195,41 @@ mod tests {
     }
 
     #[test]
+    fn explicit_lease_cleanup_cancels_callback_and_ends_identifier_once() {
+        struct DropProbe(Arc<AtomicUsize>);
+
+        impl Drop for DropProbe {
+            fn drop(&mut self) {
+                self.0.fetch_add(1, Ordering::SeqCst);
+            }
+        }
+
+        let state = LeaseState::default();
+        let calls = Arc::new(AtomicUsize::new(0));
+        let drops = Arc::new(AtomicUsize::new(0));
+        assert_eq!(state.install_identifier(37), None);
+        let callback_calls = Arc::clone(&calls);
+        let probe = DropProbe(Arc::clone(&drops));
+        let callback = OneShot::new(move || {
+            let _ = &probe;
+            callback_calls.fetch_add(1, Ordering::SeqCst);
+        });
+
+        assert!(callback.cancel());
+        assert_eq!(state.end_once(), Some(37));
+        assert_eq!(state.end_once(), None);
+        state.handle_expiration(
+            Some(&callback),
+            || Some(()),
+            |(), _| panic!("an explicitly ended lease must not end twice"),
+        );
+
+        assert_eq!(calls.load(Ordering::SeqCst), 0);
+        assert_eq!(drops.load(Ordering::SeqCst), 1);
+        assert_eq!(state.end_once(), None);
+    }
+
+    #[test]
     fn callback_panic_is_contained_and_still_consumes_slot() {
         let callback = OneShot::new(|| panic!("expiry callback failure"));
 

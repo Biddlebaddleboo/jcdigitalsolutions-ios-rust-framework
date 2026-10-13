@@ -677,6 +677,19 @@ mod tests {
     }
 
     #[test]
+    fn answer_and_end_actions_map_to_framework_events() {
+        let call_id = CallId::from_bytes([13; 16]);
+        assert_eq!(
+            CallActionKind::Answer.provider_event(call_id),
+            CallProviderEvent::AnswerRequested { call_id }
+        );
+        assert_eq!(
+            CallActionKind::End.provider_event(call_id),
+            CallProviderEvent::EndRequested { call_id }
+        );
+    }
+
+    #[test]
     fn mute_and_hold_actions_preserve_requested_state_and_call_identity() {
         let call_id = CallId::from_bytes([42; 16]);
         assert_eq!(
