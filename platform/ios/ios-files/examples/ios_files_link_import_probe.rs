@@ -23,6 +23,17 @@ fn main() {
             &'files mut Files<ios_files::IosFiles>,
             AppPath<'path>,
         ) -> Result<(), FileError>;
+    let set_excluded_from_backup = ios_files::IosFiles::set_excluded_from_backup
+        as for<'files, 'path> fn(
+            &'files ios_files::IosFiles,
+            AppPath<'path>,
+            bool,
+        ) -> Result<(), FileError>;
+    let is_excluded_from_backup = ios_files::IosFiles::is_excluded_from_backup
+        as for<'files, 'path> fn(
+            &'files ios_files::IosFiles,
+            AppPath<'path>,
+        ) -> Result<bool, FileError>;
     let _ = std::hint::black_box((
         ios_files::IosFiles::new as fn() -> Result<ios_files::IosFiles, FileError>,
         ios_files::IosFiles::adopt_url_session_download
@@ -33,6 +44,8 @@ fn main() {
             ) -> Result<WriteOutcome, FileError>,
         append_file,
         create_directories,
+        set_excluded_from_backup,
+        is_excluded_from_backup,
         start_and_drop_scoped_access
             as fn(&NSURL) -> Result<(), ios_files::SecurityScopeStartError>,
     ));

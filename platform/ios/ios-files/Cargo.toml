@@ -14,12 +14,16 @@ framework-files = { path = "../../../crates/framework-files", version = "0.1.0" 
 [dev-dependencies]
 libc.workspace = true
 
+[target.'cfg(target_os = "macos")'.dev-dependencies]
+objc2 = { workspace = true, features = ["std"] }
+objc2-foundation = { workspace = true, features = ["std", "FoundationErrors", "NSDictionary", "NSError", "NSString", "NSURL", "NSValue"] }
+
 [target.'cfg(target_os = "ios")'.dependencies]
 block2 = { workspace = true, features = ["alloc"] }
 libc = { workspace = true }
 ios-runtime = { path = "../ios-runtime" }
 objc2 = { workspace = true, features = ["std"] }
-objc2-foundation = { workspace = true, features = ["std", "NSArray", "NSData", "NSError", "NSFileCoordinator", "NSFileManager", "NSPathUtilities", "NSProcessInfo", "NSString", "NSURL", "NSValue", "block2"] }
+objc2-foundation = { workspace = true, features = ["std", "FoundationErrors", "NSArray", "NSData", "NSDictionary", "NSError", "NSFileCoordinator", "NSFileManager", "NSPathUtilities", "NSProcessInfo", "NSString", "NSURL", "NSValue", "block2"] }
 
 [lints]
 workspace = true

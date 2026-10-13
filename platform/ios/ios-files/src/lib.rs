@@ -39,6 +39,7 @@ const EF_SHARES_ALL_BLOCKS: u64 = 0x0000_0040;
 const ATTR_CMNEXT_CLONE_REFCNT: u32 = 0x0000_1000;
 
 mod append;
+mod backup_exclusion;
 mod bookmark;
 mod coordination;
 mod create_directories;
@@ -2911,6 +2912,55 @@ impl IosFiles {
             seconds_since_unix_epoch,
             nanoseconds,
         })
+    }
+
+    /// Sets Apple's backup-exclusion resource value for one existing sandbox file or directory.
+    ///
+    /// This is an explicit metadata change; no file is excluded automatically. Apple recommends
+    /// this value for recreatable cache and application-support data, not user documents. The
+    /// value is guidance to backup services, not a guarantee that the item is omitted from every
+    /// backup or restore. Some file operations reset it, so set it again after such operations.
+    ///
+    /// The method validates `AppPath`, opens each component without following symlinks, and checks
+    /// a transient file-reference URL against the opened file or directory before applying the
+    /// Foundation resource value. It verifies the resource value after the setter returns. A
+    /// setter that reports success but leaves a requested exclusion unset returns `Unsupported`.
+    ///
+    /// # Errors
+    ///
+    /// Returns `InvalidPath` for a malformed `AppPath`, `InvalidInput` for a symlink, special file,
+    /// or resource outside the selected sandbox root, `NotFound` for a missing path, `PermissionDenied`
+    /// when access is denied, `Unsupported` when Foundation cannot set or read this resource key,
+    /// or the mapped native error for other failures.
+    pub fn set_excluded_from_backup(
+        &self,
+        path: AppPath<'_>,
+        excluded: bool,
+    ) -> Result<(), FileError> {
+        let parts = path_parts(path.relative())?;
+        let root = self.root(path.directory())?;
+        let (parent, leaf) = open_parent(root, &parts)?;
+        backup_exclusion::set_at(root, &parent, &leaf, excluded)
+    }
+
+    /// Returns Apple's current backup-exclusion resource value for one sandbox file or directory.
+    ///
+    /// This reads the same Foundation `NSURLIsExcludedFromBackupKey` changed by
+    /// `set_excluded_from_backup`. It does not infer exclusion from the directory, estimate whether
+    /// a backup ran, or guarantee what a backup service will include. An unset optional resource
+    /// value means the item is not marked excluded and returns `false`.
+    ///
+    /// # Errors
+    ///
+    /// Returns `InvalidPath` for a malformed `AppPath`, `InvalidInput` for a symlink, special file,
+    /// or resource outside the selected sandbox root, `NotFound` for a missing path, `PermissionDenied`
+    /// when access is denied, `Unsupported` when Foundation cannot read a Boolean resource value,
+    /// or the mapped native error for other failures.
+    pub fn is_excluded_from_backup(&self, path: AppPath<'_>) -> Result<bool, FileError> {
+        let parts = path_parts(path.relative())?;
+        let root = self.root(path.directory())?;
+        let (parent, leaf) = open_parent(root, &parts)?;
+        backup_exclusion::get_at(root, &parent, &leaf)
     }
 
     /// Returns the filesystem-reported creation timestamp for one app-sandbox regular file.

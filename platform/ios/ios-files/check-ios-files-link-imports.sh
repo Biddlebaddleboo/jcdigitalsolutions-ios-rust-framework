@@ -47,15 +47,19 @@ for target in aarch64-apple-ios aarch64-apple-ios-sim; do
     strings_file="target/ios-files-strings-$target.txt"
     nm "$binary" > "$defined_symbols"
     strings "$binary" > "$strings_file"
-    for symbol in adopt_url_session_download append create_directories; do
+    for symbol in adopt_url_session_download append create_directories set_excluded_from_backup is_excluded_from_backup; do
         if ! grep -Fq "$symbol" "$defined_symbols"; then
             echo "ios-files $target probe does not retain $symbol" >&2
             exit 1
         fi
     done
-    for selector in startAccessingSecurityScopedResource stopAccessingSecurityScopedResource; do
+    if ! grep -Fq "NSURLIsExcludedFromBackupKey" "$symbols" "$strings_file"; then
+        echo "ios-files $target probe does not retain NSURLIsExcludedFromBackupKey" >&2
+        exit 1
+    fi
+    for selector in startAccessingSecurityScopedResource stopAccessingSecurityScopedResource fileURLWithFileSystemRepresentation:isDirectory:relativeToURL: fileReferenceURL filePathURL setResourceValue:forKey:error: getResourceValue:forKey:error:; do
         if ! grep -Fq "$selector" "$strings_file"; then
-            echo "security-scope selector $selector is absent from $binary" >&2
+            echo "required Foundation selector $selector is absent from $binary" >&2
             exit 1
         fi
     done
