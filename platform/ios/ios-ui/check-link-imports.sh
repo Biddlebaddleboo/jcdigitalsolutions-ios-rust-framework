@@ -207,3 +207,5 @@ if find platform/ios/ios-ui -type f -name '*.swift' -print -quit | grep -q .; th
     echo "Swift source found under platform/ios/ios-ui" >&2
     exit 1
 fi
+
+sh platform/ios/ios-ui/check-alert-link-imports.sh
