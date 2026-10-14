@@ -306,3 +306,16 @@ on iOS 12.0 and later. Empty names return `InvalidInput`, missing UIKit symbols 
 `Unavailable`, and failures preserve the existing image. Host regressions cover invalid, missing,
 clear, and replace behavior; the registered `ios-ui` link probe checks both selectors on device and
 Simulator. Symbol rendering and button layout remain runtime-unverified.
+
+## B606 — native UIKit slider
+
+B606 adds `IosUiBackend::add_slider` over public `UISlider` with typed finite range, finite value,
+continuous or release reporting, current-value access, programmatic clamping, silent updates, and a
+main-thread-only retained target. Native value-change callbacks remain ordered under reentrancy and
+panic-contained; dropping the handle removes only its registered target/action. The host
+`ios-ui` suite passes 130/130 tests, and package formatting, shell syntax, and diff checks pass.
+The installed `ios-ui` validator snapshot `d765c2f9d24d76a22aa0c1beea34add11e9dc5b24a242a9896abe52c936a2846`
+classified all 275 gates `ERROR-BLOCKED` before execution because the host lacked validator disk
+reserve; this is not a profile pass. The Device iOS 12.0 and Simulator iOS 14.0 Release link probe
+was not run. UIKit selector linkage, deployment metadata, live touch, and physical-device behavior
+remain unverified.

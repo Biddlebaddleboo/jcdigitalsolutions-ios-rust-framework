@@ -55,12 +55,14 @@ mod context_menu;
 mod disclosure_group;
 mod list;
 mod selectable_text;
+mod slider;
 pub use activity_indicator::IosActivityIndicator;
 pub use collection_grid::IosCollectionGrid;
 pub use context_menu::{IosContextMenu, IosContextMenuAction};
 pub use disclosure_group::IosDisclosureGroup;
 pub use list::{IosListRow, IosListSection, IosListView, IosSectionedListView};
 pub use selectable_text::{IosSelectableTextView, IosTextEditor};
+pub use slider::IosSlider;
 
 /// A UIKit backend for caller-owned native controls.
 ///

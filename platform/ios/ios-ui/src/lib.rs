@@ -62,6 +62,8 @@ mod platform;
 #[cfg(any(test, target_os = "ios"))]
 mod scroll_policy;
 #[cfg(any(test, target_os = "ios"))]
+mod slider_policy;
+#[cfg(any(test, target_os = "ios"))]
 mod stack_spacing;
 #[cfg(any(test, target_os = "ios"))]
 mod system_symbol_policy;
@@ -133,13 +135,15 @@ pub use platform::IosCollectionGrid;
 pub use platform::IosDisclosureGroup;
 #[cfg(target_os = "ios")]
 pub use platform::{
-    IosButton, IosImageView, IosLabel, IosScrollView, IosSelectableTextView, IosStackAlignment,
-    IosStackAxis, IosStackDistribution, IosStackView, IosTextEditor, IosTextField, IosToggle,
-    IosUiBackend, IosView,
+    IosButton, IosImageView, IosLabel, IosScrollView, IosSelectableTextView, IosSlider,
+    IosStackAlignment, IosStackAxis, IosStackDistribution, IosStackView, IosTextEditor,
+    IosTextField, IosToggle, IosUiBackend, IosView,
 };
 #[cfg(target_os = "ios")]
 pub use platform::{IosContextMenu, IosContextMenuAction};
 #[cfg(target_os = "ios")]
 pub use platform::{IosListRow, IosListSection, IosListView, IosSectionedListView};
+#[cfg(target_os = "ios")]
+pub use slider_policy::{IosSliderConfig, IosSliderRange, IosSliderReporting};
 #[cfg(any(test, target_os = "ios"))]
 pub use text_style_policy::{IosSemanticTextColor, IosSystemTextStyle};

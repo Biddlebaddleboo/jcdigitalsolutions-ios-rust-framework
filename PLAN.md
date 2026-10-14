@@ -743,3 +743,14 @@ B602 adds `IosMapView::ui_view`, direct native map region/rectangle/camera acces
 ### B603 — user-mediated document import (row 014)
 
 B603 adds opt-in `ios-sharing/document-import`, disabled by default, with a main-thread `IosDocumentImportSession` that presents Apple's public iOS 14+ open-in-place `UIDocumentPickerViewController` for one exact UTI selection. It returns the original retained `NSURL`, cancellation, or a bounded selection-count failure; it does not read, copy, persist, start security scope, or coordinate provider I/O. Invalid starts return the exact uncalled callback; terminal callbacks are one-shot, detached before invocation, and panic-contained. Cancel/drop detach the callback/delegate but do not dismiss the presented picker. The caller owns the selected URL's security scope, coordination, reads, and persistence. Host tests cover empty/duplicate/preflight rejection, callback preservation, selection-count bounds, duplicate/late completion, detach, and panic containment. The feature-enabled host suite passed 42 tests; `check-clipboard-link-imports.sh` passed both device and Simulator feature-isolation, strict Clippy, Release import/selector, and iOS 14.0 minos checks; iOS device Rustdoc, format, docs-check, report freshness, and zero-Swift checks passed. Existing clipboard/share link examples now declare their required features so the document-import-only all-target Clippy gate stays isolated. The installed `ios-sharing` validator command created snapshot `80b72693aa7321f6ec40275652cabbb4a52a9148cb5eafd64bc778ad08f30b62` but classified all 50 gates `ERROR-BLOCKED` before execution due insufficient host disk reserve after cache reclamation; this is not a profile pass. Picker presentation, selection, provider access, and device runtime remain unverified.
+
+### B606 — native UIKit slider (row 003)
+
+B606 adds `IosUiBackend::add_slider` over public `UISlider`, with a finite increasing range,
+finite values and clamping, continuous/on-release reporting, silent programmatic updates, ordered
+reentrant value callbacks, panic containment, main-thread access, and exact target cleanup on drop.
+The `ios-ui` host suite passed 130/130 tests; package formatting, shell syntax, and diff checks
+passed. Validator snapshot `d765c2f9d24d76a22aa0c1beea34add11e9dc5b24a242a9896abe52c936a2846`
+classified all 275 gates `ERROR-BLOCKED` before execution because the host lacked validator disk
+reserve; this is not a profile pass. The device iOS 12.0 / Simulator iOS 14.0 Release link probe
+was not run. No UIKit link, deployment-floor, touch, or physical-device runtime result is claimed.

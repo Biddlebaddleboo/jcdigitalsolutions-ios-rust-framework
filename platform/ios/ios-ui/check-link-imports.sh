@@ -210,3 +210,4 @@ fi
 
 sh platform/ios/ios-ui/check-alert-link-imports.sh
 sh platform/ios/ios-ui/check-custom-render-session-link-imports.sh
+sh platform/ios/ios-ui/check-slider-link-imports.sh

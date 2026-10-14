@@ -114,6 +114,33 @@ enabled value. The registered host regression checks disabled input and callback
 Simulator probes compile and link the getter and setter selectors. They do not demonstrate runtime
 UIKit interaction on a Simulator or physical device
 
+## Native slider
+
+`IosUiBackend::add_slider` adds a public UIKit `UISlider` with an `IosSliderConfig`, validated
+`IosSliderRange`, and `IosSliderReporting::{Continuous, OnRelease}` mode. Range bounds must be
+finite and strictly increasing. Initial and later values must be finite; finite values outside the
+closed range clamp to its nearest endpoint. `IosSlider::value` reads UIKit's current value and
+`set_value` returns the clamped value it applies. Programmatic updates do not send
+`UIControlEvents::ValueChanged` or invoke the callback.
+
+```rust,ignore
+let range = IosSliderRange::new(0.0, 100.0)?;
+let config = IosSliderConfig::new(range, 25.0, IosSliderReporting::OnRelease)?;
+let mut slider = backend.add_slider(&mut parent, frame, config, |value| {
+    update_volume(value);
+})?;
+slider.set_value(40.0, true)?;
+```
+
+UIKit delivers one `ValueChanged` action to the slider's single Rust target for each native event;
+that event's value is delivered once, in order, to the callback. Reentrant native events queue until
+the active `FnMut` call returns, with no executor or framework registry. Callback panics are caught
+before returning through Objective-C. The retained slider handle owns the target and unregisters
+its exact action on drop; keep it alive while the callback should remain active. All typed access
+requires the main thread. The Device and Simulator link-import check verifies `UISlider`, its value,
+range, and reporting selectors, Objective-C dispatch, UIKit linkage, and the existing iOS 12.0 / iOS
+14.0 deployment floors. It does not exercise live touch behavior or runtime appearance
+
 ## Native stack composition
 
 `IosUiBackend::add_stack_view` adds a `UIStackView` child to a caller-owned `IosView`. Choose a
