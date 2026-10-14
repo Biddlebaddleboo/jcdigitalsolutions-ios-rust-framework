@@ -13,9 +13,10 @@ semantics.
 ## Outgoing system share
 
 `IosShareBackend` implements `framework_sharing::ShareBackend` with UIKit's public
-`UIActivityViewController`. It supports only owned UTF-8 text and URL-text items. It does not
-support files, images, rich representations, custom activities, recipient data, activity IDs,
-previews, extensions, clipboard operations, or a delivery guarantee.
+`UIActivityViewController` for owned UTF-8 text and URL-text items. Separately, the iOS-only
+`IosShareSession` supports one explicitly staged app-local file. Neither path supports images,
+rich representations, custom activities, recipient data, activity IDs, previews, extensions,
+arbitrary local-file URLs, or a delivery guarantee.
 
 `IosShareSession` provides the same presentation and result mapping through a callback API for
 foreign-function callers. It does not change the `ShareBackend` future contract.
@@ -101,6 +102,22 @@ detaches an active operation; after completion or a prior cancel it returns `fal
 and drop suppress late callbacks and clear the UIKit completion handler, but do not promise to
 dismiss share UI already on screen. The session and its callback state are `!Send` and `!Sync`.
 
+### One staged local file
+
+`IosShareFile::from_bytes(file_name, bytes)` or `from_utf8(file_name, text)` copies at most 16 MiB
+to a uniquely named file under the app temporary directory. The name must be one safe path
+component; the staged path is checked again as a regular file inside that directory immediately
+before UIKit receives its local file URL. Call `IosShareSession::start_staged_file` to consume the
+file into one share-sheet operation. This explicit path does not relax generic `ShareRequest` file
+URL rejection and requires no security-scoped access because the source is app-owned.
+
+On a rejected start, the staged file is removed and the callback is returned unconsumed. Once
+accepted, the lease remains alive through UIKit's terminal completion/dismissal or until UIKit
+releases its activity controller. Normal completion removes the staged file before the Rust
+callback runs. `cancel()` and session drop detach the Rust callback but do not dismiss UIKit UI or
+remove a file that UIKit may still read; cleanup waits for native operation release. This does not
+prove that a recipient received or retained the file.
+
 `availability()` returns `Availability::Unknown`: it does not claim that a presenter remains
 visible or ready. Before presentation, the backend returns `ErrorKind::Unavailable` when the
 presenter is transitioning, already presents another controller, has no loaded view/window, or
@@ -172,7 +189,7 @@ workflow run is recorded. No UI or recipient behavior is established.
 
 ## User-mediated document export
 
-The opt-in `document-export` feature adds `IosDocumentExportSession` for one local `NSURL` and a caller-owned, live `UIViewController`. It calls Apple's public iOS 14 `UIDocumentPickerViewController.initForExportingURLs_asCopy` API with copy mode. The source file stays app-owned and must remain readable and stable through the terminal callback. UIKit recognizes document types from file extensions such as `.txt` and `.xml`; this API does not configure `UniformTypeIdentifiers`.
+The opt-in `document-export` feature adds `IosDocumentExportSession` for one local `NSURL` and a live `UIViewController`. The session retains its presenter across the asynchronous picker result; the presenter must be attached to a window when `start` is called. It calls Apple's public iOS 14 `UIDocumentPickerViewController.initForExportingURLs_asCopy` API with copy mode. The source file stays app-owned and must remain readable and stable through the terminal callback. UIKit recognizes document types from file extensions such as `.txt` and `.xml`; this API does not configure `UniformTypeIdentifiers`.
 
 Create the session with a typed `MainThread` proof and the live presenter, then call `start` with the source URL and a one-shot callback. A rejected start returns the unconsumed callback for a non-local file URL, invalid presenter, off-main call, or active operation. `Exported` maps only to UIKit's document-picker success delegate event; `Cancelled` maps to its cancellation event. The session retains the exact `NSURL` through that event, then releases it. `cancel` and drop detach the callback but do not dismiss UIKit's picker. A successful `start` does not prove that UI became visible, a provider saved the file, or data reached durable storage. No security-scope access, file coordination, write-back, or provider status is provided.
 

@@ -14,6 +14,14 @@ The handle is main-thread-affine and `!Send`/`!Sync`. `attach_to`, `set_frame`, 
 
 The only renderer dependency is the existing `ios-ui` UIKit package plus its existing workspace CoreGraphics binding. The adapter uses public UIKit, CoreGraphics, and CoreFoundation APIs; it adds no Swift source, C bridge, global runtime, or app-specific rendering semantics.
 
+## Per-scene custom-render session
+
+`IosCustomRenderSession` composes the existing host with optional touch, text-input, semantic-accessibility, and display-link adapters under one retained root `UIView`. It preserves the host's synchronous, bounded RGBA8 copy semantics; it does not add a renderer, event loop, or automatic state observation. The caller still sets frames/layout and owns app policy.
+
+Call `set_active(false)` when a scene becomes inactive or backgrounds. This pauses the display link, cancels active touch sequences, resigns text focus, and disables the owned input views. Reactivate only after the scene becomes active. `detach()` is permanent and idempotent: it invalidates the display callback and removes session-owned adapters/host; callers may drain queued touch cancellations before dropping the session. The session and all UIKit objects remain main-thread-bound.
+
+The Rust-owned scene sample creates one session per connected scene and tears it down on disconnect. Device and Simulator compile/link probes establish ABI and deployment-floor evidence, not live touch, text editing, display cadence, VoiceOver, or multi-scene lifecycle behavior.
+
 ## Optional Metal presentation
 
 Enable `ios-ui/custom-render-metal` only for an application that wants `IosCustomMetalHost`; the default `ios-ui` dependency graph and CPU host do not enable Metal. The optional host uses public `CAMetalLayer`/Metal APIs and consumes premultiplied BGRA8 frames so framebuffer bytes can be uploaded without a CPU channel-swizzle pass. The source dimensions and optional top-left pixel damage are validated by the same bounded frame policy as the CPU path. Metal updates copy only the damage rectangle to a retained shared texture, then blit it to a matching `BGRA8Unorm` drawable. A new texture, resize, detach, hide/resume, or explicit `invalidate()` requires a full frame before partial updates resume.

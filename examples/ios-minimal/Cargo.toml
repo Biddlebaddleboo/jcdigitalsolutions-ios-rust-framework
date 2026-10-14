@@ -16,6 +16,7 @@ legacy-app-demo = []
 ios-runtime = { path = "../../platform/ios/ios-runtime" }
 ios-app-scenes = { path = "../../platform/ios/ios-app-scenes" }
 ios-ui = { path = "../../platform/ios/ios-ui" }
+ios-sharing = { path = "../../platform/ios/ios-sharing", default-features = false, features = ["document-export", "share"] }
 
 [target.'cfg(target_os = "ios")'.dependencies]
 objc2 = { workspace = true, features = ["std"] }

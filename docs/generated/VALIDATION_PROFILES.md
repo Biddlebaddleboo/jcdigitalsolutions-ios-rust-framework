@@ -27,7 +27,7 @@ The following are configured validation profiles, not claims that every gate pas
 | ios-ui | ios-ui | 2 | 12 | 0 | False |
 | ios-presentation | ios-presentation | 2 | 1 | 0 | True |
 | ios-background-execution | ios-background-execution | 2 | 1 | 0 | False |
-| ios-sharing | ios-sharing | 2 | 1 | 0 | False |
+| ios-sharing | ios-sharing | 2 | 2 | 0 | False |
 | ios-notification-responses | ios-notification-responses | 2 | 1 | 1 | False |
 | ios-call-provider | ios-call-provider | 2 | 1 | 1 | True |
 | ios-notifications | ios-notifications | 2 | 1 | 0 | False |

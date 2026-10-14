@@ -954,6 +954,7 @@ version = "0.1.0"
 dependencies = [
  "ios-app-scenes",
  "ios-runtime",
+ "ios-sharing",
  "ios-ui",
  "objc2",
  "objc2-core-foundation",

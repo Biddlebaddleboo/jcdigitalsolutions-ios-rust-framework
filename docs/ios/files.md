@@ -445,6 +445,21 @@ retains B1's concurrent opened-parent directory-rename limit. Because it uses `f
 host must declare an applicable approved File Timestamp reason in `PrivacyInfo.xcprivacy` for actual
 use. See the [B301 plan](../../PLAN_IOS_FILE_BACKUP_TIME_MARKER.md).
 
+## Explicit backup exclusion
+
+`IosFiles::set_excluded_from_backup(AppPath, bool)` sets Foundation's public
+`NSURLIsExcludedFromBackupKey` for one sandbox regular file or directory; `is_excluded_from_backup`
+reads that same resource value. The setter is explicit and never runs automatically for arbitrary
+app files. Both methods validate the relative path, use descriptor-relative no-follow traversal,
+reject symlinks and special files, and verify that the transient Foundation URL still identifies
+the opened object beneath the selected app root. The setter reads the value back and returns an
+error if Foundation reports success without applying the requested Boolean.
+
+The value is backup-service guidance, not proof that an object will be omitted from every backup
+or restore. Some file operations reset it, so callers may need to apply it again after replacing or
+recreating a file. No backup operation, entitlement, permission prompt, or required-reason privacy
+manifest entry is added by this metadata setter.
+
 ## File data-generation snapshot
 
 `IosFiles::regular_file_data_generation_snapshot` returns an `IosFileDataGenerationSnapshot`
