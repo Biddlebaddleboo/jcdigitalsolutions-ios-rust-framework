@@ -2,6 +2,12 @@
 #![deny(unsafe_op_in_unsafe_fn)]
 #![doc = "A bounded native UIKit view and control backend for iOS."]
 
+#[cfg(target_os = "ios")]
+mod alert;
+#[cfg(any(test, target_os = "ios"))]
+mod alert_policy;
+#[cfg(any(test, target_os = "ios"))]
+mod alert_state;
 #[cfg(any(test, target_os = "ios"))]
 mod collection_grid_policy;
 #[cfg(any(test, target_os = "ios"))]
@@ -67,6 +73,11 @@ mod text_style_policy;
 #[cfg(any(test, target_os = "ios"))]
 mod toggle_policy;
 
+#[cfg(target_os = "ios")]
+pub use alert::{
+    IosAlertActionStyle, IosAlertError, IosAlertKeyboardType, IosAlertResult, IosAlertSession,
+    IosAlertStartError, IosAlertStyle, IosAlertTextFieldConfig,
+};
 #[cfg(target_os = "ios")]
 pub use collection_grid_policy::{
     IosCollectionGridEvent, IosCollectionGridInsets, IosCollectionGridItem,
