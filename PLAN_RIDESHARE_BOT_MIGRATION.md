@@ -3,8 +3,15 @@
 This B533 update verified current `jcdigitalsolutions/rideshare-bot` `origin/main` at
 `3cffac2d9bc2bcc5f7475b8fb9a62a3d8a62d671` and read only the three file-export sources listed below. Other dependency rows carry forward the earlier source review at `bc5f4e1a9e329b741073375534c8b69af78e640d`; they were not re-audited here. B541 rechecked audio API use at the same commit and found no `AVAudioSession`, `AVAudioEngine`, `AudioUnit`, or `AudioQueue` use. The app worktree was not modified. This map records reusable framework dependencies, not app migration work or Rideshare-specific protocol scope.
 
+B607 rechecked `ios/RideshareBot/MicroUiApp.swift` at Rideshare Bot `origin/main`
+`71323f02cd9c0947248673b206efd1ca6dc72d26`: its Rust renderer emits packed `PixelFormat::Mono1`
+rows, and its Swift view constructs one-bit device-gray `CGImage` output. B607 adds equivalent
+reusable `ios-ui` presentation without changing the app. Other rows retain their stated review
+baselines; no Rideshare Bot files were modified.
+
 | Swift source | Existing reusable Rust coverage | Remaining reusable gap / priority |
 | --- | --- | --- |
+| `ios/RideshareBot/MicroUiApp.swift` | B607 adds `Mono1Frame` and synchronous packed Mono1 presentation through `IosCustomRenderHost` / `IosCustomRenderSession`; the app's Rust renderer already emits the matching one-bit row format | The Swift presenter remains unchanged; no app migration, custom-render input, scene integration, or runtime result is claimed (P1 UI) |
 | `ios/RideshareBot/Networking/DatagramTransport.swift`, `ios/RideshareBot/Networking/ProtocolTransport.swift` | `framework-connection` / `ios-connection` provide outbound secure TCP streams and B532's reusable TCP listener/accepted-stream API; B497 supplies bounded IPv4 UDP bind/send/receive/source-endpoint/cancellation control in `framework-datagram` / `ios-datagram` | Reusable UDP control is covered by the framework crates; app protocol framing, UDP request semantics and message limits remain app-owned. The committed Rideshare Bot source has no TCP listener, Bonjour, or `Network.framework` usage, so B532 is general-purpose coverage rather than a current migration prerequisite (P0 transport covered) |
 | `ios/RideshareBot/Networking/PeerNetworking.swift` | B497 supplies bind/send/receive/source endpoint and cancellation primitives for the app's passive UDP socket | F2/F3 probe/reply behavior, peer registry and retry policy remain app-owned. The observed reply is unicast to the source endpoint; no framework peer-discovery or multicast API is currently required |
 | `ios/RideshareBot/Networking/BotAPIClient.swift`, `ios/RideshareBot/RemoteHopp/RemoteHoppCoordinator.swift`, `ios/RideshareBot/WazeRelay/WazeRelayServer.swift` | `framework-network` / `ios-network` provide foreground HTTP; B497 supplies generic UDP socket operations | Bot/Waze payloads, keepalive and mailbox semantics remain app-owned. Connection recovery/background lifecycle is a separate P1 gap only where coordinator behavior requires it; no TCP listener or `Network.framework` dependency was found |

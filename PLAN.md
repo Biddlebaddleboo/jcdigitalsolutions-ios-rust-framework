@@ -762,3 +762,16 @@ passed. Validator snapshot `d765c2f9d24d76a22aa0c1beea34add11e9dc5b24a242a9896ab
 classified all 275 gates `ERROR-BLOCKED` before execution because the host lacked validator disk
 reserve; this is not a profile pass. The device iOS 12.0 / Simulator iOS 14.0 Release link probe
 was not run. No UIKit link, deployment-floor, touch, or physical-device runtime result is claimed.
+
+### B607 — packed Mono1 custom-render frames (row 055)
+
+B607 adds borrowed `Mono1Frame<'a>` and synchronous `present_mono1` methods to the existing
+`IosCustomRenderHost` and `IosCustomRenderSession`. It accepts byte-aligned MSB-first 1-bit grayscale
+rows (set=white, clear=black), validates padded strides, damage, checked extent, dimensions and the
+64 MiB source-copy cap, then copies only packed bytes into `CFData` for a device-gray, no-alpha,
+non-interpolated `CGImage`. RGBA8 presentation is unchanged; pixels are not expanded or transcoded.
+Host tests passed 132/132; strict Clippy, format, shell syntax, and Device iOS 12.0 / Simulator iOS
+14.0 Release link probes passed. The registered `ios-ui` validator snapshot
+`02e92c6e9c9352cd007167f117a348cfad91529ec91cd8261b0657c4bf3bc50b` classified all 275 checks
+`ERROR-BLOCKED` before execution by the disk reserve guard, so the profile is not qualified. No
+app, Simulator UI, or physical-device rendering was run.

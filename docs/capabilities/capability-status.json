@@ -1303,7 +1303,9 @@
       "entitlements": [
         "com.apple.developer.nfc.readersession.formats"
       ],
-      "device_only_restrictions": "NDEF session reads and writes require NFC-capable hardware and correct app provisioning; simulator build/link checks are not runtime proof.",
+      "device_only_restrictions": [
+        "NDEF session reads and writes require NFC-capable hardware and correct app provisioning; simulator build/link checks are not runtime proof."
+      ],
       "swift_abi_requirement": false,
       "metadata_verification": "B37 verifies NFCReaderSession.readingAvailable from iOS 11.0. B573 uses public objc2-core-nfc 0.3.2 bindings for NFCNDEFReaderSession reads; B593 uses its public tag connect, status, and write APIs. The validation floors are device iOS 11.0 and Simulator iOS 14.0. NDEF use requires NFCReaderUsageDescription and com.apple.developer.nfc.readersession.formats with NDEF enabled. Compile/link checks do not prove hardware, provisioning, user prompts, or tag runtime.",
       "parity_status": "not_tested_live_behavior_or_Apple_parity",
@@ -1768,7 +1770,7 @@
       "portable_contract_note": "No portable facade for this capability is included in D1.",
       "ios_implementation_class": "B",
       "implementation_status": "partial",
-      "status_reason": "B21 performs one CoreGraphics CGRectIntersection operation. ios-ui exposes IosCustomRenderHost for main-thread UIKit UIImageView hosting and copied, bounded RGBA8 frames, plus separate IosCustomRenderTouchInput, IosCustomTextInput, and IosCustomRenderAccessibility adapters. Optional IosCustomMetalHost adds a feature-gated CAMetalLayer presenter. These are imperative native surfaces, not a widget/layout system or SwiftUI. CPU and Metal frames and host lifecycle were observed in iOS 18 Simulator; live touch delivery, keyboard/IME, and VoiceOver remain unverified, with no physical-device performance result. PLAN2 adds `IosCustomRenderSession`, which composes the existing bounded RGBA8 UIKit host with optional touch, text-input, semantic-accessibility, and display-link adapters under one retained root view. Scene suspension pauses display work, cancels active touches, resigns text focus, and disables input; permanent detach is idempotent. It adds no renderer or SwiftUI model. Live rendering/input and multi-scene behavior remain unverified.",
+      "status_reason": "B21 performs one CoreGraphics CGRectIntersection operation. ios-ui exposes IosCustomRenderHost for main-thread UIKit UIImageView hosting and copied, bounded RGBA8 frames, plus separate IosCustomRenderTouchInput, IosCustomTextInput, and IosCustomRenderAccessibility adapters. Optional IosCustomMetalHost adds a feature-gated CAMetalLayer presenter. These are imperative native surfaces, not a widget/layout system or SwiftUI. CPU and Metal frames and host lifecycle were observed in iOS 18 Simulator; live touch delivery, keyboard/IME, and VoiceOver remain unverified, with no physical-device performance result. `IosCustomRenderSession` composes the existing bounded RGBA8 UIKit host with optional touch, text-input, semantic-accessibility, and display-link adapters under one retained root view. Scene suspension pauses display work, cancels active touches, resigns text focus, and disables input; permanent detach is idempotent. It adds no renderer or SwiftUI model. Live rendering/input and multi-scene behavior remain unverified. B607 adds validated borrowed Mono1Frame and synchronous packed one-bit device-gray presentation on IosCustomRenderHost and IosCustomRenderSession. It preserves RGBA8, copies only bounded packed bytes, and does not expand pixels. Host tests and Device/Simulator Release link probes pass; the registered ios-ui profile was resource-blocked before execution, so runtime rendering and the full profile remain unverified.",
       "minimum_ios_version": "2.0",
       "required_frameworks": [
         "CoreGraphics",

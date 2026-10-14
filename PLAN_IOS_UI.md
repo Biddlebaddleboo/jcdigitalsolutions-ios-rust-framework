@@ -319,3 +319,15 @@ classified all 275 gates `ERROR-BLOCKED` before execution because the host lacke
 reserve; this is not a profile pass. The Device iOS 12.0 and Simulator iOS 14.0 Release link probe
 was not run. UIKit selector linkage, deployment metadata, live touch, and physical-device behavior
 remain unverified.
+
+## B607 — packed Mono1 custom-render frames
+
+B607 adds public `Mono1Frame<'a>` validation plus synchronous packed-frame presentation on the
+existing host and session. Rows are byte-aligned and MSB-first; set bits are white, clear bits black,
+padding bits are ignored, and padded row strides are supported. The backend copies only the checked
+packed extent into `CFData` and constructs a device-gray one-bit `CGImage` with no alpha and
+interpolation disabled. Host tests passed 132/132, strict Clippy, formatting, shell syntax, and both
+registered Device/Simulator link probes passed at iOS 12.0 / 14.0. Validator snapshot
+`02e92c6e9c9352cd007167f117a348cfad91529ec91cd8261b0657c4bf3bc50b` classified all 275 `ios-ui`
+checks `ERROR-BLOCKED` by the host disk reserve guard before execution; it is not a profile pass. No
+visual output or physical-device behavior is claimed.
