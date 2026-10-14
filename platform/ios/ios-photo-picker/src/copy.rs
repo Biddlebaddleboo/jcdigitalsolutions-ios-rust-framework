@@ -63,14 +63,7 @@ pub(crate) fn copy_provider_file(
     if max_bytes == 0 {
         return Err(CopyError::InvalidByteLimit);
     }
-    let metadata = fs::symlink_metadata(source).map_err(io_error)?;
-    if !metadata.file_type().is_file() {
-        return Err(CopyError::NotRegularFile);
-    }
-    if metadata.len() == 0 {
-        return Err(CopyError::EmptyFile);
-    }
-    if metadata.len() > max_bytes {
+    if provider_file_len(source)? > max_bytes {
         return Err(CopyError::TooLarge { limit: max_bytes });
     }
     if !is_active() {
@@ -101,6 +94,17 @@ pub(crate) fn copy_provider_file(
             Err(error)
         }
     }
+}
+
+pub(crate) fn provider_file_len(source: &Path) -> Result<u64, CopyError> {
+    let metadata = fs::symlink_metadata(source).map_err(io_error)?;
+    if !metadata.file_type().is_file() {
+        return Err(CopyError::NotRegularFile);
+    }
+    if metadata.len() == 0 {
+        return Err(CopyError::EmptyFile);
+    }
+    Ok(metadata.len())
 }
 
 fn copy_into(

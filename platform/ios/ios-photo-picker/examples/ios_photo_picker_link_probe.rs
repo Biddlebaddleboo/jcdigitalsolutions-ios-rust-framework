@@ -3,6 +3,7 @@
 #[cfg(target_os = "ios")]
 fn main() {
     use ios_photo_picker::IosPhotoPickerSession;
+    use ios_photo_picker::{MAX_MULTI_IMAGE_AGGREGATE_BYTES, MAX_MULTI_IMAGE_SELECTION};
     use ios_runtime::main_thread::MainThread;
     use objc2_ui_kit::UIViewController;
 
@@ -17,6 +18,17 @@ fn main() {
         let session =
             IosPhotoPickerSession::present(picker_thread, &presenter, 32 * 1024 * 1024, |_| {});
         std::hint::black_box(&session);
+        let Some(multi_picker_thread) = MainThread::current() else {
+            return;
+        };
+        let multi_session = IosPhotoPickerSession::present_multiple(
+            multi_picker_thread,
+            &presenter,
+            MAX_MULTI_IMAGE_SELECTION,
+            MAX_MULTI_IMAGE_AGGREGATE_BYTES,
+            |_| {},
+        );
+        std::hint::black_box(&multi_session);
     }
 }
 

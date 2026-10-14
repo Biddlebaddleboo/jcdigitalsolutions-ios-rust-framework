@@ -25,11 +25,14 @@ use objc2_photos_ui::{
 };
 use objc2_ui_kit::UIViewController;
 
-use crate::copy::{CopyError, copy_provider_file};
-use crate::session_policy::{PickerCompletion, SelectionDecision, selection_decision};
+use crate::copy::{CopyError, copy_provider_file, provider_file_len};
+use crate::session_policy::{
+    MultiPickerCompletion, PickerCompletion, SelectionDecision, selection_decision,
+    validate_multi_limits,
+};
 use crate::{IosPhotoPickerError, IosPhotoPickerEvent};
 
-/// A main-thread-bound, one-image PhotosUI session.
+/// A main-thread-bound PhotosUI image-selection session.
 pub struct IosPhotoPickerSession {
     picker: Retained<NativePHPickerViewController>,
     delegate: Retained<PhotoPickerDelegate>,
@@ -58,12 +61,60 @@ impl IosPhotoPickerSession {
         if max_bytes == 0 {
             return Err(IosPhotoPickerError::InvalidByteLimit);
         }
+        Self::present_with_completion(
+            main_thread,
+            presenter,
+            1,
+            max_bytes,
+            PickerCallback::Single(PickerCompletion::new(callback)),
+        )
+    }
+
+    /// Presents the system image picker for a bounded selection of two or more images.
+    ///
+    /// `selection_limit` must be between [`crate::MIN_MULTI_IMAGE_SELECTION`] and
+    /// [`crate::MAX_MULTI_IMAGE_SELECTION`], inclusive. `max_aggregate_bytes` must be nonzero and
+    /// no greater than [`crate::MAX_MULTI_IMAGE_AGGREGATE_BYTES`]. Every selected provider file is copied
+    /// byte-for-byte into app-temporary storage, and the total provider bytes are reserved before
+    /// copying so concurrent transfers cannot exceed the aggregate ceiling. Results are returned
+    /// in PhotosUI selection order. Any provider, file, copy, or aggregate-size failure fails the
+    /// entire batch and drops all files already copied; other already-started provider requests
+    /// may finish, but their late results are ignored. Cancellation emits `Cancelled` once and
+    /// cancels all retained provider progress objects. Dropping the session cancels and detaches
+    /// the callback, so late results are ignored and copied files are removed.
+    pub fn present_multiple<F>(
+        main_thread: MainThread,
+        presenter: &UIViewController,
+        selection_limit: u8,
+        max_aggregate_bytes: u64,
+        callback: F,
+    ) -> Result<Self, IosPhotoPickerError>
+    where
+        F: FnOnce(IosPhotoPickerEvent) + Send + 'static,
+    {
+        validate_multi_limits(selection_limit, max_aggregate_bytes)?;
+        Self::present_with_completion(
+            main_thread,
+            presenter,
+            selection_limit,
+            max_aggregate_bytes,
+            PickerCallback::Multiple(MultiPickerCompletion::new(max_aggregate_bytes, callback)),
+        )
+    }
+
+    fn present_with_completion(
+        main_thread: MainThread,
+        presenter: &UIViewController,
+        selection_limit: u8,
+        max_bytes: u64,
+        completion: PickerCallback,
+    ) -> Result<Self, IosPhotoPickerError> {
         let marker = main_thread.into_objc2();
         // SAFETY: These public PhotosUI constructors and setters are called on the UIKit main
-        // thread. Selection is limited to one image and the current representation is preferred.
+        // thread. The configured selection limit is bounded and the current representation is preferred.
         let configuration = unsafe { PHPickerConfiguration::new() };
         unsafe {
-            configuration.setSelectionLimit(1);
+            configuration.setSelectionLimit(isize::from(selection_limit));
             configuration.setPreferredAssetRepresentationMode(
                 PHPickerConfigurationAssetRepresentationMode::Current,
             );
@@ -81,8 +132,7 @@ impl IosPhotoPickerSession {
                 &configuration,
             )
         };
-        let completion = PickerCompletion::new(callback);
-        let delegate = PhotoPickerDelegate::new(marker, completion, max_bytes);
+        let delegate = PhotoPickerDelegate::new(marker, completion, selection_limit, max_bytes);
         // SAFETY: PhotosUI stores a weak delegate; `Self` retains the delegate for the session.
         unsafe { picker.setDelegate(Some(ProtocolObject::from_ref(&*delegate))) };
         presenter.presentViewController_animated_completion(&picker, true, None);
@@ -109,10 +159,100 @@ impl Drop for IosPhotoPickerSession {
 }
 
 struct PhotoPickerDelegateIvars {
-    completion: PickerCompletion,
-    progress: RefCell<Option<Retained<NSProgress>>>,
+    completion: PickerCallback,
+    progress: RefCell<Vec<Retained<NSProgress>>>,
     is_presented: Cell<bool>,
+    selection_limit: u8,
     max_bytes: u64,
+}
+
+#[derive(Clone)]
+enum PickerCallback {
+    Single(PickerCompletion),
+    Multiple(MultiPickerCompletion),
+}
+
+impl PickerCallback {
+    fn clone_for_provider(&self) -> Self {
+        self.clone()
+    }
+
+    fn begin_loading(&self, count: usize) -> bool {
+        match self {
+            Self::Single(completion) => count == 1 && completion.begin_loading(),
+            Self::Multiple(completion) => completion.begin_loading(count),
+        }
+    }
+
+    fn is_loading(&self) -> bool {
+        match self {
+            Self::Single(completion) => completion.is_loading(),
+            Self::Multiple(completion) => completion.is_loading(),
+        }
+    }
+
+    fn is_multiple(&self) -> bool {
+        matches!(self, Self::Multiple(_))
+    }
+
+    fn reserve(&self, index: usize, byte_len: u64) -> bool {
+        match self {
+            Self::Multiple(completion) => completion.reserve(index, byte_len),
+            Self::Single(_) => false,
+        }
+    }
+
+    fn finish_item(&self, index: usize, image: crate::IosPickedImage) {
+        match self {
+            Self::Single(completion) if index == 0 => {
+                completion.finish(IosPhotoPickerEvent::Selected(image));
+            }
+            Self::Single(completion) => {
+                drop(image);
+                completion.finish(IosPhotoPickerEvent::Failed(
+                    IosPhotoPickerError::UnexpectedSelectionCount {
+                        actual: u64::try_from(index.saturating_add(1)).unwrap_or(u64::MAX),
+                    },
+                ));
+            }
+            Self::Multiple(completion) => {
+                completion.finish_item(index, image);
+            }
+        }
+    }
+
+    fn fail(&self, error: IosPhotoPickerError) {
+        match self {
+            Self::Single(completion) => {
+                completion.finish(IosPhotoPickerEvent::Failed(error));
+            }
+            Self::Multiple(completion) => {
+                completion.fail(error);
+            }
+        }
+    }
+
+    fn cancel(&self) {
+        match self {
+            Self::Single(completion) => {
+                completion.finish(IosPhotoPickerEvent::Cancelled);
+            }
+            Self::Multiple(completion) => {
+                completion.cancel();
+            }
+        }
+    }
+
+    fn detach(&self) {
+        match self {
+            Self::Single(completion) => {
+                completion.detach();
+            }
+            Self::Multiple(completion) => {
+                completion.detach();
+            }
+        }
+    }
 }
 
 define_class!(
@@ -142,11 +282,11 @@ define_class!(
             if result.is_err() {
                 // SAFETY: We are still on the UIKit main thread and use public controller methods.
                 self.dismiss(picker);
-                self.ivars().completion.finish(IosPhotoPickerEvent::Failed(
-                    IosPhotoPickerError::CopyFailed {
+                self.ivars()
+                    .completion
+                    .fail(IosPhotoPickerError::CopyFailed {
                         message: String::from("Rust panic while handling PhotosUI selection"),
-                    },
-                ));
+                    });
             }
         }
     }
@@ -155,13 +295,15 @@ define_class!(
 impl PhotoPickerDelegate {
     fn new(
         marker: MainThreadMarker,
-        completion: PickerCompletion,
+        completion: PickerCallback,
+        selection_limit: u8,
         max_bytes: u64,
     ) -> Retained<Self> {
         let this = Self::alloc(marker).set_ivars(PhotoPickerDelegateIvars {
             completion,
-            progress: RefCell::new(None),
+            progress: RefCell::new(Vec::new()),
             is_presented: Cell::new(true),
+            selection_limit,
             max_bytes,
         });
         // SAFETY: NSObject is the direct superclass and all ivars are initialized before init.
@@ -175,42 +317,46 @@ impl PhotoPickerDelegate {
     ) {
         // SAFETY: Delegate callbacks are main-thread-only; the result array is borrowed for this call.
         let count = results.count();
-        match selection_decision(u64::try_from(count).unwrap_or(u64::MAX)) {
+        match selection_decision(
+            u64::try_from(count).unwrap_or(u64::MAX),
+            self.ivars().selection_limit,
+        ) {
             SelectionDecision::Cancelled => {
                 self.dismiss(picker);
-                self.ivars()
-                    .completion
-                    .finish(IosPhotoPickerEvent::Cancelled);
+                self.ivars().completion.cancel();
                 return;
             }
             SelectionDecision::UnexpectedCount(actual) => {
                 self.dismiss(picker);
-                self.ivars().completion.finish(IosPhotoPickerEvent::Failed(
-                    IosPhotoPickerError::UnexpectedSelectionCount { actual },
-                ));
+                self.ivars()
+                    .completion
+                    .fail(IosPhotoPickerError::UnexpectedSelectionCount { actual });
                 return;
             }
             SelectionDecision::Selected => {}
         }
-        if !self.ivars().completion.begin_loading() {
+        if !self.ivars().completion.begin_loading(count) {
             self.dismiss(picker);
             return;
         }
-        // SAFETY: The configured selection limit is one and `count` was checked above.
-        let result = results.objectAtIndex(0);
-        // SAFETY: PHPickerResult.itemProvider is a public retained property.
-        let provider = unsafe { result.itemProvider() };
         let type_identifier = NSString::from_str("public.image");
-        if !provider.hasItemConformingToTypeIdentifier(&type_identifier) {
-            self.dismiss(picker);
-            self.ivars().completion.finish(IosPhotoPickerEvent::Failed(
-                IosPhotoPickerError::ImageRepresentationUnavailable,
-            ));
-            return;
-        }
-
         self.dismiss(picker);
-        self.load_image(provider, type_identifier);
+        for index in 0..count {
+            if !self.ivars().completion.is_loading() {
+                return;
+            }
+            // SAFETY: The result index is within the borrowed PhotosUI result array.
+            let result = results.objectAtIndex(index);
+            // SAFETY: PHPickerResult.itemProvider is a public retained property.
+            let provider = unsafe { result.itemProvider() };
+            if !provider.hasItemConformingToTypeIdentifier(&type_identifier) {
+                self.ivars()
+                    .completion
+                    .fail(IosPhotoPickerError::ImageRepresentationUnavailable);
+                return;
+            }
+            self.load_image(index, provider, type_identifier.clone());
+        }
     }
 
     fn dismiss(&self, picker: &NativePHPickerViewController) {
@@ -229,47 +375,64 @@ impl PhotoPickerDelegate {
         }
     }
 
-    fn load_image(&self, provider: Retained<NSItemProvider>, type_identifier: Retained<NSString>) {
+    fn load_image(
+        &self,
+        index: usize,
+        provider: Retained<NSItemProvider>,
+        type_identifier: Retained<NSString>,
+    ) {
         let completion = self.ivars().completion.clone_for_provider();
         let max_bytes = self.ivars().max_bytes;
         let handler = RcBlock::new(move |url: *mut NSURL, native_error: *mut NSError| {
             let result = catch_unwind(AssertUnwindSafe(|| {
+                if !completion.is_loading() {
+                    return;
+                }
                 if let Some(error) = error_ptr(native_error).map(error_from_native) {
-                    completion.finish(IosPhotoPickerEvent::Failed(error));
+                    completion.fail(error);
                     return;
                 }
                 let Some(url) = NonNull::new(url) else {
-                    completion.finish(IosPhotoPickerEvent::Failed(
-                        IosPhotoPickerError::ImageRepresentationUnavailable,
-                    ));
+                    completion.fail(IosPhotoPickerError::ImageRepresentationUnavailable);
                     return;
                 };
                 let Some(source) = provider_file_path(url) else {
-                    completion.finish(IosPhotoPickerEvent::Failed(
-                        IosPhotoPickerError::ImageRepresentationUnavailable,
-                    ));
+                    completion.fail(IosPhotoPickerError::ImageRepresentationUnavailable);
                     return;
                 };
                 // SAFETY: Foundation returns the app's private temporary directory as an NSString.
                 let temporary_root = PathBuf::from(NSTemporaryDirectory().to_string());
-                match copy_provider_file(&source, &temporary_root, max_bytes, || {
+                let copy_limit = if completion.is_multiple() {
+                    let byte_len = match provider_file_len(&source) {
+                        Ok(byte_len) => byte_len,
+                        Err(error) => {
+                            completion.fail(copy_error(error));
+                            return;
+                        }
+                    };
+                    if !completion.reserve(index, byte_len) {
+                        return;
+                    }
+                    byte_len
+                } else {
+                    max_bytes
+                };
+                match copy_provider_file(&source, &temporary_root, copy_limit, || {
                     completion.is_loading()
                 }) {
                     Ok(image) => {
-                        completion.finish(IosPhotoPickerEvent::Selected(image));
+                        completion.finish_item(index, image);
                     }
                     Err(CopyError::Cancelled) => {}
                     Err(error) => {
-                        completion.finish(IosPhotoPickerEvent::Failed(copy_error(error)));
+                        completion.fail(copy_error(error));
                     }
                 }
             }));
             if result.is_err() {
-                completion.finish(IosPhotoPickerEvent::Failed(
-                    IosPhotoPickerError::CopyFailed {
-                        message: String::from("Rust panic while copying PhotosUI provider data"),
-                    },
-                ));
+                completion.fail(IosPhotoPickerError::CopyFailed {
+                    message: String::from("Rust panic while copying PhotosUI provider data"),
+                });
             }
         });
         // SAFETY: The escaping block captures only Arc-backed Send+Sync completion state and a
@@ -280,21 +443,19 @@ impl PhotoPickerDelegate {
                 &handler,
             )
         };
-        *self.ivars().progress.borrow_mut() = Some(progress);
+        self.ivars().progress.borrow_mut().push(progress);
     }
 
     fn cancel(&self) {
-        self.ivars()
-            .completion
-            .finish(IosPhotoPickerEvent::Cancelled);
-        if let Some(progress) = self.ivars().progress.borrow_mut().take() {
+        self.ivars().completion.cancel();
+        for progress in self.ivars().progress.borrow_mut().drain(..) {
             progress.cancel();
         }
     }
 
     fn detach(&self) {
         self.ivars().completion.detach();
-        if let Some(progress) = self.ivars().progress.borrow_mut().take() {
+        for progress in self.ivars().progress.borrow_mut().drain(..) {
             progress.cancel();
         }
     }
