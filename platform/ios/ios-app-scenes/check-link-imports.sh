@@ -68,10 +68,26 @@ for target in aarch64-apple-ios aarch64-apple-ios-sim; do
         viewIfLoaded; do
         grep -Fq "$selector" "$binary_strings"
     done
-    if grep -Eiq 'swift|SceneDelegate|setDelegate:|requestSceneSession|openSessions' "$symbols" "$binary_strings"; then
+    if grep -Eiq 'swift|setDelegate:|requestSceneSession|openSessions' "$symbols" "$binary_strings"; then
         echo "unexpected Swift runtime, delegate replacement, or scene creation/configuration API in $symbols or $binary_strings" >&2
         exit 1
     fi
+
+    for class_name in JcdIosApplicationHostDelegate JcdIosApplicationSceneDelegate; do
+        grep -Fq "$class_name" "$binary_strings"
+    done
+    for selector in \
+        application:configurationForConnectingSceneSession:options: \
+        configurationWithName:sessionRole: \
+        setDelegateClass: \
+        scene:willConnectToSession:options: \
+        sceneDidDisconnect: \
+        sceneDidBecomeActive: \
+        sceneWillResignActive: \
+        sceneWillEnterForeground: \
+        sceneDidEnterBackground:; do
+        grep -Fq "$selector" "$binary_strings"
+    done
 
     vtool -show-build "$binary" > "$build_info"
     actual_deployment_target="$(awk '$1 == "minos" || $1 == "version" { print $2; exit }' "$build_info")"

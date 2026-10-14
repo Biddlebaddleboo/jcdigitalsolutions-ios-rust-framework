@@ -76,9 +76,19 @@ The constructor returns `framework_core::ErrorKind::InvalidInput` before creatin
 
 The link probe compiles the constructor, `setRootViewController:`, `makeKeyAndVisible`, native escape, and drop cleanup for device iOS 13.0 and Simulator iOS 14.0. These checks do not prove live presentation, key-window status, scene-disconnect cleanup, or on-device lifecycle behavior.
 
+## Rust-owned application and scene host
+
+`IosApplicationHost::run(handler, main_thread)` enters public UIKit `UIApplicationMain` with Rust-defined `UIApplicationDelegate` and `UISceneDelegate` classes. The app delegate creates a `UISceneConfiguration` through `configurationForConnectingSceneSession:options:` and assigns the registered Rust scene delegate with `setDelegateClass:`. The consuming app's `Info.plist` must declare `UIApplicationSceneManifest`, a `UIWindowSceneSessionRoleApplication` configuration named `Rust Scene`, and `JcdIosApplicationSceneDelegate`; the Rust sample in `examples/ios-minimal` shows this setup without Swift or a Swift `@main`.
+
+Each connected window scene owns its own `IosSceneHost`, `UIWindowScene`, `IosSceneWindow`, root `UIViewController`, root `UIView`, exact session identifier, and typed `IosScenePhase`. `scene.root_view_controller()` is a borrow for presenting native controllers; `scene.attach_view(&view)` and `detach_view` manage unparented native child views. Keep all UIKit access on the callback's main thread. The host is `!Send`/`!Sync`, and the lifecycle handler borrows it only for the duration of the callback.
+
+The app delegate owns one application handler and a fixed 32-entry FIFO for callbacks caused by synchronous UIKit reentrancy. On overflow it drops the oldest callback; the affected scene's saturating dropped-event count increases. A delivered or dropped disconnect callback releases that scene's host deterministically. Objective-C delegate callbacks contain Rust panics before returning to UIKit; `panic=abort` still terminates the process. `run` is a one-shot process entry and does not return. No global scene registry, executor, permission, entitlement, private API, or Swift source is added.
+
+`examples/ios-minimal/src/scene_app.rs` attaches a native label from `WillConnect`. On the iOS 18.0 iPhone 16 Pro x86_64 Simulator, the sample launched, delivered scene connection, and visibly displayed the label. Device runtime and arm64 Simulator runtime remain unverified. The device/Simulator ABI checks establish imported frameworks, selectors, and deployment floors only; they do not substitute for runtime evidence.
+
 The public APIs and notification constants have an iOS 13.0 floor in the installed iPhoneOS 26.5 SDK. The Rust target's effective minimum is iOS 13.0 for device and 14.0 for Simulator in the registered link probe. No permission, entitlement, or usage-description key is required.
 
-The adapter uses generated `objc2-ui-kit 0.3.2` and `objc2-foundation 0.3.2` bindings, plus `block2 0.6.2`; it adds no Swift source and no hand-written Objective-C ABI. UIKit delivery, multi-scene ordering, suspend/resume delivery, Simulator runtime, and physical-device runtime remain unverified by host tests or compile/link checks.
+The adapter uses generated `objc2-ui-kit 0.3.2` and `objc2-foundation 0.3.2` bindings, plus `block2 0.6.2`; it adds no Swift source and no hand-written Objective-C ABI. The Simulator smoke proves one scene connection and visible root content only; multiple simultaneous scenes, suspend/resume transitions, disconnect/reconnect, and physical-device runtime remain unverified.
 
 ## Evidence
 

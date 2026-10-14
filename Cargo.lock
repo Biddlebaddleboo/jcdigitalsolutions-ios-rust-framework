@@ -952,6 +952,7 @@ dependencies = [
 name = "ios-minimal"
 version = "0.1.0"
 dependencies = [
+ "ios-app-scenes",
  "ios-runtime",
  "ios-ui",
  "objc2",

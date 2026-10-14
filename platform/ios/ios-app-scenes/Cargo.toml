@@ -12,7 +12,7 @@ block2 = { workspace = true }
 ios-runtime = { path = "../ios-runtime" }
 objc2 = { workspace = true }
 objc2-foundation = { workspace = true, features = ["NSArray", "NSEnumerator", "NSNotification", "NSOperation", "NSRange", "NSString", "block2"] }
-objc2-ui-kit = { workspace = true, features = ["std", "UIApplication", "UIScene", "UISceneDefinitions", "UISceneSession", "UIResponder", "UIView", "UIViewController", "UIWindow", "UIWindowScene"] }
+objc2-ui-kit = { workspace = true, features = ["std", "UIApplication", "UIScene", "UISceneConfiguration", "UISceneDefinitions", "UISceneOptions", "UISceneSession", "UIResponder", "UIView", "UIViewController", "UIWindow", "UIWindowScene"] }
 
 [dependencies]
 framework-core = { workspace = true }

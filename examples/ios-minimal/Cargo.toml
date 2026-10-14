@@ -10,9 +10,11 @@ description = "Rust-owned UIKit application vertical slice"
 
 [features]
 custom-render-metal-demo = ["ios-ui/custom-render-metal"]
+legacy-app-demo = []
 
 [dependencies]
 ios-runtime = { path = "../../platform/ios/ios-runtime" }
+ios-app-scenes = { path = "../../platform/ios/ios-app-scenes" }
 ios-ui = { path = "../../platform/ios/ios-ui" }
 
 [target.'cfg(target_os = "ios")'.dependencies]

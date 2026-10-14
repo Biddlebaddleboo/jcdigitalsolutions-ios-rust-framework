@@ -25,6 +25,18 @@ use std::ptr::NonNull;
 mod backend;
 
 #[cfg(target_os = "ios")]
+mod application_host;
+
+#[cfg(target_os = "ios")]
+mod scene_host;
+
+#[cfg(any(target_os = "ios", test))]
+mod callback_queue;
+
+#[cfg(any(target_os = "ios", test))]
+mod scene_phase;
+
+#[cfg(target_os = "ios")]
 pub use backend::IosSceneLifecycleEvents;
 
 #[cfg(target_os = "ios")]
@@ -32,6 +44,12 @@ mod window;
 
 #[cfg(target_os = "ios")]
 pub use window::IosSceneWindow;
+
+#[cfg(target_os = "ios")]
+pub use application_host::{IosApplicationHandler, IosApplicationHost};
+
+#[cfg(target_os = "ios")]
+pub use scene_host::{IosSceneHost, IosScenePhase};
 
 /// Counts scene activation states from one `UIApplication.connectedScenes` read
 #[cfg(target_os = "ios")]
