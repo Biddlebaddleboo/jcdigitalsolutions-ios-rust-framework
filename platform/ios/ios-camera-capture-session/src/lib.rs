@@ -371,6 +371,21 @@ impl<T> BoundedVideoFrameQueue<T> {
         self.status = VideoFrameOutputStatus::Starting;
     }
 
+    fn begin_start(&mut self, capacity: usize, stop_requested: &AtomicBool) -> bool {
+        if stop_requested.load(Ordering::Acquire)
+            || matches!(
+                self.status,
+                VideoFrameOutputStatus::Starting
+                    | VideoFrameOutputStatus::Active
+                    | VideoFrameOutputStatus::Stopped
+            )
+        {
+            return false;
+        }
+        self.activate(capacity);
+        true
+    }
+
     fn mark_active(&mut self) {
         if self.status == VideoFrameOutputStatus::Starting {
             self.status = VideoFrameOutputStatus::Active;
@@ -2742,6 +2757,7 @@ pub struct IosCameraCaptureSession {
     queue: dispatch2::DispatchRetained<DispatchQueue>,
     queue_key: Arc<AtomicBool>,
     video_callback_active: Arc<AtomicBool>,
+    video_frame_output_stop_requested: Arc<AtomicBool>,
     video_frames: Arc<Mutex<BoundedVideoFrameQueue<IosCameraVideoFrame>>>,
     video_frame_dropped_count: Arc<AtomicU64>,
     session_events: Option<Arc<Mutex<CameraSessionEventQueue>>>,
@@ -3015,6 +3031,7 @@ impl IosCameraCaptureSession {
             drop(queue_key_for_destruction);
         });
         let video_callback_active = Arc::new(AtomicBool::new(false));
+        let video_frame_output_stop_requested = Arc::new(AtomicBool::new(false));
         let video_frame_dropped_count = Arc::new(AtomicU64::new(0));
         let video_frames = Arc::new(Mutex::new(BoundedVideoFrameQueue::new(Arc::clone(
             &video_frame_dropped_count,
@@ -3064,6 +3081,7 @@ impl IosCameraCaptureSession {
             queue,
             queue_key,
             video_callback_active,
+            video_frame_output_stop_requested,
             video_frames,
             video_frame_dropped_count,
             session_events: None,
@@ -3675,6 +3693,8 @@ impl IosCameraCaptureSession {
     ///
     /// The method returns before AVFoundation completes shutdown.
     pub fn stop(&self) {
+        self.video_frame_output_stop_requested
+            .store(true, Ordering::Release);
         self.video_callback_active.store(false, Ordering::Release);
         enqueue_close_video_frame_queue(&self.queue, &self.video_frames);
         enqueue_stop(&self.queue, &self.graph);
@@ -3917,22 +3937,13 @@ impl IosCameraCaptureSession {
         let frames = Arc::clone(&self.video_frames);
         let queue = self.queue.clone();
         let dropped = Arc::clone(&self.video_frame_dropped_count);
+        let stop_requested = Arc::clone(&self.video_frame_output_stop_requested);
         self.queue.exec_async(move || {
             let can_start = {
                 let mut frames = frames
                     .lock()
                     .unwrap_or_else(std::sync::PoisonError::into_inner);
-                if matches!(
-                    frames.status,
-                    VideoFrameOutputStatus::Starting
-                        | VideoFrameOutputStatus::Active
-                        | VideoFrameOutputStatus::Stopped
-                ) {
-                    false
-                } else {
-                    frames.activate(usize::from(configuration.queue_capacity));
-                    true
-                }
+                frames.begin_start(usize::from(configuration.queue_capacity), &stop_requested)
             };
             if !can_start {
                 return;
@@ -4021,6 +4032,8 @@ impl IosCameraCaptureSession {
     /// dedicated serial queue before it releases the delegate and output. A stopped stream cannot
     /// restart on this session. Calling stop before start also closes the stream to future starts.
     pub fn stop_video_frame_stream(&self) {
+        self.video_frame_output_stop_requested
+            .store(true, Ordering::Release);
         self.video_callback_active.store(false, Ordering::Release);
         enqueue_close_video_frame_queue(&self.queue, &self.video_frames);
         enqueue_video_frame_stream_stop(&self.queue, &self.graph);
@@ -4172,6 +4185,8 @@ impl IosCameraCaptureSession {
 #[cfg(target_os = "ios")]
 impl Drop for IosCameraCaptureSession {
     fn drop(&mut self) {
+        self.video_frame_output_stop_requested
+            .store(true, Ordering::Release);
         self.video_callback_active.store(false, Ordering::Release);
         enqueue_close_video_frame_queue(&self.queue, &self.video_frames);
         if let Some(events) = self.session_events.as_ref() {
@@ -7056,6 +7071,21 @@ mod tests {
         queue.activate(1);
         assert_eq!(queue.status, VideoFrameOutputStatus::Starting);
         assert_eq!(queue.dropped.load(Ordering::Relaxed), 0);
+    }
+
+    #[test]
+    fn video_frame_output_terminal_stop_blocks_queued_start_activation() {
+        let stop_requested = AtomicBool::new(false);
+        let mut queue = BoundedVideoFrameQueue::<u8>::default();
+        // The public start call has enqueued setup, but that task has not run yet.
+        assert_eq!(queue.status, VideoFrameOutputStatus::NotStarted);
+        stop_requested.store(true, Ordering::Release);
+        assert!(!queue.begin_start(2, &stop_requested));
+        assert_eq!(queue.status, VideoFrameOutputStatus::NotStarted);
+        assert!(!queue.active);
+        let pending = queue.close();
+        assert_eq!(queue.status, VideoFrameOutputStatus::Stopped);
+        drop(pending);
     }
 
     #[test]
