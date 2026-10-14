@@ -39,7 +39,7 @@ for target in aarch64-apple-ios aarch64-apple-ios-sim; do
         }
     done
     for selector in UIImageView UITextView 'imageWithCGImage:' 'setImage:' 'setHidden:' \
-        'safeAreaInsets' 'contentScaleFactor' 'applicationState' 'textViewDidChange:' \
+        'safeAreaInsets' 'contentScaleFactor' 'textViewDidChange:' \
         'textViewDidChangeSelection:' 'selectedTextRange' 'setSelectedTextRange:' \
         'markedTextRange' 'unmarkText' 'becomeFirstResponder' 'resignFirstResponder' \
         'keyboardWillChangeFrame:' 'keyboardWillShow:' 'keyboardWillHide:'; do
@@ -62,6 +62,35 @@ for target in aarch64-apple-ios aarch64-apple-ios-sim; do
         exit 1
     fi
     printf '%s custom-render app UIKit/CoreGraphics imports verified at iOS %s; app not executed\n' \
+        "$target" "$deployment_target"
+
+    IPHONEOS_DEPLOYMENT_TARGET="$deployment_target" CARGO_TARGET_DIR="$target_dir" \
+        cargo build --locked --offline --release -p ios-ui \
+        --example ios_ui_custom_render_session_link_probe --target "$target"
+    session_binary="$target_dir/$target/release/examples/ios_ui_custom_render_session_link_probe"
+    session_imports=$(otool -L "$session_binary")
+    session_symbols=$(nm -u "$session_binary")
+    session_strings=$(strings "$session_binary")
+    session_minimum=$(vtool -show-build "$session_binary" | awk '$1 == "minos" { print $2; exit }')
+    printf '%s\n' "$session_imports" | grep -F '/CoreGraphics.framework/CoreGraphics' >/dev/null || {
+        echo "$target Mono1 session probe does not link CoreGraphics" >&2
+        exit 1
+    }
+    for symbol in CGImageCreate CGDataProviderCreateWithCFData CGColorSpaceCreateDeviceGray; do
+        printf '%s\n' "$session_symbols" | grep -F "$symbol" >/dev/null || {
+            echo "$target Mono1 session probe is missing symbol $symbol" >&2
+            exit 1
+        }
+    done
+    printf '%s\n' "$session_strings" | grep -F applicationState >/dev/null || {
+        echo "$target custom-render session probe is missing selector applicationState" >&2
+        exit 1
+    }
+    if [ "$session_minimum" != "$deployment_target" ]; then
+        echo "$target Mono1 session probe has deployment target ${session_minimum:-unknown}; expected $deployment_target" >&2
+        exit 1
+    fi
+    printf '%s Mono1 CGImage/CoreGraphics symbols verified at iOS %s; app not executed\n' \
         "$target" "$deployment_target"
 
     metal_target_dir="target/ios-ui-custom-render-metal-link-$target"

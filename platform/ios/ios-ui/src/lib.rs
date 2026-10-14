@@ -102,7 +102,7 @@ pub use custom_render_accessibility_policy::{
 #[cfg(target_os = "ios")]
 pub use custom_render_host::{
     CustomRenderHostError, FrameValidationError, HostApplicationState, HostGeometry,
-    IosCustomRenderHost, PixelDamageRect, Rgba8Frame, Rgba8FrameError,
+    IosCustomRenderHost, Mono1Frame, Mono1FrameError, PixelDamageRect, Rgba8Frame, Rgba8FrameError,
 };
 #[cfg(all(target_os = "ios", feature = "custom-render-metal"))]
 pub use custom_render_metal::{

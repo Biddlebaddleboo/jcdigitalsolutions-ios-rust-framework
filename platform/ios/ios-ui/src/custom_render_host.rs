@@ -1,4 +1,4 @@
-//! A main-thread UIKit host for caller-rendered RGBA framebuffer content.
+//! A main-thread UIKit host for caller-rendered RGBA8 and packed Mono1 framebuffer content.
 
 use core::fmt;
 use core::ptr;
@@ -99,16 +99,90 @@ impl<'a> Rgba8Frame<'a> {
     }
 }
 
-/// Deterministic errors for invalid 32-bit framebuffer dimensions, row layout, or bytes.
+/// A borrowed packed one-bit grayscale frame with explicit byte stride.
+///
+/// The first pixel in each byte is the most significant bit. A set bit is white and a clear bit is
+/// black. Rows use at least `ceil(width / 8)` bytes, and unused trailing bits in a row's final
+/// pixel byte are ignored. The source bytes are copied synchronously only when presented; no
+/// borrowed Rust memory survives [`IosCustomRenderHost::present_mono1`].
+#[derive(Clone, Copy)]
+pub struct Mono1Frame<'a> {
+    width: u32,
+    height: u32,
+    bytes_per_row: u32,
+    pixels: &'a [u8],
+    damage: Option<PixelDamageRect>,
+    required_bytes: usize,
+}
+
+impl<'a> Mono1Frame<'a> {
+    /// Validate one packed frame without allocating or copying its pixel data.
+    pub fn new(
+        width: u32,
+        height: u32,
+        bytes_per_row: u32,
+        pixels: &'a [u8],
+        damage: Option<PixelDamageRect>,
+    ) -> Result<Self, Mono1FrameError> {
+        let shape = FrameShape {
+            width,
+            height,
+            bytes_per_row,
+            bytes_available: pixels.len(),
+            damage: damage.map(|rect| DamageShape {
+                x: rect.x,
+                y: rect.y,
+                width: rect.width,
+                height: rect.height,
+            }),
+        };
+        let validated = custom_render_frame::validate_mono1_frame(shape)?;
+        Ok(Self {
+            width,
+            height,
+            bytes_per_row,
+            pixels,
+            damage,
+            required_bytes: validated.required_bytes,
+        })
+    }
+
+    /// Frame width in pixels.
+    pub const fn width(&self) -> u32 {
+        self.width
+    }
+
+    /// Frame height in pixels.
+    pub const fn height(&self) -> u32 {
+        self.height
+    }
+
+    /// Byte distance between adjacent rows.
+    pub const fn bytes_per_row(&self) -> u32 {
+        self.bytes_per_row
+    }
+
+    /// Return the validated source-byte prefix, including row padding.
+    pub fn pixels(&self) -> &'a [u8] {
+        &self.pixels[..self.required_bytes]
+    }
+
+    /// Optional producer damage rectangle, already checked against frame bounds.
+    pub const fn damage(&self) -> Option<PixelDamageRect> {
+        self.damage
+    }
+}
+
+/// Deterministic errors for invalid framebuffer dimensions, row layout, or bytes.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum FrameValidationError {
     /// Width or height is zero.
     EmptyDimension,
     /// Width or height exceeds the supported maximum of 16,384 pixels.
     DimensionTooLarge,
-    /// The stride is smaller than four bytes per pixel.
+    /// The stride is smaller than the format's minimum row size.
     RowTooShort,
-    /// The stride is not aligned to a four-byte pixel boundary.
+    /// An RGBA8 stride is not aligned to a four-byte pixel boundary.
     RowMisaligned,
     /// Dimension, stride, or extent arithmetic overflowed.
     SizeOverflow,
@@ -124,6 +198,9 @@ pub enum FrameValidationError {
 
 /// Backward-compatible validation error name for [`Rgba8Frame`].
 pub type Rgba8FrameError = FrameValidationError;
+
+/// Validation error for a borrowed packed one-bit grayscale frame.
+pub type Mono1FrameError = FrameValidationError;
 
 impl From<FrameShapeError> for FrameValidationError {
     fn from(error: FrameShapeError) -> Self {
@@ -143,7 +220,7 @@ impl From<FrameShapeError> for FrameValidationError {
 
 impl fmt::Display for FrameValidationError {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(formatter, "invalid 32-bit framebuffer: {self:?}")
+        write!(formatter, "invalid framebuffer: {self:?}")
     }
 }
 
@@ -317,6 +394,51 @@ impl IosCustomRenderHost {
                 Some(&provider),
                 ptr::null(),
                 true,
+                CGColorRenderingIntent::RenderingIntentDefault,
+            )
+        }
+        .ok_or(CustomRenderHostError::GraphicsResourceUnavailable)?;
+        let image = UIImage::imageWithCGImage(&image);
+        self.view.setImage(Some(&image));
+        Ok(())
+    }
+
+    /// Copy and present one packed grayscale image on the main thread.
+    ///
+    /// This operation is synchronous: it copies at most 64 MiB of validated packed bytes into
+    /// CoreFoundation-owned storage, retains no borrowed pointer, and replaces the full image even
+    /// if damage metadata is present. The CoreGraphics image uses device gray, one bit per
+    /// component and pixel, no alpha, and the supplied row stride.
+    pub fn present_mono1(&self, frame: &Mono1Frame<'_>) -> Result<(), CustomRenderHostError> {
+        if frame.required_bytes > MAX_FRAME_BYTES {
+            return Err(Mono1FrameError::FrameTooLarge.into());
+        }
+        let length =
+            CFIndex::try_from(frame.required_bytes).map_err(|_| Mono1FrameError::SizeOverflow)?;
+        let pixels = frame.pixels();
+        // SAFETY: CFDataCreate copies exactly the validated packed slice before returning. The
+        // slice is live and at least `required_bytes` long; its borrowed pointer is not retained.
+        let data = unsafe { CFData::new(None, pixels.as_ptr(), length) }
+            .ok_or(CustomRenderHostError::GraphicsResourceUnavailable)?;
+        let provider = CGDataProvider::with_cf_data(Some(&data))
+            .ok_or(CustomRenderHostError::GraphicsResourceUnavailable)?;
+        let color_space = CGColorSpace::new_device_gray()
+            .ok_or(CustomRenderHostError::GraphicsResourceUnavailable)?;
+        let bitmap_info = CGBitmapInfo(CGImageAlphaInfo::None.0);
+        // SAFETY: Dimensions, row stride and provider byte length were checked by Mono1Frame::new;
+        // the pixel layout is 1-bit, MSB-first device-gray with no alpha.
+        let image = unsafe {
+            CGImage::new(
+                frame.width as usize,
+                frame.height as usize,
+                1,
+                1,
+                frame.bytes_per_row as usize,
+                Some(&color_space),
+                bitmap_info,
+                Some(&provider),
+                ptr::null(),
+                false,
                 CGColorRenderingIntent::RenderingIntentDefault,
             )
         }

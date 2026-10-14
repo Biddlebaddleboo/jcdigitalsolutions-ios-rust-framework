@@ -12,7 +12,9 @@ mod custom_render_accessibility_policy {
 
 #[cfg(target_os = "ios")]
 mod custom_render_host {
-    pub use ios_ui::{CustomRenderHostError, HostGeometry, IosCustomRenderHost, Rgba8Frame};
+    pub use ios_ui::{
+        CustomRenderHostError, HostGeometry, IosCustomRenderHost, Mono1Frame, Rgba8Frame,
+    };
 }
 
 #[cfg(target_os = "ios")]
@@ -40,7 +42,7 @@ mod custom_render_session;
 
 #[cfg(target_os = "ios")]
 fn main() {
-    use custom_render_host::Rgba8Frame;
+    use custom_render_host::{Mono1Frame, Rgba8Frame};
     use custom_render_session::IosCustomRenderSession;
     use framework_core::Result;
     use ios_runtime::main_thread::MainThread;
@@ -62,6 +64,9 @@ fn main() {
     let pixels = [0_u8; 16];
     let frame = Rgba8Frame::new(2, 2, 8, &pixels, None).unwrap();
     let _ = session.present(&frame);
+    let mono1_pixels = [0x80, 0x01];
+    let mono1_frame = Mono1Frame::new(9, 1, 2, &mono1_pixels, None).unwrap();
+    let _ = session.present_mono1(&mono1_frame);
     let _ = session.enable_touch_input();
     let _ = session.next_touch_event();
     let _ = session.touch_fault();

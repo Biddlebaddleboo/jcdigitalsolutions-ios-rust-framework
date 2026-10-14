@@ -13,7 +13,7 @@ use objc2_ui_kit::{UIImageView, UIView, UIViewAutoresizing};
 use crate::custom_render_accessibility::{IosCustomRenderAccessibility, SemanticAccessibilityNode};
 use crate::custom_render_accessibility_policy::{AccessibilityActionEvent, SemanticTreeError};
 use crate::custom_render_host::{
-    CustomRenderHostError, HostGeometry, IosCustomRenderHost, Rgba8Frame,
+    CustomRenderHostError, HostGeometry, IosCustomRenderHost, Mono1Frame, Rgba8Frame,
 };
 use crate::custom_render_session_policy::{
     PresentDecision, SessionEffect, SessionEvent, SessionPhase, present_decision, transition,
@@ -120,6 +120,18 @@ impl IosCustomRenderSession {
     ) -> core::result::Result<(), IosCustomRenderSessionError> {
         match present_decision(self.phase) {
             PresentDecision::Allowed => self.render_host.present(frame).map_err(Into::into),
+            PresentDecision::Suspended => Err(IosCustomRenderSessionError::Suspended),
+            PresentDecision::Detached => Err(IosCustomRenderSessionError::Detached),
+        }
+    }
+
+    /// Copy and present one validated packed grayscale frame while the session is active.
+    pub fn present_mono1(
+        &self,
+        frame: &Mono1Frame<'_>,
+    ) -> core::result::Result<(), IosCustomRenderSessionError> {
+        match present_decision(self.phase) {
+            PresentDecision::Allowed => self.render_host.present_mono1(frame).map_err(Into::into),
             PresentDecision::Suspended => Err(IosCustomRenderSessionError::Suspended),
             PresentDecision::Detached => Err(IosCustomRenderSessionError::Detached),
         }
