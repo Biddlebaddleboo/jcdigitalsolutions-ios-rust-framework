@@ -748,6 +748,10 @@ B603 adds opt-in `ios-sharing/document-import`, disabled by default, with a main
 
 B604 adds `IosPhotoPickerSession::present_multiple` with a 2–10 selection ceiling, a caller-supplied aggregate provider-byte ceiling capped at 256 MiB, ordered byte-identical provider-file copies, and all-or-nothing cleanup while preserving the original single-image API. Host regressions cover limit validation, selection order, aggregate overflow, cancellation, late results, and dropped-session cleanup; `ios-photo-picker` host tests passed 16/16, with format, strict Clippy, Rustdoc, shell syntax, and zero-Swift checks also passing. Validator snapshot `de48967fb0955bb53ce6688472860890e47aa68a50000f2c637f3de8689a4f3b` classified all 23 gates `ERROR-BLOCKED` before execution because of insufficient free disk after cache reclamation; this is not a profile pass. Device/Simulator compilation, public link verification, picker behavior, and physical-device runtime remain unverified.
 
+### B605 — native camera pixel-buffer polling (row 046)
+
+B605 adds an opt-in polling stream of retained native `CVPixelBuffer` frames beside the existing callback API. It copies no pixel bytes, bounds the drop-oldest queue to one through four frames, exposes frame dimensions/format/timestamp and a saturating drop count, and makes stop/drop terminal while clearing queued frames. Host regressions cover queue bounds, overflow, stop cleanup, late delivery and stop-before-queued-start; all 91 `ios-camera-capture-session` host tests, format and strict Clippy passed on the implementation snapshot. The registered profile now requires `CoreVideo.framework`, but snapshot `88ef1b85e5229be88dd9a4872c9b5dc3863c5de06ab843fff47f238659685fad` classified all 273 checks `ERROR-BLOCKED` before execution for insufficient free disk; this is not a profile pass. Device/Simulator build/link and camera runtime remain unverified.
+
 ### B606 — native UIKit slider (row 003)
 
 B606 adds `IosUiBackend::add_slider` over public `UISlider`, with a finite increasing range,
