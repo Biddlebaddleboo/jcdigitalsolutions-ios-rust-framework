@@ -27,7 +27,7 @@ pub(crate) fn set_at(
     excluded: bool,
 ) -> Result<(), FileError> {
     let (target, is_directory) = open_target(parent, leaf)?;
-    let url = resolved_file_url(root, &target, is_directory)?;
+    let url = validated_path_url(root, &target, is_directory)?;
     objc2::rc::autoreleasepool(|_| {
         let key = unsafe { NSURLIsExcludedFromBackupKey };
         let value = NSNumber::new_bool(excluded);
@@ -35,7 +35,7 @@ pub(crate) fn set_at(
         unsafe { url.setResourceValue_forKey_error(Some(&value), key) }
             .map_err(|error| resource_error(&error))?;
 
-        let verified_url = resolved_file_url(root, &target, is_directory)?;
+        let verified_url = validated_path_url(root, &target, is_directory)?;
         let actual = excluded_value(&verified_url)?;
         verify_set(excluded, actual)
     })
@@ -43,7 +43,7 @@ pub(crate) fn set_at(
 
 pub(crate) fn get_at(root: &File, parent: &File, leaf: &CStr) -> Result<bool, FileError> {
     let (target, is_directory) = open_target(parent, leaf)?;
-    let url = resolved_file_url(root, &target, is_directory)?;
+    let url = validated_path_url(root, &target, is_directory)?;
     objc2::rc::autoreleasepool(|_| excluded_value(&url))
 }
 
@@ -78,7 +78,7 @@ fn open_target(parent: &File, leaf: &CStr) -> Result<(File, bool), FileError> {
     Ok((file, metadata.is_dir()))
 }
 
-fn resolved_file_url(
+fn validated_path_url(
     root: &File,
     target: &File,
     is_directory: bool,
@@ -136,7 +136,9 @@ fn resolved_file_url(
         {
             return Err(backend_error(ErrorKind::InvalidInput, None));
         }
-        Ok(reference_path_url)
+        // Keep the descriptor-derived path URL for metadata I/O. On macOS, a file-reference
+        // URL's derived filePathURL can report its cached old exclusion value after it is cleared.
+        Ok(path_url)
     })
 }
 
