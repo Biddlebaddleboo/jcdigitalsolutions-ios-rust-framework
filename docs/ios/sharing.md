@@ -197,6 +197,14 @@ Create the session with a typed `MainThread` proof and the live presenter, then 
 
 The feature is disabled by default and does not alter the existing clipboard/share features or their deployment floors. The export API requires iOS 14.0. Registered device and Simulator Release link/import checks verify the public picker selectors, framework imports, and `minos 14.0`; they do not run the picker or prove a save on Simulator or device.
 
+## User-mediated document import
+
+The separate opt-in `document-import` feature adds `IosDocumentImportSession` for one caller-selected original document URL. Construct it with a typed `MainThread` proof and a caller-owned `UIViewController` that is attached to a window and not presenting another controller. Call `start` with one or more exact Uniform Type Identifier strings, such as `public.plain-text`, and a one-shot callback. The feature requires iOS 14.0 and uses the public `UIDocumentPickerViewController.initForOpeningContentTypes:asCopy:` initializer with `asCopy: false` and multiple selection disabled. Invalid or unregistered identifiers are rejected before presentation.
+
+`Selected` contains the one retained original `NSURL` returned by UIKit; `Cancelled` reports the picker cancellation delegate event, and `Failed` reports an unexpected selection count. Empty type lists, unsupported OS versions, invalid presenters, off-main calls, and duplicate active operations reject synchronously and return the exact uncalled callback. Completion is detached before callback invocation, callback panics are contained, and a session is main-thread-bound and `!Send`/`!Sync`.
+
+The selected URL may require security-scoped access. The caller owns `ios_files::IosSecurityScopedAccess` start/stop and uses `ios_files::IosFileCoordinator` when coordinated provider access is needed. This picker does not start a security scope, read or copy bytes, persist data, or report provider availability or durability. `cancel` and drop detach the callback and delegate but do not dismiss the picker; successful `start` proves only that the UIKit presentation request was issued. Static compile/link checks do not prove visible presentation, user selection, provider behavior, or device execution.
+
 ## Clipboard
 
 `ios-sharing` implements the `framework-sharing::ClipboardBackend` contract with UIKit's systemwide general `UIPasteboard` for plain-text read, write, and clear. The `IosClipboardBackend` also exposes an iOS-only single-image extension; it does not change the portable contract. Clipboard support does not include a share sheet, `UIPasteControl`, named pasteboards, or a general rich-representation API.

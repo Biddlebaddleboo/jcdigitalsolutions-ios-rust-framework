@@ -7,7 +7,7 @@ mkdir -p target
 
 for tool in awk cargo diff grep nm otool sort strings vtool; do
     if ! command -v "$tool" >/dev/null 2>&1; then
-        echo "$tool is required for the iOS sharing clipboard link/import check" >&2
+        echo "$tool is required for the iOS sharing link/import check" >&2
         exit 1
     fi
 done
@@ -72,6 +72,91 @@ for target in aarch64-apple-ios aarch64-apple-ios-sim; do
     actual_deployment_target=$(awk '$1 == "minos" { print $2; exit } $1 == "version" { print $2; exit }' "$build_info")
     if [ "$actual_deployment_target" != "14.0" ]; then
         echo "$target document-export probe has deployment target ${actual_deployment_target:-unknown}; expected 14.0" >&2
+        exit 1
+    fi
+done
+
+# The registered profile also proves open-in-place document import is opt-in, iOS 14.0+, and
+# isolated from clipboard, outgoing share, and document-export features.
+document_import_tree=target/ios-sharing-document-import-feature-tree.txt
+cargo tree --locked -e features -i ios-sharing -p ios-sharing --target aarch64-apple-ios \
+    --no-default-features --features document-import > "$document_import_tree"
+grep -Fq 'ios-sharing feature "document-import"' "$document_import_tree"
+if grep -Eiq 'ios-sharing feature "(clipboard|share|document-export)"' "$document_import_tree"; then
+    echo "clipboard, share, or export features leaked into the ios-sharing document-import feature graph" >&2
+    exit 1
+fi
+
+document_import_ui_tree=target/ios-sharing-document-import-ui-feature-tree.txt
+cargo tree --locked -e features -i objc2-ui-kit -p ios-sharing --target aarch64-apple-ios \
+    --no-default-features --features document-import > "$document_import_ui_tree"
+grep -Fq 'objc2-ui-kit feature "UIDocumentPickerViewController"' "$document_import_ui_tree"
+grep -Fq 'objc2-ui-kit feature "objc2-uniform-type-identifiers"' "$document_import_ui_tree"
+if grep -Eiq 'objc2-ui-kit feature "(UIPasteboard|UIActivity|UIActivityViewController|UIPopoverPresentationController)"' \
+    "$document_import_ui_tree"; then
+    echo "clipboard, share, or export UIKit features leaked into document import" >&2
+    exit 1
+fi
+
+for target in aarch64-apple-ios aarch64-apple-ios-sim; do
+    cargo clippy --locked --all-targets -p ios-sharing --target "$target" \
+        --no-default-features --features document-import -- -D warnings
+done
+
+cat > target/ios-sharing-document-import-link-imports-expected.txt <<'IMPORTS'
+Foundation
+UIKit
+UniformTypeIdentifiers
+libSystem.B.dylib
+libobjc.A.dylib
+IMPORTS
+
+for target in aarch64-apple-ios aarch64-apple-ios-sim; do
+    target_dir="target/ios-sharing-document-import-link-$target-minos-14.0"
+    IPHONEOS_DEPLOYMENT_TARGET=14.0 CARGO_TARGET_DIR="$target_dir" \
+        cargo build --locked --release -p ios-sharing --no-default-features --features document-import \
+            --example document_import_link_check --target "$target"
+    binary="$target_dir/$target/release/examples/document_import_link_check"
+    imports="target/ios-sharing-document-import-link-imports-$target.txt"
+    libraries="target/ios-sharing-document-import-link-libraries-$target.txt"
+    symbols="target/ios-sharing-document-import-link-symbols-$target.txt"
+    strings_file="target/ios-sharing-document-import-link-strings-$target.txt"
+    build_info="target/ios-sharing-document-import-link-build-$target.txt"
+
+    otool -L "$binary" > "$imports"
+    awk 'NR > 1 { path = $1; sub(/^.*\//, "", path); print path }' "$imports" \
+        | LC_ALL=C sort > "$libraries"
+    diff -u target/ios-sharing-document-import-link-imports-expected.txt "$libraries"
+
+    nm -u "$binary" > "$symbols"
+    if grep -Eiq 'UIPasteboard|UIActivityViewController|UIActivity|swift_|Py[A-Z_]' "$symbols"; then
+        echo "unexpected clipboard, share, or language-runtime symbol import in $symbols" >&2
+        exit 1
+    fi
+
+    strings -a "$binary" > "$strings_file"
+    for marker in UIDocumentPickerViewController initForOpeningContentTypes:asCopy: \
+        typeWithIdentifier: setAllowsMultipleSelection: documentPicker:didPickDocumentsAtURLs: \
+        documentPickerWasCancelled: presentViewController:animated:completion:; do
+        if ! grep -Fq "$marker" "$strings_file"; then
+            echo "missing document-import selector marker $marker in $strings_file" >&2
+            exit 1
+        fi
+    done
+    if grep -Eiq 'UIPasteboard|UIActivityViewController|UIActivity|swift_|Py[A-Z_]' "$strings_file"; then
+        echo "unexpected clipboard, share, or language-runtime string in $strings_file" >&2
+        exit 1
+    fi
+    if grep -Eiq 'startAccessingSecurityScopedResource|coordinateReadingItemAtURL' \
+        platform/ios/ios-sharing/src/document_import.rs; then
+        echo "document import must leave security scope and provider I/O to the caller" >&2
+        exit 1
+    fi
+
+    vtool -show-build "$binary" > "$build_info"
+    actual_deployment_target=$(awk '$1 == "minos" { print $2; exit } $1 == "version" { print $2; exit }' "$build_info")
+    if [ "$actual_deployment_target" != "14.0" ]; then
+        echo "$target document-import probe has deployment target ${actual_deployment_target:-unknown}; expected 14.0" >&2
         exit 1
     fi
 done

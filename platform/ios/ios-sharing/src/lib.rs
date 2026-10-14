@@ -1,9 +1,15 @@
 #![deny(missing_docs)]
 #![deny(unsafe_op_in_unsafe_fn)]
 #![cfg_attr(not(target_os = "ios"), allow(dead_code))]
-#![doc = "Clipboard access, outgoing system shares, and opt-in document export through public iOS UIKit APIs."]
+#![doc = "Clipboard access, outgoing system shares, and opt-in document import/export through public iOS UIKit APIs."]
 
-#[cfg(any(feature = "clipboard", feature = "share", feature = "document-export"))]
+#[cfg(any(
+    feature = "clipboard",
+    feature = "share",
+    feature = "document-export",
+    feature = "document-import",
+    test
+))]
 extern crate alloc;
 
 #[cfg(feature = "clipboard")]
@@ -12,6 +18,8 @@ mod conversion;
 mod document_export_state;
 #[cfg(all(test, not(any(feature = "document-export", feature = "share"))))]
 mod document_export_state;
+#[cfg(any(feature = "document-import", test))]
+mod document_import_state;
 #[cfg(feature = "clipboard")]
 mod operation;
 #[cfg(feature = "share")]
@@ -23,6 +31,8 @@ mod share_operation;
 
 #[cfg(all(target_os = "ios", feature = "document-export"))]
 mod document_export;
+#[cfg(all(target_os = "ios", feature = "document-import"))]
+mod document_import;
 #[cfg(all(target_os = "ios", feature = "clipboard"))]
 mod platform;
 #[cfg(all(target_os = "ios", feature = "share"))]
@@ -32,6 +42,10 @@ mod share_platform;
 pub use document_export::{
     DocumentExportError, DocumentExportFileError, DocumentExportResult, DocumentExportStartError,
     IosDocumentExportFile, IosDocumentExportSession,
+};
+#[cfg(all(target_os = "ios", feature = "document-import"))]
+pub use document_import::{
+    DocumentImportError, DocumentImportResult, DocumentImportStartError, IosDocumentImportSession,
 };
 #[cfg(all(target_os = "ios", feature = "clipboard"))]
 pub use platform::{
