@@ -9,7 +9,7 @@ use framework_sharing::{ShareClient, ShareItem, ShareRequest};
 #[cfg(target_os = "ios")]
 use ios_runtime::main_thread::MainThread;
 #[cfg(target_os = "ios")]
-use ios_sharing::IosShareBackend;
+use ios_sharing::{IosShareBackend, IosShareFile, IosShareSession};
 #[cfg(target_os = "ios")]
 use objc2::MainThreadMarker;
 #[cfg(target_os = "ios")]
@@ -40,9 +40,21 @@ fn main() {
     let backend = IosShareBackend::new(main_thread, &presenter, &source_view, CGRect::ZERO);
     let mut client = ShareClient::new(backend);
     let _ = client.availability();
+    let Some(session_main_thread) = MainThread::current() else {
+        return;
+    };
+    let mut session = IosShareSession::new(
+        session_main_thread,
+        presenter.clone(),
+        source_view.clone(),
+        CGRect::ZERO,
+    );
 
     // Link-only branch. Build this probe but do not execute it; polling presents share UI.
     if core::hint::black_box(false) {
+        let file = IosShareFile::from_utf8("share.txt", "link probe")
+            .expect("static link probe file is valid and within the share size limit");
+        let _ = session.start_staged_file(file, |_| {});
         poll_linked_operation(client.share(ShareRequest::new(ShareItem::text(String::from(
             "link probe",
         )))));

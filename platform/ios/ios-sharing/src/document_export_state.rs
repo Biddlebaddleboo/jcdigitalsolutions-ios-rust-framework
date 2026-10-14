@@ -1,9 +1,12 @@
+#[cfg(any(feature = "document-export", test))]
 use alloc::boxed::Box;
 use alloc::rc::Rc;
 use core::cell::RefCell;
 use core::sync::atomic::{AtomicU64, Ordering};
 use std::fs::{self, OpenOptions};
 use std::io::{self, Write};
+#[cfg(any(feature = "document-export", test))]
+use std::panic::{AssertUnwindSafe, catch_unwind};
 use std::path::{Path, PathBuf};
 use std::time::{SystemTime, UNIX_EPOCH};
 
@@ -17,6 +20,8 @@ pub enum DocumentExportFileError {
     InvalidFileName,
     /// The app temporary-directory path cannot be represented as a Foundation string.
     TemporaryPathNotUtf8,
+    /// The staged path is no longer a regular file inside the app temporary directory.
+    InvalidStagedPath,
     /// Creating or writing the staged file failed.
     Io(io::Error),
 }
@@ -33,6 +38,9 @@ impl core::fmt::Display for DocumentExportFileError {
             Self::InvalidFileName => formatter.write_str("invalid document export file name"),
             Self::TemporaryPathNotUtf8 => {
                 formatter.write_str("temporary document export path is not valid UTF-8")
+            }
+            Self::InvalidStagedPath => {
+                formatter.write_str("staged file is outside the app temporary directory")
             }
             Self::Io(error) => write!(formatter, "could not stage document export file: {error}"),
         }
@@ -82,13 +90,46 @@ impl StagedExportFile {
             .open(&staged.path)?;
         file.write_all(bytes)?;
         drop(file);
+        staged.validated_path()?;
         Ok(staged)
     }
 
+    #[cfg(any(feature = "document-export", test))]
     pub(crate) fn path(&self) -> &Path {
         &self.path
     }
 
+    pub(crate) fn validated_path(&self) -> Result<PathBuf, DocumentExportFileError> {
+        let temporary_root = std::env::temp_dir().canonicalize()?;
+        validate_app_temporary_root(&temporary_root)?;
+        let directory_metadata = fs::symlink_metadata(&self.directory)?;
+        if !directory_metadata.is_dir() || directory_metadata.file_type().is_symlink() {
+            return Err(DocumentExportFileError::InvalidStagedPath);
+        }
+        let canonical_directory = self.directory.canonicalize()?;
+        if canonical_directory == temporary_root
+            || !canonical_directory.starts_with(&temporary_root)
+        {
+            return Err(DocumentExportFileError::InvalidStagedPath);
+        }
+        if self.path.parent() != Some(self.directory.as_path()) {
+            return Err(DocumentExportFileError::InvalidStagedPath);
+        }
+        let file_metadata = fs::symlink_metadata(&self.path)?;
+        if !file_metadata.is_file() || file_metadata.file_type().is_symlink() {
+            return Err(DocumentExportFileError::InvalidStagedPath);
+        }
+        let canonical_path = self.path.canonicalize()?;
+        if canonical_path.parent() != Some(canonical_directory.as_path()) {
+            return Err(DocumentExportFileError::InvalidStagedPath);
+        }
+        if canonical_path.to_str().is_none() {
+            return Err(DocumentExportFileError::TemporaryPathNotUtf8);
+        }
+        Ok(canonical_path)
+    }
+
+    #[cfg(any(feature = "document-export", test))]
     fn preserve(&mut self) {
         self.cleanup = false;
     }
@@ -116,6 +157,7 @@ impl StagedExportLease {
         drop(self.0.borrow_mut().take());
     }
 
+    #[cfg(any(feature = "document-export", test))]
     pub(crate) fn abandon(&self) {
         if let Some(mut source) = self.0.borrow_mut().take() {
             source.preserve();
@@ -130,6 +172,20 @@ fn is_safe_file_name(file_name: &str) -> bool {
         && !file_name
             .chars()
             .any(|character| matches!(character, '/' | '\\' | '\0') || character.is_control())
+}
+
+fn validate_app_temporary_root(temporary_root: &Path) -> Result<(), DocumentExportFileError> {
+    #[cfg(target_os = "ios")]
+    {
+        let home = std::env::var_os("HOME").ok_or(DocumentExportFileError::InvalidStagedPath)?;
+        let home = PathBuf::from(home).canonicalize()?;
+        if !temporary_root.starts_with(home) {
+            return Err(DocumentExportFileError::InvalidStagedPath);
+        }
+    }
+    #[cfg(not(target_os = "ios"))]
+    let _ = temporary_root;
+    Ok(())
 }
 
 fn create_staging_directory(root: &Path) -> io::Result<PathBuf> {
@@ -160,9 +216,8 @@ fn create_staging_directory(root: &Path) -> io::Result<PathBuf> {
         "could not allocate a unique document export directory",
     ))
 }
-use std::panic::{AssertUnwindSafe, catch_unwind};
-
 /// A terminal event reported by UIKit's document picker.
+#[cfg(any(feature = "document-export", test))]
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
 pub enum DocumentExportResult {
     /// UIKit called the document-picker success delegate method.
@@ -172,6 +227,7 @@ pub enum DocumentExportResult {
 }
 
 /// Why a document export request was rejected before UIKit presentation.
+#[cfg(any(feature = "document-export", test))]
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
 #[non_exhaustive]
 pub enum DocumentExportError {
@@ -187,6 +243,7 @@ pub enum DocumentExportError {
 }
 
 /// A synchronous document-export start failure that returns the completion callback.
+#[cfg(any(feature = "document-export", test))]
 pub struct DocumentExportStartError<F> {
     /// The reason UIKit presentation was not requested.
     pub error: DocumentExportError,
@@ -194,6 +251,7 @@ pub struct DocumentExportStartError<F> {
     pub completion: F,
 }
 
+#[cfg(any(feature = "document-export", test))]
 impl<F> core::fmt::Debug for DocumentExportStartError<F> {
     fn fmt(&self, formatter: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         formatter
@@ -203,6 +261,7 @@ impl<F> core::fmt::Debug for DocumentExportStartError<F> {
     }
 }
 
+#[cfg(any(feature = "document-export", test))]
 pub(crate) fn accept_start<F>(
     is_local_file_url: bool,
     already_active: bool,
@@ -222,6 +281,7 @@ pub(crate) fn accept_start<F>(
     }
 }
 
+#[cfg(any(feature = "document-export", test))]
 pub(crate) const fn is_local_file_url(
     is_file_url: bool,
     has_nonempty_host: bool,
@@ -230,13 +290,16 @@ pub(crate) const fn is_local_file_url(
     is_file_url && !has_nonempty_host && has_absolute_path
 }
 
+#[cfg(any(feature = "document-export", test))]
 type Callback = Box<dyn FnOnce(DocumentExportResult) + 'static>;
 
+#[cfg(any(feature = "document-export", test))]
 #[derive(Clone)]
 pub(crate) struct DocumentExportCompletion {
     callback: Rc<RefCell<Option<Callback>>>,
 }
 
+#[cfg(any(feature = "document-export", test))]
 impl DocumentExportCompletion {
     pub(crate) fn new(completion: impl FnOnce(DocumentExportResult) + 'static) -> Self {
         Self {
@@ -383,6 +446,29 @@ mod tests {
     }
 
     #[test]
+    fn staged_named_utf8_bytes_are_exact_and_sandbox_validated() {
+        let bytes = "Rideshare Bot – résumé".as_bytes();
+        let source = StagedExportFile::from_bytes("share.txt", bytes).unwrap();
+        let path = source.validated_path().unwrap();
+        assert_eq!(path.file_name().unwrap(), "share.txt");
+        assert_eq!(fs::read(path).unwrap(), bytes);
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn replaced_staged_file_symlink_is_rejected() {
+        use std::os::unix::fs::symlink;
+
+        let source = StagedExportFile::from_bytes("share.txt", b"data").unwrap();
+        fs::remove_file(source.path()).unwrap();
+        symlink("/etc/passwd", source.path()).unwrap();
+        assert!(matches!(
+            source.validated_path(),
+            Err(DocumentExportFileError::InvalidStagedPath)
+        ));
+    }
+
+    #[test]
     fn unsafe_staged_file_names_are_rejected() {
         for file_name in [
             "",
@@ -433,6 +519,27 @@ mod tests {
         assert!(completion.complete(DocumentExportResult::Exported));
         assert!(!callback_saw_file.get());
         operation_owner.abandon();
+        assert!(!path.exists());
+        assert!(!directory.exists());
+    }
+
+    #[test]
+    fn picker_cancel_terminal_cleans_staged_source_and_reports_cancelled() {
+        let source = StagedExportFile::from_bytes("cancelled.txt", b"data").unwrap();
+        let path = source.validated_path().unwrap();
+        let directory = path.parent().unwrap().to_owned();
+        let lease = StagedExportLease::new(source);
+        let callback_path = path.clone();
+        let result = Rc::new(Cell::new(None));
+        let callback_result = Rc::clone(&result);
+        let completion = DocumentExportCompletion::new(move |terminal_result| {
+            assert!(!callback_path.exists());
+            callback_result.set(Some(terminal_result));
+        });
+
+        lease.finish();
+        assert!(completion.complete(DocumentExportResult::Cancelled));
+        assert_eq!(result.get(), Some(DocumentExportResult::Cancelled));
         assert!(!path.exists());
         assert!(!directory.exists());
     }

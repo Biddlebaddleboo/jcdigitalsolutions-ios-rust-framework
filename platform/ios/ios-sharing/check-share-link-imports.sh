@@ -60,7 +60,8 @@ for target in aarch64-apple-ios aarch64-apple-ios-sim; do
 
     strings -a "$binary" > "$strings_file"
     for marker in UIActivityViewController initWithActivityItems:applicationActivities: \
-        setCompletionWithItemsHandler: popoverPresentationController setSourceView: setSourceRect: \
+        setCompletionWithItemsHandler: popoverPresentationController fileURLWithPath: \
+        setSourceView: setSourceRect: \
         presentViewController:animated:completion:; do
         if ! grep -Fq "$marker" "$strings_file"; then
             echo "missing share selector marker $marker in $strings_file" >&2

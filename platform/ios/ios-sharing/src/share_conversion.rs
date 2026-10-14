@@ -21,6 +21,10 @@ pub(crate) fn map_request<T>(
     Ok(native_items)
 }
 
+pub(crate) const fn generic_share_url_is_allowed(is_file_url: bool) -> bool {
+    !is_file_url
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -65,5 +69,11 @@ mod tests {
         .unwrap_err();
         assert_eq!(error.kind(), ErrorKind::InvalidInput);
         assert_eq!(error.platform_code(), None);
+    }
+
+    #[test]
+    fn generic_share_still_rejects_local_file_urls() {
+        assert!(!generic_share_url_is_allowed(true));
+        assert!(generic_share_url_is_allowed(false));
     }
 }

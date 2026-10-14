@@ -8,14 +8,16 @@ extern crate alloc;
 
 #[cfg(feature = "clipboard")]
 mod conversion;
-#[cfg(feature = "document-export")]
+#[cfg(any(feature = "document-export", feature = "share"))]
 mod document_export_state;
-#[cfg(all(test, not(feature = "document-export")))]
+#[cfg(all(test, not(any(feature = "document-export", feature = "share"))))]
 mod document_export_state;
 #[cfg(feature = "clipboard")]
 mod operation;
 #[cfg(feature = "share")]
 mod share_conversion;
+#[cfg(feature = "share")]
+mod share_file;
 #[cfg(feature = "share")]
 mod share_operation;
 
@@ -34,6 +36,10 @@ pub use document_export::{
 #[cfg(all(target_os = "ios", feature = "clipboard"))]
 pub use platform::{
     IosClipboardBackend, IosClipboardClearFuture, IosClipboardReadFuture, IosClipboardWriteFuture,
+};
+#[cfg(feature = "share")]
+pub use share_file::{
+    IosShareFile, MAX_IOS_SHARE_FILE_BYTES, ShareFileError, ShareFileStagingError,
 };
 #[cfg(all(target_os = "ios", feature = "share"))]
 pub use share_operation::ShareStartError;

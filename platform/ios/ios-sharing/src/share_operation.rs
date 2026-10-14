@@ -8,6 +8,9 @@ use core::task::{Context, Poll, Waker};
 use framework_core::{Error, ErrorKind, PlatformErrorCode};
 use framework_sharing::{ShareError, ShareOutcome, ShareRequest};
 
+use crate::document_export_state::StagedExportLease;
+use crate::share_file::IosShareFile;
+
 type ShareCallback = Box<dyn FnOnce(Result<ShareOutcome, ShareError>)>;
 
 /// A synchronous share-start failure that returns the callback to its caller.
@@ -38,6 +41,20 @@ pub(crate) fn accept_preflight<T, F>(
     match preflight {
         Ok(value) => Ok((value, callback)),
         Err(error) => Err(rejected_start(error, callback)),
+    }
+}
+
+pub(crate) fn accept_staged_preflight<T, F>(
+    preflight: Result<T, ShareError>,
+    source: IosShareFile,
+    callback: F,
+) -> Result<(T, IosShareFile, F), ShareStartError<F>> {
+    match preflight {
+        Ok(value) => Ok((value, source, callback)),
+        Err(error) => {
+            drop(source);
+            Err(rejected_start(error, callback))
+        }
     }
 }
 
@@ -147,6 +164,19 @@ impl ShareCompletion {
         state.waker = None;
         state.callback = None;
     }
+}
+
+pub(crate) fn finish_share_result(
+    completion: &ShareCompletion,
+    staged_file: Option<&StagedExportLease>,
+    result: Result<ShareOutcome, ShareError>,
+    clear_native_handler: impl FnOnce(),
+) -> bool {
+    if let Some(staged_file) = staged_file {
+        staged_file.finish();
+    }
+    clear_native_handler();
+    completion.complete(result)
 }
 
 pub(crate) trait ShareAccess {
@@ -389,6 +419,33 @@ mod tests {
     }
 
     #[test]
+    fn rejected_staged_file_start_cleans_file_and_returns_callback() {
+        use crate::share_file::IosShareFile;
+
+        let source = IosShareFile::from_utf8("rejected.txt", "payload").unwrap();
+        let path = source.validated_path().unwrap();
+        let directory = path.parent().unwrap().to_owned();
+        let callback_called = Rc::new(Cell::new(false));
+        let callback_state = callback_called.clone();
+        let callback = move |_: Result<ShareOutcome, ShareError>| callback_state.set(true);
+        let rejected = match accept_staged_preflight::<(), _>(
+            Err(ShareError::Backend(Error::new(ErrorKind::Unavailable))),
+            source,
+            callback,
+        ) {
+            Err(rejected) => rejected,
+            Ok(_) => panic!("unavailable presenter was accepted"),
+        };
+
+        assert_eq!(rejected.error.kind(), ErrorKind::Unavailable);
+        assert!(!callback_called.get());
+        assert!(!path.exists());
+        assert!(!directory.exists());
+        (rejected.callback)(Ok(ShareOutcome::Dismissed));
+        assert!(callback_called.get());
+    }
+
+    #[test]
     fn callback_completion_detaches_before_notifying_exactly_once() {
         let callback_count = Rc::new(Cell::new(0));
         let callback_detached = Rc::new(Cell::new(false));
@@ -416,5 +473,88 @@ mod tests {
         completion.detach();
         assert!(!completion.complete(Ok(ShareOutcome::Completed)));
         assert!(!callback_called.get());
+    }
+
+    #[test]
+    fn dismissed_or_disconnected_file_share_cleans_after_detached_callback() {
+        use crate::document_export_state::{StagedExportFile, StagedExportLease};
+        let source = StagedExportFile::from_bytes("share.txt", b"payload").unwrap();
+        let path = source.validated_path().unwrap();
+        let directory = path.parent().unwrap().to_owned();
+        let staged_file = StagedExportLease::new(source);
+        let completion = ShareCompletion::with_callback(|_| panic!("detached callback ran"));
+        completion.detach();
+        let native_handler_cleared = Rc::new(Cell::new(false));
+        let handler_state = native_handler_cleared.clone();
+
+        assert!(!finish_share_result(
+            &completion,
+            Some(&staged_file),
+            Ok(ShareOutcome::Dismissed),
+            move || handler_state.set(true),
+        ));
+        assert!(native_handler_cleared.get());
+        assert!(!path.exists());
+        assert!(!directory.exists());
+        assert!(!finish_share_result(
+            &completion,
+            Some(&staged_file),
+            Ok(ShareOutcome::Dismissed),
+            || {},
+        ));
+        assert!(!path.exists());
+        assert!(!directory.exists());
+    }
+
+    #[test]
+    fn completed_file_share_cleans_before_one_shot_callback() {
+        use crate::document_export_state::{StagedExportFile, StagedExportLease};
+
+        let source = StagedExportFile::from_bytes("completed.txt", b"payload").unwrap();
+        let path = source.validated_path().unwrap();
+        let directory = path.parent().unwrap().to_owned();
+        let staged_file = StagedExportLease::new(source);
+        let callback_count = Rc::new(Cell::new(0));
+        let callback_saw_file = Rc::new(Cell::new(true));
+        let callback_count_state = callback_count.clone();
+        let callback_file_state = callback_saw_file.clone();
+        let callback_path = path.clone();
+        let completion = ShareCompletion::with_callback(move |_| {
+            callback_file_state.set(callback_path.exists());
+            callback_count_state.set(callback_count_state.get() + 1);
+        });
+
+        assert!(finish_share_result(
+            &completion,
+            Some(&staged_file),
+            Ok(ShareOutcome::Completed),
+            || {},
+        ));
+        assert_eq!(callback_count.get(), 1);
+        assert!(!callback_saw_file.get());
+        assert!(!path.exists());
+        assert!(!directory.exists());
+        assert!(!finish_share_result(
+            &completion,
+            Some(&staged_file),
+            Ok(ShareOutcome::Dismissed),
+            || {},
+        ));
+        assert_eq!(callback_count.get(), 1);
+    }
+
+    #[test]
+    fn releasing_last_file_share_owner_cleans_without_a_native_callback() {
+        use crate::document_export_state::{StagedExportFile, StagedExportLease};
+        let source = StagedExportFile::from_bytes("disconnect.txt", b"payload").unwrap();
+        let path = source.validated_path().unwrap();
+        let directory = path.parent().unwrap().to_owned();
+        let operation_owner = StagedExportLease::new(source);
+        let native_callback_owner = operation_owner.clone();
+        drop(operation_owner);
+        assert!(path.exists());
+        drop(native_callback_owner);
+        assert!(!path.exists());
+        assert!(!directory.exists());
     }
 }

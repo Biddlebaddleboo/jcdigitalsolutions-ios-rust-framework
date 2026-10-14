@@ -23,12 +23,12 @@ const EXPORT_AS_COPY: bool = true;
 
 /// A main-thread-bound session for user-mediated export of one local file.
 ///
-/// Keep the borrowed presenter alive for the session lifetime and call every method on the main
-/// thread. UIKit receives a copy-export request, so it does not move or consume the source file.
+/// The session retains its presenter and every method runs on the main thread. UIKit receives a
+/// copy-export request, so it does not move or consume the source file.
 /// The source `NSURL` is retained until a success/cancel event or session teardown. Dropping or
 /// cancelling detaches the callback but does not dismiss the picker.
-pub struct IosDocumentExportSession<'ctx> {
-    presenter: &'ctx UIViewController,
+pub struct IosDocumentExportSession {
+    presenter: Retained<UIViewController>,
     _main_thread: MainThread,
     _not_send: PhantomData<Rc<()>>,
     active_operation: Option<DocumentExportOperation>,
@@ -124,12 +124,19 @@ impl DocumentExportDelegate {
     }
 }
 
-impl<'ctx> IosDocumentExportSession<'ctx> {
-    /// Creates a session for a caller-owned presenter.
+impl IosDocumentExportSession {
+    /// Creates a session that retains its presenter.
     ///
-    /// The presenter must remain alive and attached to a window when [`Self::start`] is called.
-    /// The returned session is neither `Send` nor `Sync` and must be dropped on the main thread.
-    pub fn new(main_thread: MainThread, presenter: &'ctx UIViewController) -> Self {
+    /// The presenter must be attached to a window when [`Self::start`] is called. The session
+    /// retains it across the asynchronous picker result; drop the session on the main thread when
+    /// its owning scene disconnects. The returned session is neither `Send` nor `Sync`.
+    pub fn new(main_thread: MainThread, presenter: &UIViewController) -> Self {
+        // SAFETY: `presenter` is a live borrowed Objective-C object for this call. Retaining it
+        // gives the session an explicit strong owner for its asynchronous UIKit operation.
+        let presenter = unsafe {
+            Retained::retain(presenter as *const UIViewController as *mut UIViewController)
+                .expect("borrowed document-export presenter cannot be nil")
+        };
         Self {
             presenter,
             _main_thread: main_thread,

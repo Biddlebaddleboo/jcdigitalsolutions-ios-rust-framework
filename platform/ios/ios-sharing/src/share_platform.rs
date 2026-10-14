@@ -1,3 +1,5 @@
+use crate::document_export_state::StagedExportLease;
+use crate::share_file::IosShareFile;
 use alloc::rc::Rc;
 use alloc::sync::Arc;
 use alloc::vec::Vec;
@@ -20,10 +22,10 @@ use objc2_ui_kit::{
     UIViewController,
 };
 
-use crate::share_conversion::map_request;
+use crate::share_conversion::{generic_share_url_is_allowed, map_request};
 use crate::share_operation::{
     ShareAccess, ShareCompletion, ShareOperation, ShareStartError, accept_preflight,
-    map_activity_result, rejected_start,
+    accept_staged_preflight, finish_share_result, map_activity_result, rejected_start,
 };
 
 /// A caller-owned iOS system-share backend bound to an explicit presentation context.
@@ -60,17 +62,21 @@ struct PreparedShare {
 struct IosShareOperation {
     activity: Retained<UIActivityViewController>,
     completion: ShareCompletion,
+    staged_file: Option<StagedExportLease>,
 }
 
 struct ShareCallbackState {
     completion: ShareCompletion,
     activity: Weak<UIActivityViewController>,
+    staged_file: Option<StagedExportLease>,
 }
 
 impl IosShareOperation {
     fn detach(&self) {
         self.completion.detach();
-        autoreleasepool(|_| clear_completion_handler(&self.activity));
+        if self.staged_file.is_none() {
+            autoreleasepool(|_| clear_completion_handler(&self.activity));
+        }
     }
 }
 
@@ -148,10 +154,63 @@ impl IosShareSession {
         );
         let (prepared, completion) = accept_preflight(backend.prepare(request), completion)?;
         let callback = ShareCompletion::with_callback(completion);
-        let activity = backend.present_prepared(prepared, callback.clone());
+        let activity = backend.present_prepared(prepared, callback.clone(), None);
         self.active_operation = Some(IosShareOperation {
             activity,
             completion: callback,
+            staged_file: None,
+        });
+        Ok(())
+    }
+
+    /// Starts a share sheet for one bounded app-temporary file owned by this request.
+    ///
+    /// The file name and bytes were validated and staged by [`IosShareFile`]. Its sandbox path is
+    /// checked again immediately before UIKit receives a local `NSURL`. Generic [`ShareRequest`]
+    /// values still reject all file URLs. UIKit's activity callback reports completion or user
+    /// dismissal; the staged file is removed before the Rust callback runs. Cancelling this
+    /// session detaches the Rust callback but leaves the share sheet and staged file alive until
+    /// UIKit reports its terminal event or releases the activity controller.
+    pub fn start_staged_file<F>(
+        &mut self,
+        source: IosShareFile,
+        completion: F,
+    ) -> Result<(), ShareStartError<F>>
+    where
+        F: FnOnce(Result<framework_sharing::ShareOutcome, ShareError>) + 'static,
+    {
+        let Some(main_thread) = MainThread::current() else {
+            return Err(rejected_start(unavailable(), completion));
+        };
+        if self
+            .active_operation
+            .as_ref()
+            .is_some_and(|operation| operation.completion.is_active())
+        {
+            return Err(rejected_start(
+                ShareError::Backend(Error::new(ErrorKind::AlreadyExists)),
+                completion,
+            ));
+        }
+        drop(self.active_operation.take());
+
+        let mut backend = IosShareBackend::new(
+            main_thread,
+            &self.presenter,
+            &self.source_view,
+            self.source_rect,
+        );
+        let preflight = backend.prepare_staged_file(&source);
+        let (prepared, source, completion) =
+            accept_staged_preflight(preflight, source, completion)?;
+        let staged_file = StagedExportLease::new(source.into_staged());
+        let callback = ShareCompletion::with_callback(completion);
+        let activity =
+            backend.present_prepared(prepared, callback.clone(), Some(staged_file.clone()));
+        self.active_operation = Some(IosShareOperation {
+            activity,
+            completion: callback,
+            staged_file: Some(staged_file),
         });
         Ok(())
     }
@@ -206,7 +265,7 @@ impl ShareAccess for IosShareBackend<'_> {
         completion: ShareCompletion,
     ) -> Result<(), ShareError> {
         let prepared = self.prepare(request)?;
-        self.present_prepared(prepared, completion);
+        self.present_prepared(prepared, completion, None);
         Ok(())
     }
 
@@ -226,14 +285,30 @@ impl IosShareBackend<'_> {
                 |value| {
                     let value = NSString::from_str(&value);
                     let url = NSURL::URLWithString(&value).ok_or_else(invalid_input)?;
-                    if url.isFileURL() {
+                    if !generic_share_url_is_allowed(url.isFileURL()) {
                         return Err(invalid_input());
                     }
                     Ok(Retained::<AnyObject>::from(url))
                 },
             )?;
-            let activity_items: Retained<NSArray<AnyObject>> = NSArray::from_retained_slice(&items);
+            self.prepare_items(items)
+        })
+    }
 
+    fn prepare_staged_file(&self, source: &IosShareFile) -> Result<PreparedShare, ShareError> {
+        let path = source.validated_path().map_err(|_| invalid_input())?;
+        let path = path.to_str().ok_or_else(invalid_input)?;
+        let path = NSString::from_str(path);
+        let url = NSURL::fileURLWithPath(&path);
+        self.prepare_items(alloc::vec![Retained::<AnyObject>::from(url)])
+    }
+
+    fn prepare_items(&self, items: Vec<Retained<AnyObject>>) -> Result<PreparedShare, ShareError> {
+        autoreleasepool(|_| {
+            if items.is_empty() {
+                return Err(invalid_input());
+            }
+            let activity_items: Retained<NSArray<AnyObject>> = NSArray::from_retained_slice(&items);
             self.preflight()?;
             let marker = MainThreadMarker::new().ok_or_else(unavailable)?;
             let is_ipad =
@@ -272,6 +347,7 @@ impl IosShareBackend<'_> {
         &mut self,
         prepared: PreparedShare,
         completion: ShareCompletion,
+        staged_file: Option<StagedExportLease>,
     ) -> Retained<UIActivityViewController> {
         autoreleasepool(|_| {
             let PreparedShare {
@@ -282,6 +358,7 @@ impl IosShareBackend<'_> {
                 ShareCallbackState {
                     completion: completion.clone(),
                     activity: Weak::from(&activity),
+                    staged_file,
                 },
                 callback_marker,
             ));
@@ -310,9 +387,13 @@ impl IosShareBackend<'_> {
                             let _ = ios_runtime::ffi::catch_unwind(|| {
                                 // SAFETY: this closure runs on DispatchQueue::main, so this marker is valid
                                 let marker = unsafe { MainThreadMarker::new_unchecked() };
-                                let (completion, activity) = {
+                                let (completion, activity, staged_file) = {
                                     let state = callback_state.get(marker);
-                                    (state.completion.clone(), state.activity.clone())
+                                    (
+                                        state.completion.clone(),
+                                        state.activity.clone(),
+                                        state.staged_file.clone(),
+                                    )
                                 };
                                 let result = match native_result {
                                     Ok((completed, has_error, native_code)) => {
@@ -322,9 +403,12 @@ impl IosShareBackend<'_> {
                                         Err(ShareError::Backend(Error::new(ErrorKind::Internal)))
                                     }
                                 };
-                                completion.complete_with(result, || {
-                                    clear_weak_completion_handler(&activity)
-                                });
+                                finish_share_result(
+                                    &completion,
+                                    staged_file.as_ref(),
+                                    result,
+                                    || clear_weak_completion_handler(&activity),
+                                );
                             });
                         });
                     });
