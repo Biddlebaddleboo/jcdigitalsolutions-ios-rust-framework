@@ -1,7 +1,8 @@
 # iOS camera capture session
 
 `ios-camera-capture-session` exposes an authorized default-camera session, a native preview layer,
-processed JPEG capture, video recording, and optional video samples through public AVFoundation.
+processed JPEG capture, video recording, and optional native video frames through public AVFoundation
+and Core Video.
 Session construction does not prompt; request camera access through `ios-media-authorization` and
 provide `NSCameraUsageDescription` before an app asks for access.
 
@@ -82,6 +83,43 @@ runs and hop to the main thread before UIKit work. Host tests, iOS device/Simula
 link checks verify deterministic state rules and public API linkage only; they do not prove image
 quality, processing time, preview behavior, capture, Simulator execution, or physical-device
 runtime.
+
+## Native pixel-buffer output
+
+`start_video_frame_output` is an additive polling path alongside the existing borrowed
+`CMSampleBuffer` callback. It uses public `AVCaptureVideoDataOutput` and its sample-buffer delegate,
+then retains the frame's native `CVPixelBuffer` and copies only the small `CMTime` timestamp value.
+Pixel bytes are never copied. Each `IosCameraVideoFrame` owns one retained Core Video buffer; its
+`pixel_buffer()` borrow remains valid while the frame value is alive. Use `width()`, `height()`,
+`pixel_format()`, and `presentation_time_stamp()` for common metadata, or pass the native pixel
+buffer to a compatible image-processing/GPU API. CPU reads must call Core Video's matching
+`CVPixelBufferLockBaseAddress` and `CVPixelBufferUnlockBaseAddress` APIs with read-only flags. See
+[Apple's `CVPixelBufferLockFlags` docs](https://developer.apple.com/documentation/corevideo/cvpixelbufferlockflags)
+and [AVCaptureVideoDataOutput late-frame behavior](https://developer.apple.com/documentation/avfoundation/avcapturevideodataoutput/alwaysdiscardslatevideoframes).
+
+Output setup is queued and does not wait on the main thread. `video_frame_output_status()` reports
+`NotStarted`, `Starting`, `Active`, `Failed(error)`, or `Stopped`; a short queue-lock conflict is
+reported as `Starting`. `try_next_video_frame()` never waits and returns `None` when the queue is
+empty or its producer lock is busy. Start the session first; `Active` means AVFoundation accepted
+the output and delegate, not that a device delivered a frame.
+
+`VideoFrameOutputConfiguration::new(capacity)` accepts one through four queued frames, and the
+default capacity is two. When the queue is full, the oldest queued frame is released and the new
+frame is kept, favoring fresh output. `dropped_video_frame_count()` saturates and includes overflow,
+producer-lock contention, pending frames cleared by stop, and late enqueue attempts that reach the
+closed queue. AVFoundation callbacks rejected earlier by the inactive-delivery gate do not increment
+this count. AVFoundation's `alwaysDiscardsLateVideoFrames` stays enabled on its serial callback
+queue, so a slow poll consumer cannot create an unbounded framework queue. The output queue retains
+at most its configured number of buffers; frames already returned to the caller are outside that
+bound and keep their native buffers alive until dropped. Do not retain returned frames indefinitely.
+
+`stop_video_frame_output`, the existing `stop_video_frame_stream`, session `stop`, and session drop
+disable delivery immediately and enqueue queue-clear/output-detach work on the private session
+queue. That work releases pending buffers and rejects later delivery without making the caller wait
+on the capture callback. A frame already returned from `try_next_video_frame` remains caller-owned.
+The existing callback stream and this polling stream are mutually exclusive on one session and each
+is terminal after stop. Host queue/configuration tests and device/Simulator compile/link checks do
+not prove live camera delivery or pixel contents.
 
 ## Capture-session events
 

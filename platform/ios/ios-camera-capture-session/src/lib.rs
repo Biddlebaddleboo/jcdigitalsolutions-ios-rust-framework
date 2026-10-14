@@ -21,9 +21,11 @@ use std::ptr::NonNull;
 #[cfg(target_os = "ios")]
 use std::rc::Rc;
 #[cfg(any(target_os = "ios", test))]
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::Arc;
 #[cfg(target_os = "ios")]
-use std::sync::{Arc, Mutex};
+use std::sync::Mutex;
+#[cfg(any(target_os = "ios", test))]
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 
 #[cfg(target_os = "ios")]
 use block2::RcBlock;
@@ -59,9 +61,15 @@ use objc2_av_foundation::{
     AVCaptureVideoPreviewLayer, AVCaptureWhiteBalanceMode, AVMediaTypeAudio, AVMediaTypeVideo,
 };
 #[cfg(target_os = "ios")]
+use objc2_core_foundation::CFRetained;
+#[cfg(target_os = "ios")]
 use objc2_core_foundation::CGPoint;
 #[cfg(target_os = "ios")]
 use objc2_core_media::{CMSampleBuffer, CMTime, CMTimeFlags};
+#[cfg(target_os = "ios")]
+use objc2_core_video::{
+    CVPixelBuffer, CVPixelBufferGetHeight, CVPixelBufferGetPixelFormatType, CVPixelBufferGetWidth,
+};
 #[cfg(target_os = "ios")]
 use objc2_foundation::{
     NSArray, NSError, NSNotification, NSNotificationCenter, NSNumber, NSObject, NSObjectProtocol,
@@ -250,6 +258,171 @@ pub enum VideoFrameStreamError {
     AlreadyActive,
     /// The video sample stream has stopped and cannot restart on this session
     AlreadyStopped,
+}
+
+/// Maximum number of native camera frames the polling queue can retain
+#[cfg(any(target_os = "ios", test))]
+pub const MAX_VIDEO_FRAME_QUEUE_CAPACITY: u8 = 4;
+
+/// Default number of native camera frames retained for polling
+#[cfg(any(target_os = "ios", test))]
+pub const DEFAULT_VIDEO_FRAME_QUEUE_CAPACITY: u8 = 2;
+
+/// Invalid bounded-queue configuration for native video frame output
+#[cfg(any(target_os = "ios", test))]
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum VideoFrameOutputConfigurationError {
+    /// Queue capacity must be at least one frame
+    EmptyQueue,
+    /// Queue capacity exceeds [`MAX_VIDEO_FRAME_QUEUE_CAPACITY`]
+    QueueTooLarge,
+}
+
+/// Current asynchronous state of native camera pixel-buffer output
+#[cfg(any(target_os = "ios", test))]
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum VideoFrameOutputStatus {
+    /// No native pixel-buffer output setup has begun on the session queue
+    NotStarted,
+    /// Native output setup has begun on the private capture-session queue
+    Starting,
+    /// AVFoundation accepted the output and delegate
+    Active,
+    /// The output request failed with a capture-stream error
+    Failed(VideoFrameStreamError),
+    /// Output was stopped or the session is stopping
+    Stopped,
+}
+
+/// Bounded queue settings for native camera pixel-buffer polling
+#[cfg(any(target_os = "ios", test))]
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct VideoFrameOutputConfiguration {
+    queue_capacity: u8,
+}
+
+#[cfg(any(target_os = "ios", test))]
+impl VideoFrameOutputConfiguration {
+    /// Create configuration with a retained-frame queue capacity from one to four
+    pub const fn new(queue_capacity: u8) -> Result<Self, VideoFrameOutputConfigurationError> {
+        if queue_capacity == 0 {
+            return Err(VideoFrameOutputConfigurationError::EmptyQueue);
+        }
+        if queue_capacity > MAX_VIDEO_FRAME_QUEUE_CAPACITY {
+            return Err(VideoFrameOutputConfigurationError::QueueTooLarge);
+        }
+        Ok(Self { queue_capacity })
+    }
+
+    /// Return the maximum number of queued native pixel buffers
+    pub const fn queue_capacity(self) -> u8 {
+        self.queue_capacity
+    }
+}
+
+#[cfg(any(target_os = "ios", test))]
+impl Default for VideoFrameOutputConfiguration {
+    fn default() -> Self {
+        Self {
+            queue_capacity: DEFAULT_VIDEO_FRAME_QUEUE_CAPACITY,
+        }
+    }
+}
+
+#[cfg(any(target_os = "ios", test))]
+struct BoundedVideoFrameQueue<T> {
+    frames: VecDeque<T>,
+    capacity: usize,
+    active: bool,
+    dropped: Arc<AtomicU64>,
+    status: VideoFrameOutputStatus,
+}
+
+#[cfg(any(target_os = "ios", test))]
+impl<T> Default for BoundedVideoFrameQueue<T> {
+    fn default() -> Self {
+        Self::new(Arc::new(AtomicU64::new(0)))
+    }
+}
+
+#[cfg(any(target_os = "ios", test))]
+impl<T> BoundedVideoFrameQueue<T> {
+    fn new(dropped: Arc<AtomicU64>) -> Self {
+        Self {
+            frames: VecDeque::with_capacity(usize::from(MAX_VIDEO_FRAME_QUEUE_CAPACITY)),
+            capacity: 0,
+            active: false,
+            dropped,
+            status: VideoFrameOutputStatus::NotStarted,
+        }
+    }
+}
+
+#[cfg(any(target_os = "ios", test))]
+impl<T> BoundedVideoFrameQueue<T> {
+    fn activate(&mut self, capacity: usize) {
+        if self.frames.capacity() < usize::from(MAX_VIDEO_FRAME_QUEUE_CAPACITY) {
+            self.frames = VecDeque::with_capacity(usize::from(MAX_VIDEO_FRAME_QUEUE_CAPACITY));
+        }
+        self.frames.clear();
+        self.capacity = capacity;
+        self.active = true;
+        self.dropped.store(0, Ordering::Relaxed);
+        self.status = VideoFrameOutputStatus::Starting;
+    }
+
+    fn mark_active(&mut self) {
+        if self.status == VideoFrameOutputStatus::Starting {
+            self.status = VideoFrameOutputStatus::Active;
+        }
+    }
+
+    fn fail(&mut self, error: VideoFrameStreamError) -> VecDeque<T> {
+        let frames = self.close_frames();
+        self.status = VideoFrameOutputStatus::Failed(error);
+        frames
+    }
+
+    fn push_latest(&mut self, frame: T) -> Result<Option<T>, T> {
+        if !self.active {
+            Self::record_drop(&self.dropped, 1);
+            return Err(frame);
+        }
+        let evicted = if self.frames.len() == self.capacity {
+            Self::record_drop(&self.dropped, 1);
+            self.frames.pop_front()
+        } else {
+            None
+        };
+        self.frames.push_back(frame);
+        Ok(evicted)
+    }
+
+    fn pop(&mut self) -> Option<T> {
+        self.frames.pop_front()
+    }
+
+    fn close(&mut self) -> VecDeque<T> {
+        let frames = self.close_frames();
+        self.status = VideoFrameOutputStatus::Stopped;
+        frames
+    }
+
+    fn close_frames(&mut self) -> VecDeque<T> {
+        Self::record_drop(
+            &self.dropped,
+            u64::try_from(self.frames.len()).unwrap_or(u64::MAX),
+        );
+        let frames = std::mem::take(&mut self.frames);
+        self.active = false;
+        frames
+    }
+
+    fn record_drop(dropped: &AtomicU64, count: u64) {
+        let _ = dropped.fetch_update(Ordering::Relaxed, Ordering::Relaxed, |current| {
+            Some(current.saturating_add(count))
+        });
+    }
 }
 
 #[cfg(target_os = "ios")]
@@ -2555,6 +2728,12 @@ fn camera_position_for_device(device: &AVCaptureDevice) -> Option<IosCameraPosit
 /// drops late frames. Stop is nonblocking, an active callback may finish after the request, and a
 /// stopped stream cannot restart on the same session.
 ///
+/// Native pixel-buffer output is a separate opt-in mode. It retains at most the configured one to
+/// four `CVPixelBuffer` references in a drop-oldest queue, never copies pixel bytes, and exposes
+/// frames through nonblocking polling. The default queue capacity is two. Callers should drop
+/// polled frames promptly; a caller-held frame is outside the queue bound and keeps its native
+/// buffer alive. Session stop/drop clears queued frames and rejects late delivery.
+///
 /// Compilation and linking validate the native API boundary only; they do not prove camera access
 /// or preview behavior on a simulator or physical device.
 #[cfg(target_os = "ios")]
@@ -2563,10 +2742,81 @@ pub struct IosCameraCaptureSession {
     queue: dispatch2::DispatchRetained<DispatchQueue>,
     queue_key: Arc<AtomicBool>,
     video_callback_active: Arc<AtomicBool>,
+    video_frames: Arc<Mutex<BoundedVideoFrameQueue<IosCameraVideoFrame>>>,
+    video_frame_dropped_count: Arc<AtomicU64>,
     session_events: Option<Arc<Mutex<CameraSessionEventQueue>>>,
     observers: Option<CameraSessionObservers>,
     preview_layer: Retained<AVCaptureVideoPreviewLayer>,
     _main_thread_only: PhantomData<Rc<()>>,
+}
+
+#[cfg(target_os = "ios")]
+struct SendPixelBuffer {
+    retained: CFRetained<CVPixelBuffer>,
+    _not_sync: PhantomData<std::cell::Cell<()>>,
+}
+
+#[cfg(target_os = "ios")]
+// SAFETY: The queue transfers one retained CVPixelBuffer reference between its serial producer
+// and poll caller. It never reads or mutates pixel memory during transfer. CPU access remains the
+// caller's responsibility and must use CoreVideo's matching lock/unlock API. This wrapper is not
+// Sync, so the native buffer cannot be shared across threads through this frame type.
+unsafe impl Send for SendPixelBuffer {}
+
+/// One retained, native camera pixel buffer with its capture presentation timestamp
+#[cfg(target_os = "ios")]
+pub struct IosCameraVideoFrame {
+    pixel_buffer: SendPixelBuffer,
+    presentation_time_stamp: CMTime,
+}
+
+#[cfg(target_os = "ios")]
+impl IosCameraVideoFrame {
+    /// Borrow the native pixel buffer for this frame
+    ///
+    /// This is the AVFoundation/CoreVideo buffer itself; no pixel bytes are copied. The borrow
+    /// lasts only while this frame is held. CPU access must follow CoreVideo lock/unlock rules.
+    pub fn pixel_buffer(&self) -> &CVPixelBuffer {
+        &self.pixel_buffer.retained
+    }
+
+    /// Return the capture presentation timestamp as Core Media time
+    pub const fn presentation_time_stamp(&self) -> CMTime {
+        self.presentation_time_stamp
+    }
+
+    /// Return the native pixel-buffer width in pixels
+    pub fn width(&self) -> usize {
+        CVPixelBufferGetWidth(self.pixel_buffer())
+    }
+
+    /// Return the native pixel-buffer height in pixels
+    pub fn height(&self) -> usize {
+        CVPixelBufferGetHeight(self.pixel_buffer())
+    }
+
+    /// Return the native Core Video pixel-format code
+    pub fn pixel_format(&self) -> u32 {
+        CVPixelBufferGetPixelFormatType(self.pixel_buffer())
+    }
+}
+
+#[cfg(target_os = "ios")]
+fn video_frame_from_sample(sample: &CMSampleBuffer) -> Option<IosCameraVideoFrame> {
+    // SAFETY: AVCaptureVideoDataOutput's video sample buffer contains a CVImageBuffer. The
+    // generated binding retains the returned CoreVideo object; its public type aliases
+    // CVImageBuffer to CVPixelBuffer for this video output.
+    let pixel_buffer = unsafe { sample.image_buffer() }?;
+    // SAFETY: The sample is valid for this delegate invocation and presentationTimeStamp is a
+    // read-only CMSampleBuffer query.
+    let presentation_time_stamp = unsafe { sample.presentation_time_stamp() };
+    Some(IosCameraVideoFrame {
+        pixel_buffer: SendPixelBuffer {
+            retained: pixel_buffer,
+            _not_sync: PhantomData,
+        },
+        presentation_time_stamp,
+    })
 }
 
 #[cfg(target_os = "ios")]
@@ -2765,6 +3015,10 @@ impl IosCameraCaptureSession {
             drop(queue_key_for_destruction);
         });
         let video_callback_active = Arc::new(AtomicBool::new(false));
+        let video_frame_dropped_count = Arc::new(AtomicU64::new(0));
+        let video_frames = Arc::new(Mutex::new(BoundedVideoFrameQueue::new(Arc::clone(
+            &video_frame_dropped_count,
+        ))));
         let graph = Arc::new(Mutex::new(CaptureGraph {
             session,
             device: None,
@@ -2810,6 +3064,8 @@ impl IosCameraCaptureSession {
             queue,
             queue_key,
             video_callback_active,
+            video_frames,
+            video_frame_dropped_count,
             session_events: None,
             observers: None,
             preview_layer,
@@ -3419,6 +3675,8 @@ impl IosCameraCaptureSession {
     ///
     /// The method returns before AVFoundation completes shutdown.
     pub fn stop(&self) {
+        self.video_callback_active.store(false, Ordering::Release);
+        enqueue_close_video_frame_queue(&self.queue, &self.video_frames);
         enqueue_stop(&self.queue, &self.graph);
     }
 
@@ -3637,6 +3895,125 @@ impl IosCameraCaptureSession {
             .expect("session queue returns a video stream start result")
     }
 
+    /// Queue bounded native pixel-buffer output setup without waiting for AVFoundation
+    ///
+    /// Call [`Self::start`] first. This uses the public AVFoundation video-data output and a
+    /// serial delegate queue. This method returns immediately; inspect
+    /// [`Self::video_frame_output_status`] for the queued
+    /// setup result. Status stays `NotStarted` until the setup task begins on the private session
+    /// queue; output setup then delivers through a serial delegate queue. It retains native
+    /// `CVPixelBuffer` references without copying pixel bytes.
+    /// When the configured queue fills, the oldest queued frame is dropped so polling favors fresh
+    /// frames. Queue capacity is one to four frames, with a default of two. Poll frames with
+    /// [`Self::try_next_video_frame`]; `None` means no frame is ready or the brief producer lock is
+    /// busy. Polling never waits. Drop returned frames promptly because caller-held frames are
+    /// outside the internal queue bound and keep their native buffers alive. Session stop, stream
+    /// stop, and session drop clear pending frames and reject late delivery. Only one video stream
+    /// mode can start on a session. Active status means AVFoundation accepted the delegate, not
+    /// that hardware delivered a frame; device and Simulator runtime behavior remains unverified.
+    pub fn start_video_frame_output(&self, configuration: VideoFrameOutputConfiguration) {
+        let graph = Arc::clone(&self.graph);
+        let active = Arc::clone(&self.video_callback_active);
+        let frames = Arc::clone(&self.video_frames);
+        let queue = self.queue.clone();
+        let dropped = Arc::clone(&self.video_frame_dropped_count);
+        self.queue.exec_async(move || {
+            let can_start = {
+                let mut frames = frames
+                    .lock()
+                    .unwrap_or_else(std::sync::PoisonError::into_inner);
+                if matches!(
+                    frames.status,
+                    VideoFrameOutputStatus::Starting
+                        | VideoFrameOutputStatus::Active
+                        | VideoFrameOutputStatus::Stopped
+                ) {
+                    false
+                } else {
+                    frames.activate(usize::from(configuration.queue_capacity));
+                    true
+                }
+            };
+            if !can_start {
+                return;
+            }
+            let frames_for_callback = Arc::clone(&frames);
+            let dropped_for_callback = Arc::clone(&dropped);
+            let mut callback = Some(Box::new(move |sample: &CMSampleBuffer| {
+                let Some(frame) = video_frame_from_sample(sample) else {
+                    return;
+                };
+                let outcome = match frames_for_callback.try_lock() {
+                    Ok(mut frames) => frames.push_latest(frame),
+                    Err(std::sync::TryLockError::Poisoned(error)) => {
+                        error.into_inner().push_latest(frame)
+                    }
+                    Err(std::sync::TryLockError::WouldBlock) => {
+                        BoundedVideoFrameQueue::<IosCameraVideoFrame>::record_drop(
+                            &dropped_for_callback,
+                            1,
+                        );
+                        Err(frame)
+                    }
+                };
+                drop(outcome);
+            }) as VideoFrameCallback);
+            let result = start_video_frame_stream_on_queue(&queue, &graph, &active, &mut callback);
+            drop_video_frame_callback_safely(callback.take());
+            let mut frames = frames
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner);
+            match result {
+                Ok(()) => frames.mark_active(),
+                Err(error) => {
+                    let pending = frames.fail(error);
+                    drop(frames);
+                    drop(pending);
+                }
+            }
+        });
+    }
+
+    /// Return the asynchronous native pixel-buffer output state without waiting
+    ///
+    /// If the short producer lock is busy, this method conservatively returns `Starting`.
+    pub fn video_frame_output_status(&self) -> VideoFrameOutputStatus {
+        match self.video_frames.try_lock() {
+            Ok(frames) => frames.status,
+            Err(std::sync::TryLockError::Poisoned(error)) => error.into_inner().status,
+            Err(std::sync::TryLockError::WouldBlock) => VideoFrameOutputStatus::Starting,
+        }
+    }
+
+    /// Poll one retained native video frame without waiting for the producer queue
+    ///
+    /// A returned frame owns one retained CoreVideo pixel buffer and its Core Media presentation
+    /// timestamp. The pixel data remains native and unmodified. CPU readers must use CoreVideo's
+    /// lock/unlock API; GPU or image-processing APIs can consume the native pixel buffer directly.
+    /// The frame is caller-owned and should be dropped promptly to release its capture-pool buffer.
+    pub fn try_next_video_frame(&self) -> Option<IosCameraVideoFrame> {
+        match self.video_frames.try_lock() {
+            Ok(mut frames) => frames.pop(),
+            Err(std::sync::TryLockError::Poisoned(error)) => error.into_inner().pop(),
+            Err(std::sync::TryLockError::WouldBlock) => None,
+        }
+    }
+
+    /// Return the saturating count of overflow, producer contention, stop-clear, and rejected
+    /// enqueue drops
+    pub fn dropped_video_frame_count(&self) -> u64 {
+        self.video_frame_dropped_count.load(Ordering::Relaxed)
+    }
+
+    /// Request nonblocking stop and clear any queued native pixel buffers
+    ///
+    /// A frame already returned by [`Self::try_next_video_frame`] remains caller-owned. Pending
+    /// queue frames are released, later delegate delivery is rejected, and the stream is terminal
+    /// for this session. Calling this before start also closes the stream to a future start.
+    pub fn stop_video_frame_output(&self) {
+        self.stop_video_frame_stream();
+    }
+
     /// Request nonblocking, terminal shutdown of the video sample callback stream
     ///
     /// This method returns before AVFoundation detaches the delegate. A callback already claimed may
@@ -3645,6 +4022,7 @@ impl IosCameraCaptureSession {
     /// restart on this session. Calling stop before start also closes the stream to future starts.
     pub fn stop_video_frame_stream(&self) {
         self.video_callback_active.store(false, Ordering::Release);
+        enqueue_close_video_frame_queue(&self.queue, &self.video_frames);
         enqueue_video_frame_stream_stop(&self.queue, &self.graph);
     }
 
@@ -3794,6 +4172,8 @@ impl IosCameraCaptureSession {
 #[cfg(target_os = "ios")]
 impl Drop for IosCameraCaptureSession {
     fn drop(&mut self) {
+        self.video_callback_active.store(false, Ordering::Release);
+        enqueue_close_video_frame_queue(&self.queue, &self.video_frames);
         if let Some(events) = self.session_events.as_ref() {
             events
                 .lock()
@@ -3889,6 +4269,21 @@ fn start_video_frame_stream_on_queue(
         output.setSampleBufferDelegate_queue(Some(protocol_delegate), Some(&callback_queue));
     }
     Ok(())
+}
+
+#[cfg(target_os = "ios")]
+fn enqueue_close_video_frame_queue(
+    queue: &dispatch2::DispatchRetained<DispatchQueue>,
+    frames: &Arc<Mutex<BoundedVideoFrameQueue<IosCameraVideoFrame>>>,
+) {
+    let frames = Arc::clone(frames);
+    queue.exec_async(move || {
+        let pending = frames
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .close();
+        drop(pending);
+    });
 }
 
 #[cfg(target_os = "ios")]
@@ -4414,23 +4809,26 @@ fn invoke_video_completion(completion: VideoRecordingCompletion, result: VideoRe
 #[cfg(test)]
 mod tests {
     use super::{
-        CAMERA_SESSION_EVENT_CAPACITY, CameraCaptureError, CameraDeviceSelectionError,
-        CameraInputReplacementError, CameraPositionSwitchError, CameraSessionEventQueue,
-        CameraSessionNotification, ExposureControlError, FocusControlError,
-        IosCameraCaptureSessionEvent, IosCameraDeviceSelection, IosCameraDeviceType,
-        IosCameraExposureMode, IosCameraFlashMode, IosCameraFocusMode, IosCameraPhotoQuality,
-        IosCameraPosition, IosCameraSessionInterruptionReason, IosCameraSessionPreset,
-        IosCameraVideoOrientation, IosCameraWhiteBalanceMode, MediaAuthorizationStatus, MediaTime,
-        MovieOrientationError, MovieRecordingState, NormalizedFocusPoint, PhotoCaptureError,
-        PhotoCaptureResult, PhotoQualityPrioritizationError, PreviewOrientationError,
-        SessionPresetError, TorchControlError, VideoFrameStreamError, VideoFrameStreamState,
-        VideoRecordingError, VideoRecordingResult, WhiteBalanceControlError, ZoomControlError,
-        camera_device_selection_matches, camera_device_selection_switch_required,
-        camera_position_switch_required, camera_runtime_error, configure_custom_exposure,
-        configure_exposure, configure_exposure_target_bias, configure_focus,
-        configure_movie_orientation, configure_photo_quality_limit, configure_preview_orientation,
-        configure_session_preset, configure_torch_enabled, configure_video_zoom_factor,
-        configure_white_balance_mode, custom_exposure_duration_from_parts, custom_exposure_range,
+        BoundedVideoFrameQueue, CAMERA_SESSION_EVENT_CAPACITY, CameraCaptureError,
+        CameraDeviceSelectionError, CameraInputReplacementError, CameraPositionSwitchError,
+        CameraSessionEventQueue, CameraSessionNotification, DEFAULT_VIDEO_FRAME_QUEUE_CAPACITY,
+        ExposureControlError, FocusControlError, IosCameraCaptureSessionEvent,
+        IosCameraDeviceSelection, IosCameraDeviceType, IosCameraExposureMode, IosCameraFlashMode,
+        IosCameraFocusMode, IosCameraPhotoQuality, IosCameraPosition,
+        IosCameraSessionInterruptionReason, IosCameraSessionPreset, IosCameraVideoOrientation,
+        IosCameraWhiteBalanceMode, MAX_VIDEO_FRAME_QUEUE_CAPACITY, MediaAuthorizationStatus,
+        MediaTime, MovieOrientationError, MovieRecordingState, NormalizedFocusPoint,
+        PhotoCaptureError, PhotoCaptureResult, PhotoQualityPrioritizationError,
+        PreviewOrientationError, SessionPresetError, TorchControlError,
+        VideoFrameOutputConfiguration, VideoFrameOutputConfigurationError, VideoFrameOutputStatus,
+        VideoFrameStreamError, VideoFrameStreamState, VideoRecordingError, VideoRecordingResult,
+        WhiteBalanceControlError, ZoomControlError, camera_device_selection_matches,
+        camera_device_selection_switch_required, camera_position_switch_required,
+        camera_runtime_error, configure_custom_exposure, configure_exposure,
+        configure_exposure_target_bias, configure_focus, configure_movie_orientation,
+        configure_photo_quality_limit, configure_preview_orientation, configure_session_preset,
+        configure_torch_enabled, configure_video_zoom_factor, configure_white_balance_mode,
+        custom_exposure_duration_from_parts, custom_exposure_range,
         drop_video_frame_callback_safely, exposure_target_bias_range,
         finish_camera_input_replacement, invoke_video_frame_callback, map_camera_session_event,
         map_camera_video_orientation, map_interruption_reason, map_ios_camera_session_preset,
@@ -6582,6 +6980,82 @@ mod tests {
             unstarted.begin(),
             Err(VideoFrameStreamError::AlreadyStopped)
         );
+    }
+
+    #[test]
+    fn video_frame_output_configuration_rejects_zero_and_over_bound_capacity() {
+        assert_eq!(
+            VideoFrameOutputConfiguration::default().queue_capacity(),
+            DEFAULT_VIDEO_FRAME_QUEUE_CAPACITY
+        );
+        assert_eq!(
+            VideoFrameOutputConfiguration::new(0),
+            Err(VideoFrameOutputConfigurationError::EmptyQueue)
+        );
+        assert_eq!(
+            VideoFrameOutputConfiguration::new(MAX_VIDEO_FRAME_QUEUE_CAPACITY + 1),
+            Err(VideoFrameOutputConfigurationError::QueueTooLarge)
+        );
+        assert_eq!(
+            VideoFrameOutputConfiguration::new(MAX_VIDEO_FRAME_QUEUE_CAPACITY)
+                .unwrap()
+                .queue_capacity(),
+            MAX_VIDEO_FRAME_QUEUE_CAPACITY
+        );
+        assert_eq!(
+            VideoFrameOutputConfiguration::new(1)
+                .unwrap()
+                .queue_capacity(),
+            1
+        );
+    }
+
+    #[test]
+    fn video_frame_output_overflow_drops_oldest_and_keeps_latest() {
+        let mut queue = BoundedVideoFrameQueue::default();
+        queue.activate(2);
+        assert_eq!(queue.status, VideoFrameOutputStatus::Starting);
+        queue.mark_active();
+        assert_eq!(queue.status, VideoFrameOutputStatus::Active);
+        assert_eq!(queue.push_latest(10_u8), Ok(None));
+        assert_eq!(queue.push_latest(20_u8), Ok(None));
+        assert_eq!(queue.push_latest(30_u8), Ok(Some(10)));
+        assert_eq!(queue.dropped.load(Ordering::Relaxed), 1);
+        assert_eq!(queue.pop(), Some(20));
+        assert_eq!(queue.pop(), Some(30));
+        assert_eq!(queue.pop(), None);
+    }
+
+    #[test]
+    fn video_frame_output_stop_clears_pending_frames_and_rejects_late_delivery() {
+        let mut queue = BoundedVideoFrameQueue::default();
+        queue.activate(2);
+        assert_eq!(queue.push_latest(10_u8), Ok(None));
+        assert_eq!(queue.push_latest(20_u8), Ok(None));
+        let pending = queue.close();
+        assert_eq!(queue.status, VideoFrameOutputStatus::Stopped);
+        assert_eq!(queue.pop(), None);
+        assert_eq!(queue.push_latest(30_u8), Err(30));
+        assert_eq!(queue.dropped.load(Ordering::Relaxed), 3);
+        assert!(!queue.active);
+        assert_eq!(pending.into_iter().collect::<Vec<_>>(), [10, 20]);
+    }
+
+    #[test]
+    fn video_frame_output_setup_failure_is_terminal_until_a_retry_request() {
+        let mut queue = BoundedVideoFrameQueue::default();
+        queue.activate(1);
+        let pending = queue.fail(VideoFrameStreamError::OutputRejected);
+        drop(pending);
+        assert_eq!(
+            queue.status,
+            VideoFrameOutputStatus::Failed(VideoFrameStreamError::OutputRejected)
+        );
+        assert!(!queue.active);
+        assert_eq!(queue.push_latest(1_u8), Err(1));
+        queue.activate(1);
+        assert_eq!(queue.status, VideoFrameOutputStatus::Starting);
+        assert_eq!(queue.dropped.load(Ordering::Relaxed), 0);
     }
 
     #[test]

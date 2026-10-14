@@ -116,6 +116,26 @@ fn main() {
         let _ = std::hint::black_box(sample);
     });
     session.stop_video_frame_stream();
+    let Some(main_thread) = objc2::MainThreadMarker::new() else {
+        return;
+    };
+    if let Ok(frame_session) = ios_camera_capture_session::IosCameraCaptureSession::new(main_thread)
+    {
+        frame_session.start();
+        std::hint::black_box(frame_session.start_video_frame_output(
+            ios_camera_capture_session::VideoFrameOutputConfiguration::default(),
+        ));
+        std::hint::black_box(frame_session.video_frame_output_status());
+        if let Some(frame) = frame_session.try_next_video_frame() {
+            std::hint::black_box(frame.pixel_buffer());
+            std::hint::black_box(frame.presentation_time_stamp());
+            std::hint::black_box(frame.width());
+            std::hint::black_box(frame.height());
+            std::hint::black_box(frame.pixel_format());
+        }
+        std::hint::black_box(frame_session.dropped_video_frame_count());
+        frame_session.stop_video_frame_output();
+    }
     session.stop();
     let Some(main_thread) = objc2::MainThreadMarker::new() else {
         return;

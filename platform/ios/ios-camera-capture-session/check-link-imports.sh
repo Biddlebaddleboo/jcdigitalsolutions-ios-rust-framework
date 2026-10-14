@@ -19,15 +19,16 @@ fi
 
 if ! awk '
     /impl Drop for IosCameraCaptureSession/ { in_drop = 1 }
-    in_drop && /\.close\(\);/ { close_line = NR }
+    in_drop && /enqueue_close_video_frame_queue\(&self\.queue, &self\.video_frames\);/ { frame_close_line = NR }
+    in_drop && /\.close\(\);/ { event_close_line = NR }
     in_drop && /observers\.remove_all\(\);/ { remove_line = NR }
     in_drop && /enqueue_stop\(&self\.queue, &self\.graph\);/ { stop_line = NR; exit }
     END {
-        if (close_line && remove_line && stop_line && close_line < remove_line && remove_line < stop_line) exit 0
+        if (frame_close_line && event_close_line && remove_line && stop_line && frame_close_line < remove_line && event_close_line < remove_line && remove_line < stop_line) exit 0
         exit 1
     }
 ' platform/ios/ios-camera-capture-session/src/lib.rs; then
-    printf 'camera-session Drop must close event admission and remove observers before scheduling stop\n' >&2
+    printf 'camera-session Drop must queue frame cleanup, close event admission, and remove observers before scheduling stop\n' >&2
     exit 1
 fi
 
@@ -57,7 +58,7 @@ for target in aarch64-apple-ios aarch64-apple-ios-sim; do
     probe="target/$target/release/examples/camera_capture_link_probe"
     imports=$(otool -L "$probe")
     actual_libraries=$(printf '%s\n' "$imports" | awk 'NR > 1 { path = $1; sub(/^.*\//, "", path); print path }' | LC_ALL=C sort)
-    expected_libraries=$(printf '%s\n' AVFoundation CoreFoundation CoreMedia Foundation QuartzCore libSystem.B.dylib libobjc.A.dylib | LC_ALL=C sort)
+    expected_libraries=$(printf '%s\n' AVFoundation CoreFoundation CoreMedia CoreVideo Foundation QuartzCore libSystem.B.dylib libobjc.A.dylib | LC_ALL=C sort)
     if [ "$actual_libraries" != "$expected_libraries" ]; then
         printf '%s probe imports unexpected libraries:\n%s\n' "$target" "$actual_libraries" >&2
         exit 1
@@ -72,6 +73,18 @@ for target in aarch64-apple-ios aarch64-apple-ios-sim; do
         printf '%s probe does not import public dispatch_get_specific queue identity\n' "$target" >&2
         exit 1
     }
+    for symbol in \
+        _CMSampleBufferGetImageBuffer \
+        _CMSampleBufferGetPresentationTimeStamp \
+        _CVPixelBufferGetHeight \
+        _CVPixelBufferGetPixelFormatType \
+        _CVPixelBufferGetWidth
+    do
+        printf '%s\n' "$symbols" | grep -F "$symbol" >/dev/null || {
+            printf '%s probe does not import the native video-frame function %s\n' "$target" "$symbol" >&2
+            exit 1
+        }
+    done
     for preset in \
         AVCaptureSessionPresetPhoto \
         AVCaptureSessionPresetHigh \
@@ -218,6 +231,6 @@ for target in aarch64-apple-ios aarch64-apple-ios-sim; do
             "$target" "$actual_minimum" "$minimum" >&2
         exit 1
     fi
-    printf '%s AVFoundation/CoreMedia/QuartzCore/Objective-C imports and iOS %s deployment minimum verified; link probe not executed\n' \
+    printf '%s AVFoundation/CoreMedia/CoreVideo/QuartzCore/Objective-C imports and iOS %s deployment minimum verified; link probe not executed\n' \
         "$target" "$minimum"
 done
