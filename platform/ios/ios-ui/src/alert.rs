@@ -97,13 +97,13 @@ struct PopoverAnchor {
 
 /// A main-thread-bound native alert/action-sheet session.
 ///
-/// The caller supplies and owns the presenter. Its borrow prevents the scene host from being
-/// safely destroyed while the session exists. The session is neither Send nor Sync. Keep it alive
-/// while the alert should remain interactive; dropping it detaches the callback, unregisters its
-/// delegates, and dismisses an active presentation. All public UIKit operations run on the main
-/// thread and do not block.
-pub struct IosAlertSession<'ctx> {
-    presenter: &'ctx UIViewController,
+/// The session strongly retains its presenter so a scene callback owner can retain the session
+/// without borrowing the scene host. The session is neither Send nor Sync. Keep it alive while the
+/// alert should remain interactive; dropping it detaches the callback, unregisters its delegates,
+/// and dismisses an active presentation. All public UIKit operations run on the main thread and do
+/// not block.
+pub struct IosAlertSession {
+    presenter: Retained<UIViewController>,
     alert: Retained<UIAlertController>,
     style: IosAlertStyle,
     action_count: u32,
@@ -117,6 +117,9 @@ pub struct IosAlertSession<'ctx> {
     presented: bool,
     _not_send: PhantomData<Rc<()>>,
 }
+
+fn assert_alert_session_is_static<T: 'static>() {}
+const _: fn() = assert_alert_session_is_static::<IosAlertSession>;
 
 struct TextFieldLimitState {
     maximum_utf16_units: u16,
@@ -224,15 +227,15 @@ impl AlertPresentationDelegate {
     }
 }
 
-impl<'ctx> IosAlertSession<'ctx> {
-    /// Creates an alert for a borrowed, caller-owned UIKit presenter.
+impl IosAlertSession {
+    /// Creates an alert for a UIKit presenter that the session retains.
     ///
     /// The main-thread proof is consumed to construct UIKit objects. Title and message strings
     /// are copied into NSString values after a 4096-byte bound check. The presenter must belong
     /// to the scene that should display the alert.
     pub fn new(
         main_thread: MainThread,
-        presenter: &'ctx UIViewController,
+        presenter: &UIViewController,
         style: IosAlertStyle,
         title: Option<&str>,
         message: Option<&str>,
@@ -256,7 +259,7 @@ impl<'ctx> IosAlertSession<'ctx> {
         let completion = AlertCompletion::default();
         let presentation_delegate = AlertPresentationDelegate::new(marker, completion.clone());
         Ok(Self {
-            presenter,
+            presenter: presenter.retain(),
             alert,
             style,
             action_count: 0,
@@ -555,12 +558,11 @@ impl<'ctx> IosAlertSession<'ctx> {
     }
 }
 
-impl Drop for IosAlertSession<'_> {
+impl Drop for IosAlertSession {
     fn drop(&mut self) {
-        let had_callback = self.completion.detach();
+        self.completion.detach();
         self.clear_delegates();
-        if had_callback
-            && self.presented
+        if self.presented
             && MainThreadMarker::new().is_some()
             && self.alert.presentingViewController().is_some()
         {

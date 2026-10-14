@@ -172,6 +172,34 @@ mod tests {
     }
 
     #[test]
+    fn scene_drop_detach_releases_callback_owner_without_invoking_it() {
+        let completion = AlertCompletion::default();
+        let owner_dropped = Rc::new(Cell::new(false));
+        let callback_called = Rc::new(Cell::new(false));
+        struct CallbackOwner(Rc<Cell<bool>>);
+        impl Drop for CallbackOwner {
+            fn drop(&mut self) {
+                self.0.set(true);
+            }
+        }
+        let owner = CallbackOwner(Rc::clone(&owner_dropped));
+        let callback_called_in_callback = Rc::clone(&callback_called);
+        assert!(
+            completion
+                .install(move |_| {
+                    callback_called_in_callback.set(true);
+                    drop(owner);
+                })
+                .is_ok()
+        );
+
+        assert!(completion.detach());
+        assert!(owner_dropped.get());
+        assert!(!callback_called.get());
+        assert!(!completion.complete(IosAlertResult::Cancelled));
+    }
+
+    #[test]
     fn callback_panic_is_contained_and_state_is_already_detached() {
         let completion = AlertCompletion::default();
         assert!(
