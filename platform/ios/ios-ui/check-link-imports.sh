@@ -209,3 +209,4 @@ if find platform/ios/ios-ui -type f -name '*.swift' -print -quit | grep -q .; th
 fi
 
 sh platform/ios/ios-ui/check-alert-link-imports.sh
+sh platform/ios/ios-ui/check-custom-render-session-link-imports.sh

@@ -23,6 +23,10 @@ mod custom_render_host;
 #[cfg(all(target_os = "ios", feature = "custom-render-metal"))]
 mod custom_render_metal;
 #[cfg(target_os = "ios")]
+mod custom_render_session;
+#[cfg(any(test, target_os = "ios"))]
+mod custom_render_session_policy;
+#[cfg(target_os = "ios")]
 mod custom_render_text_input;
 #[cfg(any(test, target_os = "ios"))]
 mod custom_render_text_policy;
@@ -102,6 +106,8 @@ pub use custom_render_host::{
 pub use custom_render_metal::{
     Bgra8Frame, Bgra8FrameError, CustomMetalHostError, IosCustomMetalHost,
 };
+#[cfg(target_os = "ios")]
+pub use custom_render_session::{IosCustomRenderSession, IosCustomRenderSessionError};
 #[cfg(target_os = "ios")]
 pub use custom_render_text_input::{
     IosCustomTextInput, IosCustomTextInputSnapshot, IosKeyboardFrame, IosTextCapitalization,
